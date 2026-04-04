@@ -28,10 +28,10 @@ argument-hint:
 ## Alternative: use the CLI
 
 ```bash
-make ticket-ready
+tickets/tools/go/erg ready tickets/
 ```
 
-Or with JSON output:
+With JSON output:
 ```bash
-PYTHONPATH=tickets/tools python3 tickets/tools/ready_tickets.py --json
+tickets/tools/go/erg ready tickets/ --json
 ```
