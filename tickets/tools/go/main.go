@@ -7,6 +7,7 @@
 //	erg ready    [dir] [--json]
 //	erg archive  [dir] [--days N] [--execute]
 //	erg graph    [dir] [--json]
+//	erg next-id  [dir]
 package main
 
 import (
@@ -980,6 +981,42 @@ func cmdGraph(args []string) int {
 }
 
 // ---------------------------------------------------------------------------
+// Next-ID — print the next available ticket ID
+// ---------------------------------------------------------------------------
+
+func cmdNextID(args []string) int {
+	ticketDir := "tickets"
+	if len(args) > 0 {
+		ticketDir = args[0]
+	}
+
+	maxID := 0
+
+	// Scan both tickets/ and tickets/archive/
+	for _, dir := range []string{ticketDir, filepath.Join(ticketDir, "archive")} {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".erg") {
+				continue
+			}
+			stem := strings.TrimSuffix(e.Name(), ".erg")
+			if idx := strings.Index(stem, "-"); idx > 0 {
+				stem = stem[:idx]
+			}
+			if n, err := strconv.Atoi(stem); err == nil && n > maxID {
+				maxID = n
+			}
+		}
+	}
+
+	fmt.Printf("%04d\n", maxID+1)
+	return 0
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -1013,6 +1050,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "  ready [dir] [--json]      Show tickets ready for work")
 	fmt.Fprintln(os.Stderr, "  archive [dir] [--days N] [--execute]  Archive old closed tickets")
 	fmt.Fprintln(os.Stderr, "  graph [dir] [--json]      Show ticket dependency DAG")
+	fmt.Fprintln(os.Stderr, "  next-id [dir]             Print the next available ticket ID")
 }
 
 func main() {
@@ -1034,6 +1072,8 @@ func main() {
 		exitCode = cmdArchive(rest)
 	case "graph":
 		exitCode = cmdGraph(rest)
+	case "next-id":
+		exitCode = cmdNextID(rest)
 	case "-h", "--help", "help":
 		printUsage()
 		exitCode = 0
