@@ -1,0 +1,34 @@
+%erg v1
+Title: Fix ticket-ready skill references to nonexistent tools
+Status: open
+Created: 2026-04-04
+Author: claude
+
+--- log ---
+2026-04-04T00:00Z claude created
+
+--- body ---
+## Problem
+
+`claude/skills/ticket-ready/SKILL.md` references two tools that don't exist:
+
+```
+make ticket-ready
+PYTHONPATH=tickets/tools python3 tickets/tools/ready_tickets.py --json
+```
+
+There is no `ticket-ready` Makefile target and no Python script.
+
+## Fix
+
+Replace the "Alternative: use the CLI" section with:
+
+```bash
+tickets/tools/go/erg ready tickets/
+```
+
+And for JSON output:
+
+```bash
+tickets/tools/go/erg ready tickets/ --json
+```

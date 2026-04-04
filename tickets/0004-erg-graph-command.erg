@@ -1,0 +1,40 @@
+%erg v1
+Title: Add erg graph command to visualize ticket DAG
+Status: open
+Created: 2026-04-04
+Author: claude
+
+--- log ---
+2026-04-04T00:00Z claude created
+
+--- body ---
+## Motivation
+
+Reasoning about the dependency graph manually is tedious. An `erg graph`
+command that shows the DAG would be immediately useful for both humans
+and agents.
+
+## Proposed interface
+
+```
+erg graph tickets/
+```
+
+ASCII output showing the dependency tree with status:
+
+```
+0001 RunRecord schema [open, READY]
+  -> 0002 Migrate results [open, blocked]
+    -> 0003 Reporting refactor [open, blocked]
+0005 JobSpec format [open, READY]
+  -> 0006 Experiment manager [open, blocked]
+```
+
+Optional: `--json` for machine-readable output.
+
+## Implementation notes
+
+- The DAG is already built in `main.go` for cycle detection and archive
+  safety. Extend it to render a topological view.
+- Root nodes are tickets with no Blocked-by references.
+- Annotate each node with status and READY/blocked/claimed.
