@@ -36,7 +36,7 @@ install:
 ifndef DEST
 	$(error DEST is required. Usage: make install DEST=/path/to/project)
 endif
-	sh bin/install.sh $(DEST)
+	sh bin/install.sh "$(DEST)"
 
 clean:
 	rm -f $(ERG_BIN)

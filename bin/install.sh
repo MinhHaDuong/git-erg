@@ -13,11 +13,12 @@ usage() {
     exit 1
 }
 
-DEST="${1:?$(usage)}"
+DEST="$1"
+[ -z "$DEST" ] && usage
 
 # Validate destination
-if [ ! -d "$DEST/.git" ]; then
-    echo "ERROR: $DEST is not a git repository (.git/ not found)" >&2
+if [ ! -e "$DEST/.git" ]; then
+    echo "ERROR: $DEST is not a git repository (.git not found)" >&2
     exit 1
 fi
 
