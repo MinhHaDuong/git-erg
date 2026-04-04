@@ -1,11 +1,12 @@
 %erg v1
 Title: Add erg graph command to visualize ticket DAG
-Status: open
+Status: closed
 Created: 2026-04-04
 Author: claude
 
 --- log ---
 2026-04-04T00:00Z claude created
+2026-04-04T00:02Z claude status closed Implemented erg graph with ASCII tree and --json output
 
 --- body ---
 ## Motivation
