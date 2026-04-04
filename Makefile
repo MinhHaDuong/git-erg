@@ -6,8 +6,9 @@
 #   make validate   Validate tickets in tickets/
 #   make ready      List ready tickets
 #   make archive    Dry-run archive (pass EXECUTE=1 to commit)
+#   make install DEST=/path/to/project  Install into a project
 
-.PHONY: build test validate ready archive clean
+.PHONY: build test validate ready archive clean install
 
 ERG_BIN := tickets/tools/go/erg
 
@@ -30,6 +31,12 @@ DAYS ?= 90
 EXECUTE ?=
 archive: build
 	$(ERG_BIN) archive tickets/ --days=$(DAYS) $(if $(EXECUTE),--execute)
+
+install:
+ifndef DEST
+	$(error DEST is required. Usage: make install DEST=/path/to/project)
+endif
+	sh bin/install.sh "$(DEST)"
 
 clean:
 	rm -f $(ERG_BIN)
