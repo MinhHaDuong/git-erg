@@ -44,19 +44,31 @@ echo ""
 
 # --- Tool source ---
 mkdir -p "$DEST/tickets/tools/go"
-cp "$SRC/tickets/tools/go/main.go" "$DEST/tickets/tools/go/"
-cp "$SRC/tickets/tools/go/go.mod"  "$DEST/tickets/tools/go/"
-ok "tickets/tools/go/ (validator source)"
+if [ -f "$DEST/tickets/tools/go/main.go" ] && diff -q "$SRC/tickets/tools/go/main.go" "$DEST/tickets/tools/go/main.go" >/dev/null 2>&1; then
+    skip "tickets/tools/go/"
+else
+    cp "$SRC/tickets/tools/go/main.go" "$DEST/tickets/tools/go/"
+    cp "$SRC/tickets/tools/go/go.mod"  "$DEST/tickets/tools/go/"
+    ok "tickets/tools/go/ (validator source)"
+fi
 
 # --- Rules ---
 mkdir -p "$DEST/.claude/rules"
-cp "$SRC/rules/tickets.md" "$DEST/.claude/rules/"
-ok ".claude/rules/tickets.md (format spec)"
+if [ -f "$DEST/.claude/rules/tickets.md" ] && diff -q "$SRC/rules/tickets.md" "$DEST/.claude/rules/tickets.md" >/dev/null 2>&1; then
+    skip ".claude/rules/tickets.md"
+else
+    cp "$SRC/rules/tickets.md" "$DEST/.claude/rules/"
+    ok ".claude/rules/tickets.md (format spec)"
+fi
 
 # --- Skills ---
 mkdir -p "$DEST/.claude/skills"
-cp -r "$SRC/claude/skills/"* "$DEST/.claude/skills/"
-ok ".claude/skills/ (ticket-new, claim, close, release, ready)"
+if [ -d "$DEST/.claude/skills/ticket-new" ] && diff -rq "$SRC/claude/skills/" "$DEST/.claude/skills/" >/dev/null 2>&1; then
+    skip ".claude/skills/"
+else
+    cp -r "$SRC/claude/skills/"* "$DEST/.claude/skills/"
+    ok ".claude/skills/ (ticket-new, claim, close, release, ready)"
+fi
 
 # --- Settings (hooks) ---
 if [ -f "$DEST/.claude/settings.json" ] && grep -qF "erg validate" "$DEST/.claude/settings.json" 2>/dev/null; then

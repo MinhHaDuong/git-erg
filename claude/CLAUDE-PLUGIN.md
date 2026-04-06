@@ -18,6 +18,11 @@ You read and write `.erg` text files directly — no CLI needed.
 3. Do the work
 4. `/ticket-close 0042` when done
 
+## Notes
+
+- The validator lives in `tickets/tools/go/` with its own `go.mod` — this is isolated from any project-level Go modules.
+- Build it with `cd tickets/tools/go && go build -o erg .`
+
 ## Format spec
 
 @.claude/rules/tickets.md
