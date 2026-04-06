@@ -7,6 +7,19 @@ Agent-native local ticket system for git worktree coordination.
 - **Zero dependencies**: single Go binary, shell tests
 - **Agent-friendly by design**: the spec is the interface, the binary is the guardrail
 
+## Install into a project
+
+```bash
+make install DEST=/path/to/your/project
+```
+
+This builds the binary, copies source and rules into the target project,
+creates `tickets/` and `tickets/archive/`, appends the pre-commit hook
+(composing with any existing hook), adds the binary to `.gitignore`,
+and skips sample tickets so you start fresh at `0001`.
+
+You can also run the script directly: `./bin/install.sh /path/to/project`
+
 ## Quick start
 
 ```bash
@@ -40,7 +53,19 @@ erg ready tickets/
 
 See [rules/tickets.md](rules/tickets.md) for the complete `%erg v1` specification.
 
+## What to gitignore
+
+The compiled binary `tickets/tools/go/erg` should be gitignored — commit the
+source, not the binary. The install script handles this automatically. If
+installing manually, add this line to your `.gitignore`:
+
+```
+tickets/tools/go/erg
+```
+
 ## For Claude Code users
+
+The install script sets up skills and rules automatically. To do it manually:
 
 Copy `claude/` into your project's `.claude/` directory to get skills:
 `/ticket-new`, `/ticket-claim`, `/ticket-close`, `/ticket-release`, `/ticket-ready`
