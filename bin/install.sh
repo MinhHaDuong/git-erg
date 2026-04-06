@@ -5,6 +5,14 @@
 #   ./bin/install.sh /path/to/project
 #   make install DEST=/path/to/project
 #
+# Installs:
+#   .claude/CLAUDE.md         Project instructions with @import
+#   .claude/rules/tickets.md  Format spec (%erg v1)
+#   .claude/skills/           Slash commands (ticket-new, claim, close, release, ready)
+#   .claude/settings.json     PostToolUse validation hook
+#   tickets/                  Ticket directory + archive + validator source
+#   .git/hooks/pre-commit     Validation on commit
+#
 # Idempotent. Safe to re-run.
 
 set -e
@@ -23,7 +31,6 @@ skip() { printf "  \033[33m~\033[0m %s (already present)\n" "$1"; }
 DEST="$1"
 [ -z "$DEST" ] && usage
 
-# Validate destination
 if [ ! -e "$DEST/.git" ]; then
     echo "ERROR: $DEST is not a git repository (.git not found)" >&2
     exit 1
@@ -51,22 +58,31 @@ mkdir -p "$DEST/.claude/skills"
 cp -r "$SRC/claude/skills/"* "$DEST/.claude/skills/"
 ok ".claude/skills/ (ticket-new, claim, close, release, ready)"
 
-# --- CLAUDE.md ---
-PLUGIN_SECTION="$SRC/claude/CLAUDE-PLUGIN.md"
-if [ -f "$DEST/CLAUDE.md" ]; then
-    if grep -qF "$MARKER" "$DEST/CLAUDE.md"; then
-        skip "CLAUDE.md"
-    else
-        printf '\n%s begin\n' "$MARKER" >> "$DEST/CLAUDE.md"
-        cat "$PLUGIN_SECTION" >> "$DEST/CLAUDE.md"
-        printf '\n%s end\n' "$MARKER" >> "$DEST/CLAUDE.md"
-        ok "CLAUDE.md (appended ticket system section)"
-    fi
+# --- Settings (hooks) ---
+if [ -f "$DEST/.claude/settings.json" ] && grep -qF "git-erg" "$DEST/.claude/settings.json" 2>/dev/null; then
+    skip ".claude/settings.json"
 else
-    printf '%s begin\n' "$MARKER" > "$DEST/CLAUDE.md"
-    cat "$PLUGIN_SECTION" >> "$DEST/CLAUDE.md"
-    printf '\n%s end\n' "$MARKER" >> "$DEST/CLAUDE.md"
-    ok "CLAUDE.md (created with ticket system section)"
+    if [ -f "$DEST/.claude/settings.json" ]; then
+        # Don't overwrite existing settings — warn user
+        echo "  ! .claude/settings.json exists — merge manually from claude/settings.json"
+    else
+        cp "$SRC/claude/settings.json" "$DEST/.claude/settings.json"
+        ok ".claude/settings.json (validation hook)"
+    fi
+fi
+
+# --- CLAUDE.md (inside .claude/, not project root) ---
+CLAUDE_MD="$DEST/.claude/CLAUDE.md"
+if [ -f "$CLAUDE_MD" ] && grep -qF "$MARKER" "$CLAUDE_MD"; then
+    skip ".claude/CLAUDE.md"
+elif [ -f "$CLAUDE_MD" ]; then
+    printf '\n%s begin\n' "$MARKER" >> "$CLAUDE_MD"
+    cat "$SRC/claude/CLAUDE-PLUGIN.md" >> "$CLAUDE_MD"
+    printf '\n%s end\n' "$MARKER" >> "$CLAUDE_MD"
+    ok ".claude/CLAUDE.md (appended ticket system section)"
+else
+    { printf '%s begin\n' "$MARKER"; cat "$SRC/claude/CLAUDE-PLUGIN.md"; printf '\n%s end\n' "$MARKER"; } > "$CLAUDE_MD"
+    ok ".claude/CLAUDE.md (project instructions)"
 fi
 
 # --- Ticket directories ---
