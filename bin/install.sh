@@ -59,7 +59,7 @@ cp -r "$SRC/claude/skills/"* "$DEST/.claude/skills/"
 ok ".claude/skills/ (ticket-new, claim, close, release, ready)"
 
 # --- Settings (hooks) ---
-if [ -f "$DEST/.claude/settings.json" ] && grep -qF "git-erg" "$DEST/.claude/settings.json" 2>/dev/null; then
+if [ -f "$DEST/.claude/settings.json" ] && grep -qF "erg validate" "$DEST/.claude/settings.json" 2>/dev/null; then
     skip ".claude/settings.json"
 else
     if [ -f "$DEST/.claude/settings.json" ]; then
