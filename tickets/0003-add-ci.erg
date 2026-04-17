@@ -1,0 +1,45 @@
+%erg v1
+Title: add CI — validator self-test on PR/push
+Status: open
+Created: 2026-04-17
+Author: claude
+
+--- log ---
+2026-04-17T15:36Z claude created — part of the "CI across active repos" batch
+
+--- body ---
+## Context
+
+git-erg is the validator IDH and climate-finance rely on for every
+ticket they commit (pre-commit hook enforces %erg v1). A silent
+regression here corrupts downstream tickets everywhere the validator
+is vendored or invoked.
+
+No CI today. Local pre-commit runs the validator against the
+committer's own file, not against the validator itself. A web edit
+or a fork PR can land a broken validator with zero friction.
+
+## Actions
+
+1. Add `.github/workflows/CI.yml` running on `pull_request` and
+   `push: main`.
+2. Jobs:
+   - `test`: `go test ./...` (or the Go toolchain equivalent).
+   - `validate-samples`: run the freshly built validator against
+     `tickets/0001-sample-open.erg` and `tickets/0002-sample-blocked.erg`
+     and any future fixtures. Fails on non-zero exit.
+3. Required status check name: `CI / test` (stable — other repos may
+   reference it once branch protection is enabled).
+
+## Test
+
+- Introduce a deliberate `%erg v2` in a sample ticket on a branch;
+  expect `validate-samples` red.
+- Revert; expect green.
+
+## Exit criteria
+
+- CI green on `main`.
+- PRs show `CI / test` status visibly.
+- Branch protection requiring the check can be enabled without
+  blocking current main.
