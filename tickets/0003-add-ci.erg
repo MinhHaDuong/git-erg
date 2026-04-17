@@ -43,3 +43,12 @@ or a fork PR can land a broken validator with zero friction.
 - PRs show `CI / test` status visibly.
 - Branch protection requiring the check can be enabled without
   blocking current main.
+
+## Follow-on (after this ticket closes)
+
+1. Enable branch protection on `main` requiring `CI / test`.
+2. Once on, downstream repos (IDH, climate-finance, AEDIST) can
+   trust a given git-erg tag/commit without running the validator
+   themselves — a regression here blocks merge upstream.
+3. Harness-side trim of `/verify` to key off CI status is tracked in
+   IDH STATE / a new IDH ticket — not this repo's concern.
