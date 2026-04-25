@@ -20,6 +20,14 @@ and skips sample tickets so you start fresh at `0001`.
 
 You can also run the script directly: `./bin/install.sh /path/to/project`
 
+## Platform compatibility
+
+The committed `tickets/tools/go/erg` binary is a statically-linked ELF 64-bit
+executable for Linux x86-64. It runs on any Linux x86-64 system (developer
+machines, CI runners, Claude Code web containers) with no dynamic dependencies.
+It will **not** run on macOS or ARM. Users on those platforms must build from
+source: `cd tickets/tools/go && go build -o erg .`
+
 ## Quick start
 
 ```bash
