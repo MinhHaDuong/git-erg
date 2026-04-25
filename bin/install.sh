@@ -77,6 +77,7 @@ else
     if [ -f "$DEST/.claude/settings.json" ]; then
         # Don't overwrite existing settings — warn user
         echo "  ! .claude/settings.json exists — merge manually from claude/settings.json"
+        echo "    Required: add \"Bash(*ticket-wip*)\" to permissions.allow for ticket-claim/close"
     else
         cp "$SRC/claude/settings.json" "$DEST/.claude/settings.json"
         ok ".claude/settings.json (validation hook)"
