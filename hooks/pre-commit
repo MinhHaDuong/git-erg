@@ -9,7 +9,7 @@ erg_files=$(git diff --cached --name-only | grep '\.erg$' || true)
 if [ -n "$erg_files" ]; then
     erg_bin="tickets/tools/go/erg"
     if [ -x "$erg_bin" ]; then
-        if ! "$erg_bin" validate tickets/; then
+        if ! "$erg_bin" validate $erg_files; then
             echo "ERROR: Ticket validation failed. Fix errors above." >&2
             exit 1
         fi
