@@ -61,16 +61,6 @@ erg ready tickets/
 
 See [rules/tickets.md](rules/tickets.md) for the complete `%erg v1` specification.
 
-## What to gitignore
-
-The compiled binary `tickets/tools/go/erg` should be gitignored — commit the
-source, not the binary. The install script handles this automatically. If
-installing manually, add this line to your `.gitignore`:
-
-```
-tickets/tools/go/erg
-```
-
 ## For Claude Code users
 
 The install script sets up skills and rules automatically. To do it manually:
