@@ -1,11 +1,12 @@
 %erg v1
 Title: Sample open ticket for validation
-Status: open
+Status: closed
 Created: 2026-03-27
 Author: claude
 
 --- log ---
 2026-03-27T10:00Z claude created
+2026-04-29T00:00Z claude status closed Bootstrap purpose served; system validated
 
 --- body ---
 ## Context

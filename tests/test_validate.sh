@@ -249,6 +249,48 @@ else
     pass "dependency cycle rejected"
 fi
 
+# --- Duplicate '--- body ---' separator fails ---
+cat > "$FIXTURES/0010-dup-body.erg" <<'EOF'
+%erg v1
+Title: Duplicate body separator
+Status: open
+Created: 2026-01-01
+Author: a
+
+--- log ---
+2026-01-01T10:00Z a created
+--- body ---
+first body line
+--- body ---
+content past a duplicate separator
+EOF
+if $ERG validate "$FIXTURES/0010-dup-body.erg" >/dev/null 2>&1; then
+    fail "duplicate body separator rejected"
+else
+    pass "duplicate body separator rejected"
+fi
+
+# --- Duplicate '--- log ---' separator fails ---
+cat > "$FIXTURES/0011-dup-log.erg" <<'EOF'
+%erg v1
+Title: Duplicate log separator
+Status: open
+Created: 2026-01-01
+Author: a
+
+--- log ---
+2026-01-01T10:00Z a created
+--- log ---
+2026-01-01T10:01Z a note duplicate
+--- body ---
+body
+EOF
+if $ERG validate "$FIXTURES/0011-dup-log.erg" >/dev/null 2>&1; then
+    fail "duplicate log separator rejected"
+else
+    pass "duplicate log separator rejected"
+fi
+
 # --- Real tickets pass ---
 if $ERG validate tickets/ >/dev/null 2>&1; then
     pass "real tickets pass"
