@@ -36,6 +36,9 @@ type Erg struct {
 	HasMagic bool
 	HasLog   bool
 	HasBody  bool
+	// Separator occurrence counts. A well-formed ticket has exactly 1 of each.
+	LogSepCount  int
+	BodySepCount int
 }
 
 func (t *Erg) Title() string {
@@ -130,6 +133,8 @@ func parseErg(path string) Erg {
 	hasMagic := false
 	hasLog := false
 	hasBody := false
+	logSepCount := 0
+	bodySepCount := 0
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -149,15 +154,21 @@ func parseErg(path string) Erg {
 			// Fall through to header parsing
 		}
 
-		if !hasBody && trimmed == "--- log ---" {
-			section = "log"
-			hasLog = true
-			continue
+		if trimmed == "--- log ---" {
+			logSepCount++
+			if !hasBody {
+				section = "log"
+				hasLog = true
+				continue
+			}
 		}
-		if !hasBody && trimmed == "--- body ---" {
-			section = "body"
-			hasBody = true
-			continue
+		if trimmed == "--- body ---" {
+			bodySepCount++
+			if !hasBody {
+				section = "body"
+				hasBody = true
+				continue
+			}
 		}
 
 		switch section {
@@ -181,13 +192,15 @@ func parseErg(path string) Erg {
 	}
 
 	return Erg{
-		Path:     path,
-		Headers:  headers,
-		LogLines: logLines,
-		Body:     strings.Join(bodyLines, "\n"),
-		HasMagic: hasMagic,
-		HasLog:   hasLog,
-		HasBody:  hasBody,
+		Path:         path,
+		Headers:      headers,
+		LogLines:     logLines,
+		Body:         strings.Join(bodyLines, "\n"),
+		HasMagic:     hasMagic,
+		HasLog:       hasLog,
+		HasBody:      hasBody,
+		LogSepCount:  logSepCount,
+		BodySepCount: bodySepCount,
 	}
 }
 
@@ -293,12 +306,16 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 		}
 	}
 
-	// Rule 11: both separators present
+	// Rule 11: each separator appears exactly once
 	if !t.HasLog {
 		errors = append(errors, fmt.Sprintf("%s: missing '--- log ---' separator", name))
+	} else if t.LogSepCount > 1 {
+		errors = append(errors, fmt.Sprintf("%s: '--- log ---' separator appears %d times (expected 1)", name, t.LogSepCount))
 	}
 	if !t.HasBody {
 		errors = append(errors, fmt.Sprintf("%s: missing '--- body ---' separator", name))
+	} else if t.BodySepCount > 1 {
+		errors = append(errors, fmt.Sprintf("%s: '--- body ---' separator appears %d times (expected 1)", name, t.BodySepCount))
 	}
 
 	return errors

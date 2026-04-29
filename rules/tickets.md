@@ -177,7 +177,7 @@ The Go validator enforces:
 8. `Blocked-by` local refs point to existing ticket IDs
 9. No dependency cycles
 10. Log lines match `{timestamp} {actor} {verb}` format
-11. Both `--- log ---` and `--- body ---` separators present
+11. Each separator (`--- log ---`, `--- body ---`) appears exactly once
 
 ## Relationship to GitHub Issues
 
