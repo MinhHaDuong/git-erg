@@ -13,22 +13,26 @@ Blocked-by: 0006
 
 The IDH `pick-ticket` skill selects one ticket for an autonomous sweep run.
 Currently it does mechanical exclusions (status tags, cooldown rules,
-3-strikes) AND LLM-based risk ranking in a single interleaved skill sequence.
+3-strikes) AND LLM-based risk ranking in a single interleaved skill sequence,
+then calls `erg sweep-write` to cache the LLM's scope/risk assessment back
+into each ticket's log.
 
 Split of responsibilities:
 - **Binary** (`erg pick`): apply all mechanical exclusion rules, enforce
-  3-strikes, and return the shortlisted candidates with their full bodies
-  as JSON — no judgment required.
-- **Skill**: read the shortlist, rank by scope/risk (LLM judgment), call
-  `erg pick-record <id>` to write the pick log token, output `PICK: NNNN`.
+  3-strikes, return shortlisted candidates with cache status and bodies as
+  JSON.
+- **Skill**: read the shortlist, apply judgment-based exclusions
+  (scope-too-large for the 50-min beat window), rank by risk, call
+  `erg pick-record` to write the assessment back to each candidate ticket.
 
-This reduces the skill to two shell calls + a ranking step, makes the
-mechanical rules consistent and testable, and keeps judgment where it belongs.
+The skill must not write ticket files directly — the Claude Code permission
+layer can block `.erg` edits even in bypassPermissions mode. `erg pick-record`
+is the safe write-back interface: the skill provides the judgment, the binary
+does the file I/O.
 
-Note: `erg sweep-skip` and `erg sweep-write` referenced in the current
-pick-ticket skill do not yet exist in the binary. This ticket internalises
-their exclusion logic inside `erg pick` and adds `erg pick-record` for the
-log token write.
+The assessment cache is preserved: `erg pick --json` returns `cache:hit`
+entries with stored scope/risk/reason so unchanged tickets are not re-ranked,
+and `erg pick-record` writes the new assessment for `cache:miss` entries.
 
 ## Actions
 
@@ -53,55 +57,81 @@ From the set of open, unblocked, unclaimed tickets:
 ```json
 {
   "candidates": [
-    {"id": "0003", "title": "...", "file": "tickets/0003-foo.erg", "body": "..."},
-    {"id": "0005", "title": "...", "file": "tickets/0005-bar.erg", "body": "..."}
+    {
+      "id": "0003", "title": "...", "file": "tickets/0003-foo.erg",
+      "cache": "miss", "body": "..."
+    },
+    {
+      "id": "0005", "title": "...", "file": "tickets/0005-bar.erg",
+      "cache": "hit", "scope": "small", "risk": "low",
+      "reason": "only edits docs, no logic changes"
+    }
   ]
 }
 ```
-If no candidates: `{"candidates": []}` (exit 0).
+- `cache:miss` entries include `body`; the skill must assess scope/risk.
+- `cache:hit` entries include stored `scope`/`risk`/`reason`; no body needed.
+- If no candidates: `{"candidates": []}` (exit 0).
 
 Plain-text default (no `--json`): list of `ID  title` lines, or "No eligible tickets."
 
-### B. `erg pick-record <id>`
+### B. `erg pick-record <id> <picked|not-picked> "<scope>" "<risk>" "<reason>"`
+
+Called by the skill for the winner and each runner-up after ranking.
 
 - Find ticket file by 4-digit ID
-- Append log line: `{ISO8601} claude note sweep-pick: picked`
-- Commit on current branch
+- Append log line:
+  `{ISO8601} claude note sweep-pick: {outcome} scope:{scope} risk:{risk} — {reason}`
+- Commit on current branch (batch all pick-record calls into one commit if
+  the skill calls it multiple times before any other file change)
 - Output: `RECORDED`
+
+This replaces `erg sweep-write` as the cache write-back interface and avoids
+the skill needing to edit `.erg` files directly.
 
 ### C. Update IDH `pick-ticket` skill
 
 Replace mechanical exclusion steps with `erg pick --json tickets/`, keep
-only the LLM ranking step, then call `erg pick-record <winner-id>`.
-(Tracked in IDH repo, separate PR.)
+LLM judgment (scope-too-large, fix-tests priority, risk ranking), then call
+`erg pick-record` for winner and runners-up.
+(Tracked in IDH repo, ticket 0059.)
 
 ## Test
 
 ```bash
-# Returns shortlist
+# Returns shortlist with cache fields
 erg pick --json tickets/
-# → {"candidates": [...]}
+# → {"candidates": [{"id":"...","cache":"miss","body":"..."}, ...]}
+
+# cache:hit entry has scope/risk/reason, no body
+# cache:miss entry has body, no scope/risk/reason
 
 # Empty when nothing eligible
 erg pick tickets/   # → No eligible tickets.
 
 # 3-strikes: marks ticket needs-human before returning
-# (set up ticket with 3 Attempt log entries)
 erg pick --json tickets/
 grep "sweep-skip: three-strikes" tickets/NNNN-*.erg
 grep "Status: needs-human" tickets/NNNN-*.erg
 
-# pick-record writes log token
-erg pick-record 0003
-grep "sweep-pick: picked" tickets/0003-*.erg
+# pick-record writes assessment log line for winner
+erg pick-record 0003 picked "small" "low" "only edits config, easily reversible"
+grep 'sweep-pick: picked scope:small risk:low' tickets/0003-*.erg
+
+# pick-record writes assessment log line for runner-up
+erg pick-record 0005 not-picked "medium" "medium" "touches two modules"
+grep 'sweep-pick: not-picked scope:medium risk:medium' tickets/0005-*.erg
 ```
 
 All existing tests in `main_test.go` must pass.
 
 ## Exit criteria
 
-- `erg pick [dir] [--json]` applies exclusions, enforces 3-strikes, returns candidates with bodies
-- `erg pick-record <id>` appends pick log token and commits
-- Tests cover: normal shortlist, empty result, 3-strikes enforcement, cooldown exclusion
-- IDH `pick-ticket` skill updated to delegate mechanical steps to binary (IDH repo)
-- Followup ticket opened in IDH repo to track the skill update
+- `erg pick [dir] [--json]` applies exclusions, enforces 3-strikes, returns
+  candidates with `cache:hit` (scope/risk/reason) or `cache:miss` (body)
+- `erg pick-record <id> <outcome> "<scope>" "<risk>" "<reason>"` appends
+  assessment log line and commits
+- Tests cover: cache:hit vs cache:miss output, 3-strikes, cooldown exclusion,
+  pick-record log format
+- IDH `pick-ticket` skill updated (IDH ticket 0059)
+- Followup ticket 0059 opened in IDH repo ✓
