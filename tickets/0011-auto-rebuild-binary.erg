@@ -1,31 +1,33 @@
 %erg v1
-Title: Auto-rebuild erg binary on source change
+Title: erg self-update from origin when online
 Status: open
 Created: 2026-04-29
 Author: claude
 
 --- log ---
 2026-04-29T19:45Z claude created
+2026-04-29T19:50Z claude retitled — goal is self-update from origin, not rebuild from source
 
 --- body ---
-## Problem
-
-The `tickets/tools/go/erg` binary is committed to the repo and must be manually rebuilt whenever `main.go` changes. This is error-prone: PR #3 shipped with a stale binary (only fixed during rebase).
-
 ## Goal
 
-Ensure the committed binary is always in sync with `main.go` — either by automating the rebuild or by making staleness visible and blocking.
+`erg update` fetches the latest binary from the git-erg repo origin and replaces itself, when a network connection is available. No Go toolchain required on the user's machine.
 
-## Options
+## Behaviour
 
-1. **Pre-commit hook** — run `go build` and stage the result before each commit that touches `main.go`. Zero CI cost, local only.
-2. **CI check** — build the binary in CI and fail if it differs from the committed one (requires reproducible builds or a hash-of-source approach).
-3. **Remove the committed binary** — require users to build from source (breaks zero-dependency install story).
+- `erg update` checks origin for a newer binary (compare commit SHA or file hash)
+- If newer: downloads and atomically replaces the running binary, prints version info
+- If already current: says so and exits 0
+- If offline or origin unreachable: exits 0 with a notice (never hard-fails)
 
-Option 1 is simplest and fits the current workflow.
+## Open questions
+
+- Distribution mechanism: `git archive` / raw GitHub download / GitHub Releases asset?
+- Version signal: embed current commit SHA at build time (`-ldflags "-X main.version=..."`)?
 
 ## Exit criteria
 
-- [ ] A pre-commit or post-commit hook rebuilds `tickets/tools/go/erg` whenever `tickets/tools/go/main.go` is staged
-- [ ] The hook is documented or self-evident
-- [ ] A manual test confirms: editing `main.go` and committing produces an updated binary in the same commit
+- [ ] `erg update` replaces the binary with the latest from origin when a newer version is available
+- [ ] `erg update` is a no-op when already up to date
+- [ ] `erg update` exits 0 and prints a notice when offline
+- [ ] Version is embedded in the binary and reported by `erg version`
