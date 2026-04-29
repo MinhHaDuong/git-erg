@@ -1,0 +1,109 @@
+%erg v1
+Title: Add erg claim/release/close commands, modularize Go source, add godoc
+Status: open
+Created: 2026-04-29
+Author: user
+
+--- log ---
+2026-04-29T10:00Z claude created
+
+--- body ---
+## Context
+
+Three converging needs:
+
+**1. Ticket lifecycle commands in the binary** — claim, release, and close
+are currently implemented as multi-step LLM skill sequences: validate ID,
+find file by glob, read/write `.wip`, update Status header, append log lines.
+These are pure mechanics with no judgment required. Moving them to the binary
+makes them atomic, consistently formatted, and free of Claude Code's
+sensitive-file permission check that blocks `Edit` on `.erg` files.
+
+**2. Modularization** — `main.go` is 1417 lines in a single file. With three
+new commands + .wip management + tests, it will exceed 1800. The natural
+module boundaries are already visible in the function layout.
+
+**3. Documentation** — `printUsage()` and in-code comments are the only docs.
+Go's standard: `godoc`-style comments (directly above declarations, rendered
+by `go doc`) are both the code docs and the generated docs. No separate
+tooling needed. This is Go's idiomatic answer to literate programming.
+`printUsage()` remains the single source of truth for CLI help.
+
+## Actions
+
+### A. Modularize Go source (prerequisite)
+
+Split `main.go` into:
+
+- `ticket.go` — `Erg` struct, parse, load, validate, `appendToTicket`, `findTicketFile(id)`
+- `wip.go` — `.wip` file management: `loadWip()`, `claimTicket()`, `releaseWip()`, `removeWip()`
+- `sweep.go` — `bodyHash`, `parseSweepCache`, `cmdSweepSkip`, `cmdSweepWrite`
+- `main.go` — `main()`, `printUsage()`, command dispatch
+
+Add a package-level godoc comment to each file. Each exported or key
+unexported function gets a one-line godoc comment starting with its name.
+
+### B. New commands
+
+**`erg claim <id>`**
+- Validate 4-digit ID
+- Find file: `tickets/{id}-*.erg`
+- Check `.git/ticket-wip/{id}.wip`; if exists, print contents and exit non-zero
+- Write `.wip`: `{ISO8601} {whoami} {cwd}`
+- Update `Status: open` → `Status: doing`
+- Append log lines: `{ts} claude claimed` and `{ts} claude status doing`
+- Output: `CLAIMED` or `ALREADY_CLAIMED: {wip content}`
+
+**`erg release <id> <reason>`**
+- Validate 4-digit ID
+- Find file: `tickets/{id}-*.erg`
+- Update `Status: doing` → `Status: open`
+- Append log lines: `{ts} claude released — {reason}` and `{ts} claude status open`
+- Remove `.wip` file
+- Output: `RELEASED`
+
+**`erg close <id-or-file> <reason>`**
+- Accept either a 4-digit ID or a file path
+- Update `Status:` → `closed` (from any prior status)
+- Append log line: `{ts} claude status closed — {reason}`
+- Remove `.wip` file if present
+- Output: `CLOSED` or `ALREADY_CLOSED` (idempotent)
+
+### C. godoc comments
+
+- Package-level comment on `ticket.go` describing the tool
+- One-line godoc comment on all exported and key unexported functions
+- No separate README for binary API; `go doc ./...` and `printUsage()` suffice
+
+### D. Update IDH skills (separate PR in ImperialDragonHarness)
+
+- `ticket-claim`, `ticket-release`, `ticket-close` — delegate steps 1–5 to binary + git commit
+- `start-ticket`, `pick-ticket` — use `erg close` for already-done early exit
+
+## Test
+
+```bash
+erg claim 0006
+grep "Status: doing" tickets/0006-*.erg
+cat "$(git rev-parse --git-common-dir)/ticket-wip/0006.wip"
+
+erg claim 0006          # → ALREADY_CLAIMED
+
+erg release 0006 "test"
+grep "Status: open" tickets/0006-*.erg
+
+erg close 0006 "already-done"
+grep "Status: closed" tickets/0006-*.erg
+
+erg close 0006 "already-done"   # → ALREADY_CLOSED, exit 0
+erg close tickets/0006-*.erg "already-done"  # file path form
+```
+
+All existing tests in `main_test.go` must pass.
+
+## Exit criteria
+
+- `erg claim`, `erg release`, `erg close` exist and pass tests in `main_test.go`
+- `main.go` split into ticket.go / wip.go / sweep.go / main.go; each under 500 lines
+- All functions have godoc comments; `go doc ./...` produces clean output
+- IDH skills updated to delegate to binary (tracked in IDH repo)
