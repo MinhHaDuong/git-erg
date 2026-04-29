@@ -1,0 +1,70 @@
+%erg v1
+Title: Install erg binary on PATH: Makefile target and agent hint
+Status: open
+Created: 2026-04-29
+Author: user
+Blocked-by: 0006
+
+--- log ---
+2026-04-29T11:00Z claude created
+
+--- body ---
+## Context
+
+Ticket 0006 will make agents delegate claim/release/close to the `erg` binary.
+That means `erg` must be on PATH in every environment where agents run: dev
+machines, CI containers, worktrees. Currently the binary is committed at
+`tickets/tools/go/erg` (x86-64 static) and built into `DEST/tickets/tools/go/erg`
+by `bin/install.sh`, but neither location is on PATH.
+
+CLAUDE-PLUGIN.md currently says "no CLI needed" and points to a manual `go build`
+note buried under Notes. Both will be wrong after ticket 0006.
+
+Two lightweight fixes cover the gap:
+1. A Makefile target that puts the binary on PATH — the shared primitive for all
+   environments (human dev, CI, devcontainer, agent).
+2. A one-liner prerequisite in CLAUDE-PLUGIN.md so agents know exactly what to
+   run when `erg` is not found, without needing to reason from scratch.
+
+The SessionStart hook (automatic install on every agent session start) is out of
+scope here — it is a follow-up that calls this Makefile target once it exists.
+
+## Actions
+
+1. Add `install-erg-binary` target to `Makefile`:
+   - If the committed binary matches the current platform (x86-64 Linux): copy it
+     to `~/.local/bin/erg` with `install -m755`.
+   - Otherwise: `cd tickets/tools/go && go build -o ~/.local/bin/erg .`
+   - Print `erg installed to ~/.local/bin/erg` on success.
+
+2. Update `claude/CLAUDE-PLUGIN.md`:
+   - Replace the "no CLI needed" line and buried build note with:
+     ```
+     ## Prerequisites
+     `erg` must be on PATH. If missing: `make install-erg-binary` from the repo root.
+     ```
+
+3. Update `bin/install.sh` end-of-run summary to mention `make install-erg-binary`
+   alongside the existing success message.
+
+## Test
+
+```bash
+# Remove erg from PATH if present
+rm -f ~/.local/bin/erg
+
+make install-erg-binary
+which erg              # → ~/.local/bin/erg
+erg --help             # → exits 0, prints usage
+
+# Idempotent
+make install-erg-binary   # → same result, no error
+```
+
+## Exit criteria
+
+- `make install-erg-binary` puts a working `erg` binary at `~/.local/bin/erg`
+- Works on x86-64 Linux without Go installed (copies committed binary)
+- Falls back to `go build` on other platforms if Go is available; fails clearly if not
+- `claude/CLAUDE-PLUGIN.md` has a Prerequisites section with the install command
+- `bin/install.sh` output mentions `make install-erg-binary`
