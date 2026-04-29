@@ -14,25 +14,26 @@ Blocked-by: 0006
 The IDH `pick-ticket` skill selects one ticket for an autonomous sweep run.
 Currently it does mechanical exclusions (status tags, cooldown rules,
 3-strikes) AND LLM-based risk ranking in a single interleaved skill sequence,
-then calls `erg sweep-write` to cache the LLM's scope/risk assessment back
-into each ticket's log.
+then calls `erg sweep-write` to store the LLM's triage (scope/risk/reason)
+back into each ticket's log.
 
 Split of responsibilities:
 - **Binary** (`erg pick`): apply all mechanical exclusion rules, enforce
-  3-strikes, return shortlisted candidates with cache status and bodies as
+  3-strikes, return shortlisted candidates with triage status and bodies as
   JSON.
 - **Skill**: read the shortlist, apply judgment-based exclusions
   (scope-too-large for the 50-min beat window), rank by risk, call
-  `erg pick-record` to write the assessment back to each candidate ticket.
+  `erg pick-record` to write the triage result back to each candidate ticket.
 
 The skill must not write ticket files directly — the Claude Code permission
 layer can block `.erg` edits even in bypassPermissions mode. `erg pick-record`
 is the safe write-back interface: the skill provides the judgment, the binary
 does the file I/O.
 
-The assessment cache is preserved: `erg pick --json` returns `cache:hit`
-entries with stored scope/risk/reason so unchanged tickets are not re-ranked,
-and `erg pick-record` writes the new assessment for `cache:miss` entries.
+The triage cache is preserved: `erg pick --json` returns a `triage` object
+for tickets whose body is unchanged so the skill reuses the stored
+scope/risk/reason without re-reading, and `erg pick-record` writes a fresh
+triage for tickets with no prior or a changed body.
 
 ## Actions
 
@@ -59,18 +60,19 @@ From the set of open, unblocked, unclaimed tickets:
   "candidates": [
     {
       "id": "0003", "title": "...", "file": "tickets/0003-foo.erg",
-      "cache": "miss", "body": "..."
+      "body": "..."
     },
     {
       "id": "0005", "title": "...", "file": "tickets/0005-bar.erg",
-      "cache": "hit", "scope": "small", "risk": "low",
-      "reason": "only edits docs, no logic changes"
+      "triage": {"scope": "small", "risk": "low", "reason": "only edits docs, no logic changes"}
     }
   ]
 }
 ```
-- `cache:miss` entries include `body`; the skill must assess scope/risk.
-- `cache:hit` entries include stored `scope`/`risk`/`reason`; no body needed.
+- `triage` present: body unchanged since last triage; skill uses stored
+  scope/risk/reason directly, no body reading needed.
+- `triage` absent: body is new or changed; `body` field included for skill
+  to read and triage.
 - If no candidates: `{"candidates": []}` (exit 0).
 
 Plain-text default (no `--json`): list of `ID  title` lines, or "No eligible tickets."
@@ -86,7 +88,7 @@ Called by the skill for the winner and each runner-up after ranking.
   the skill calls it multiple times before any other file change)
 - Output: `RECORDED`
 
-This replaces `erg sweep-write` as the cache write-back interface and avoids
+This replaces `erg sweep-write` as the triage write-back interface and avoids
 the skill needing to edit `.erg` files directly.
 
 ### C. Update IDH `pick-ticket` skill
@@ -99,12 +101,12 @@ LLM judgment (scope-too-large, fix-tests priority, risk ranking), then call
 ## Test
 
 ```bash
-# Returns shortlist with cache fields
+# Triaged ticket returns triage object, no body
 erg pick --json tickets/
-# → {"candidates": [{"id":"...","cache":"miss","body":"..."}, ...]}
+# → {"candidates": [{"id":"0005","triage":{"scope":"small","risk":"low","reason":"..."}}, ...]}
 
-# cache:hit entry has scope/risk/reason, no body
-# cache:miss entry has body, no scope/risk/reason
+# Untriaged ticket returns body, no triage object
+# → {"candidates": [{"id":"0003","body":"..."}, ...]}
 
 # Empty when nothing eligible
 erg pick tickets/   # → No eligible tickets.
@@ -114,24 +116,28 @@ erg pick --json tickets/
 grep "sweep-skip: three-strikes" tickets/NNNN-*.erg
 grep "Status: needs-human" tickets/NNNN-*.erg
 
-# pick-record writes assessment log line for winner
+# pick-record writes triage log line for winner
 erg pick-record 0003 picked "small" "low" "only edits config, easily reversible"
 grep 'sweep-pick: picked scope:small risk:low' tickets/0003-*.erg
 
-# pick-record writes assessment log line for runner-up
+# pick-record writes triage log line for runner-up
 erg pick-record 0005 not-picked "medium" "medium" "touches two modules"
 grep 'sweep-pick: not-picked scope:medium risk:medium' tickets/0005-*.erg
+
+# second run: previously triaged tickets return triage object
+erg pick --json tickets/
+# → 0003 and 0005 now have "triage": {...}, no "body"
 ```
 
 All existing tests in `main_test.go` must pass.
 
 ## Exit criteria
 
-- `erg pick [dir] [--json]` applies exclusions, enforces 3-strikes, returns
-  candidates with `cache:hit` (scope/risk/reason) or `cache:miss` (body)
+- `erg pick [dir] [--json]` applies exclusions, enforces 3-strikes; returns
+  `triage` object for unchanged tickets, `body` for new/changed ones
 - `erg pick-record <id> <outcome> "<scope>" "<risk>" "<reason>"` appends
-  assessment log line and commits
-- Tests cover: cache:hit vs cache:miss output, 3-strikes, cooldown exclusion,
-  pick-record log format
+  triage log line and commits
+- Tests cover: triage present/absent output, 3-strikes, cooldown exclusion,
+  pick-record log format, triage round-trip (write then re-read)
 - IDH `pick-ticket` skill updated (IDH ticket 0059)
 - Followup ticket 0059 opened in IDH repo ✓
