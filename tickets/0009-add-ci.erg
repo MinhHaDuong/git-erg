@@ -6,6 +6,7 @@ Author: claude
 
 --- log ---
 2026-04-17T15:36Z claude created — part of the "CI across active repos" batch
+2026-04-29T22:07Z claude sweep-pick: picked scope:"narrow" risk:"low" reason:"one CI YAML file, no core logic, no open design questions"
 
 --- body ---
 ## Context
