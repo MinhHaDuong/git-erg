@@ -104,3 +104,4 @@ All existing tests in `main_test.go` must pass.
 - `erg pick-record <id>` appends pick log token and commits
 - Tests cover: normal shortlist, empty result, 3-strikes enforcement, cooldown exclusion
 - IDH `pick-ticket` skill updated to delegate mechanical steps to binary (IDH repo)
+- Followup ticket opened in IDH repo to track the skill update
