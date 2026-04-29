@@ -30,10 +30,12 @@ layer can block `.erg` edits even in bypassPermissions mode. `erg pick-record`
 is the safe write-back interface: the skill provides the judgment, the binary
 does the file I/O.
 
-The triage cache is preserved: `erg pick --json` returns a `triage` object
-for tickets whose body is unchanged so the skill reuses the stored
-scope/risk/reason without re-reading, and `erg pick-record` writes a fresh
-triage for tickets with no prior or a changed body.
+Neither `erg sweep-skip`, `erg sweep-write`, nor cache fields in `erg ready
+--json` currently exist in the binary — the skill was written as a spec for
+intended behaviour. `erg ready --json` today returns only `{id, title, file}`.
+This ticket implements the full interface: `erg pick` replaces `erg ready` as
+the skill's entry point and adds the triage cache; `erg pick-record` replaces
+the unimplemented `erg sweep-write`.
 
 ## Actions
 
