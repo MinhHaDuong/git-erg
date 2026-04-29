@@ -1,0 +1,106 @@
+%erg v1
+Title: Add erg pick command: mechanical shortlist for the IDH pick-ticket skill
+Status: open
+Created: 2026-04-29
+Author: user
+Blocked-by: 0006
+
+--- log ---
+2026-04-29T11:15Z claude created
+
+--- body ---
+## Context
+
+The IDH `pick-ticket` skill selects one ticket for an autonomous sweep run.
+Currently it does mechanical exclusions (status tags, cooldown rules,
+3-strikes) AND LLM-based risk ranking in a single interleaved skill sequence.
+
+Split of responsibilities:
+- **Binary** (`erg pick`): apply all mechanical exclusion rules, enforce
+  3-strikes, and return the shortlisted candidates with their full bodies
+  as JSON — no judgment required.
+- **Skill**: read the shortlist, rank by scope/risk (LLM judgment), call
+  `erg pick-record <id>` to write the pick log token, output `PICK: NNNN`.
+
+This reduces the skill to two shell calls + a ranking step, makes the
+mechanical rules consistent and testable, and keeps judgment where it belongs.
+
+Note: `erg sweep-skip` and `erg sweep-write` referenced in the current
+pick-ticket skill do not yet exist in the binary. This ticket internalises
+their exclusion logic inside `erg pick` and adds `erg pick-record` for the
+log token write.
+
+## Actions
+
+### A. `erg pick [dir] [--json]`
+
+From the set of open, unblocked, unclaimed tickets:
+
+**Exclude** (mechanical, no body reading needed for these):
+- Status or tags include: `needs-human`, `deferred`, `post-talk`, `post-conference`
+
+**Exclude with body reading**:
+- A `FAILED` or `BLOCKED` entry in `## Attempt log` less than 24 h old
+- A `sweep-pick: picked` log line less than 8 h old AND Status still `open`
+
+**3-strikes** — ticket with 3+ `## Attempt log` entries:
+- Append log line: `{ISO8601} claude note sweep-skip: three-strikes`
+- Update Status to `needs-human`
+- Commit modified files before returning
+- Exclude from shortlist
+
+**Output** (JSON):
+```json
+{
+  "candidates": [
+    {"id": "0003", "title": "...", "file": "tickets/0003-foo.erg", "body": "..."},
+    {"id": "0005", "title": "...", "file": "tickets/0005-bar.erg", "body": "..."}
+  ]
+}
+```
+If no candidates: `{"candidates": []}` (exit 0).
+
+Plain-text default (no `--json`): list of `ID  title` lines, or "No eligible tickets."
+
+### B. `erg pick-record <id>`
+
+- Find ticket file by 4-digit ID
+- Append log line: `{ISO8601} claude note sweep-pick: picked`
+- Commit on current branch
+- Output: `RECORDED`
+
+### C. Update IDH `pick-ticket` skill
+
+Replace mechanical exclusion steps with `erg pick --json tickets/`, keep
+only the LLM ranking step, then call `erg pick-record <winner-id>`.
+(Tracked in IDH repo, separate PR.)
+
+## Test
+
+```bash
+# Returns shortlist
+erg pick --json tickets/
+# → {"candidates": [...]}
+
+# Empty when nothing eligible
+erg pick tickets/   # → No eligible tickets.
+
+# 3-strikes: marks ticket needs-human before returning
+# (set up ticket with 3 Attempt log entries)
+erg pick --json tickets/
+grep "sweep-skip: three-strikes" tickets/NNNN-*.erg
+grep "Status: needs-human" tickets/NNNN-*.erg
+
+# pick-record writes log token
+erg pick-record 0003
+grep "sweep-pick: picked" tickets/0003-*.erg
+```
+
+All existing tests in `main_test.go` must pass.
+
+## Exit criteria
+
+- `erg pick [dir] [--json]` applies exclusions, enforces 3-strikes, returns candidates with bodies
+- `erg pick-record <id>` appends pick log token and commits
+- Tests cover: normal shortlist, empty result, 3-strikes enforcement, cooldown exclusion
+- IDH `pick-ticket` skill updated to delegate mechanical steps to binary (IDH repo)
