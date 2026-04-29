@@ -101,6 +101,34 @@ erg close tickets/0006-*.erg "already-done"  # file path form
 
 All existing tests in `main_test.go` must pass.
 
+## Injected idea: align on `gh`-style noun-first interface
+
+The `gh` CLI uses `gh <noun> <verb>` (e.g. `gh issue list`, `gh issue close`).
+Agents already know this pattern; aligning `erg` would reduce cognitive load.
+
+Current erg is verb-first: `erg validate`, `erg ready`, `erg archive`.
+Proposed new commands are also verb-first: `erg claim`, `erg release`, `erg close`.
+
+Noun-first alternative: group all ticket operations under `erg ticket`:
+
+```
+erg ticket list [--ready] [--json]     # replaces: erg ready
+erg ticket validate [dir|files...]     # replaces: erg validate
+erg ticket archive [--days N] [--execute]
+erg ticket graph [--json]
+erg ticket next-id
+erg ticket claim <id>
+erg ticket release <id> <reason>
+erg ticket close <id-or-file> <reason>
+erg ticket view <id>                   # new: print a ticket to stdout
+```
+
+Tradeoff: short existing commands (`erg ready`) become longer (`erg ticket list`).
+Could keep top-level aliases for backward compat, or just accept the rename since
+usage is currently only in IDH skills (easy to update).
+
+Decision needed before implementing Section B above.
+
 ## Exit criteria
 
 - `erg claim`, `erg release`, `erg close` exist and pass tests in `main_test.go`
