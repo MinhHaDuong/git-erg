@@ -1,0 +1,28 @@
+%erg v1
+Title: Validate: rule 11 rejects duplicate --- log --- / --- body --- separators
+Status: closed
+Created: 2026-04-29
+Author: claude
+
+--- log ---
+2026-04-29T19:20Z claude created
+2026-04-29T19:25Z claude status closed Implemented and merged via PR #3
+
+--- body ---
+## Problem
+
+Rule 11 asserted only that each separator was present, not that each appeared exactly once. A slice-aliasing bug in a downstream consumer was producing tickets with duplicate `--- body ---` separators that passed validation and were committed to git.
+
+## Fix
+
+- `parseErg`: count occurrences of each separator (`LogSepCount`, `BodySepCount` fields on `Erg`)
+- `validateErg`: fail when either count > 1, naming the offending separator
+- `rules/tickets.md`: rule 11 wording updated from "both present" to "exactly once each"
+
+## Exit criteria
+
+- [ ] `validateErg` returns an error when `--- log ---` appears more than once
+- [ ] `validateErg` returns an error when `--- body ---` appears more than once
+- [ ] Two new test cases in `tests/test_validate.sh` cover both variants
+- [ ] `make test` passes (all validate + ready + archive cases)
+- [ ] `erg validate tickets/` on this repo returns clean
