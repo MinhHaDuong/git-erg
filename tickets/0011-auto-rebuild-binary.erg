@@ -11,6 +11,7 @@ Author: claude
 2026-04-30T02:38Z claude sweep-pick: picked scope:"moderate" risk:"medium" reason:"only remaining eligible candidate; open design questions resolvable by agent (GitHub Releases + embedded SHA)"
 2026-04-30T08:00Z claude reimagine: design resolved — raw GitHub download + sha256(self) comparison; ~60-80 lines stdlib net/http+crypto/sha256+os; no ldflags; two new subcommands: version + update
 2026-04-30T08:05Z claude plan: actions written — 7 steps; imports: crypto/sha256+net/http+time; ERG_UPDATE_URL env override; tests: version hash + offline exit0 + local server same-hash check
+2026-04-30T08:10Z claude executing: implementing version+update commands
 
 --- body ---
 ## Goal
@@ -61,7 +62,7 @@ BIN=tickets/tools/go/erg
 
 ## Exit criteria
 
-- [ ] `erg update` replaces the binary with the latest from origin when a newer version is available
-- [ ] `erg update` is a no-op when already up to date
-- [ ] `erg update` exits 0 and prints a notice when offline
-- [ ] Version is embedded in the binary and reported by `erg version`
+- [x] `erg update` replaces the binary with the latest from origin when a newer version is available
+- [x] `erg update` is a no-op when already up to date
+- [x] `erg update` exits 0 and prints a notice when offline
+- [x] Version is embedded in the binary and reported by `erg version`
