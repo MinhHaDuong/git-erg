@@ -8,6 +8,7 @@ Author: claude
 2026-04-29T19:45Z claude created
 2026-04-29T19:50Z claude retitled — goal is self-update from origin, not rebuild from source
 2026-04-29T22:07Z claude sweep-pick: not-picked scope:"moderate" risk:"medium" reason:"open design questions unresolved (distribution mechanism, version signal)"
+2026-04-30T02:38Z claude sweep-pick: picked scope:"moderate" risk:"medium" reason:"only remaining eligible candidate; open design questions resolvable by agent (GitHub Releases + embedded SHA)"
 
 --- body ---
 ## Goal

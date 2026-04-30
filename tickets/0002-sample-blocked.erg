@@ -8,6 +8,7 @@ Blocked-by: 0001
 --- log ---
 2026-03-27T10:00Z claude created
 2026-04-29T22:07Z claude sweep-pick: not-picked scope:"none" risk:"none" reason:"sample demo ticket with no actionable work"
+2026-04-30T02:38Z claude sweep-pick: not-picked scope:"none" risk:"none" reason:"blocked-by 0001, no actionable work"
 
 --- body ---
 ## Context
