@@ -1,0 +1,72 @@
+%erg v1
+Title: Drop Status header — derive closed-ness from path or marker
+Status: open
+Created: 2026-04-30
+Author: claude
+
+--- log ---
+2026-04-30T12:00Z claude created proposal — replace Status enum with binary closed criterion
+
+--- body ---
+## Idea
+
+Replace the `Status: open|doing|closed|pending` header with a binary
+**closed / not-closed** criterion derived from two observable signals.
+
+A ticket is **closed** if and only if at least one of these holds:
+
+1. **Path test.** The substring `closed` (English, case-insensitive)
+   appears anywhere in the ticket's path — in any parent directory name
+   or in the file's basename.
+
+2. **Preamble test.** The substring `closed:` (no internal space, the
+   colon immediately follows) appears in the ticket's preamble,
+   case-insensitive. For valid tickets this string is **forbidden
+   anywhere else** in the preamble — it is reserved as a unique closure
+   marker, used as a header key whose value carries the closure reason
+   or PR reference. Examples:
+   - `Closed: completed in PR #5`
+   - `Closed: gh#42 — superseded by 0099`
+   - `Closed: abandoned — out of scope`
+
+A ticket is **not-closed** otherwise. There are no other states.
+
+## Rationale
+
+- One observable fact per ticket, derivable from the filename and the
+  first few lines. `grep -rli closed tickets/` enumerates fermes;
+  absence ⇒ ouvert.
+- Closure becomes self-documenting: the value of `Closed:` carries the
+  reason (PR, supersession, abandonment) without a separate log verb.
+- Removes an enum to maintain. Fewer validator branches.
+- `doing` is already captured by `.git/ticket-wip/{ID}.wip` — no header
+  needed.
+
+## Open questions (resolve before implementing)
+
+- **Fate of `pending`.** No longer expressible. Drop it, or keep a
+  symmetric `Pending:` marker with the same forbidden-elsewhere rule?
+- **Path convention.** "closed in path" via a dedicated `tickets/closed/`
+  subdirectory, or via filename rename
+  (`0001-foo.erg` → `0001-foo-closed.erg`)? Relation to
+  `tickets/archive/` (archive ⊃ closed but not the inverse) needs to
+  be decided.
+- **Preamble scope.** Confirm "preamble" = the header block only
+  (between `%erg v1` and `--- log ---`), so `closed:` appearing in body
+  markdown or log lines stays free.
+- **Migration.** Existing tickets carrying `Status: closed` need either
+  a `Closed:` header added or a path move. Decide whether the validator
+  accepts both shapes during a transition window or requires a single
+  atomic commit.
+
+## Out of scope
+
+Implementation. This ticket records the proposal and the open
+questions; a follow-up ticket implements the spec change once the
+questions above are resolved.
+
+## Exit criteria
+
+- [ ] Open questions answered (in the log or in a follow-up ticket)
+- [ ] Either accepted (follow-up implementation ticket filed) or
+      rejected with rationale recorded
