@@ -1,0 +1,56 @@
+%erg v1
+Title: Add erg close command — atomic ticket closure for the beat
+Status: open
+Created: 2026-05-01
+Author: claude
+
+--- log ---
+2026-05-01T00:00Z claude created — split from 0006 (scope-too-large); close is the highest-value piece for beat ops
+
+--- body ---
+## Context
+
+The beat raid currently closes tickets by editing `.erg` files directly with
+the `Edit` tool. This is blocked by Claude Code permission checks on
+sensitive-file edits, and when it succeeds it can still leave tickets in
+`doing` state if the agent exits before committing (the double-pick bug,
+ticket 0037 in the harness).
+
+An `erg close` command makes closure atomic: one shell call, no Edit tool,
+no permission issue. The beat can call it and then `git commit`.
+
+## Actions
+
+1. Add `cmdClose(args []string) int` to `main.go`:
+   - Usage: `erg close <id-or-file> <reason>`
+   - Accept 4-digit ID or file path
+   - Find file: for ID, glob `tickets/{id}-*.erg`; for path, use directly
+   - Read Status header; if already `closed`, print `ALREADY_CLOSED` and exit 0
+   - Replace `Status: <anything>` → `Status: closed`
+   - Append log line: `{ISO8601} claude status closed — {reason}`
+   - Remove `.git/ticket-wip/{id}.wip` if present (idempotent)
+   - Print `CLOSED` on success
+   - Exit non-zero on: file not found, ambiguous ID, parse error
+
+2. Wire into `main()` dispatch: `case "close": exitCode = cmdClose(rest)`
+
+3. Update `printUsage()` with the new command.
+
+4. Add tests in `main_test.go`:
+   - Close an open ticket → Status becomes closed, log appended
+   - Close already-closed ticket → ALREADY_CLOSED, exit 0 (idempotent)
+   - Close by file path → works
+   - Missing ID → non-zero exit
+
+## Out of scope
+
+- `erg claim`, `erg release` — separate ticket (0006 remainder)
+- Modularization of main.go — separate ticket (0006 remainder)
+- IDH skill updates — separate harness ticket after binary ships
+
+## Exit criteria
+
+- `erg close 0006 "done"` closes the ticket atomically
+- `erg close 0006 "done"` run twice: second call exits 0 with ALREADY_CLOSED
+- All existing tests in `main_test.go` pass
+- Binary rebuilt and copied to all project locations
