@@ -12,6 +12,7 @@ Author: claude
 2026-04-30T08:00Z claude reimagine: design resolved — raw GitHub download + sha256(self) comparison; ~60-80 lines stdlib net/http+crypto/sha256+os; no ldflags; two new subcommands: version + update
 2026-04-30T08:05Z claude plan: actions written — 7 steps; imports: crypto/sha256+net/http+time; ERG_UPDATE_URL env override; tests: version hash + offline exit0 + local server same-hash check
 2026-04-30T08:10Z claude executing: implementing version+update commands
+2026-04-30T08:11Z claude sweep-skip: cooldown-recent-pick expires:2026-04-30T10:38Z
 
 --- body ---
 ## Goal
