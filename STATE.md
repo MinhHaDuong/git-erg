@@ -1,12 +1,12 @@
 # State — git-erg
 
-_Last updated: 2026-04-29_
+_Last updated: 2026-04-30 — housekeeping run_
 
 ## Stats
 
 - Tickets: 11 total — 5 closed, 6 open (4 ready, 2 blocked)
 - Tests: 31 passing (validate 18, ready 9, archive 4)
-- Open PRs: 0
+- Open PRs: 1 (#4 ci/0009-add-ci)
 
 ## Ready to work
 
