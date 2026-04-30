@@ -8,6 +8,7 @@ Author: claude
 2026-04-17T15:36Z claude created — part of the "CI across active repos" batch
 2026-04-29T22:07Z claude sweep-pick: picked scope:"narrow" risk:"low" reason:"one CI YAML file, no core logic, no open design questions"
 2026-04-30T02:38Z claude sweep-skip: cooldown-recent-pick expires:2026-04-30T06:07Z
+2026-04-30T10:00Z claude phase:execute — CI workflow added
 
 --- body ---
 ## Context
