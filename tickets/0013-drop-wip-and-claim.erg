@@ -1,0 +1,57 @@
+%erg v1
+Title: Drop .wip files and claim/release — WIP is not the spec's concern
+Created: 2026-05-01
+Author: claude
+Status: open
+
+--- log ---
+2026-05-01T16:50Z claude created — proposal to remove .wip mechanism and the claim/release portion of 0006
+
+--- body ---
+## Idea
+
+Remove `.git/ticket-wip/{ID}.wip` files and the `claim`/`release` commands
+planned in 0006. The ticket spec should describe what a ticket *is*, not
+how concurrent agents coordinate access to one.
+
+## Rationale
+
+- **WIP is observable out of band.** If a branch with the ticket ID in its
+  name exists (locally or on a remote), the ticket is being worked on. That
+  signal is enough — no parallel index needs to be maintained.
+- **Branch-naming for coordination is not the spec's business.** Any
+  convention (`feature/0042-foo`, `claude/0042-bar`, etc.) is a workflow
+  choice between agents/humans, not a property of `%erg v1`. The spec
+  should stay silent on it.
+- **The mere possibility of out-of-band coordination is sufficient.** Even
+  if no convention is followed, the absence of a `.wip` file does not
+  prove "not WIP" — agents may forget to claim. So `.wip` was never a
+  reliable lock; deleting it loses no real guarantee.
+- **Aligns with 0012.** Same philosophy: derive state from observable
+  facts, drop bookkeeping headers and side-files.
+
+## Actions
+
+1. Remove the WIP-cleanup branch from `cmdClose` in
+   `tickets/tools/go/main.go` (the `git rev-parse --git-common-dir` block
+   that deletes `ticket-wip/{ID}.wip`).
+2. Drop `claim` and `release` from the action list in 0006; rescope 0006
+   to the modularization + godoc work that remains.
+3. Update `rules/tickets.md` to remove any `.wip` / `claim` / `release`
+   references. Do **not** add a branch-naming convention — the spec stays
+   silent on coordination.
+4. Delete `.git/ticket-wip/` if it exists in any worktree (housekeeping,
+   not committed).
+
+## Out of scope
+
+- Any branch-naming convention or "WIP detector" command. Stale-branch
+  hygiene and remote-branch handling are user concerns, not the spec's.
+- Status enum changes (covered by 0012).
+
+## Exit criteria
+
+- [ ] `cmdClose` no longer touches `.git/ticket-wip/`
+- [ ] 0006 rescoped (claim/release removed from its actions)
+- [ ] `rules/tickets.md` makes no mention of `.wip` / claim / release
+- [ ] Validator passes on all tickets
