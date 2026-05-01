@@ -3,10 +3,11 @@ Title: Add erg pick command: mechanical shortlist for the IDH pick-ticket skill
 Status: open
 Created: 2026-04-29
 Author: user
-Blocked-by: 0006
+Blocked-by: 0014
 
 --- log ---
 2026-04-29T11:15Z claude created
+2026-05-01T17:20Z claude re-pointed Blocked-by 0006 → 0014 — 0006 closed; pick depends on the modularization (so pick.go slots into the new layout), not on the dropped claim/release machinery
 
 --- body ---
 ## Context
