@@ -1,0 +1,141 @@
+%erg v1
+Title: Add Tags header for revocable triage labels (needs-human, deferred, …)
+Created: 2026-05-01
+Author: claude
+Status: open
+
+--- log ---
+2026-05-01T17:55Z claude created — answers the spec gap surfaced in 0008 (`Status: needs-human` is invalid under the v1 enum); designed to compose with 0012 (no Status enum) and 0013 (no .wip)
+
+--- body ---
+## Idea
+
+Introduce a new optional, repeatable header `Tags:` carrying revocable
+triage labels (`needs-human`, `deferred`, `post-conference`, …).
+Triage state is **not** Status — Status (per 0012) is closed/not-closed,
+terminal and one-way. Triage labels are revocable annotations on
+otherwise-open tickets.
+
+```
+%erg v1
+Title: ...
+Tags: needs-human          # repeatable, optional
+Tags: deferred
+...
+```
+
+## Why a separate mechanism
+
+The asymmetry is deliberate:
+
+| Concern | Mechanism | Revocable? | Carries reason? |
+|---|---|---|---|
+| Closed-ness | 0012's path test OR `Closed: <reason>` marker | No (one-way gate) | Yes (in the marker value) |
+| Triage labels | `Tags:` header, repeatable, closed value set | Yes (delete the line) | No (label is the message) |
+
+`Closed:` is terminal and semantic — the value names the reason (PR,
+supersession, abandonment). `needs-human` is queue state — when a
+human picks the ticket up, the tag is removed and the ticket flows
+back into `erg ready`. Path-based or marker-based schemes for
+`needs-human` would force file moves or marker-deletion ceremonies for
+every revocation, which is the wrong shape.
+
+## Composition with 0012 and 0013
+
+- **0012 must land first** to free up the cognitive space (no Status
+  enum in play), and to ensure there's only one closed/not-closed
+  mechanism before we add a second triage mechanism. After 0012, the
+  spec has zero state in headers; this ticket adds one revocable layer
+  back, deliberately and minimally.
+- **0013 is independent.** `.wip` is a parallel concern (concurrency,
+  not triage). 0015 doesn't touch it.
+- **0008 (erg pick) is the consumer.** Its 3-strikes path becomes:
+  append `Tags: needs-human` instead of mutating Status. Its exclusion
+  filter becomes: skip tickets carrying any tag in the "skip" subset.
+
+## Spec change (rules/tickets.md)
+
+Add a row to the headers table:
+
+| Header | Required | Type | Values |
+|--------|----------|------|--------|
+| `Tags` | no | enum | (closed value set, see below) |
+
+Repeatable: one `Tags:` line per label.
+
+Closed value set (initial v1.x):
+- `needs-human` — agent surrendered; awaiting human triage.
+- `deferred` — work parked, comes back later.
+- `post-talk` — defer until after a specific talk/event.
+- `post-conference` — defer until after a specific conference/event.
+
+Adding a label is appending a `Tags:` line. Removing a label is
+deleting that line. The validator rejects unknown values. Extending
+the set is a v1.x bump (no breakage), since unknown values fail
+validation rather than parsing silently.
+
+## Validator (tickets/tools/go/main.go)
+
+- Accept `Tags` as a known optional repeatable header.
+- Validate each value against the closed set (reject unknown).
+- Expose the parsed tags via the `Erg` struct so consumers can read
+  them.
+
+## `erg ready`
+
+- Exclude any ticket carrying a tag in the "skip" subset
+  (`needs-human`, `deferred`, `post-talk`, `post-conference` — i.e.
+  the entire current set, since each implies "not ready").
+- Plain-text output: append `(tags: needs-human, deferred)` to the
+  line for diagnostic visibility.
+- JSON output: emit a `tags` array (always present, possibly empty)
+  for each ready candidate. Note: ready already excludes tagged
+  tickets, so the field will mostly be empty in this output. The
+  field exists for symmetry with `erg pick` (below) and forward
+  compatibility.
+
+## `erg pick` (consumed by 0008)
+
+- 3-strikes path: append `Tags: needs-human` and the
+  `sweep-skip: three-strikes` log line. **No Status mutation** —
+  there is no Status to mutate after 0012 lands.
+- Exclusion filter: same skip subset as `erg ready`.
+- JSON output: include `tags` per candidate (informational; pick's
+  own filter already removes skip-tagged tickets).
+
+## Out of scope
+
+- Free-form tagging. Values are a closed set in v1; new triage
+  situations require a v1.x bump.
+- Tag-with-reason. If a label needs a reason ("deferred until X"),
+  put the reason in a log line, not in the header value. Keeps the
+  enum closed.
+- Reviving the Status enum under another name. `Tags:` is for
+  *additional* labels, not a replacement for the closed/not-closed
+  axis 0012 establishes.
+
+## Migration
+
+No existing tickets carry these tags; nothing to migrate. The
+validator change is additive (new optional header). Old tickets
+without `Tags:` continue to validate.
+
+## Sequencing
+
+1. 0013 — drop `.wip`/claim/release (proposed in PR #10).
+2. 0012 — drop Status enum (open design questions; this proposal
+   assumes 0012 is accepted).
+3. **0015 — this ticket.** Implement after 0012 lands.
+4. 0014 — modularize (independent; can land in parallel with any of
+   the above).
+5. 0008 — `erg pick` lands on top of 0014 + 0015.
+
+## Exit criteria
+
+- [ ] `rules/tickets.md` documents `Tags:` header with closed value set
+- [ ] Validator accepts `Tags:` and rejects unknown values
+- [ ] `Erg` struct exposes parsed tags
+- [ ] `erg ready` excludes skip-tagged tickets and emits `tags` in JSON
+- [ ] `erg pick` 3-strikes appends `Tags: needs-human` (no Status mutation)
+- [ ] Tests cover: valid tag, unknown tag rejected, skip-tag exclusion
+      in ready, tag round-trip
