@@ -1,6 +1,6 @@
 %erg v1
 Title: add CI — validator self-test on PR/push
-Status: open
+Status: closed
 Created: 2026-04-17
 Author: claude
 
@@ -10,6 +10,7 @@ Author: claude
 2026-04-30T02:38Z claude sweep-skip: cooldown-recent-pick expires:2026-04-30T06:07Z
 2026-04-30T10:00Z claude phase:execute — CI workflow added
 
+2026-05-01T16:34Z claude status closed — CI workflow shipped — .github/workflows/CI.yml runs test + validate
 --- body ---
 ## Context
 
