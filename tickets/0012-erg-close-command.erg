@@ -8,6 +8,7 @@ Author: claude
 2026-05-01T00:00Z claude created — split from 0006 (scope-too-large); close is the highest-value piece for beat ops
 
 2026-05-01T06:17Z claude status closed — cmdClose implemented and tested — 6/6 shell tests pass
+2026-05-01T08:30Z claude note — PR #7 verify-blockers fixed in commit c74c7e6 on feat/0012-erg-close (cmdClose accepts [dir], single trap in test_close.sh, statusLineRE bounded to header). All 41 shell tests pass. Awaiting human review and merge — do not re-pick.
 --- body ---
 ## Context
 
