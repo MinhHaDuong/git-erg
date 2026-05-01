@@ -1,6 +1,6 @@
 %erg v1
 Title: erg self-update from origin when online
-Status: open
+Status: closed
 Created: 2026-04-29
 Author: claude
 
@@ -14,6 +14,7 @@ Author: claude
 2026-04-30T08:10Z claude executing: implementing version+update commands
 2026-04-30T08:11Z claude sweep-skip: cooldown-recent-pick expires:2026-04-30T10:38Z
 
+2026-05-01T16:34Z claude status closed — version+update subcommands shipped in #5; all exit criteria met
 --- body ---
 ## Goal
 
