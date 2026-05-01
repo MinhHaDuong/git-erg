@@ -3,7 +3,7 @@
 set -e
 
 ERG="${ERG_BIN:-tickets/tools/go/erg}"
-FIXTURES="tests/fixtures"
+FIXTURES="tests/fixtures/close"
 PASS=0
 FAIL=0
 
@@ -11,7 +11,9 @@ pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
 mkdir -p "$FIXTURES"
-trap 'rm -rf "$FIXTURES"/9001-*.erg "$FIXTURES"/9002-*.erg "$FIXTURES"/9003-*.erg' EXIT
+# Single EXIT trap — bash semantics overwrite any later trap, so all fixture
+# cleanup must live here.
+trap 'rm -rf "$FIXTURES"' EXIT
 
 echo "=== erg close ==="
 
@@ -29,16 +31,13 @@ Author: claude
 --- body ---
 Test body.
 EOF
-# Need to put fixtures where the glob expects: tickets/
-cp "$FIXTURES/9001-closable.erg" "tickets/9001-closable.erg"
-trap 'rm -f tickets/9001-closable.erg tickets/9002-already-closed.erg tickets/9003-by-path.erg' EXIT
 
-OUT=$($ERG close 9001 "done with this")
+OUT=$($ERG close 9001 "done with this" "$FIXTURES")
 if [ "$OUT" = "CLOSED" ]; then
     # Verify status changed in file
-    if grep -q "^Status: closed$" tickets/9001-closable.erg; then
+    if grep -q "^Status: closed$" "$FIXTURES/9001-closable.erg"; then
         # Verify log line was appended
-        if grep -q "claude status closed — done with this" tickets/9001-closable.erg; then
+        if grep -q "claude status closed — done with this" "$FIXTURES/9001-closable.erg"; then
             pass "close open ticket by ID"
         else
             fail "close open ticket by ID (missing log line)"
@@ -51,7 +50,7 @@ else
 fi
 
 # --- Close already-closed ticket (idempotent) ---
-cat > "tickets/9002-already-closed.erg" <<'EOF'
+cat > "$FIXTURES/9002-already-closed.erg" <<'EOF'
 %erg v1
 Title: Already closed
 Status: closed
@@ -66,7 +65,7 @@ Author: claude
 Test body.
 EOF
 
-OUT=$($ERG close 9002 "closing again")
+OUT=$($ERG close 9002 "closing again" "$FIXTURES")
 if [ "$OUT" = "ALREADY_CLOSED" ]; then
     pass "already-closed ticket returns ALREADY_CLOSED"
 else
@@ -74,7 +73,7 @@ else
 fi
 
 # --- Close by file path ---
-cat > "tickets/9003-by-path.erg" <<'EOF'
+cat > "$FIXTURES/9003-by-path.erg" <<'EOF'
 %erg v1
 Title: Close by path
 Status: doing
@@ -88,15 +87,49 @@ Author: claude
 Test body.
 EOF
 
-OUT=$($ERG close tickets/9003-by-path.erg "switching approach")
+OUT=$($ERG close "$FIXTURES/9003-by-path.erg" "switching approach")
 if [ "$OUT" = "CLOSED" ]; then
-    if grep -q "^Status: closed$" tickets/9003-by-path.erg; then
+    if grep -q "^Status: closed$" "$FIXTURES/9003-by-path.erg"; then
         pass "close by file path"
     else
         fail "close by file path (status not changed)"
     fi
 else
     fail "close by file path (output: $OUT)"
+fi
+
+# --- Status: line in body must NOT be rewritten ---
+cat > "$FIXTURES/9004-body-status.erg" <<'EOF'
+%erg v1
+Title: Body contains a Status line
+Status: open
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+Example log shape:
+Status: open
+(this line lives inside the body and must be preserved verbatim)
+EOF
+
+OUT=$($ERG close 9004 "header only" "$FIXTURES")
+if [ "$OUT" = "CLOSED" ]; then
+    # Body line must still say "Status: open"
+    if grep -q "^Status: open$" "$FIXTURES/9004-body-status.erg"; then
+        # And the header must now say "Status: closed"
+        if head -n 6 "$FIXTURES/9004-body-status.erg" | grep -q "^Status: closed$"; then
+            pass "body Status: line preserved, header updated"
+        else
+            fail "header Status not updated to closed"
+        fi
+    else
+        fail "body Status: line was incorrectly rewritten"
+    fi
+else
+    fail "close with body Status: line (output: $OUT)"
 fi
 
 # --- Missing args (no ID) ---
@@ -114,7 +147,7 @@ else
 fi
 
 # --- Non-existent ID ---
-if $ERG close 8888 "reason" 2>/dev/null; then
+if $ERG close 8888 "reason" "$FIXTURES" 2>/dev/null; then
     fail "non-existent ID exits non-zero"
 else
     pass "non-existent ID exits non-zero"

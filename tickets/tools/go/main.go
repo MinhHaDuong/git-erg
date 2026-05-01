@@ -8,7 +8,7 @@
 //	erg archive  [dir] [--days N] [--execute]
 //	erg graph    [dir] [--json]
 //	erg next-id  [dir]
-//	erg close    <id|file> <reason>
+//	erg close    <id|file> <reason> [dir]
 package main
 
 import (
@@ -1046,12 +1046,16 @@ var statusLineRE = regexp.MustCompile(`(?m)^Status:.*$`)
 
 func cmdClose(args []string) int {
 	if len(args) < 2 {
-		fmt.Fprintln(os.Stderr, "Usage: erg close <id|file> <reason>")
+		fmt.Fprintln(os.Stderr, "Usage: erg close <id|file> <reason> [dir]")
 		return 1
 	}
 
 	idOrFile := args[0]
-	reason := strings.Join(args[1:], " ")
+	reason := args[1]
+	ticketDir := "tickets"
+	if len(args) >= 3 {
+		ticketDir = args[2]
+	}
 
 	// Resolve to file path
 	var ticketPath string
@@ -1059,11 +1063,11 @@ func cmdClose(args []string) int {
 		// Provided a file path directly
 		ticketPath = idOrFile
 	} else {
-		// Provided a 4-digit ID — glob for it
-		pattern := fmt.Sprintf("tickets/%s-*.erg", idOrFile)
+		// Provided a 4-digit ID — glob for it under ticketDir
+		pattern := filepath.Join(ticketDir, fmt.Sprintf("%s-*.erg", idOrFile))
 		matches, err := filepath.Glob(pattern)
 		if err != nil || len(matches) == 0 {
-			fmt.Fprintf(os.Stderr, "close: no ticket found for ID %s\n", idOrFile)
+			fmt.Fprintf(os.Stderr, "close: no ticket found for ID %s in %s\n", idOrFile, ticketDir)
 			return 1
 		}
 		if len(matches) > 1 {
@@ -1088,8 +1092,22 @@ func cmdClose(args []string) int {
 		return 0
 	}
 
-	// Replace Status line in raw content (preserves formatting)
-	content := statusLineRE.ReplaceAllString(string(data), "Status: closed")
+	// Replace Status line only within the header section (before "--- log ---").
+	// Splitting the file at the log separator bounds the regex so a "Status:"
+	// line inside the body (e.g. inside a code fence or quoted example) is
+	// never rewritten.
+	raw := string(data)
+	logSep := "\n--- log ---"
+	logIdx := strings.Index(raw, logSep)
+	var content string
+	if logIdx < 0 {
+		// No log separator yet — operate on the whole file (validator will
+		// reject it later, but we should still behave deterministically).
+		content = statusLineRE.ReplaceAllString(raw, "Status: closed")
+	} else {
+		header := statusLineRE.ReplaceAllString(raw[:logIdx], "Status: closed")
+		content = header + raw[logIdx:]
+	}
 
 	// Append log line before "--- body ---"
 	now := time.Now().UTC().Format("2006-01-02T15:04Z")
@@ -1243,7 +1261,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "  archive [dir] [--days N] [--execute]  Archive old closed tickets")
 	fmt.Fprintln(os.Stderr, "  graph [dir] [--json]      Show ticket dependency DAG")
 	fmt.Fprintln(os.Stderr, "  next-id [dir]             Print the next available ticket ID")
-	fmt.Fprintln(os.Stderr, "  close <id|file> <reason>  Close a ticket atomically")
+	fmt.Fprintln(os.Stderr, "  close <id|file> <reason> [dir]  Close a ticket atomically")
 	fmt.Fprintln(os.Stderr, "  version                   Print sha256 of this binary")
 	fmt.Fprintln(os.Stderr, "  update                    Fetch and replace binary from origin")
 }
