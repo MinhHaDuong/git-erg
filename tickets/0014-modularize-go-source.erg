@@ -1,0 +1,83 @@
+%erg v1
+Title: Modularize tickets/tools/go/main.go and add godoc comments
+Created: 2026-05-01
+Author: claude
+Status: open
+
+--- log ---
+2026-05-01T17:15Z claude created — extracted from 0006 after close+claim/release work was redirected (close shipped in #7; claim/release dropped per 0013); modularization+godoc remained as the only live work item
+
+--- body ---
+## Context
+
+`tickets/tools/go/main.go` is currently 1305 lines in a single file.
+Most subcommands now exist (`validate`, `ready`, `archive`, `graph`,
+`next-id`, `close`, `version`, `update`). The 0008 (`erg pick`) work
+will add another command and tip the file past a comfortable size.
+Splitting now, before pick lands, gives that work a natural home.
+
+This ticket inherits the modularization + godoc portion of 0006.
+The other portions of 0006 are gone: `close` shipped in PR #7;
+`claim`/`release` are dropped per 0013.
+
+## Actions
+
+### A. Split `main.go`
+
+Proposed boundaries (refine during implementation):
+
+- `ticket.go` — `Erg` struct, `parseErg`, `loadTickets`, header
+  validation, log-line validation, `findTicketFile(id)`,
+  `appendToTicket`, the `statusLineRE` and other shared regexps.
+- `validate.go` — `cmdValidate` and helpers used only by it.
+- `ready.go` — `cmdReady` and its plaintext/JSON formatters.
+- `archive.go` — `cmdArchive` and date-resolution helpers.
+- `graph.go` — `cmdGraph`, `annotate()`, DAG construction.
+- `nextid.go` — `cmdNextID`.
+- `close.go` — `cmdClose`.
+- `selfupdate.go` — `cmdVersion`, `cmdUpdate`, `selfHash`, the
+  `updateURL` constant.
+- `main.go` — `main()`, `printUsage()`, command dispatch only.
+
+Each file under ~500 lines. Each gets a package-level godoc comment
+on its first declaration. Each exported or key unexported function
+gets a one-line godoc starting with its name (`// cmdReady prints
+…`).
+
+### B. godoc audit
+
+- `go doc ./tickets/tools/go/...` produces clean, complete output.
+- `printUsage()` remains the single source of truth for CLI help.
+
+### C. Tests
+
+- `go test ./tickets/tools/go/...` and `make test` green after each
+  commit (split file-by-file rather than in one large move).
+- No behavior change. `make validate` green on `tickets/`.
+
+## Open question — CLI shape
+
+0006 raised a `gh`-style noun-first redesign:
+`erg ticket list/validate/close/...` instead of `erg ready/validate/close`.
+The case for it is muscle-memory parity with `gh`; the case against
+is a breaking rename of an interface that just shipped two new verbs
+(`close` in #7, `version`/`update` in #5).
+
+**Recommendation: defer.** Keep verb-first for now; revisit once the
+modularization is in and the file structure makes a future rename a
+mechanical change. If revisited, file as a separate ticket.
+
+## Out of scope
+
+- Any new subcommand (pick, claim, release, etc.).
+- CLI rename to noun-first form (deferred — see above).
+- Test coverage expansion beyond keeping existing tests green.
+
+## Exit criteria
+
+- [ ] `main.go` split per §A; each file under ~500 lines
+- [ ] `go doc ./tickets/tools/go/...` produces clean output for every
+      exported declaration
+- [ ] `go test ./tickets/tools/go/...` green
+- [ ] `make test` and `make validate` green
+- [ ] No `printUsage()` text changes (interface unchanged)

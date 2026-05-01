@@ -30,7 +30,7 @@ or a fork PR can land a broken validator with zero friction.
 2. Jobs:
    - `test`: `go test ./...` (or the Go toolchain equivalent).
    - `validate-samples`: run the freshly built validator against
-     `tickets/0001-sample-bootstrap.erg` and `tickets/0002-sample-blocked.erg`
+     `tickets/0001-sample-blocker-fixture.erg` and `tickets/0002-sample-blocked.erg`
      and any future fixtures. Fails on non-zero exit.
 3. Required status check name: `CI / test` (stable — other repos may
    reference it once branch protection is enabled).

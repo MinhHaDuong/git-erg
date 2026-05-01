@@ -1,0 +1,32 @@
+%erg v1
+Title: Sample open ticket — blocker fixture for 0002
+Status: open
+Created: 2026-03-27
+Author: claude
+
+--- log ---
+2026-03-27T10:00Z claude created
+2026-04-29T00:00Z claude status closed Bootstrap purpose served; system validated
+2026-05-01T17:40Z claude status open — repurposed: 0002 (sample-blocked) needs an open blocker to actually demonstrate the blocked state in CI fixtures; renamed file from sample-bootstrap.erg to sample-blocker-fixture.erg
+
+--- body ---
+## Purpose
+
+Permanent CI fixture. Together with `0002-sample-blocked.erg`, this
+pair exercises the validator's open/blocked semantics:
+
+- This ticket is **open** with no blockers → must appear in `erg ready`.
+- 0002 is **open** with `Blocked-by: 0001` → must NOT appear in
+  `erg ready` while this ticket stays open.
+
+If either invariant breaks, the validator or the ready query has
+regressed. CI runs `erg validate` on both files (see 0009).
+
+## Do not close
+
+Closing this ticket would unblock 0002 and silently break the fixture
+pair. Leave it open indefinitely; it has no actionable work.
+
+## Exit criteria
+
+None — fixture, not a work item.

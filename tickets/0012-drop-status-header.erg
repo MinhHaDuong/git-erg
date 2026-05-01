@@ -6,6 +6,7 @@ Author: claude
 
 --- log ---
 2026-04-30T12:00Z claude created proposal — replace Status enum with binary closed criterion
+2026-05-01T17:35Z claude amended rationale — see "Amendment" section: 0013 invalidates the `.wip`-based justification for dropping `doing`, but the simpler argument (no Status enum at all) makes that justification unnecessary
 
 --- body ---
 ## Idea
@@ -39,8 +40,10 @@ A ticket is **not-closed** otherwise. There are no other states.
 - Closure becomes self-documenting: the value of `Closed:` carries the
   reason (PR, supersession, abandonment) without a separate log verb.
 - Removes an enum to maintain. Fewer validator branches.
-- `doing` is already captured by `.git/ticket-wip/{ID}.wip` — no header
-  needed.
+- `doing` becomes unrepresentable, which is fine: WIP is observable
+  out of band (a branch with the ticket ID exists). See 0013 — this
+  proposal supersedes the original argument that pointed at
+  `.git/ticket-wip/{ID}.wip` (that mechanism is itself being removed).
 
 ## Open questions (resolve before implementing)
 

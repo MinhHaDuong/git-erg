@@ -1,0 +1,189 @@
+%erg v1
+Title: Drop .wip files and claim/release — coordination is not the spec's concern
+Created: 2026-05-01
+Author: claude
+Status: open
+
+--- log ---
+2026-05-01T16:50Z claude created — proposal to remove .wip mechanism and the claim/release portion of 0006
+2026-05-01T17:10Z claude rewrote scope+migration after Opus review: 12 changesites identified, 0006 to be closed (not rescoped), spec gets explicit "Coordination is out of scope" paragraph rather than silence
+
+--- body ---
+## Idea
+
+Remove `.git/ticket-wip/{ID}.wip` files, the planned `claim`/`release`
+commands from 0006, and all derived outputs (the `wip` JSON field in
+`erg ready`, the `claimed` annotation in `erg graph`). The ticket spec
+describes what a ticket *is*, not how concurrent agents coordinate
+access to one.
+
+## Rationale
+
+- **`.wip` was never a reliable lock.** Absence of a `.wip` file does
+  not prove "not WIP" — agents may forget to claim, may crash mid-claim,
+  or may work in a fresh clone where the file never existed. Deleting
+  the mechanism loses no real guarantee.
+- **WIP is observable out of band.** If a branch with the ticket ID in
+  its name exists (locally or on a remote), the ticket is being worked
+  on. That signal is enough.
+- **Coordination is workflow, not spec.** Any branch-naming convention
+  (`feature/0042-foo`, `claude/0042-bar`, etc.) is a choice between
+  agents/humans, not a property of `%erg v1`. The spec should not codify
+  it — but it must explicitly declare coordination *out of scope* so a
+  future reader doesn't reinvent `.wip` from silence.
+- **Aligns with 0012.** Same philosophy: derive state from observable
+  facts, drop bookkeeping side-files.
+
+## Scope — 12 changesites
+
+### Code (`tickets/tools/go/main.go`)
+
+1. Delete `loadWip()` (lines 504–535).
+2. Drop `wip := loadWip()` and the WIP-exclusion branch in `cmdReady`
+   (lines 568, 581–585).
+3. Drop the `wip` field emitted by `erg ready --json` (lines 620–625)
+   and the ` (wip: …)` plaintext suffix (lines 642–643). **JSON contract
+   break — see Migration §2.**
+4. Drop `wip := loadWip()` and the `, claimed` annotation in
+   `cmdGraph`/`annotate()` (lines 862, 887–890).
+5. Remove the WIP-cleanup stanza in `cmdClose` (lines 1131–1137).
+
+### Spec (`rules/tickets.md`)
+
+6. Replace the entire "Cross-worktree coordination → Claim protocol"
+   section (lines 135–149) with the explicit non-feature paragraph
+   in §"Spec wording" below.
+7. Drop the `claimed`/`released` rows from the Log-verb table
+   (lines 108–109). Validator's log-verb regex is permissive (line 246
+   only checks timestamp/actor/word3), so existing tickets carrying
+   `claimed`/`released` lines stay valid — no historical migration
+   needed.
+8. Drop the `No .wip file exists for its ID` bullet from the Ready-query
+   list (line 156).
+9. Drop the `Cross-worktree deconfliction | .git/ticket-wip/` row from
+   the Relationship-to-GitHub-Issues table (line 187).
+10. Status table (line 65): change `doing — claimed, in progress.` to
+    `doing — work in progress.` (Drop the enum entirely if 0012 lands
+    after this — 0012's body needs amendment regardless; see §Sequencing.)
+
+### Design rationale (`docs/pep-erg-v1.md`)
+
+11. Replace section 6 "Cross-worktree coordination via `.git/ticket-wip/`"
+    (lines 117–132) with a brief note recording that coordination was
+    deliberately removed from v1 per 0013, with rationale. Trim or amend
+    lines 29, 103–110, 245, 282 accordingly.
+
+### Plugin and skills (`claude/`)
+
+12. Delete skills `claude/skills/ticket-claim/` and
+    `claude/skills/ticket-release/` outright. Trim `ticket-close/SKILL.md`
+    lines 19–21 (the `rm -f $wip_dir/...` step), `ticket-ready/SKILL.md`
+    lines 20–26 (the claim-check loop), `ticket-new/SKILL.md` line 57
+    (drop `claimed`, `released` from the verb whitelist suggestion).
+    Update `claude/CLAUDE-PLUGIN.md` lines 9–17 (commands list,
+    workflow). Drop `"Bash(*ticket-wip*)"` from `claude/settings.json`
+    line 4.
+
+### Other docs
+
+- `bin/install.sh` lines 11, 70, 80 — remove claim/release from the
+  skill list and drop the `Bash(*ticket-wip*)` permission hint.
+- `README.md` line 69 — remove `/ticket-claim` and `/ticket-release`
+  from the commands list.
+- `STATE.md` lines 15, 30 — already obsolete (0006 references); will be
+  rewritten when 0006 closes (see §Companion changes).
+
+## Spec wording — explicit "Coordination is out of scope"
+
+Silence is not achievable: removing the existing "Cross-worktree
+coordination" section without a replacement leaves a hole that invites
+reinvention. Replace it with this paragraph:
+
+> ## Coordination is out of scope
+>
+> %erg v1 describes what a ticket is, not how concurrent agents or
+> worktrees share access to one. There is no claim file, no lock, no
+> doing-but-mine state. If two agents need to avoid stepping on each
+> other, they observe out-of-band signals — typically a git branch
+> whose name contains the ticket ID — and coordinate there. Such
+> conventions are workflow choices, not properties of this format.
+
+## Migration
+
+1. **In-flight `.wip` files.** None in this clone (`/home/user/git-erg/.git/`
+   has no `ticket-wip/`). Other clones may have them; they become
+   harmless orphans inside `.git/` (never committed). The ticket's
+   "delete if exists" step is *advisory* — it cannot reach other
+   developers' machines.
+2. **`erg ready --json` contract break.** The `wip` field disappears.
+   Known consumer: IDH skills (per 0006 §D and 0008). Atomic switch is
+   acceptable because the field was always optional and never carried
+   semantic guarantees. Document in release notes; downstream readers
+   should already tolerate a missing key.
+3. **`erg graph` annotation change.** `, claimed` suffix disappears.
+   Plaintext output only — no JSON contract.
+4. **Skill removal.** `/ticket-claim` and `/ticket-release` slash
+   commands disappear. Anyone with muscle memory will get a "command
+   not found"; release note is enough.
+5. **Atomic vs. window.** Atomic. `.wip` was never a hard lock so there
+   is no consistency to preserve. One PR removes all sites; the next
+   `erg validate` run confirms.
+6. **Cross-worktree visibility shift.** Today, `erg ready` on machine A
+   won't show a ticket claimed on machine B's worktree. After 0013,
+   `erg ready` may show the same ticket on both machines — nothing in
+   the binary checks `git branch --all`. This is an explicit decision,
+   not an oversight: deconfliction returns to the agents/humans, by
+   design.
+7. **Verification.**
+   - `grep -rni 'ticket-wip\|\.wip\b\|claim\|release' rules/ docs/ claude/ bin/ tickets/tools/go/` returns zero hits.
+   - `erg ready --json | jq '.[] | keys'` shows no `wip` key.
+   - `go test ./tickets/tools/go/...` and `make test` green.
+   - `erg validate tickets/` green.
+
+## Companion changes (separate tickets/PRs)
+
+- **Close 0006, file modularization ticket.** 0006 bundled
+  claim+release+close+modularize+godoc. `close` shipped in PR #7;
+  claim/release vanish here. The remaining work (Go modularization +
+  godoc) has nothing structurally in common with the original — file
+  it as a fresh ticket and close 0006 with reason
+  `"superseded — close shipped in #7; claim/release dropped per 0013;
+  modularization+godoc moved to 0014"`. This matches the
+  close-and-fork pattern from PR #9 (closing 0009/0011 as
+  work-already-shipped).
+- **0007 ("install erg on PATH")** has no real dependency on 0006 —
+  only narrative motivation. Drop its `Blocked-by: 0006` outright when
+  this lands.
+- **0008 ("erg pick command")** depends on the modularization, not
+  claim/release. Re-point its `Blocked-by:` at the new modularization
+  ticket.
+
+## Sequencing with 0012
+
+Land **0013 first**. It is mechanical and decisively scoped; 0012 still
+has open design questions (path-vs-header, fate of `pending`). 0012's
+rationale §5 explicitly cites `.git/ticket-wip/` as the reason `doing`
+can be dropped — 0013 invalidates that argument either way, so 0012's
+body needs amendment regardless. Landing 0013 first lets 0012 reference
+"no Status enum, no WIP — the only state machine left is closed/not-closed"
+as a clean simplification.
+
+## Out of scope
+
+- Any branch-naming convention or "WIP detector" command. Stale-branch
+  hygiene and remote-branch handling are user concerns, not the spec's.
+- Status enum changes (covered by 0012).
+- Modularization of `tickets/tools/go/main.go` (covered by the new
+  companion ticket).
+
+## Exit criteria
+
+- [ ] All 12 changesites listed in §Scope updated; no remaining hits in
+      `grep -rni 'ticket-wip\|\.wip\b\|claim\|release' rules/ docs/ claude/ bin/ tickets/tools/go/`
+- [ ] `rules/tickets.md` carries the new "Coordination is out of scope"
+      paragraph in place of the deleted section
+- [ ] `erg ready --json` no longer emits a `wip` field
+- [ ] `erg graph` no longer emits `, claimed`
+- [ ] Validator passes on all tickets
+- [ ] 0006 closed and modularization ticket filed (companion PR)
+- [ ] 0007 unblocked; 0008 re-pointed at the modularization ticket
