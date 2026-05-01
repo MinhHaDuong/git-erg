@@ -1,12 +1,13 @@
 %erg v1
 Title: Add erg close command — atomic ticket closure for the beat
-Status: open
+Status: closed
 Created: 2026-05-01
 Author: claude
 
 --- log ---
 2026-05-01T00:00Z claude created — split from 0006 (scope-too-large); close is the highest-value piece for beat ops
 
+2026-05-01T06:17Z claude status closed — cmdClose implemented and tested — 6/6 shell tests pass
 --- body ---
 ## Context
 
