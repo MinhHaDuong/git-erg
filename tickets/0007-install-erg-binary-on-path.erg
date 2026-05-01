@@ -11,14 +11,17 @@ Author: user
 --- body ---
 ## Context
 
-Ticket 0006 will make agents delegate claim/release/close to the `erg` binary.
-That means `erg` must be on PATH in every environment where agents run: dev
-machines, CI containers, worktrees. Currently the binary is committed at
-`tickets/tools/go/erg` (x86-64 static) and built into `DEST/tickets/tools/go/erg`
-by `bin/install.sh`, but neither location is on PATH.
+Agents and humans invoke `erg` directly from skills and Makefiles
+(`erg validate`, `erg ready`, `erg close`, and the planned
+`erg pick`). That means `erg` must be on PATH in every environment
+where agents run: dev machines, CI containers, worktrees. Currently
+the binary is committed at `tickets/tools/go/erg` (x86-64 static) and
+built into `DEST/tickets/tools/go/erg` by `bin/install.sh`, but
+neither location is on PATH.
 
-CLAUDE-PLUGIN.md currently says "no CLI needed" and points to a manual `go build`
-note buried under Notes. Both will be wrong after ticket 0006.
+CLAUDE-PLUGIN.md currently says "no CLI needed" and points to a manual
+`go build` note buried under Notes. Both are misleading: agents need
+`erg` on PATH to use the plugin's skills.
 
 Two lightweight fixes cover the gap:
 1. A Makefile target that puts the binary on PATH — the shared primitive for all

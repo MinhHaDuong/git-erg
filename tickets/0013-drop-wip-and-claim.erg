@@ -148,7 +148,7 @@ reinvention. Replace it with this paragraph:
   godoc) has nothing structurally in common with the original — file
   it as a fresh ticket and close 0006 with reason
   `"superseded — close shipped in #7; claim/release dropped per 0013;
-  modularization+godoc moved to 00NN"`. This matches the
+  modularization+godoc moved to 0014"`. This matches the
   close-and-fork pattern from PR #9 (closing 0009/0011 as
   work-already-shipped).
 - **0007 ("install erg on PATH")** has no real dependency on 0006 —
