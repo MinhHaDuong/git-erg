@@ -8,7 +8,7 @@
 # Installs:
 #   .claude/CLAUDE.md         Project instructions with @import
 #   .claude/rules/tickets.md  Format spec (%erg v1)
-#   .claude/skills/           Slash commands (ticket-new, claim, close, release, ready)
+#   .claude/skills/           Slash commands (ticket-new, ticket-close, ticket-ready)
 #   .claude/settings.json     PostToolUse validation hook
 #   tickets/                  Ticket directory + archive + validator source
 #   .git/hooks/pre-commit     Validation on commit
@@ -67,7 +67,7 @@ if [ -d "$DEST/.claude/skills/ticket-new" ] && diff -rq "$SRC/claude/skills/" "$
     skip ".claude/skills/"
 else
     cp -r "$SRC/claude/skills/"* "$DEST/.claude/skills/"
-    ok ".claude/skills/ (ticket-new, claim, close, release, ready)"
+    ok ".claude/skills/ (ticket-new, ticket-close, ticket-ready)"
 fi
 
 # --- Settings (hooks) ---
@@ -77,7 +77,7 @@ else
     if [ -f "$DEST/.claude/settings.json" ]; then
         # Don't overwrite existing settings — warn user
         echo "  ! .claude/settings.json exists — merge manually from claude/settings.json"
-        echo "    Required: add \"Bash(*ticket-wip*)\" to permissions.allow for ticket-claim/close"
+        echo "    Merge the PostToolUse validation hook from claude/settings.json"
     else
         cp "$SRC/claude/settings.json" "$DEST/.claude/settings.json"
         ok ".claude/settings.json (validation hook)"

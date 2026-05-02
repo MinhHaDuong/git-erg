@@ -25,8 +25,8 @@ two failure modes emerge:
    In offline, rate-limited, or latency-sensitive contexts, this blocks
    the agent's ability to pick work.
 
-The ticket system solves both: local files for offline reads, a shared
-`.git/ticket-wip/` directory for cross-worktree coordination.
+The ticket system solves both with local files for offline reads and a
+simple text format that works equally well with human and agent workflows.
 
 ## Design choices and rationale
 
@@ -100,13 +100,13 @@ filename is the canonical identifier.
 
 ### 5. Four status values: open, doing, closed, pending
 
-**Choice:** `open` (available), `doing` (claimed), `closed` (done),
+**Choice:** `open` (available), `doing` (work in progress), `closed` (done),
 `pending` (awaiting external input).
 
 **Rationale:** `pending` was added to exclude tickets awaiting review or
 human input from the ready query. Without it, agents would pick up
-tickets that can't be worked on. `doing` is explicit claim (vs. the
-`.wip` file being the only claim signal).
+tickets that can't be worked on. `doing` signals in-progress work without
+requiring any lock or claim file.
 
 **Alternatives considered:**
 - Three statuses (open/doing/closed): no way to express "waiting for
@@ -114,23 +114,22 @@ tickets that can't be worked on. `doing` is explicit claim (vs. the
 - Labels for sub-states: would require validating label values, adding
   complexity to the closed header set.
 
-### 6. Cross-worktree coordination via `.git/ticket-wip/`
+### 6. Coordination is out of scope (removed in 0013)
 
-**Choice:** Claims use `.wip` files inside `.git/ticket-wip/`, shared
-across worktrees via `git-common-dir`.
+The original v1 proposal included a `.git/ticket-wip/` claim protocol
+for cross-worktree coordination. This was deliberately removed (ticket
+0013, 2026-05-02) for three reasons:
 
-**Rationale:** Git worktrees on the same machine share the `.git/`
-directory. Writing a `.wip` file is instant (no commit, no push, no
-merge conflict). The alternative — putting claims in the ticket file
-itself — would require a commit-push-pull cycle just to say "I'm working
-on this."
+1. **Not a reliable lock.** Absence of a `.wip` file does not prove
+   "not WIP" — agents may forget to claim, may crash mid-claim, or may
+   work in a fresh clone where the file never existed.
+2. **Observable out of band.** A git branch whose name contains the
+   ticket ID is a sufficient deconfliction signal; no side file needed.
+3. **Workflow, not spec.** Branch-naming conventions are choices between
+   agents/humans, not properties of the `%erg v1` format.
 
-**Tradeoffs:**
-- `.wip` files are invisible to `git status` (feature: no noise).
-- `.wip` files don't survive across clones (acceptable: coordination
-  scope is one machine).
-- Stale `.wip` files from crashed sessions need manual cleanup or
-  session-end hooks.
+The spec now explicitly declares coordination out of scope so future
+readers do not reinvent the `.wip` mechanism from silence.
 
 ### 7. GitHub Issues as separate coordination layer
 
@@ -242,7 +241,6 @@ but are not the primary path.
 - **Go binary structure** (parser, validator, ready, archive) — adapted
   for v1 format rules.
 - **Test suite** (validate, ready, archive) — rewritten for v1 fixtures.
-- **`.wip` coordination protocol** — unchanged.
 - **DAG-safe archive logic** — unchanged (Blocked-by reference protection).
 
 ## Specification
@@ -278,7 +276,5 @@ same canonical format.
 1. **v2 header candidates**: Labels, Priority, Assignee — add when needed.
 2. **Archive retention**: 90 days is arbitrary. Should it be configurable
    per-project?
-3. **Cross-machine coordination**: Currently out of scope. If needed,
-   the `.wip` protocol could be extended with a network-aware lock.
-4. **Log verb enforcement**: The spec lists a closed verb set but the
+3. **Log verb enforcement**: The spec lists a closed verb set but the
    validator only checks structural format (rule 10). Enforce in v2?

@@ -2,11 +2,12 @@
 Title: Drop .wip files and claim/release — coordination is not the spec's concern
 Created: 2026-05-01
 Author: claude
-Status: open
+Status: closed
 
 --- log ---
 2026-05-01T16:50Z claude created — proposal to remove .wip mechanism and the claim/release portion of 0006
 2026-05-01T17:10Z claude rewrote scope+migration after Opus review: 12 changesites identified, 0006 to be closed (not rescoped), spec gets explicit "Coordination is out of scope" paragraph rather than silence
+2026-05-02T00:00Z claude status closed — all 12 changesites done; ticket-claim/release deleted; spec/docs/skills updated; companion changes (0006 closed, 0007 unblocked, 0008→0014) were already in place
 
 --- body ---
 ## Idea
