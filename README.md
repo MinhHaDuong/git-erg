@@ -66,7 +66,7 @@ See [rules/tickets.md](rules/tickets.md) for the complete `%erg v1` specificatio
 The install script sets up skills and rules automatically. To do it manually:
 
 Copy `claude/` into your project's `.claude/` directory to get skills:
-`/ticket-new`, `/ticket-claim`, `/ticket-close`, `/ticket-release`, `/ticket-ready`
+`/ticket-new`, `/ticket-close`, `/ticket-ready`
 
 Copy `rules/tickets.md` into `.claude/rules/`.
 

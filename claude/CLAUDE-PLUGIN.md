@@ -6,17 +6,14 @@ You read and write `.erg` text files directly — no CLI needed.
 ## Commands
 
 - `/ticket-new [title]` — create a ticket
-- `/ticket-ready` — list unblocked, unclaimed tickets
-- `/ticket-claim [id]` — claim a ticket for work
+- `/ticket-ready` — list unblocked tickets
 - `/ticket-close [id]` — close a ticket
-- `/ticket-release [id]` — release a claimed ticket
 
 ## Workflow
 
 1. `/ticket-ready` to see what's available
-2. `/ticket-claim 0042` to start work
-3. Do the work
-4. `/ticket-close 0042` when done
+2. Pick a ticket and do the work
+3. `/ticket-close 0042` when done
 
 ## Notes
 

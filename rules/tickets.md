@@ -62,7 +62,7 @@ headers, it declares `%ticket v2` and extends the set.
 
 **Status values:**
 - `open` — available for work.
-- `doing` — claimed, in progress.
+- `doing` — work in progress.
 - `closed` — completed or cancelled.
 - `pending` — awaiting external input (e.g., review). Excluded from ready query.
 
@@ -105,8 +105,6 @@ Append-only. Each line records one event:
 |------|---------|
 | `created` | Ticket created |
 | `status` | Status changed. Detail: new status + reason |
-| `claimed` | Agent is starting work (also writes `.wip` file) |
-| `released` | Agent released claim without completing |
 | `note` | Free-form annotation |
 
 Lines are never edited or deleted. To correct an error, append a new line.
@@ -132,28 +130,21 @@ Definition of done.
 Not enforced by the validator. Agents are encouraged to follow the convention
 but the body is structurally unconstrained.
 
-## Cross-worktree coordination
+## Coordination is out of scope
 
-### Claim protocol
+%erg v1 describes what a ticket is, not how concurrent agents or worktrees
+share access to one. There is no claim file, no lock, no doing-but-mine state.
+If two agents need to avoid stepping on each other, they observe out-of-band
+signals — typically a git branch whose name contains the ticket ID — and
+coordinate there. Such conventions are workflow choices, not properties of
+this format.
 
-Claims prevent two worktrees on the same machine from working on the same ticket.
-
-Claims use `.git/ticket-wip/` (shared across worktrees via `git-common-dir`):
-
-1. **Check:** read `.git/ticket-wip/{ID}.wip`. If it exists, ticket is claimed.
-2. **Claim:** write the file with content `{timestamp} {actor} {worktree-path}`.
-3. **Release:** delete the file (on close, abandon, or session end).
-
-`.wip` files are local-only (inside `.git/`, never committed). They survive
-across sessions but not across clones.
-
-### Ready query
+## Ready query
 
 A ticket is **ready** when:
 - `Status: open` (not `doing`, not `closed`, not `pending`)
 - Every `Blocked-by` local ref points to a `Status: closed` ticket
 - Every `Blocked-by: gh#N` is either resolved via API or treated as satisfied (offline)
-- No `.wip` file exists for its ID
 
 ### Archive criteria
 
@@ -184,7 +175,6 @@ The Go validator enforces:
 | Concern | Tool |
 |---------|------|
 | Local work organization | `.erg` files |
-| Cross-worktree deconfliction | `.git/ticket-wip/` |
 | Multi-agent coordination | GitHub Issues |
 | Public visibility, review | GitHub Issues + PRs |
 

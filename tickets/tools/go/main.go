@@ -509,30 +509,6 @@ type readyEntry struct {
 	id, title, file string
 }
 
-func loadWip() map[string]string {
-	wip := make(map[string]string)
-	cmd := exec.Command("git", "rev-parse", "--git-common-dir")
-	out, err := cmd.Output()
-	if err != nil {
-		return wip
-	}
-	wipDir := filepath.Join(strings.TrimSpace(string(out)), "ticket-wip")
-	entries, err := os.ReadDir(wipDir)
-	if err != nil {
-		return wip
-	}
-	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".wip" {
-			continue
-		}
-		tid := strings.TrimSuffix(e.Name(), ".wip")
-		data, err := os.ReadFile(filepath.Join(wipDir, e.Name()))
-		if err == nil {
-			wip[tid] = strings.TrimSpace(string(data))
-		}
-	}
-	return wip
-}
 
 func cmdReady(args []string) int {
 	useJSON := false
@@ -565,8 +541,6 @@ func cmdReady(args []string) int {
 		}
 	}
 
-	wip := loadWip()
-
 	var warnings []string
 	var ready []readyEntry
 	openCount := 0
@@ -578,12 +552,7 @@ func cmdReady(args []string) int {
 		}
 		openCount++
 
-		// Exclude WIP-claimed tickets
 		tid := t.FilenameID()
-		if _, claimed := wip[tid]; claimed {
-			continue
-		}
-
 		blocked := false
 		for _, refID := range t.BlockedBy() {
 			if strings.HasPrefix(refID, "gh#") {
@@ -617,12 +586,8 @@ func cmdReady(args []string) int {
 				if i == len(ready)-1 {
 					comma = ""
 				}
-				wipField := ""
-				if w, ok := wip[r.id]; ok {
-					wipField = fmt.Sprintf(",\n    \"wip\": \"%s\"", jsonEscape(w))
-				}
-				fmt.Printf("  {\n    \"id\": \"%s\",\n    \"title\": \"%s\",\n    \"file\": \"%s\"%s\n  }%s\n",
-					jsonEscape(r.id), jsonEscape(r.title), jsonEscape(r.file), wipField, comma)
+				fmt.Printf("  {\n    \"id\": \"%s\",\n    \"title\": \"%s\",\n    \"file\": \"%s\"\n  }%s\n",
+					jsonEscape(r.id), jsonEscape(r.title), jsonEscape(r.file), comma)
 			}
 			fmt.Println("]")
 		}
@@ -638,11 +603,7 @@ func cmdReady(args []string) int {
 		} else {
 			fmt.Printf("Ready tickets (%d):\n", len(ready))
 			for _, r := range ready {
-				suffix := ""
-				if w, ok := wip[r.id]; ok {
-					suffix = "  (wip: " + w + ")"
-				}
-				fmt.Printf("  %-8s %-40s %s%s\n", r.id, r.file, r.title, suffix)
+				fmt.Printf("  %-8s %-40s %s\n", r.id, r.file, r.title)
 			}
 		}
 	}
@@ -859,8 +820,6 @@ func cmdGraph(args []string) int {
 		}
 	}
 
-	wip := loadWip()
-
 	// Build children map (reverse of Blocked-by): if B is blocked by A, then A -> B
 	children := make(map[string][]string)
 	hasParent := make(map[string]bool)
@@ -885,9 +844,6 @@ func cmdGraph(args []string) int {
 	// Determine annotation for a ticket
 	annotate := func(id string) string {
 		status := statusByID[id]
-		if _, claimed := wip[id]; claimed {
-			return status + ", claimed"
-		}
 		if status == "open" {
 			// Check if blocked
 			t := byID[id]
@@ -1126,14 +1082,6 @@ func cmdClose(args []string) int {
 	if err := os.WriteFile(ticketPath, []byte(content), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "close: cannot write %s: %v\n", ticketPath, err)
 		return 1
-	}
-
-	// Remove WIP lock if present (idempotent)
-	cmd := exec.Command("git", "rev-parse", "--git-common-dir")
-	if out, err := cmd.Output(); err == nil {
-		id := ticket.FilenameID()
-		wipFile := filepath.Join(strings.TrimSpace(string(out)), "ticket-wip", id+".wip")
-		os.Remove(wipFile) // ignore error — idempotent
 	}
 
 	fmt.Println("CLOSED")
