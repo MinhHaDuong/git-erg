@@ -509,7 +509,6 @@ type readyEntry struct {
 	id, title, file string
 }
 
-
 func cmdReady(args []string) int {
 	useJSON := false
 	var rest []string
