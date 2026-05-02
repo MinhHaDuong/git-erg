@@ -1,0 +1,128 @@
+%erg v1
+Title: Cross-repo resolver, cache, and erg ready integration
+Status: open
+Created: 2026-05-02
+Author: claude
+Blocked-by: 0016
+Blocked-by: 0017
+
+--- log ---
+2026-05-02T01:06Z claude created — 0016 split, child 2 of 3 (network resolver, cache, ready policy)
+
+--- body ---
+## Scope
+
+The network half. Implements the resolver, its short-TTL cache,
+the auth chain, and integrates the result into `erg ready`.
+
+In:
+- Resolver: takes parsed refs from 0017, returns three-state result.
+- On-disk ephemeral cache.
+- Auth chain.
+- `erg ready` policy for `unknown`.
+- `--offline` escape hatch.
+
+Out:
+- Spec/grammar/validator. (0017.)
+- Graph rendering. (0019, which consumes this resolver.)
+
+## Resolver API
+
+```go
+type Resolution struct {
+    State  State   // Open | Closed | Unknown
+    Reason string  // populated when State == Unknown
+}
+
+type State int
+const (
+    Open State = iota
+    Closed
+    Unknown
+)
+```
+
+`Closed` for issues means `state == "closed"`. `Closed` for PRs
+requires `merged_at != null` (resolves Deferred #4 from 0016).
+A PR closed-without-merge is `Open` from a blocker standpoint —
+the work isn't done.
+
+`Unknown` reasons (free-form string, kept for diagnostics):
+`not-found`, `offline`, `rate-limited`, `auth-failed`, `transferred`,
+`network-error`.
+
+The resolver does not decide policy. Callers do.
+
+## Cache
+
+- Location: `~/.cache/erg/gh/` (XDG: respect `XDG_CACHE_HOME`).
+- TTL: 60s default; `ERG_CACHE_TTL=<seconds>` and `--cache-ttl=<s>`
+  overrides.
+- Key: `{owner}/{repo}#{number}` (cross-repo) or
+  `{this-owner}/{this-repo}#{number}` (same-repo, normalized to
+  cross-repo for cache locality).
+- Value: JSON `{state, reason, fetched_at, etag}`.
+- Conditional GET via stored ETag where possible (saves rate budget).
+- No manual flush in v1 — `rm -rf` the dir.
+
+## Auth chain (resolves Deferred #3)
+
+In order, first that yields a token wins:
+1. `gh auth token` (if `gh` is on PATH and authenticated).
+2. `GITHUB_TOKEN` env var.
+3. Unauthenticated (60 req/hr ceiling).
+
+Document the chain in `rules/tickets.md`.
+
+## Issue transfers (resolves Deferred #6)
+
+GitHub returns 301 with a new location for transferred issues.
+Follow once, log a stderr warning naming the old and new refs.
+The cache stores the resolved location, not the redirect, so
+subsequent calls hit the new repo directly.
+
+## `erg ready` integration
+
+Policy: `Unknown` is treated as **blocking** (fail-closed). A
+blocker we can't verify is conservatively assumed to still block.
+This makes CI stable in the face of rate-limit blips and avoids
+false-ready rows for typo'd refs.
+
+Override with `--assume-unknown=open` for interactive use where the
+user wants to see the row anyway. `--offline` short-circuits the
+resolver entirely (every cross-repo ref returns
+`Unknown{offline}`); useful in disconnected environments and CI
+without network.
+
+`erg ready` plain-text output appends a state hint when blockers
+are non-trivial:
+
+```
+0021 ship feature X    (blocked: gh:anthropics/claude-code#1234 [unknown])
+```
+
+JSON output gains a `blocked_by` array per row with resolved state
+(structure shared with 0019).
+
+## Tests
+
+- Resolver: 200/closed → Closed; 200/open → Open; 404 → Unknown
+  not-found; 403 rate-limit → Unknown rate-limited; offline →
+  Unknown offline; PR open → Open; PR closed-not-merged → Open;
+  PR merged → Closed.
+- Cache: miss → fetch; hit-fresh → no fetch; hit-stale → re-fetch;
+  ETag round-trip.
+- `erg ready`: unknown blocks by default; `--assume-unknown=open`
+  surfaces; `--offline` short-circuits.
+- Auth chain: each tier picked in order; missing all = unauth call.
+
+## Exit criteria
+
+- [ ] Resolver implementation with three-state result.
+- [ ] On-disk TTL cache with ETag.
+- [ ] Auth chain (`gh` → env → unauth) documented and tested.
+- [ ] PR-merged distinction enforced (Deferred #4).
+- [ ] Issue-transfer 301 followed with warning (Deferred #6).
+- [ ] `erg ready` fail-closed on unknown by default;
+      `--assume-unknown` and `--offline` flags shipped.
+- [ ] `rules/tickets.md` documents auth chain and cache location.
