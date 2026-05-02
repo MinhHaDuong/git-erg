@@ -1,0 +1,58 @@
+%erg v1
+Title: Fix go vet false-positive: fmt.Fprintln with %erg misread as Printf directive
+Status: open
+Created: 2026-05-02
+Author: claude
+
+--- log ---
+2026-05-02T00:00Z claude created — surfaced by /review-pr 14; pre-existing, not introduced by 0013
+
+--- body ---
+## Context
+
+`go test` fails to build because `go vet` flags this line in `printUsage()`:
+
+```go
+fmt.Fprintln(os.Stderr, "  validate [dir|files...]   Validate %erg v1 files")
+```
+
+Error: `fmt.Fprintln call has possible Printf formatting directive %e`
+
+`go vet` sees `%e` inside `%erg` and treats it as a stray Printf verb. The
+string is not a format string — `fmt.Fprintln` never interprets `%`-sequences
+— but `go vet`'s heuristic fires anyway. This blocks `go test ./...` from
+running (build fails before tests execute).
+
+## Fix
+
+Replace the `%erg` literal in the usage string with a form `go vet` won't
+flag. Two options:
+
+1. **Escape the percent**: change `%erg` to `%%erg` — but `Fprintln` doesn't
+   interpret format directives, so `%%` would print literally as `%%erg`.
+   Not viable.
+
+2. **Split the string** with concatenation:
+   ```go
+   fmt.Fprintln(os.Stderr, "  validate [dir|files...]   Validate " + "%erg v1 files")
+   ```
+   Inelegant but works.
+
+3. **Switch to `fmt.Fprintf` with explicit escaping** — overkill for a usage line.
+
+4. **Rename the magic word in usage text** — just say `erg v1 files` rather
+   than `%erg v1 files`. The `%` prefix is part of the on-disk format, not
+   part of the command name. The usage string can omit it without loss:
+   ```go
+   fmt.Fprintln(os.Stderr, "  validate [dir|files...]   Validate erg v1 ticket files")
+   ```
+   This is the cleanest fix: no concatenation hacks, no `%%`, accurate prose.
+
+**Recommended:** option 4. The usage string describes the command argument,
+not the file format magic line.
+
+## Exit criteria
+
+- `go test ./...` in `tickets/tools/go/` runs without build error
+- `erg --help` output remains clear and accurate
+- No other `go vet` warnings introduced
