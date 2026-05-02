@@ -1,0 +1,95 @@
+%erg v1
+Title: erg graph rendering for cross-repo blockers
+Status: open
+Created: 2026-05-02
+Author: claude
+Blocked-by: 0016
+Blocked-by: 0018
+
+--- log ---
+2026-05-02T01:07Z claude created — 0016 split, child 3 of 3 (graph rendering)
+
+--- body ---
+## Scope
+
+Visualization-only. Extends `erg graph` (shipped in 0004) to
+render cross-repo edges using the resolver from 0018.
+
+In:
+- ASCII rendering for `gh-cross` edges with resolved state.
+- JSON output schema with kind discriminator.
+- Distinct rendering for `Unknown` and for deleted/transferred
+  upstream issues.
+
+Out:
+- Resolver, cache, ready integration. (0018.)
+- Spec/validator. (0017.)
+- Graphviz / DOT output (out of scope for v1; file follow-up if
+  ASCII proves insufficient for cross-repo-heavy graphs).
+
+## ASCII rendering
+
+```
+0016 cross-repo blocker design          [open, READY]
+0021 ship feature X                     [open, blocked]
+  -> gh:anthropics/claude-code#1234     [closed]   cross-repo
+  -> gh#42                              [open]     same-repo
+  -> gh:foo/bar#7                       [unknown]  cross-repo, rate-limited
+  -> gh:old/repo#3                      [unknown]  cross-repo, deleted
+  -> 0019 graph rendering               [open]     local
+```
+
+Conventions:
+- Cross-repo refs render verbatim (`gh:owner/repo#N`); the
+  owner/repo *is* the information.
+- State column shows resolver result: `[open]`, `[closed]`, or
+  `[unknown]`.
+- Trailing tag: `local`, `same-repo`, `cross-repo`. Where the
+  state is `unknown`, append the reason (`rate-limited`,
+  `not-found`, `offline`, `deleted`, `transferred`).
+- A 404 that has previously been seen and is persistently failing
+  is rendered as `deleted` rather than `not-found` (Deferred #5
+  from 0016 — wants a stickier label so deleted blockers don't
+  masquerade as transient outages). Heuristic for v1: if
+  `not-found` for the same ref across two consecutive cache
+  cycles, render as `deleted`. Refine if noisy.
+
+## JSON output (`erg graph --json`)
+
+```json
+{
+  "id": "0021",
+  "blocked_by": [
+    {"kind": "gh-cross", "owner": "anthropics", "repo": "claude-code",
+     "number": 1234, "state": "closed"},
+    {"kind": "gh-same",  "number": 42, "state": "open"},
+    {"kind": "gh-cross", "owner": "foo", "repo": "bar",
+     "number": 7, "state": "unknown", "reason": "rate-limited"},
+    {"kind": "gh-cross", "owner": "old", "repo": "repo",
+     "number": 3, "state": "unknown", "reason": "deleted"},
+    {"kind": "local", "id": "0019", "state": "open"}
+  ]
+}
+```
+
+`kind` discriminator lets consumers branch without re-parsing the
+ref string. `state` is the resolver result (see 0018). `reason`
+is present iff `state == "unknown"`.
+
+## Tests
+
+- ASCII renders all three kinds.
+- `unknown` reasons surface in the trailing tag.
+- 404 across two cycles → renders as `deleted`.
+- JSON round-trips; consumers can read the schema.
+- Empty `blocked_by` array still emitted (don't omit the field).
+- Large fan-out (20+ cross-repo edges off one node) still readable
+  — adjust column widths as needed.
+
+## Exit criteria
+
+- [ ] ASCII renders cross-repo edges with state and reason.
+- [ ] JSON emits structured ref objects with `kind`/`state`/`reason`.
+- [ ] `deleted` heuristic implemented (resolves Deferred #5 partially).
+- [ ] Tests cover each kind, each state, the 404→deleted flip, and
+      large-fan-out layout.

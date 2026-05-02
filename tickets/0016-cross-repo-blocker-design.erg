@@ -1,0 +1,142 @@
+%erg v1
+Title: Cross-repo blocker references — design umbrella
+Status: open
+Created: 2026-05-02
+Author: claude
+
+--- log ---
+2026-05-02T00:00Z claude created — design ticket; spec gap: Blocked-by: gh#N is single-repo only
+2026-05-02T01:00Z claude note advisor review accepted: colon scheme, three-state resolver result, short-TTL resolver cache, tightened owner/repo regex; reshaped as design umbrella, implementation split to 0017/0018/0019; remaining axes deferred not dropped
+2026-05-02T01:15Z claude note filed gh#12 for public discussion of decisions and deferred items
+
+--- body ---
+## Problem
+
+`Blocked-by: gh#N` (rules/tickets.md:69-74) resolves N against the
+*current* repo only. Real coordination crosses repos: a ticket here
+may legitimately wait on an issue in another repo. Today the only
+encodings are dropping the dependency (invisible) or putting it in
+prose (unparseable). Neither acceptable for a system whose value is
+machine-readable dependency state.
+
+## Decisions
+
+### Syntax — colon scheme
+
+```
+Blocked-by: gh:owner/repo#N      # cross-repo
+Blocked-by: gh#N                  # same-repo (legacy; see Deferred #1)
+Blocked-by: 0042                  # local (unchanged)
+```
+
+Grammar:
+
+```
+ref       := local-ref | gh-same | gh-cross
+local-ref := [0-9]{4}
+gh-same   := "gh#" number
+gh-cross  := "gh:" owner "/" repo "#" number
+number    := [1-9][0-9]*
+```
+
+`#` is reserved for issue number; `:` is the scheme separator.
+Generalizes cleanly to a future `gl:owner/repo#N`.
+
+### Owner/repo regex — mirror GitHub
+
+Validator enforces GitHub's actual login and repo rules, not a loose
+character class:
+
+- Login: `[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9]))*`, max 39
+  chars, no leading/trailing `-`, no underscores.
+- Repo: `[A-Za-z0-9._-]+`, max 100 chars, no leading `.` or `-`,
+  no `..`, not `.` or `..`.
+
+Typo'd refs fail at `erg validate`, not at runtime.
+
+### Resolution — three-state result, caller decides
+
+The resolver returns one of:
+
+- `open` — issue is open upstream.
+- `closed` — issue is closed upstream (PR-merged distinction
+  preserved; nailed down in 0018).
+- `unknown` — 404, offline, rate-limited, auth-failed. Reason is
+  carried on the result for diagnostics.
+
+`unknown` is the third state: not "satisfied", not "blocking", just
+"I don't know". The *caller* picks policy. `erg ready` may fail-
+closed (treat unknown as blocking) for CI safety; `erg graph` may
+render unknown as its own glyph; an interactive command may print a
+warning and continue. One resolver, many policies.
+
+Concretely: 404 is `unknown`, not `satisfied` — typo'd refs were
+silently passing under the old "offline = satisfied" rule.
+
+### Resolver cache — short-TTL, ephemeral, off-disk-tickets
+
+`.erg` files cache nothing (rules/tickets.md:191 stands). The
+*resolver* gets an on-disk ephemeral cache:
+
+- Location: `~/.cache/erg/gh/` (XDG-respecting).
+- TTL: 60s default; override via `ERG_CACHE_TTL` or `--cache-ttl`.
+- Key: `{owner}/{repo}#{number}` (or `{this-repo}#{N}` for `gh#N`).
+- Invalidation: TTL only in v1; manual flush is `rm -rf` the dir.
+
+Rationale: per-invocation no-cache made `erg ready; erg graph`
+double the API spend and made rate-limit a hard ceiling. 60s TTL
+lets chained commands ride free without the resolver becoming
+authoritative.
+
+## Implementation split
+
+The original ticket bundled six concerns (spec, validator, resolver,
+ready, graph ASCII, graph JSON) — durable changes mixed with
+iterative ones. Split into three children, each `Blocked-by: 0016`:
+
+| Ticket | Scope | Notes |
+|---|---|---|
+| 0017 | spec change + validator | Durable. Offline. Lands first. |
+| 0018 | resolver + `erg ready` | Network. Cache + auth + policy. |
+| 0019 | `erg graph` rendering   | Cosmetic. Uses 0018's resolver. |
+
+0018 is `Blocked-by: 0017`; 0019 is `Blocked-by: 0018`.
+
+## Deferred — not dropped
+
+These remain real questions; just not gating the design close.
+
+1. **Bare `gh#N` fork-renaming risk.** A bare ref silently re-points
+   if the repo is forked or vendored. Options: require rewrite on
+   fork; deprecate over a v1.x window; or accept and document.
+   Decide before 0017 lands.
+2. **GHE / self-hosted hosts.** Grammar would need
+   `gh:host/owner/repo#N` or a sibling scheme. Defer until first
+   real demand.
+3. **Auth chain.** `gh auth token` → `GITHUB_TOKEN` →
+   unauthenticated. Pin in 0018 and document in rules/tickets.md.
+4. **PR closed-vs-merged.** A PR ref is `closed` only when
+   `merged_at != null`. Pin in 0018.
+5. **Deleted upstream issue.** 404 = `unknown` today, forever. Worth
+   surfacing distinctly in `erg graph` so deleted blockers don't
+   masquerade as transient outages.
+6. **Issue transfers / 301 redirects.** Should the resolver follow?
+   Probably yes with a stderr warning. Defer to 0018.
+7. **Outbound exposure.** Closing a ticket here may unblock tickets
+   in another repo. No notification model. Punt until cross-repo
+   refs see real use.
+8. **Strategic.** Cross-repo refs nudge `.erg` from a local format
+   toward a coordination substrate spanning repos. Worth its own
+   design conversation before the *next* cross-repo feature
+   (notifications, remote ownership) lands.
+
+## Exit criteria
+
+- [x] Syntax decided (colon).
+- [x] Owner/repo regex decided (mirror GitHub).
+- [x] Resolver shape decided (three-state, caller policy).
+- [x] Cache decided (short-TTL, ephemeral, in resolver).
+- [x] 404 semantics decided (unknown, not satisfied).
+- [ ] 0017, 0018, 0019 filed.
+- [ ] Deferred #1, #3, #4 resolved before their consuming ticket lands.
+- [ ] Close once 0017's spec change lands in `rules/tickets.md`.

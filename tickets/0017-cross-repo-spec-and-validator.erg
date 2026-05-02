@@ -1,0 +1,76 @@
+%erg v1
+Title: Cross-repo Blocked-by — spec change and validator
+Status: open
+Created: 2026-05-02
+Author: claude
+Blocked-by: 0016
+
+--- log ---
+2026-05-02T01:05Z claude created — 0016 split, child 1 of 3 (durable spec + validator)
+
+--- body ---
+## Scope
+
+The offline, durable half of 0016. Land this first; resolver (0018)
+and graph rendering (0019) build on the parsed ref kinds this
+ticket exposes.
+
+In:
+- `rules/tickets.md` grammar update for `Blocked-by`.
+- Validator: parse new grammar, reject malformed refs, expose
+  parsed kind on the `Erg` struct.
+- No network anywhere — validator stays hermetic.
+
+Out:
+- Resolution of remote state. (0018.)
+- Graph/ready integration. (0018, 0019.)
+
+## Spec change (rules/tickets.md)
+
+Replace the `Blocked-by` row's "Values" cell with the three-form
+grammar from 0016:
+
+```
+ref       := local-ref | gh-same | gh-cross
+local-ref := [0-9]{4}
+gh-same   := "gh#" number          # this repo
+gh-cross  := "gh:" owner "/" repo "#" number
+number    := [1-9][0-9]*
+```
+
+Plus the GitHub-mirroring rules for `owner` and `repo` (see 0016).
+
+Resolve Deferred #1 from 0016 (bare `gh#N` fork-renaming) before
+this PR merges — the spec text needs to commit one way.
+
+## Validator changes (`tickets/tools/go`)
+
+1. Extend the `Blocked-by` parser to recognize all three ref forms.
+2. Reject malformed refs with a precise message:
+   - `gh:` without `owner/repo#N`.
+   - `gh:owner/repo` with no `#number`.
+   - owner or repo violating GitHub login/repo rules.
+   - mixed-case schemes (only literal `gh#` and `gh:`).
+3. Expose parsed refs on the `Erg` struct with a kind discriminator
+   (`local | gh-same | gh-cross`). Downstream code must not
+   re-parse the string.
+4. Cycle check unchanged: cross-repo refs are terminal from this
+   repo's view and cannot participate in local cycles.
+5. No network calls. Cross-repo refs are accepted on syntax alone;
+   referent existence is a runtime concern (0018).
+
+## Tests
+
+- Each form parses to the right kind.
+- Malformed forms rejected, one test per failure mode.
+- Existing `gh#N` fixtures still validate.
+- Cycle detection still works with cross-repo refs in the mix.
+
+## Exit criteria
+
+- [ ] `rules/tickets.md` documents the three-form grammar and the
+      owner/repo rules.
+- [ ] Deferred #1 (bare `gh#N` fork risk) decided in spec text.
+- [ ] Validator parses all three forms, rejects malformed.
+- [ ] `Erg` struct exposes `[]Ref{Kind, ...}` for blockers.
+- [ ] Tests cover each form and each failure mode.
