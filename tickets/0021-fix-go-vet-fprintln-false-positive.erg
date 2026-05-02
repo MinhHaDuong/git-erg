@@ -1,11 +1,12 @@
 %erg v1
 Title: Fix go vet false-positive: fmt.Fprintln with %erg misread as Printf directive
-Status: open
+Status: closed
 Created: 2026-05-02
 Author: claude
 
 --- log ---
 2026-05-02T00:00Z claude created — surfaced by /review-pr 14; pre-existing, not introduced by 0013
+2026-05-02T00:00Z claude status closed — rewrote usage string: "%erg v1 files" → "erg v1 ticket files"; go vet now passes
 
 --- body ---
 ## Context

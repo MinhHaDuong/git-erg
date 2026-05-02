@@ -1203,7 +1203,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "Usage: erg <command> [args...]")
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Commands:")
-	fmt.Fprintln(os.Stderr, "  validate [dir|files...]   Validate %erg v1 files")
+	fmt.Fprintln(os.Stderr, "  validate [dir|files...]   Validate erg v1 ticket files")
 	fmt.Fprintln(os.Stderr, "  ready [dir] [--json]      Show tickets ready for work")
 	fmt.Fprintln(os.Stderr, "  archive [dir] [--days N] [--execute]  Archive old closed tickets")
 	fmt.Fprintln(os.Stderr, "  graph [dir] [--json]      Show ticket dependency DAG")
