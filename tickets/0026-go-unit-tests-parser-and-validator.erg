@@ -1,0 +1,55 @@
+%erg v1
+Title: introduce Go unit tests for parser, validator, and helpers
+Created: 2026-05-03
+Author: claude
+Status: open
+Blocked-by: 0024
+
+--- log ---
+2026-05-03T14:16Z claude created — surfaced by test-coverage audit; no `*_test.go` files exist anywhere in the repo
+
+--- body ---
+## Context
+
+Coverage today is 100% shell integration — there are no `*_test.go`
+files. Several pieces of `tickets/tools/go/` have subtle behavior
+that shell tests cannot reach efficiently or precisely:
+
+- `parseHeaderLine` (`ticket.go:73`) — whitespace-before-colon
+  handling, non-letter starts, embedded `_`/`-`.
+- `parseErg` state machine (`ticket.go:111`) — CRLF endings, no
+  trailing newline, magic line padded with whitespace, repeated
+  `Blocked-by` headers, separators inside the body section.
+- `parseLogTimestamp` (`archive.go:14`) — length-edge cases (`<16`),
+  missing space delimiter, both fallback formats.
+- `detectCycles` (`validate.go:111`) — self-loop (`A` blocked by
+  `A`), 3-node cycle, multiple disjoint cycles, branched DAG with
+  no cycle.
+- `jsonEscape` (`ticket.go:214`) — control chars, embedded backslash
+  sequences.
+
+## Actions
+
+1. Add `tickets/tools/go/ticket_test.go` covering `parseHeaderLine`,
+   `parseErg`, `jsonEscape`. Use table-driven tests.
+2. Add `tickets/tools/go/validate_test.go` covering `validateErg`
+   (one case per rule) and `detectCycles`.
+3. Add `tickets/tools/go/archive_test.go` covering
+   `parseLogTimestamp`.
+4. Keep tests pure — no filesystem fixtures except via `t.TempDir()`.
+5. Naming: `TestParseErg_CRLF`, `TestDetectCycles_SelfLoop`, etc.
+
+Depends on 0024 only because that ticket establishes the test layout
+convention; can run in parallel if we agree on a layout up front.
+
+## Test
+
+- `go test ./tickets/tools/go/...` passes locally.
+- `go test -cover` reports per-file coverage; target ≥80% for
+  `ticket.go` and `validate.go`.
+
+## Exit criteria
+
+- All three `*_test.go` files committed.
+- Local `go test ./...` green.
+- Coverage report attached in PR description.
