@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -31,6 +32,23 @@ func cmdNextID(args []string) int {
 		}
 		if n, err := strconv.Atoi(stem); err == nil && n > maxID {
 			maxID = n
+		}
+	}
+
+	// Also scan archive/ subdirectory so archived tickets don't collide.
+	archiveEntries, err := os.ReadDir(filepath.Join(ticketDir, "archive"))
+	if err == nil {
+		for _, e := range archiveEntries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".erg") {
+				continue
+			}
+			stem := strings.TrimSuffix(e.Name(), ".erg")
+			if idx := strings.Index(stem, "-"); idx > 0 {
+				stem = stem[:idx]
+			}
+			if n, err := strconv.Atoi(stem); err == nil && n > maxID {
+				maxID = n
+			}
 		}
 	}
 
