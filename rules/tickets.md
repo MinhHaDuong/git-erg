@@ -20,7 +20,7 @@ Encoding: UTF-8, LF line endings.
 
 Every `.erg` file starts with this line. It declares the format version
 and enables file-type detection without relying on the extension. A future
-`%ticket v2` adds headers without breaking v1 validators (they reject
+`%erg v2` adds headers without breaking v1 validators (they reject
 unknown versions rather than silently misparsing).
 
 ### Structure
@@ -57,7 +57,7 @@ validator rejects files missing either one).
 | `Blocked-by` | no | yes | ref | Local `NNNN`, `gh#N`, or `gh:owner/repo#N` (see grammar) |
 
 No other headers are valid in v1. No `X-` extensions. If v2 needs new
-headers, it declares `%ticket v2` and extends the set.
+headers, it declares `%erg v2` and extends the set.
 
 **`Closed:` header:**
 - Optional, non-repeatable, preamble only.

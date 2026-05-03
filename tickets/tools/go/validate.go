@@ -134,7 +134,8 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 }
 
 // detectCycles reports any dependency cycles among the tickets' Blocked-by
-// edges (gh# refs ignored).
+// edges. Only RefLocal edges participate; gh#N and gh:owner/repo#N refs
+// are terminal from this repo's view and cannot form local cycles.
 func detectCycles(tickets []Erg) []string {
 	var errors []string
 
