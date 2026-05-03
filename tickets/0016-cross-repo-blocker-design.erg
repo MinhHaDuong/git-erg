@@ -1,6 +1,6 @@
 %erg v1
 Title: Cross-repo blocker references — design umbrella
-Status: open
+Status: closed
 Created: 2026-05-02
 Author: claude
 
@@ -9,6 +9,7 @@ Author: claude
 2026-05-02T01:00Z claude note advisor review accepted: colon scheme, three-state resolver result, short-TTL resolver cache, tightened owner/repo regex; reshaped as design umbrella, implementation split to 0017/0018/0019; remaining axes deferred not dropped
 2026-05-02T01:15Z claude note filed gh#12 for public discussion of decisions and deferred items
 
+2026-05-03T08:39Z claude status closed — design complete — all decisions made, 0017/0018/0019 filed; deferred #1 transfers to 0017, #3/#4 transfer to 0018
 --- body ---
 ## Problem
 

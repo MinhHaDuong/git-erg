@@ -3,6 +3,7 @@ Title: Add Tags header for revocable triage labels (needs-human, deferred, …)
 Created: 2026-05-01
 Author: claude
 Status: open
+Blocked-by: 0012
 
 --- log ---
 2026-05-01T17:55Z claude created — answers the spec gap surfaced in 0008 (`Status: needs-human` is invalid under the v1 enum); designed to compose with 0012 (no Status enum) and 0013 (no .wip)
