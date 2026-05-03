@@ -2,12 +2,13 @@
 Title: Implement 0012 — drop Status header, add Closed: marker, erg migrate
 Created: 2026-05-03
 Author: claude
-Status: open
 Blocked-by: 0012
+Closed: implemented — Status: header dropped, Closed: marker added, erg migrate subcommand shipped
 
 --- log ---
 2026-05-03T00:00Z claude created — implementation ticket for 0012 design; all design questions resolved in 0012 log
 
+2026-05-03T14:26Z claude closed — implemented — Status: header dropped, Closed: marker added, erg migrate subcommand shipped
 --- body ---
 ## Context
 
