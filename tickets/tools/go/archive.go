@@ -89,7 +89,7 @@ func cmdArchive(args []string) int {
 	var archivable, dagProtected []Erg
 	for i := range tickets {
 		t := &tickets[i]
-		if t.Status() != "closed" {
+		if !t.Closed() {
 			continue
 		}
 

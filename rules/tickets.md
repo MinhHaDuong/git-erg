@@ -28,7 +28,6 @@ unknown versions rather than silently misparsing).
 ```
 %erg v1
 Title: Short imperative description
-Status: open
 Created: 2026-03-27
 Author: claude
 
@@ -49,29 +48,52 @@ validator rejects files missing either one).
 
 ### Headers (closed set, v1)
 
-| Header | Required | Type | Values |
-|--------|----------|------|--------|
-| `Title` | yes | string | Short imperative sentence |
-| `Status` | yes | enum | `open`, `doing`, `closed`, `pending` |
-| `Created` | yes | date | `YYYY-MM-DD` |
-| `Author` | yes | string | Agent or human identifier |
-| `Blocked-by` | no | ref | Ticket ID or `gh#N` (repeatable) |
+| Header | Required | Repeatable | Type | Values |
+|--------|----------|------------|------|--------|
+| `Title` | yes | no | string | Short imperative sentence |
+| `Created` | yes | no | date | `YYYY-MM-DD` |
+| `Author` | yes | no | string | Agent or human identifier |
+| `Closed` | no | no | string | Closure reason (PR ref, supersession note, etc.); non-empty |
+| `Blocked-by` | no | yes | ref | Ticket ID or `gh#N` |
 
 No other headers are valid in v1. No `X-` extensions. If v2 needs new
 headers, it declares `%ticket v2` and extends the set.
 
-**Status values:**
-- `open` — available for work.
-- `doing` — work in progress.
-- `closed` — completed or cancelled.
-- `pending` — awaiting external input (e.g., review). Excluded from ready query.
+**`Closed:` header:**
+- Optional, non-repeatable, preamble only.
+- Value is required and non-empty — it carries the reason for closure
+  (PR reference, supersession note, "abandoned — out of scope", …).
+- Forbidden in the log and body sections (header-key match at line
+  start; substrings inside prose are fine).
+- Examples:
+  - `Closed: completed in PR #5`
+  - `Closed: gh#42 — superseded by 0099`
+  - `Closed: abandoned — out of scope`
 
 **`Blocked-by` references:**
 - A 4-digit ID (e.g., `0041`) refers to a local ticket.
 - `gh#N` refers to a GitHub issue. Resolved via API when online, treated as
   satisfied (non-blocking) when offline.
 - Repeatable: one `Blocked-by:` line per dependency.
-- A blocker must be `closed` to unblock. `doing` and `pending` still block.
+- A blocker must be **closed** (per the criterion below) to unblock.
+
+### Closed / not-closed criterion
+
+A ticket is **closed** if at least one of these holds:
+
+1. **Path test.** A path component (directory name or basename without
+   extension) equals `closed` (case-insensitive), starts with `closed-`
+   or `closed.`, or ends with `-closed`. Covers `tickets/closed/`,
+   `archive/closed/`, `0001-foo-closed.erg`. Rules out `disclosed`,
+   `enclosed`.
+2. **Header test.** A preamble line begins with `Closed:`
+   (header-key match at line start; value required, non-empty).
+
+Otherwise the ticket is **not-closed** (open).
+
+There is no other state. WIP is observable out of band (a branch
+whose name contains the ticket ID). `pending` and `doing` are no
+longer expressible.
 
 ### ID assignment
 
@@ -99,12 +121,12 @@ Append-only. Each line records one event:
 
 **Timestamp:** `YYYY-MM-DDThh:mmZ` (UTC, minute precision).
 **Actor:** agent or human identifier (e.g., `claude`, `user`).
-**Verbs (closed set, v1):**
+**Verbs (open set, v1):** any single token. Suggested:
 
 | Verb | Meaning |
 |------|---------|
 | `created` | Ticket created |
-| `status` | Status changed. Detail: new status + reason |
+| `closed` | Ticket closed (paired with the `Closed:` header) |
 | `note` | Free-form annotation |
 
 Lines are never edited or deleted. To correct an error, append a new line.
@@ -142,33 +164,54 @@ this format.
 ## Ready query
 
 A ticket is **ready** when:
-- `Status: open` (not `doing`, not `closed`, not `pending`)
-- Every `Blocked-by` local ref points to a `Status: closed` ticket
-- Every `Blocked-by: gh#N` is either resolved via API or treated as satisfied (offline)
+- It is **not-closed** (per the criterion above).
+- Every `Blocked-by` local ref points to a **closed** ticket.
+- Every `Blocked-by: gh#N` is either resolved via API or treated as satisfied (offline).
 
 ### Archive criteria
 
 A ticket is **archivable** when:
-- `Status: closed`
-- Last log entry older than 90 days
-- Not referenced by any live ticket's `Blocked-by` header (DAG safety)
+- It is **closed** (per the criterion above).
+- Last log entry older than 90 days.
+- Not referenced by any live ticket's `Blocked-by` header (DAG safety).
 
 Archive moves the file to `tickets/archive/` via `git mv`.
 
 ## Validator rules (pre-commit)
 
 The Go validator enforces:
-1. Magic first line is `%erg v1` (reject unknown versions)
-2. All required headers present
-3. No unknown headers
-4. `Status` value is in the enum (`open`, `doing`, `closed`, `pending`)
-5. `Created` is a valid ISO date (`YYYY-MM-DD`)
-6. Filename matches `NNNN-{slug}.erg` pattern (4-digit ID, ASCII slug)
-7. No duplicate IDs across `tickets/` and `tickets/archive/`
-8. `Blocked-by` local refs point to existing ticket IDs
-9. No dependency cycles
-10. Log lines match `{timestamp} {actor} {verb}` format
-11. Each separator (`--- log ---`, `--- body ---`) appears exactly once
+1. Magic first line is `%erg v1` (reject unknown versions).
+2. All required headers present (`Title`, `Created`, `Author`).
+3. No unknown headers. `Status:` is unknown — `erg migrate` is the one
+   command that tolerates it (in order to convert it).
+4. `Created` is a valid ISO date (`YYYY-MM-DD`).
+5. Filename matches `NNNN-{slug}.erg` pattern (4-digit ID, ASCII slug).
+6. No duplicate IDs across `tickets/` and `tickets/archive/`.
+7. `Blocked-by` local refs point to existing ticket IDs.
+8. No dependency cycles.
+9. Log lines match `{timestamp} {actor} {verb}` format.
+10. Each separator (`--- log ---`, `--- body ---`) appears exactly once.
+11. `Closed:` header appears at most once and has a non-empty value.
+12. `Closed:` does not appear in the log or body sections (header-key
+    match at line start).
+
+## Migration from %erg v1 with Status
+
+Existing tickets carrying `Status:` headers are converted by
+`erg migrate [dir]`:
+
+- `Status: closed` → `Status:` line removed; `Closed: migrated from
+  Status: closed` appended to the preamble.
+- `Status: open|doing|pending` → `Status:` line removed (ticket
+  becomes not-closed).
+- No `Status:` line → no-op.
+
+`erg migrate` is idempotent. It does not commit; review with
+`git diff tickets/` and commit manually. After migration completes,
+`erg validate` rejects any remaining `Status:` lines.
+
+`erg update` invokes `erg migrate` automatically when it detects
+`Status:` lines after a successful binary swap.
 
 ## Relationship to GitHub Issues
 

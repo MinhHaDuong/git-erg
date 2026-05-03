@@ -22,6 +22,7 @@ test: build
 	@sh tests/test_archive.sh
 	@sh tests/test_update.sh
 	@sh tests/test_close.sh
+	@sh tests/test_migrate.sh
 	@echo "ALL TESTS PASSED"
 
 validate: build

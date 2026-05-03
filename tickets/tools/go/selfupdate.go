@@ -98,5 +98,15 @@ func cmdUpdate(_ []string) int {
 	}
 
 	fmt.Printf("erg: updated (%s → %s)\n", localHash[:12], remoteHash[:12])
+
+	// Detect tickets still carrying `Status:` headers and auto-migrate.
+	// Silent if there are none (already migrated or fresh install).
+	ticketDir := "tickets"
+	if info, err := os.Stat(ticketDir); err == nil && info.IsDir() && hasStatusHeader(ticketDir) {
+		fmt.Printf("erg: detected Status: headers in tickets/ — running migrate...\n")
+		_ = cmdMigrate([]string{ticketDir})
+		fmt.Println("Review with: git diff tickets/")
+		fmt.Println("Then commit: git commit -m \"chore: migrate to Closed: header\"")
+	}
 	return 0
 }

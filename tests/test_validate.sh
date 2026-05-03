@@ -19,7 +19,6 @@ echo "=== erg validate ==="
 cat > "$FIXTURES/0001-valid.erg" <<'EOF'
 %erg v1
 Title: Valid ticket
-Status: open
 Created: 2026-01-01
 Author: claude
 
@@ -38,7 +37,6 @@ fi
 # --- Missing magic line fails ---
 cat > "$FIXTURES/0002-no-magic.erg" <<'EOF'
 Title: No magic
-Status: open
 Created: 2026-01-01
 Author: a
 
@@ -55,7 +53,6 @@ fi
 cat > "$FIXTURES/0003-bad-header.erg" <<'EOF'
 %erg v1
 Title: Bad header
-Status: open
 Created: 2026-01-01
 Author: a
 X-Phase: dreaming
@@ -69,47 +66,119 @@ else
     pass "unknown header rejected"
 fi
 
-# --- Invalid status fails ---
-cat > "$FIXTURES/0004-bad-status.erg" <<'EOF'
+# --- Status: header rejected with migrate hint ---
+cat > "$FIXTURES/0004-status-header.erg" <<'EOF'
 %erg v1
-Title: Bad status
-Status: invalid
+Title: Has Status header
+Status: open
 Created: 2026-01-01
 Author: a
 
 --- log ---
 --- body ---
 EOF
-if $ERG validate "$FIXTURES/0004-bad-status.erg" >/dev/null 2>&1; then
-    fail "invalid status rejected"
+out=$($ERG validate "$FIXTURES/0004-status-header.erg" 2>&1 || true)
+if echo "$out" | grep -q "no longer part of"; then
+    pass "Status: header rejected with migrate hint"
 else
-    pass "invalid status rejected"
+    fail "Status: header rejected with migrate hint (got: $out)"
 fi
 
-# --- All four valid statuses pass ---
-for status in open doing closed pending; do
-    cat > "$FIXTURES/0005-status.erg" <<EOF
+# --- Closed: with non-empty value passes ---
+cat > "$FIXTURES/0005-closed-ok.erg" <<'EOF'
 %erg v1
-Title: Status test
-Status: $status
+Title: Closed ticket
+Created: 2026-01-01
+Author: a
+Closed: completed in PR #42
+
+--- log ---
+2026-01-01T10:00Z a created
+--- body ---
+EOF
+if $ERG validate "$FIXTURES/0005-closed-ok.erg" >/dev/null 2>&1; then
+    pass "Closed: with reason accepted"
+else
+    fail "Closed: with reason accepted"
+fi
+
+# --- Closed: with empty value rejected ---
+cat > "$FIXTURES/0006-closed-empty.erg" <<'EOF'
+%erg v1
+Title: Empty closed
+Created: 2026-01-01
+Author: a
+Closed:
+
+--- log ---
+2026-01-01T10:00Z a created
+--- body ---
+EOF
+if $ERG validate "$FIXTURES/0006-closed-empty.erg" >/dev/null 2>&1; then
+    fail "empty Closed: rejected"
+else
+    pass "empty Closed: rejected"
+fi
+
+# --- Closed: in log section rejected ---
+cat > "$FIXTURES/0007-closed-in-log.erg" <<'EOF'
+%erg v1
+Title: Misplaced closed in log
 Created: 2026-01-01
 Author: a
 
 --- log ---
+2026-01-01T10:00Z a created
+Closed: this should not be here
 --- body ---
 EOF
-    if $ERG validate "$FIXTURES/0005-status.erg" >/dev/null 2>&1; then
-        pass "status '$status' accepted"
-    else
-        fail "status '$status' accepted"
-    fi
-done
+if $ERG validate "$FIXTURES/0007-closed-in-log.erg" >/dev/null 2>&1; then
+    fail "Closed: in log rejected"
+else
+    pass "Closed: in log rejected"
+fi
+
+# --- Closed: in body section rejected ---
+cat > "$FIXTURES/0008-closed-in-body.erg" <<'EOF'
+%erg v1
+Title: Misplaced closed in body
+Created: 2026-01-01
+Author: a
+
+--- log ---
+2026-01-01T10:00Z a created
+--- body ---
+Closed: this should not be here
+EOF
+if $ERG validate "$FIXTURES/0008-closed-in-body.erg" >/dev/null 2>&1; then
+    fail "Closed: in body rejected"
+else
+    pass "Closed: in body rejected"
+fi
+
+# --- Closed: appearing twice rejected (non-repeatable) ---
+cat > "$FIXTURES/0009-closed-twice.erg" <<'EOF'
+%erg v1
+Title: Two closed headers
+Created: 2026-01-01
+Author: a
+Closed: first reason
+Closed: second reason
+
+--- log ---
+2026-01-01T10:00Z a created
+--- body ---
+EOF
+if $ERG validate "$FIXTURES/0009-closed-twice.erg" >/dev/null 2>&1; then
+    fail "duplicate Closed: rejected"
+else
+    pass "duplicate Closed: rejected"
+fi
 
 # --- Bad filename pattern fails ---
 cat > "$FIXTURES/abc-bad-name.erg" <<'EOF'
 %erg v1
 Title: Bad name
-Status: open
 Created: 2026-01-01
 Author: a
 
@@ -123,24 +192,22 @@ else
 fi
 
 # --- Missing separators fail ---
-cat > "$FIXTURES/0006-no-sep.erg" <<'EOF'
+cat > "$FIXTURES/0010-no-sep.erg" <<'EOF'
 %erg v1
 Title: No separators
-Status: open
 Created: 2026-01-01
 Author: a
 EOF
-if $ERG validate "$FIXTURES/0006-no-sep.erg" >/dev/null 2>&1; then
+if $ERG validate "$FIXTURES/0010-no-sep.erg" >/dev/null 2>&1; then
     fail "missing separators rejected"
 else
     pass "missing separators rejected"
 fi
 
 # --- Blocked-by unknown ID fails ---
-cat > "$FIXTURES/0007-bad-ref.erg" <<'EOF'
+cat > "$FIXTURES/0011-bad-ref.erg" <<'EOF'
 %erg v1
 Title: Bad ref
-Status: open
 Created: 2026-01-01
 Author: a
 Blocked-by: 9999
@@ -148,17 +215,16 @@ Blocked-by: 9999
 --- log ---
 --- body ---
 EOF
-if $ERG validate "$FIXTURES/0007-bad-ref.erg" >/dev/null 2>&1; then
+if $ERG validate "$FIXTURES/0011-bad-ref.erg" >/dev/null 2>&1; then
     fail "unknown blocked-by rejected"
 else
     pass "unknown blocked-by rejected"
 fi
 
 # --- gh#N references pass ---
-cat > "$FIXTURES/0008-gh-ref.erg" <<'EOF'
+cat > "$FIXTURES/0012-gh-ref.erg" <<'EOF'
 %erg v1
 Title: GitHub ref
-Status: open
 Created: 2026-01-01
 Author: a
 Blocked-by: gh#435
@@ -166,17 +232,16 @@ Blocked-by: gh#435
 --- log ---
 --- body ---
 EOF
-if $ERG validate "$FIXTURES/0008-gh-ref.erg" >/dev/null 2>&1; then
+if $ERG validate "$FIXTURES/0012-gh-ref.erg" >/dev/null 2>&1; then
     pass "gh#N reference accepted"
 else
     fail "gh#N reference accepted"
 fi
 
 # --- Malformed log line fails ---
-cat > "$FIXTURES/0009-bad-log.erg" <<'EOF'
+cat > "$FIXTURES/0013-bad-log.erg" <<'EOF'
 %erg v1
 Title: Bad log
-Status: open
 Created: 2026-01-01
 Author: a
 
@@ -185,7 +250,7 @@ this is not valid
 
 --- body ---
 EOF
-if $ERG validate "$FIXTURES/0009-bad-log.erg" >/dev/null 2>&1; then
+if $ERG validate "$FIXTURES/0013-bad-log.erg" >/dev/null 2>&1; then
     fail "malformed log line rejected"
 else
     pass "malformed log line rejected"
@@ -196,7 +261,6 @@ mkdir -p "$FIXTURES/dup"
 cat > "$FIXTURES/dup/0001-one.erg" <<'EOF'
 %erg v1
 Title: One
-Status: open
 Created: 2026-01-01
 Author: a
 
@@ -206,7 +270,6 @@ EOF
 cat > "$FIXTURES/dup/0001-two.erg" <<'EOF'
 %erg v1
 Title: Two
-Status: open
 Created: 2026-01-01
 Author: a
 
@@ -224,7 +287,6 @@ mkdir -p "$FIXTURES/dup"
 cat > "$FIXTURES/dup/0001-one.erg" <<'EOF'
 %erg v1
 Title: One
-Status: open
 Created: 2026-01-01
 Author: a
 Blocked-by: 0002
@@ -235,7 +297,6 @@ EOF
 cat > "$FIXTURES/dup/0002-two.erg" <<'EOF'
 %erg v1
 Title: Two
-Status: open
 Created: 2026-01-01
 Author: a
 Blocked-by: 0001
@@ -250,10 +311,9 @@ else
 fi
 
 # --- Duplicate '--- body ---' separator fails ---
-cat > "$FIXTURES/0010-dup-body.erg" <<'EOF'
+cat > "$FIXTURES/0014-dup-body.erg" <<'EOF'
 %erg v1
 Title: Duplicate body separator
-Status: open
 Created: 2026-01-01
 Author: a
 
@@ -264,17 +324,16 @@ first body line
 --- body ---
 content past a duplicate separator
 EOF
-if $ERG validate "$FIXTURES/0010-dup-body.erg" >/dev/null 2>&1; then
+if $ERG validate "$FIXTURES/0014-dup-body.erg" >/dev/null 2>&1; then
     fail "duplicate body separator rejected"
 else
     pass "duplicate body separator rejected"
 fi
 
 # --- Duplicate '--- log ---' separator fails ---
-cat > "$FIXTURES/0011-dup-log.erg" <<'EOF'
+cat > "$FIXTURES/0015-dup-log.erg" <<'EOF'
 %erg v1
 Title: Duplicate log separator
-Status: open
 Created: 2026-01-01
 Author: a
 
@@ -285,7 +344,7 @@ Author: a
 --- body ---
 body
 EOF
-if $ERG validate "$FIXTURES/0011-dup-log.erg" >/dev/null 2>&1; then
+if $ERG validate "$FIXTURES/0015-dup-log.erg" >/dev/null 2>&1; then
     fail "duplicate log separator rejected"
 else
     pass "duplicate log separator rejected"

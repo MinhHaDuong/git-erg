@@ -9,13 +9,14 @@ import (
 )
 
 var (
-	requiredHeaders = []string{"Title", "Status", "Created", "Author"}
-	validHeaders    = map[string]bool{
-		"Title": true, "Status": true, "Created": true,
-		"Author": true, "Blocked-by": true,
+	requiredHeaders = []string{"Title", "Created", "Author"}
+	// Non-repeatable headers: appearing more than once is a validation error.
+	singletonHeaders = map[string]bool{
+		"Title": true, "Created": true, "Author": true, "Closed": true,
 	}
-	validStatuses = map[string]bool{
-		"open": true, "doing": true, "closed": true, "pending": true,
+	validHeaders = map[string]bool{
+		"Title": true, "Created": true, "Author": true,
+		"Closed": true, "Blocked-by": true,
 	}
 	isoDateRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 	// Filename: 4-digit ID, dash, lowercase kebab slug
@@ -42,19 +43,42 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 		}
 	}
 
-	// Rule 3: no unknown headers
-	for key := range t.Headers {
+	// Rule 3: no unknown headers (Status: is a relic of the pre-0022 format;
+	// run `erg migrate` to convert it).
+	for key, vals := range t.Headers {
 		if !validHeaders[key] {
-			errors = append(errors, fmt.Sprintf("%s: unknown header '%s' (not in v1 closed set)", name, key))
+			if key == "Status" {
+				errors = append(errors, fmt.Sprintf(
+					"%s: 'Status:' header is no longer part of %%erg v1 — run `erg migrate` to convert", name))
+			} else {
+				errors = append(errors, fmt.Sprintf("%s: unknown header '%s' (not in v1 closed set)", name, key))
+			}
+			continue
+		}
+		// Singleton check: non-repeatable headers must appear at most once.
+		if singletonHeaders[key] && len(vals) > 1 {
+			errors = append(errors, fmt.Sprintf(
+				"%s: header '%s' is non-repeatable (appears %d times)", name, key, len(vals)))
 		}
 	}
 
-	// Rule 4: valid Status
-	status := t.Status()
-	if status != "" && !validStatuses[status] {
-		keys := sortedKeys(validStatuses)
+	// Rule 4: Closed: header — value required, non-empty; not in log/body.
+	if vals, ok := t.Headers["Closed"]; ok {
+		for _, v := range vals {
+			if strings.TrimSpace(v) == "" {
+				errors = append(errors, fmt.Sprintf(
+					"%s: 'Closed:' header requires a non-empty value (closure reason)", name))
+				break
+			}
+		}
+	}
+	if t.ClosedInLog {
 		errors = append(errors, fmt.Sprintf(
-			"%s: invalid Status '%s' (expected one of: %s)", name, status, strings.Join(keys, ", ")))
+			"%s: 'Closed:' header found in log section — only allowed in preamble", name))
+	}
+	if t.ClosedInBody {
+		errors = append(errors, fmt.Sprintf(
+			"%s: 'Closed:' header found in body section — only allowed in preamble", name))
 	}
 
 	// Rule 5: Created is ISO date
