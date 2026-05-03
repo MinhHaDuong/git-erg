@@ -2,16 +2,26 @@
 Title: Cross-repo resolver, cache, and erg ready integration
 Created: 2026-05-02
 Author: claude
+Closed: abandoned — remote resolution dropped; forge refs are permanently unknown; superseded by 0030
 Blocked-by: 0016
 Blocked-by: 0017
 
 --- log ---
 2026-05-02T01:06Z claude created — 0016 split, child 2 of 3 (network resolver, cache, ready policy)
+2026-05-03T00:00Z claude revised — offline is the default; resolver is opt-in via --resolve flag
+2026-05-03T00:00Z claude revised — drop on-disk cache; every --resolve call hits the forge API fresh
+2026-05-03T00:00Z claude closed — erg contract is offline-first in isolated VMs; remote refs are permanently unknown; no resolver ever; grammar change split to 0030
 
 --- body ---
+## Design constraint
+
+erg must work offline in isolated VMs. Network resolution is opt-in,
+not the default. Cross-repo refs are `Unknown` by default; `--resolve`
+triggers GitHub API calls.
+
 ## Scope
 
-The network half. Implements the resolver, its short-TTL cache,
+The opt-in network half. Implements the resolver, its short-TTL cache,
 the auth chain, and integrates the result into `erg ready`.
 
 In:
@@ -19,11 +29,13 @@ In:
 - On-disk ephemeral cache.
 - Auth chain.
 - `erg ready` policy for `unknown`.
-- `--offline` escape hatch.
+- `--resolve` flag to opt into network resolution.
 
 Out:
 - Spec/grammar/validator. (0017.)
 - Graph rendering. (0019, which consumes this resolver.)
+- `--offline` flag — offline is the default; no flag needed.
+- On-disk cache — dropped; every --resolve call hits the forge API fresh.
 
 ## Resolver API
 
@@ -52,19 +64,12 @@ the work isn't done.
 
 The resolver does not decide policy. Callers do.
 
-## Cache
+## Default behavior (no --resolve)
 
-- Location: `~/.cache/erg/gh/` (XDG: respect `XDG_CACHE_HOME`).
-- TTL: 60s default; `ERG_CACHE_TTL=<seconds>` and `--cache-ttl=<s>`
-  overrides.
-- Key: `{owner}/{repo}#{number}` (cross-repo) or
-  `{this-owner}/{this-repo}#{number}` (same-repo, normalized to
-  cross-repo for cache locality).
-- Value: JSON `{state, reason, fetched_at, etag}`.
-- Conditional GET via stored ETag where possible (saves rate budget).
-- No manual flush in v1 — `rm -rf` the dir.
+All cross-repo refs return `Unknown{offline}` immediately — no network
+call. This is correct and expected in isolated VMs.
 
-## Auth chain (resolves Deferred #3)
+## Auth chain (resolves Deferred #3; active only with --resolve)
 
 In order, first that yields a token wins:
 1. `gh auth token` (if `gh` is on PATH and authenticated).
@@ -73,25 +78,20 @@ In order, first that yields a token wins:
 
 Document the chain in `rules/tickets.md`.
 
-## Issue transfers (resolves Deferred #6)
+## Issue transfers (resolves Deferred #6; active only with --resolve)
 
 GitHub returns 301 with a new location for transferred issues.
 Follow once, log a stderr warning naming the old and new refs.
-The cache stores the resolved location, not the redirect, so
-subsequent calls hit the new repo directly.
 
 ## `erg ready` integration
 
 Policy: `Unknown` is treated as **blocking** (fail-closed). A
 blocker we can't verify is conservatively assumed to still block.
-This makes CI stable in the face of rate-limit blips and avoids
-false-ready rows for typo'd refs.
+This is also the correct behavior offline — unresolved cross-repo
+refs do not falsely unblock a ticket.
 
 Override with `--assume-unknown=open` for interactive use where the
-user wants to see the row anyway. `--offline` short-circuits the
-resolver entirely (every cross-repo ref returns
-`Unknown{offline}`); useful in disconnected environments and CI
-without network.
+user wants to see the row anyway.
 
 `erg ready` plain-text output appends a state hint when blockers
 are non-trivial:
@@ -105,23 +105,25 @@ JSON output gains a `blocked_by` array per row with resolved state
 
 ## Tests
 
-- Resolver: 200/closed → Closed; 200/open → Open; 404 → Unknown
-  not-found; 403 rate-limit → Unknown rate-limited; offline →
+- Default (no --resolve): all cross-repo refs return Unknown{offline};
+  no network calls made.
+- Resolver (--resolve): 200/closed → Closed; 200/open → Open; 404 →
+  Unknown not-found; 403 rate-limit → Unknown rate-limited; offline →
   Unknown offline; PR open → Open; PR closed-not-merged → Open;
   PR merged → Closed.
-- Cache: miss → fetch; hit-fresh → no fetch; hit-stale → re-fetch;
-  ETag round-trip.
 - `erg ready`: unknown blocks by default; `--assume-unknown=open`
-  surfaces; `--offline` short-circuits.
+  surfaces the row.
 - Auth chain: each tier picked in order; missing all = unauth call.
 
 ## Exit criteria
 
+- [ ] Default mode: cross-repo refs resolve to Unknown{offline} with
+      no network calls.
+- [ ] `--resolve` flag enables GitHub API resolution.
 - [ ] Resolver implementation with three-state result.
-- [ ] On-disk TTL cache with ETag.
 - [ ] Auth chain (`gh` → env → unauth) documented and tested.
 - [ ] PR-merged distinction enforced (Deferred #4).
 - [ ] Issue-transfer 301 followed with warning (Deferred #6).
 - [ ] `erg ready` fail-closed on unknown by default;
-      `--assume-unknown` and `--offline` flags shipped.
+      `--assume-unknown` flag shipped.
 - [ ] `rules/tickets.md` documents auth chain and cache location.

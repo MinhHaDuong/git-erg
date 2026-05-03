@@ -1,0 +1,110 @@
+%erg v1
+Title: Forge-agnostic Blocked-by grammar — replace gh: and gh#N
+Created: 2026-05-03
+Author: claude
+Blocked-by: 0017
+
+--- log ---
+2026-05-03T00:00Z claude created — design decision: erg works offline in isolated VMs; remote forge refs are always unknown; drop gh-specific syntax
+
+--- body ---
+## Decision
+
+erg's contract is offline-first. Remote forge refs never resolve —
+`erg ready` treats any forge ref as unknown (blocking). There is no
+resolver, no network calls, no auth chain.
+
+The `gh:` and `gh#` schemes from 0017 are GitHub-specific. Replace
+them with a forge-agnostic form. `gh#N` (same-repo shorthand) is
+dropped entirely — same-repo issues are not a supported ref form.
+
+## New grammar
+
+```
+ref        := local-ref | forge-ref
+local-ref  := [0-9]{4}
+forge-ref  := host "/" owner "/" repo "#" number
+host       := [A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?
+owner      := [A-Za-z0-9_.-]+
+repo       := [A-Za-z0-9_.-]+
+number     := [1-9][0-9]*
+```
+
+Examples:
+- `github.com/anthropics/claude-code#1234`
+- `gitlab.com/someorg/somerepo#42`
+- `codeberg.org/user/project#7`
+
+No scheme prefix. The hostname is the forge identity.
+Owner and repo use a loose pattern — forge-specific validation
+is not erg's job.
+
+## `erg ready` policy
+
+Any `forge-ref` blocker → `unknown` → blocking (fail-closed).
+No flag to override in v1. The ticket is blocked until its
+forge-ref blockers are removed or replaced with local refs.
+
+Output when a forge ref is blocking:
+
+```
+0021 ship feature X    (blocked: github.com/anthropics/claude-code#1234 [unknown])
+```
+
+## Scope
+
+In:
+- `rules/tickets.md` grammar update (remove `gh:` and `gh#` forms,
+  add `forge-ref` form).
+- Go parser/validator: recognize `forge-ref`, reject old forms.
+- `erg ready`: forge refs → unknown → blocked.
+- Migrate existing `.erg` files using `gh:owner/repo#N` →
+  `github.com/owner/repo#N`.
+
+Out:
+- Any network calls. Forge refs are syntax only.
+- `--resolve`, `--offline`, `--assume-unknown` flags.
+- Graph rendering of forge refs. (0019 — update separately.)
+
+## JSON output (`erg ready --json`)
+
+Each blocked ticket includes a structured `blocked_by` array so
+LLM agents can act on forge refs without parsing prose:
+
+```json
+{
+  "id": "0021",
+  "title": "ship feature X",
+  "ready": false,
+  "blocked_by": [
+    {"kind": "local",  "id": "0017"},
+    {"kind": "forge",  "ref": "github.com/anthropics/claude-code#1234"}
+  ]
+}
+```
+
+`kind` is `"local"` or `"forge"`. Forge entries carry the full
+ref string; the caller resolves it however it sees fit.
+
+## Tests
+
+- `github.com/foo/bar#1` parses as forge-ref.
+- `gitlab.com/org/repo#99` parses as forge-ref.
+- `gh:foo/bar#1` rejected (old form).
+- `gh#42` rejected (old form).
+- Bare `#42` rejected.
+- `forge-ref` with zero number rejected.
+- `erg ready`: ticket with forge-ref blocker is not-ready.
+- `erg ready --json`: forge blocker appears as `{"kind":"forge","ref":"..."}`.
+
+## Exit criteria
+
+- [ ] `rules/tickets.md` documents new grammar; old `gh:` / `gh#`
+      forms removed.
+- [ ] Go parser recognizes `forge-ref`; old forms rejected with
+      precise error.
+- [ ] `erg ready` plain-text marks forge-ref blockers as unknown (blocking).
+- [ ] `erg ready --json` emits `blocked_by` array with `kind`/`ref` fields.
+- [ ] No `gh:` or `gh#` refs remain in any `Blocked-by:` header
+      across `tickets/`.
+- [ ] Tests cover each form, each rejected form, and JSON output.
