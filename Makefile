@@ -37,12 +37,13 @@ archive: build
 
 install-erg-binary:
 	@mkdir -p $(HOME)/.local/bin
-	@if [ "$$(uname -s)" = "Linux" ] && [ "$$(uname -m)" = "x86_64" ] && [ -f $(ERG_BIN) ]; then \
+	@if [ "$$(uname -s)" = "Linux" ] && [ "$$(uname -m)" = "x86_64" ] && [ -f $(ERG_BIN) ] \
+		&& [ -z "$$(find tickets/tools/go -name '*.go' -newer $(ERG_BIN) -print -quit)" ]; then \
 		install -m755 $(ERG_BIN) $(HOME)/.local/bin/erg; \
 	elif command -v go >/dev/null 2>&1; then \
 		cd tickets/tools/go && go build -o $(HOME)/.local/bin/erg .; \
 	else \
-		echo "ERROR: not x86-64 Linux and Go not found — cannot install erg" >&2; exit 1; \
+		echo "ERROR: committed binary not usable and Go not found — cannot install erg" >&2; exit 1; \
 	fi
 	@echo "erg installed to $(HOME)/.local/bin/erg"
 
