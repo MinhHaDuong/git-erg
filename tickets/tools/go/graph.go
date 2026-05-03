@@ -1,5 +1,6 @@
-// `erg graph` — visualize the ticket dependency DAG.
 package main
+
+// This file implements `erg graph`: visualize the ticket dependency DAG.
 
 import (
 	"fmt"

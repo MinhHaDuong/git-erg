@@ -1,5 +1,6 @@
-// `erg close` — atomic ticket closure.
 package main
+
+// This file implements `erg close`: atomic ticket closure.
 
 import (
 	"fmt"

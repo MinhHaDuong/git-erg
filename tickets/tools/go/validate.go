@@ -1,5 +1,7 @@
-// Validation rules for %erg v1 ticket files.
 package main
+
+// This file implements `erg validate`: rule regexps, validateErg, detectCycles,
+// validateAll, and the cmdValidate dispatcher.
 
 import (
 	"fmt"

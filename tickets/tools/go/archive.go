@@ -1,5 +1,6 @@
-// `erg archive` — DAG-safe archival of old closed tickets.
 package main
+
+// This file implements `erg archive`: DAG-safe archival of old closed tickets.
 
 import (
 	"fmt"

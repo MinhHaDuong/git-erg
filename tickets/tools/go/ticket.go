@@ -1,5 +1,7 @@
-// Erg parser and shared helpers for the %erg v1 ticket format.
 package main
+
+// This file holds the %erg v1 parser and shared helpers used by every
+// subcommand (Erg type, parseErg, loadErgs, jsonEscape, sortedKeys helpers).
 
 import (
 	"os"

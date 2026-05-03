@@ -1,5 +1,7 @@
-// `erg ready` — list open tickets whose Blocked-by refs are all closed.
 package main
+
+// This file implements `erg ready`: list open tickets whose Blocked-by refs
+// are all closed.
 
 import (
 	"fmt"
