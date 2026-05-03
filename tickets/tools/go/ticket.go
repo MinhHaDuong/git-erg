@@ -21,9 +21,9 @@ const (
 	RefGHCross         // gh:owner/repo#N — issue in a named repo
 )
 
-// Ref is a parsed Blocked-by value. Downstream code (validator, ready,
-// graph) must read these fields rather than re-parse Raw — a single
-// parser is the source of truth.
+// Ref is a parsed Blocked-by value. Downstream code (validator, ready)
+// must read these fields rather than re-parse Raw — a single parser is
+// the source of truth.
 type Ref struct {
 	Raw    string  // original text as written in the .erg file
 	Kind   RefKind
@@ -35,7 +35,7 @@ type Ref struct {
 
 // IsGitHub reports whether the ref targets a GitHub issue (same- or
 // cross-repo). Used by callers that treat all GitHub refs uniformly
-// (e.g., ready/graph offline policy).
+// (e.g., ready offline policy).
 func (r Ref) IsGitHub() bool {
 	return r.Kind == RefGHSame || r.Kind == RefGHCross
 }
@@ -269,9 +269,9 @@ func (t *Erg) BlockedBy() []string {
 // BlockedByRefs parses every Blocked-by header value and returns refs
 // aligned with parse errors by index. A nil error means a successful
 // parse; a non-nil error means the corresponding ref is RefInvalid and
-// the validator will reject it. Downstream callers (ready, graph) treat
-// invalid refs as not-yet-known and skip them — by the time tickets
-// are committed, the validator has already rejected any malformed ref.
+// the validator will reject it. Downstream callers (ready) treat invalid
+// refs as not-yet-known and skip them — by the time tickets are
+// committed, the validator has already rejected any malformed ref.
 func (t *Erg) BlockedByRefs() ([]Ref, []error) {
 	raws := t.BlockedBy()
 	if len(raws) == 0 {
