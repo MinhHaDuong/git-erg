@@ -54,7 +54,7 @@ validator rejects files missing either one).
 | `Created` | yes | no | date | `YYYY-MM-DD` |
 | `Author` | yes | no | string | Agent or human identifier |
 | `Closed` | no | no | string | Closure reason (PR ref, supersession note, etc.); non-empty |
-| `Blocked-by` | no | yes | ref | Local `NNNN`, `gh#N`, or `gh:owner/repo#N` (see grammar) |
+| `Blocked-by` | no | yes | ref | Local `NNNN` or forge ref `host/owner/repo#N` (see grammar) |
 
 No other headers are valid in v1. No `X-` extensions. If v2 needs new
 headers, it declares `%erg v2` and extends the set.
@@ -67,52 +67,35 @@ headers, it declares `%erg v2` and extends the set.
   start; substrings inside prose are fine).
 - Examples:
   - `Closed: completed in PR #5`
-  - `Closed: gh#42 — superseded by 0099`
+  - `Closed: superseded by 0099`
   - `Closed: abandoned — out of scope`
 
-**`Blocked-by` references** take one of three forms:
+**`Blocked-by` references** take one of two forms:
 
 ```
-ref       := local-ref | gh-same | gh-cross
-local-ref := [0-9]{4}
-gh-same   := "gh#" number
-gh-cross  := "gh:" owner "/" repo "#" number
-number    := [1-9][0-9]*
+ref        := local-ref | forge-ref
+local-ref  := [0-9]{4}
+forge-ref  := host "/" owner "/" repo "#" number
+host       := [A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?
+owner      := [A-Za-z0-9_.-]+
+repo       := [A-Za-z0-9_.-]+
+number     := [1-9][0-9]*
 ```
 
 - **Local** — `0042` refers to a ticket in this `tickets/` directory.
-- **Same-repo GitHub** — `gh#N` refers to issue N in the GitHub
-  project hosting the repo that contains this `.erg` file. The bare
-  form is shorthand: it follows the repo. **If the repo is forked or
-  vendored, `gh#N` re-points to the fork's issue tracker.** That's
-  usually what you want for "the bug we filed about ourselves." When
-  it isn't, use the explicit cross-repo form.
-- **Cross-repo GitHub** — `gh:owner/repo#N` names a specific upstream
-  issue regardless of fork. Use this form when the dependency must
-  follow the original repository (third-party libraries, sibling
-  services, anything outside this repo).
+- **Forge** — `github.com/owner/repo#N` names an issue or PR on any
+  code forge. The hostname is the forge identity; no scheme prefix.
+  Owner and repo use a loose pattern — forge-specific validation is
+  not erg's job.
 
-`#` is reserved as the issue-number separator; `:` is the scheme
-separator. `gh` is the only scheme defined in v1; future hosts
-(`gl:`, `gh:host/...`) extend the grammar additively.
-
-**Owner and repo rules** mirror GitHub's own validation. The
-validator rejects refs that GitHub would reject:
-
-- `owner` (login) — `[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9]))*`,
-  max 39 characters, no leading or trailing `-`, no underscores.
-- `repo` — `[A-Za-z0-9._-]+`, max 100 characters, may not be `.` or
-  `..`, may not start with `.` or `-`, may not contain `..`.
-
-Schemes are case-sensitive: only literal `gh#` and `gh:` are
-accepted. `GH#`, `Gh:`, etc. are rejected. The number must be a
+`#` is reserved as the issue-number separator. The number must be a
 positive integer with no leading zero.
 
 Repeatable: one `Blocked-by:` line per dependency. A local blocker
-must be **closed** (per the criterion below) to unblock. GitHub refs
-are resolved out-of-band; the validator parses syntax only, never
-reaches the network, and a malformed `gh:` ref fails at
-`erg validate` rather than at runtime.
+must be **closed** (per the criterion below) to unblock. Forge refs
+are always **unknown** — erg never makes network calls. Unknown is
+blocking by default; remove the line once you have verified the
+upstream dependency is resolved.
 
 ### Closed / not-closed criterion
 
@@ -247,12 +230,12 @@ The Go validator enforces:
 4. `Created` is a valid ISO date (`YYYY-MM-DD`).
 5. Filename matches `NNNN-{slug}.erg` pattern (4-digit ID, ASCII slug).
 6. No duplicate IDs within `tickets/`.
-7. `Blocked-by` values parse as one of `local-ref`, `gh-same`, or
-   `gh-cross` (see grammar above). Malformed refs are rejected with
-   a precise message identifying the failure mode.
+7. `Blocked-by` values parse as `local-ref` or `forge-ref` (see
+   grammar above). Malformed refs are rejected with a precise message
+   identifying the failure mode.
 8. `Blocked-by` local refs point to existing ticket IDs.
-9. No dependency cycles. Cross-repo refs are terminal from this
-   repo's view and cannot participate in local cycles.
+9. No dependency cycles. Forge refs are terminal from this repo's
+   view and cannot participate in local cycles.
 10. Log lines match `{timestamp} {actor} {verb}` format.
 11. Each separator (`--- log ---`, `--- body ---`) appears exactly once.
 12. `Closed:` header appears at most once and has a non-empty value.
@@ -285,8 +268,9 @@ Existing tickets carrying `Status:` headers are converted by
 | Multi-agent coordination | GitHub Issues |
 | Public visibility, review | GitHub Issues + PRs |
 
-A ticket may reference a GitHub issue (`Blocked-by: gh#435`) but never
-caches it. The two systems are independent.
+A ticket may reference an issue on any forge
+(`Blocked-by: github.com/org/repo#435`) but never queries it.
+The two systems are independent.
 
 ## Postel's Law
 
