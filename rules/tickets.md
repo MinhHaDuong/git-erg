@@ -208,6 +208,17 @@ A ticket is **ready** when:
   the GitHub API is a runtime concern handled by the resolver, not
   a property of this format.)
 
+## Archiving
+
+Move a closed ticket to `tickets/archive/` (or any subdirectory of
+`tickets/`) once no open ticket references it. `erg validate [dir]`
+reads only the files directly in `dir` — **it does not recurse into
+subdirectories**. Archived tickets are therefore outside the
+validation scope and do not grow the pre-commit cost.
+
+Do not archive a ticket that is still named in a `Blocked-by:` header
+of an open ticket — the validator would then report a missing reference.
+
 ## Validator rules (pre-commit)
 
 The Go validator enforces:
