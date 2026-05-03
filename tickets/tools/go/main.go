@@ -9,6 +9,7 @@
 //	erg graph    [dir] [--json]
 //	erg next-id  [dir]
 //	erg close    <id|file> <reason> [dir]
+//	erg migrate  [dir]
 //	erg version
 //	erg update
 package main
@@ -28,6 +29,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "  graph [dir] [--json]      Show ticket dependency DAG")
 	fmt.Fprintln(os.Stderr, "  next-id [dir]             Print the next available ticket ID")
 	fmt.Fprintln(os.Stderr, "  close <id|file> <reason> [dir]  Close a ticket atomically")
+	fmt.Fprintln(os.Stderr, "  migrate [dir]             Convert legacy Status: headers to Closed: form")
 	fmt.Fprintln(os.Stderr, "  version                   Print sha256 of this binary")
 	fmt.Fprintln(os.Stderr, "  update                    Fetch and replace binary from origin")
 }
@@ -55,6 +57,8 @@ func main() {
 		exitCode = cmdNextID(rest)
 	case "close":
 		exitCode = cmdClose(rest)
+	case "migrate":
+		exitCode = cmdMigrate(rest)
 	case "version":
 		exitCode = cmdVersion(rest)
 	case "update":

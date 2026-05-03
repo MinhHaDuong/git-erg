@@ -19,13 +19,13 @@ echo "=== erg archive ==="
 cat > "$FIXTURES/arch/0001-old.erg" <<'EOF'
 %erg v1
 Title: Old closed
-Status: closed
 Created: 2025-01-01
 Author: a
+Closed: done long ago
 
 --- log ---
 2025-01-01T10:00Z a created
-2025-01-02T10:00Z a status closed
+2025-01-02T10:00Z a closed — done long ago
 
 --- body ---
 EOF
@@ -40,13 +40,13 @@ fi
 cat > "$FIXTURES/arch/0001-old.erg" <<'EOF'
 %erg v1
 Title: Recent
-Status: closed
 Created: 2026-03-27
 Author: a
+Closed: just done
 
 --- log ---
 2026-03-27T10:00Z a created
-2026-03-27T10:01Z a status closed
+2026-03-27T10:01Z a closed — just done
 
 --- body ---
 EOF
@@ -61,7 +61,6 @@ fi
 cat > "$FIXTURES/arch/0001-old.erg" <<'EOF'
 %erg v1
 Title: Open
-Status: open
 Created: 2025-01-01
 Author: a
 
@@ -81,20 +80,19 @@ fi
 cat > "$FIXTURES/arch/0001-old.erg" <<'EOF'
 %erg v1
 Title: Old dep
-Status: closed
 Created: 2025-01-01
 Author: a
+Closed: done
 
 --- log ---
 2025-01-01T10:00Z a created
-2025-01-02T10:00Z a status closed
+2025-01-02T10:00Z a closed — done
 
 --- body ---
 EOF
 cat > "$FIXTURES/arch/0002-depends.erg" <<'EOF'
 %erg v1
 Title: Depends
-Status: open
 Created: 2026-01-01
 Author: a
 Blocked-by: 0001

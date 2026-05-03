@@ -34,11 +34,13 @@ func cmdReady(args []string) int {
 	}
 
 	tickets := loadErgs(ticketDir)
-	statusByID := make(map[string]string)
+	closedByID := make(map[string]bool)
+	knownID := make(map[string]bool)
 	for i := range tickets {
 		id := tickets[i].FilenameID()
 		if id != "" {
-			statusByID[id] = tickets[i].Status()
+			closedByID[id] = tickets[i].Closed()
+			knownID[id] = true
 		}
 	}
 
@@ -48,7 +50,7 @@ func cmdReady(args []string) int {
 
 	for i := range tickets {
 		t := &tickets[i]
-		if t.Status() != "open" {
+		if t.Closed() {
 			continue
 		}
 		openCount++
@@ -59,11 +61,10 @@ func cmdReady(args []string) int {
 			if strings.HasPrefix(refID, "gh#") {
 				continue // GitHub refs treated as satisfied offline
 			}
-			refStatus, found := statusByID[refID]
-			if !found {
+			if !knownID[refID] {
 				warnings = append(warnings, fmt.Sprintf(
 					"%s: Blocked-by '%s' not found (treating as satisfied)", t.Filename(), refID))
-			} else if refStatus != "closed" {
+			} else if !closedByID[refID] {
 				blocked = true
 				break
 			}

@@ -38,12 +38,12 @@ func cmdGraph(args []string) int {
 
 	// Build lookup maps
 	byID := make(map[string]*Erg)
-	statusByID := make(map[string]string)
+	closedByID := make(map[string]bool)
 	for i := range tickets {
 		id := tickets[i].FilenameID()
 		if id != "" {
 			byID[id] = &tickets[i]
-			statusByID[id] = tickets[i].Status()
+			closedByID[id] = tickets[i].Closed()
 		}
 	}
 
@@ -70,21 +70,19 @@ func cmdGraph(args []string) int {
 
 	// Determine annotation for a ticket
 	annotate := func(id string) string {
-		status := statusByID[id]
-		if status == "open" {
-			// Check if blocked
-			t := byID[id]
-			for _, ref := range t.BlockedBy() {
-				if strings.HasPrefix(ref, "gh#") {
-					continue
-				}
-				if s, ok := statusByID[ref]; ok && s != "closed" {
-					return "open, blocked"
-				}
-			}
-			return "open, READY"
+		if closedByID[id] {
+			return "closed"
 		}
-		return status
+		t := byID[id]
+		for _, ref := range t.BlockedBy() {
+			if strings.HasPrefix(ref, "gh#") {
+				continue
+			}
+			if c, ok := closedByID[ref]; ok && !c {
+				return "open, blocked"
+			}
+		}
+		return "open, READY"
 	}
 
 	// Find root nodes (no parent in the DAG)
@@ -106,10 +104,14 @@ func cmdGraph(args []string) int {
 		var nodes []jsonNode
 		for i := range tickets {
 			id := tickets[i].FilenameID()
+			status := "open"
+			if tickets[i].Closed() {
+				status = "closed"
+			}
 			n := jsonNode{
 				id:         id,
 				title:      tickets[i].Title(),
-				status:     tickets[i].Status(),
+				status:     status,
 				annotation: annotate(id),
 				blockedBy:  tickets[i].BlockedBy(),
 				deps:       children[id],

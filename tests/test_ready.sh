@@ -15,11 +15,10 @@ trap 'rm -rf "$FIXTURES/ready"' EXIT
 
 echo "=== erg ready ==="
 
-# --- Open ticket with no blockers is ready ---
+# --- Open (not-closed) ticket with no blockers is ready ---
 cat > "$FIXTURES/ready/0001-open.erg" <<'EOF'
 %erg v1
 Title: Open
-Status: open
 Created: 2026-01-01
 Author: a
 
@@ -33,13 +32,13 @@ else
     fail "open ticket is ready"
 fi
 
-# --- Closed ticket not in ready list ---
+# --- Closed ticket (via Closed: header) not in ready list ---
 cat > "$FIXTURES/ready/0001-open.erg" <<'EOF'
 %erg v1
 Title: Closed
-Status: closed
 Created: 2026-01-01
 Author: a
+Closed: done
 
 --- log ---
 --- body ---
@@ -51,11 +50,29 @@ else
     pass "closed ticket excluded"
 fi
 
-# --- Doing ticket not in ready list ---
-cat > "$FIXTURES/ready/0001-open.erg" <<'EOF'
+# --- Closed via path component (closed/ subdirectory) excluded ---
+mkdir -p "$FIXTURES/ready/closed"
+cat > "$FIXTURES/ready/closed/0099-archived.erg" <<'EOF'
 %erg v1
-Title: Doing
-Status: doing
+Title: Closed by path
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+output=$($ERG ready "$FIXTURES/ready")
+if echo "$output" | grep -q "0099"; then
+    fail "path-closed ticket excluded"
+else
+    pass "path-closed ticket excluded"
+fi
+rm -rf "$FIXTURES/ready/closed"
+
+# --- Closed via -closed.erg suffix excluded ---
+cat > "$FIXTURES/ready/0001-foo-closed.erg" <<'EOF'
+%erg v1
+Title: Suffix closed
 Created: 2026-01-01
 Author: a
 
@@ -64,16 +81,16 @@ Author: a
 EOF
 output=$($ERG ready "$FIXTURES/ready")
 if echo "$output" | grep -q "0001"; then
-    fail "doing ticket excluded"
+    fail "suffix-closed ticket excluded"
 else
-    pass "doing ticket excluded"
+    pass "suffix-closed ticket excluded"
 fi
+rm -f "$FIXTURES/ready/0001-foo-closed.erg"
 
-# --- Pending ticket not in ready list ---
-cat > "$FIXTURES/ready/0001-open.erg" <<'EOF'
+# --- 'disclosed' in basename does NOT trigger close ---
+cat > "$FIXTURES/ready/0001-disclosed-bug.erg" <<'EOF'
 %erg v1
-Title: Pending
-Status: pending
+Title: Disclosed (false-positive bait)
 Created: 2026-01-01
 Author: a
 
@@ -82,17 +99,17 @@ Author: a
 EOF
 output=$($ERG ready "$FIXTURES/ready")
 if echo "$output" | grep -q "0001"; then
-    fail "pending ticket excluded"
+    pass "disclosed in name not treated as closed"
 else
-    pass "pending ticket excluded"
+    fail "disclosed in name not treated as closed"
 fi
+rm -f "$FIXTURES/ready/0001-disclosed-bug.erg"
 
 # --- Blocked by open ticket: not ready ---
 rm -f "$FIXTURES/ready/"*.erg
 cat > "$FIXTURES/ready/0001-blocker.erg" <<'EOF'
 %erg v1
 Title: Blocker
-Status: open
 Created: 2026-01-01
 Author: a
 
@@ -102,7 +119,6 @@ EOF
 cat > "$FIXTURES/ready/0002-blocked.erg" <<'EOF'
 %erg v1
 Title: Blocked
-Status: open
 Created: 2026-01-01
 Author: a
 Blocked-by: 0001
@@ -116,7 +132,6 @@ if echo "$output" | grep -q "0002"; then
 else
     pass "blocked ticket excluded from ready"
 fi
-# But the blocker itself is ready
 if echo "$output" | grep -q "0001"; then
     pass "unblocked ticket is ready"
 else
@@ -127,9 +142,9 @@ fi
 cat > "$FIXTURES/ready/0001-blocker.erg" <<'EOF'
 %erg v1
 Title: Blocker
-Status: closed
 Created: 2026-01-01
 Author: a
+Closed: done
 
 --- log ---
 --- body ---

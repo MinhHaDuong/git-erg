@@ -21,6 +21,10 @@ type Erg struct {
 	// Separator occurrence counts. A well-formed ticket has exactly 1 of each.
 	LogSepCount  int
 	BodySepCount int
+	// ClosedInLog/ClosedInBody record whether a `Closed:` header-key line
+	// was seen outside the preamble (validator rejects).
+	ClosedInLog  bool
+	ClosedInBody bool
 }
 
 // Title returns the first Title header value, or "" if absent.
@@ -31,12 +35,48 @@ func (t *Erg) Title() string {
 	return ""
 }
 
-// Status returns the first Status header value, or "" if absent.
-func (t *Erg) Status() string {
-	if vs, ok := t.Headers["Status"]; ok && len(vs) > 0 {
-		return vs[0]
+// Closed reports whether the ticket is closed under the v1 criterion:
+// either a path component test fires, or a `Closed:` preamble header is
+// present with a non-empty value.
+func (t *Erg) Closed() bool {
+	if pathIsClosed(t.Path) {
+		return true
 	}
-	return ""
+	if vs, ok := t.Headers["Closed"]; ok {
+		for _, v := range vs {
+			if strings.TrimSpace(v) != "" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// pathIsClosed implements the path component test from rules/tickets.md:
+// any path component (directory name or basename without extension) that
+// equals "closed", starts with "closed-"/"closed.", or ends with "-closed"
+// (case-insensitive) marks the ticket closed.
+func pathIsClosed(path string) bool {
+	if path == "" {
+		return false
+	}
+	parts := strings.Split(filepath.ToSlash(path), "/")
+	for i, part := range parts {
+		if part == "" {
+			continue
+		}
+		if i == len(parts)-1 {
+			part = strings.TrimSuffix(part, filepath.Ext(part))
+		}
+		lower := strings.ToLower(part)
+		if lower == "closed" ||
+			strings.HasPrefix(lower, "closed-") ||
+			strings.HasPrefix(lower, "closed.") ||
+			strings.HasSuffix(lower, "-closed") {
+			return true
+		}
+	}
+	return false
 }
 
 // BlockedBy returns all Blocked-by header values, or nil if absent.
@@ -123,6 +163,8 @@ func parseErg(path string) Erg {
 	hasBody := false
 	logSepCount := 0
 	bodySepCount := 0
+	closedInLog := false
+	closedInBody := false
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -174,8 +216,14 @@ func parseErg(path string) Erg {
 			if trimmed != "" {
 				logLines = append(logLines, line)
 			}
+			if isClosedHeaderLine(line) {
+				closedInLog = true
+			}
 		case "body":
 			bodyLines = append(bodyLines, line)
+			if isClosedHeaderLine(line) {
+				closedInBody = true
+			}
 		}
 	}
 
@@ -189,7 +237,19 @@ func parseErg(path string) Erg {
 		HasBody:      hasBody,
 		LogSepCount:  logSepCount,
 		BodySepCount: bodySepCount,
+		ClosedInLog:  closedInLog,
+		ClosedInBody: closedInBody,
 	}
+}
+
+// isClosedHeaderLine reports whether a line begins with the literal
+// header key `Closed:` at the start of the line (no leading whitespace).
+// Used to detect misplaced `Closed:` keys in the log or body sections.
+// This is a header-key match, not a free substring match — `disclosed`,
+// indented examples, and prose mentions never trigger.
+func isClosedHeaderLine(line string) bool {
+	const key = "Closed:"
+	return len(line) >= len(key) && line[:len(key)] == key
 }
 
 // loadErgs parses every .erg file directly in dir, sorted by filename.
@@ -218,15 +278,6 @@ func jsonEscape(s string) string {
 	s = strings.ReplaceAll(s, "\r", `\r`)
 	s = strings.ReplaceAll(s, "\t", `\t`)
 	return s
-}
-
-func sortedKeys(m map[string]bool) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func sortedKeys2[V any](m map[string]V) []string {
