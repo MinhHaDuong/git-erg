@@ -3,12 +3,14 @@ Title: Cross-repo Blocked-by — spec change and validator
 Created: 2026-05-02
 Author: claude
 Blocked-by: 0016
+Closed: implemented in PR #19 — three-form Blocked-by grammar, Ref parser, validator + ready/graph/archive consume parsed kinds
 
 --- log ---
 2026-05-02T01:05Z claude created — 0016 split, child 1 of 3 (durable spec + validator)
 2026-05-03T16:00Z claude note Deferred #1 resolved — bare gh#N accepted as "same-repo by convention; follows the repo on fork"; cross-repo precision available via gh:owner/repo#N
 2026-05-03T16:00Z claude note implemented — three-form grammar in rules/tickets.md; Ref struct + parser in ticket.go (RefLocal/RefGHSame/RefGHCross); validator and ready/graph/archive consume parsed kinds; 8 new test_validate.sh cases covering each form and failure mode
 
+2026-05-03T17:03Z claude closed — implemented in PR #19 — three-form Blocked-by grammar, Ref parser, validator + ready/graph/archive consume parsed kinds
 --- body ---
 ## Scope
 
