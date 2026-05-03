@@ -2,11 +2,12 @@
 Title: Modularize tickets/tools/go/main.go and add godoc comments
 Created: 2026-05-01
 Author: claude
-Status: open
+Status: closed
 
 --- log ---
 2026-05-01T17:15Z claude created — extracted from 0006 after close+claim/release work was redirected (close shipped in #7; claim/release dropped per 0013); modularization+godoc remained as the only live work item
 
+2026-05-03T13:55Z claude status closed — modularization complete; all 8 source files split, godoc clean, tests green
 --- body ---
 ## Context
 
