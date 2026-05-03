@@ -1,8 +1,5 @@
 package main
 
-// This file holds the %erg v1 parser and shared helpers used by every
-// subcommand (Erg type, parseErg, loadErgs, jsonEscape, sortedKeys helpers).
-
 import (
 	"os"
 	"path/filepath"

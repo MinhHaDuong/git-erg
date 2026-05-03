@@ -1,7 +1,5 @@
 package main
 
-// This file implements `erg next-id`: print the next available ticket ID.
-
 import (
 	"fmt"
 	"os"

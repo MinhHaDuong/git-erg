@@ -1,8 +1,5 @@
 package main
 
-// This file implements `erg version` and `erg update`: self-hash and
-// self-replace from origin.
-
 import (
 	"crypto/sha256"
 	"encoding/hex"
