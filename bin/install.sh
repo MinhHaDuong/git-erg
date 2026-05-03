@@ -144,4 +144,5 @@ fi
 
 echo ""
 echo "  Done. Try /ticket-new or /ticket-ready to get started."
+echo "  To put erg on PATH: make install-erg-binary"
 echo ""
