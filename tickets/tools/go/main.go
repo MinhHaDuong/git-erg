@@ -5,7 +5,6 @@
 //
 //	erg validate [dir|file ...]
 //	erg ready    [dir] [--json]
-//	erg archive  [dir] [--days N] [--execute]
 //	erg next-id  [dir]
 //	erg close    <id|file> <reason> [dir]
 //	erg migrate  [dir]
@@ -24,7 +23,6 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "Commands:")
 	fmt.Fprintln(os.Stderr, "  validate [dir|files...]   Validate erg v1 ticket files")
 	fmt.Fprintln(os.Stderr, "  ready [dir] [--json]      Show tickets ready for work")
-	fmt.Fprintln(os.Stderr, "  archive [dir] [--days N] [--execute]  Archive old closed tickets")
 	fmt.Fprintln(os.Stderr, "  next-id [dir]             Print the next available ticket ID")
 	fmt.Fprintln(os.Stderr, "  close <id|file> <reason> [dir]  Close a ticket atomically")
 	fmt.Fprintln(os.Stderr, "  migrate [dir]             Convert legacy Status: headers to Closed: form")
@@ -47,8 +45,6 @@ func main() {
 		exitCode = cmdValidate(rest)
 	case "ready":
 		exitCode = cmdReady(rest)
-	case "archive":
-		exitCode = cmdArchive(rest)
 	case "next-id":
 		exitCode = cmdNextID(rest)
 	case "close":

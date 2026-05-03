@@ -9,7 +9,7 @@ Tickets are committed to git and travel with the repo.
 ## File format
 
 Extension: `.erg`
-Location: `tickets/` (active), `tickets/archive/` (closed, old)
+Location: `tickets/`
 Encoding: UTF-8, LF line endings.
 
 ### Magic first line
@@ -80,8 +80,7 @@ gh-cross  := "gh:" owner "/" repo "#" number
 number    := [1-9][0-9]*
 ```
 
-- **Local** — `0042` refers to a ticket in this `tickets/` directory
-  (or `tickets/archive/`).
+- **Local** — `0042` refers to a ticket in this `tickets/` directory.
 - **Same-repo GitHub** — `gh#N` refers to issue N in the GitHub
   project hosting the repo that contains this `.erg` file. The bare
   form is shorthand: it follows the repo. **If the repo is forked or
@@ -122,7 +121,7 @@ A ticket is **closed** if at least one of these holds:
 1. **Path test.** A path component (directory name or basename without
    extension) equals `closed` (case-insensitive), starts with `closed-`
    or `closed.`, or ends with `-closed`. Covers `tickets/closed/`,
-   `archive/closed/`, `0001-foo-closed.erg`. Rules out `disclosed`,
+   `0001-foo-closed.erg`. Rules out `disclosed`,
    `enclosed`.
 2. **Header test.** A preamble line begins with `Closed:`
    (header-key match at line start; value required, non-empty).
@@ -141,9 +140,9 @@ Filename pattern: `{ID}-{slug}.erg`
 - ID: zero-padded sequential number, 4 digits. `0001`, `0002`, ...
 - Slug: lowercase kebab-case, ASCII only (`[a-z0-9-]`).
 
-To assign the next ID: read filenames in `tickets/` and `tickets/archive/`,
-extract the numeric prefix from each, take the maximum, increment by 1,
-zero-pad to 4 digits. If no tickets exist, start at `0001`.
+To assign the next ID: read filenames in `tickets/`, extract the numeric
+prefix from each, take the maximum, increment by 1, zero-pad to 4 digits.
+If no tickets exist, start at `0001`.
 
 **Collision handling:** optimistic. Two worktrees may pick the same number.
 The pre-commit validator catches duplicate IDs. The agent that loses renames
@@ -209,15 +208,6 @@ A ticket is **ready** when:
   the GitHub API is a runtime concern handled by the resolver, not
   a property of this format.)
 
-### Archive criteria
-
-A ticket is **archivable** when:
-- It is **closed** (per the criterion above).
-- Last log entry older than 90 days.
-- Not referenced by any live ticket's `Blocked-by` header (DAG safety).
-
-Archive moves the file to `tickets/archive/` via `git mv`.
-
 ## Validator rules (pre-commit)
 
 The Go validator enforces:
@@ -227,7 +217,7 @@ The Go validator enforces:
    command that tolerates it (in order to convert it).
 4. `Created` is a valid ISO date (`YYYY-MM-DD`).
 5. Filename matches `NNNN-{slug}.erg` pattern (4-digit ID, ASCII slug).
-6. No duplicate IDs across `tickets/` and `tickets/archive/`.
+6. No duplicate IDs within `tickets/`.
 7. `Blocked-by` values parse as one of `local-ref`, `gh-same`, or
    `gh-cross` (see grammar above). Malformed refs are rejected with
    a precise message identifying the failure mode.

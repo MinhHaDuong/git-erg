@@ -5,11 +5,10 @@
 #   make test       Run shell integration tests
 #   make validate   Validate tickets in tickets/
 #   make ready      List ready tickets
-#   make archive    Dry-run archive (pass EXECUTE=1 to commit)
 #   make install DEST=/path/to/project  Install into a project
 #   make install-erg-binary              Install erg to ~/.local/bin
 
-.PHONY: build test validate ready archive clean install install-erg-binary
+.PHONY: build test validate ready clean install install-erg-binary
 
 ERG_BIN := tickets/tools/go/erg
 
@@ -19,7 +18,6 @@ build:
 test: build
 	@sh tests/test_validate.sh
 	@sh tests/test_ready.sh
-	@sh tests/test_archive.sh
 	@sh tests/test_update.sh
 	@sh tests/test_close.sh
 	@sh tests/test_migrate.sh
@@ -30,11 +28,6 @@ validate: build
 
 ready: build
 	$(ERG_BIN) ready tickets/
-
-DAYS ?= 90
-EXECUTE ?=
-archive: build
-	$(ERG_BIN) archive tickets/ --days=$(DAYS) $(if $(EXECUTE),--execute)
 
 install-erg-binary:
 	@mkdir -p $(HOME)/.local/bin
