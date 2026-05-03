@@ -1,0 +1,61 @@
+%erg v1
+Title: add installer round-trip test and harden shell test harness
+Created: 2026-05-03
+Author: claude
+Status: open
+
+--- log ---
+2026-05-03T14:16Z claude created — surfaced by test-coverage audit; installer + harness gaps independent of CLI coverage
+
+--- body ---
+## Context
+
+Two harness-level gaps that are independent of CLI coverage:
+
+- `bin/install.sh` (~140 LOC) mutates a target repo's
+  `.git/hooks/pre-commit`, `.claude/settings.json`,
+  `.claude/skills/`, etc. A regression here bricks downstream
+  installs (IDH, climate-finance, AEDIST). Zero tests.
+- The shell suite in `tests/` shares `tests/fixtures/` across all
+  five test files, so the suites cannot run in parallel and trap
+  cleanup is fragile. Example: `test_validate.sh:14` does
+  `trap 'rm -rf "$FIXTURES"/*.erg "$FIXTURES"/dup/'`, which relies
+  on glob expansion succeeding.
+
+## Actions
+
+1. **Installer round-trip** — add `tests/test_install.sh`:
+   - `mktemp -d` + `git init` to create a clean target repo.
+   - Run `sh bin/install.sh "$TMP"`.
+   - Assert: every expected file exists with non-zero size
+     (`tickets/tools/go/main.go`, `.claude/rules/tickets.md`,
+     `.claude/skills/ticket-new/`, `.git/hooks/pre-commit` with the
+     `# --- git-erg ---` markers).
+   - Build the validator there, write a sample ticket, run
+     `git commit` — assert the pre-commit hook validates and accepts.
+   - Run `sh bin/install.sh "$TMP"` a second time; assert idempotent
+     (no errors, no duplicate hook fragments).
+   - Cleanup with `rm -rf $TMP`.
+2. **Harness hardening**:
+   - Move each shell test's fixtures into
+     `tests/fixtures/<test_name>/` so suites don't collide.
+   - Replace fragile glob traps with `rm -rf "$FIXTURES"` (whole
+     dir).
+   - Add `set -u` alongside the existing `set -e` to catch
+     unset-var bugs.
+   - Document parallel-safety in `tests/README.md` (new file —
+     short).
+
+## Out of scope
+
+- Migrating to Go test runner for shell suites — separate decision.
+- Snapshot-based golden-file tests — overkill for current scope.
+
+## Exit criteria
+
+- `tests/test_install.sh` green in CI.
+- All five existing shell suites pass when run in parallel
+  (`make -j5 test-validate test-ready test-archive test-update
+  test-close`, or equivalent).
+- `bin/install.sh` regression (e.g. drop a `cp` line) is caught by
+  the new test.

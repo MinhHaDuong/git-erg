@@ -1,0 +1,56 @@
+%erg v1
+Title: cover `archive --execute` and the real `update` replace path
+Created: 2026-05-03
+Author: claude
+Status: open
+
+--- log ---
+2026-05-03T14:16Z claude created — surfaced by test-coverage audit; both destructive paths uncovered
+
+--- body ---
+## Context
+
+Two destructive code paths are documented but never exercised in CI:
+
+- `archive --execute` (`archive.go:148-164`) calls `git mv` and
+  `git commit` against the working tree. Today's tests only run the
+  dry-run path, so a regression in those exec calls would only
+  surface in a user's repo when they archive for real.
+- `cmdUpdate` (`selfupdate.go:44`) — `tests/test_update.sh` covers
+  only "offline" and "same binary, no-op". The path that actually
+  matters — download bytes that differ, write `.tmp`, atomic
+  rename, replace the binary — never runs. Same for non-200 status
+  and read-error branches.
+
+## Actions
+
+1. Extend `tests/test_archive.sh`:
+   - Set up a tmp git repo (`git init` + initial commit) holding a
+     ticket dir.
+   - Place an old closed ticket; run `erg archive <dir> --days=1
+     --execute`.
+   - Assert: file moved to `archive/`, working tree clean, last
+     commit message matches `archive N closed tickets`.
+   - Cleanup with `rm -rf` of the tmp dir.
+2. Extend `tests/test_update.sh`:
+   - Build a deliberately-different binary (e.g. `cp $ERG
+     $TMP/erg.different && printf '\n' >> $TMP/erg.different`).
+   - Serve it from the existing python http.server.
+   - Run `ERG_UPDATE_URL=... $ERG update` against a *copy* of the
+     binary (never overwrite the test runner's `$ERG`!).
+   - Assert: stdout contains `updated (… → …)`, the copy's sha256
+     now matches the served file.
+3. Add a non-200 case: serve a 404 path; assert exit 0 and stderr
+   `update: server returned 404`.
+
+## Test
+
+- Both tests run in isolated tmp dirs and clean up on EXIT trap.
+- CI passes.
+- Reverting `os.Rename` in `selfupdate.go:94` to a no-op makes the
+  new test fail.
+
+## Exit criteria
+
+- `archive --execute` and `update`-replace paths both green in CI.
+- No test ever modifies the repo's own binary or `tickets/` dir.

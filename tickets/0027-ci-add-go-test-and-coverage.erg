@@ -1,0 +1,43 @@
+%erg v1
+Title: extend CI to run `go test` and report coverage
+Created: 2026-05-03
+Author: claude
+Status: open
+Blocked-by: 0026
+
+--- log ---
+2026-05-03T14:16Z claude created — surfaced by test-coverage audit; CI runs only shell suite today
+
+--- body ---
+## Context
+
+`.github/workflows/CI.yml` today runs only `make test` (shell suite)
+and `make validate`. Once 0026 lands, we have Go unit tests but
+nothing in CI exercises them — and there's no coverage signal at
+all, so future regressions in coverage would go unnoticed.
+
+## Actions
+
+1. Add a step to `.github/workflows/CI.yml` after the existing
+   `make test`:
+   ```yaml
+   - run: go test -cover -coverprofile=coverage.out ./tickets/tools/go/...
+   ```
+2. Add a follow-up step that prints `go tool cover -func=coverage.out`
+   so the per-function coverage shows up in the action log.
+3. Optional: upload `coverage.out` as a workflow artifact for PR
+   review.
+4. Update `Makefile`: add a `unit-test` target running `go test ./...`
+   from the Go source dir, and have `test` depend on it.
+
+## Out of scope
+
+- Codecov / Coveralls integration — keep it in-action for now.
+- Coverage thresholds enforced in CI — set targets after we see real
+  numbers.
+
+## Exit criteria
+
+- CI green on `main` with the new step.
+- Per-function coverage visible in CI logs.
+- `make test` runs both shell and Go tests locally.

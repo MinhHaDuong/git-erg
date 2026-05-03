@@ -1,0 +1,48 @@
+%erg v1
+Title: add integration tests for `erg graph` and `erg next-id`
+Created: 2026-05-03
+Author: claude
+Status: open
+
+--- log ---
+2026-05-03T14:16Z claude created — surfaced by test-coverage audit; both commands ship in the public CLI with zero tests
+
+--- body ---
+## Context
+
+Two public CLI commands have **zero test coverage**:
+
+- `tickets/tools/go/graph.go` (186 LOC) — ASCII tree, JSON output,
+  root detection, blocked/READY annotation, gh# filtering, recursive
+  `printTree`. The DFS at `graph.go:149` doesn't track visited nodes,
+  so a diamond DAG re-prints subtrees — a regression here would slip
+  in silently.
+- `tickets/tools/go/nextid.go` (42 LOC) — scans `tickets/` and
+  `tickets/archive/`, returns `max+1` zero-padded. No tests for empty
+  dir, gaps in the sequence, archive-only IDs, or non-`.erg` files.
+
+## Actions
+
+1. Add `tests/test_graph.sh`. Cover:
+   - Empty dir → "No tickets found."
+   - Single root, no deps → ASCII line + `[open, READY]` annotation.
+   - Blocked open ticket → `[open, blocked]` annotation.
+   - Closed ticket → `[closed]` annotation.
+   - Diamond DAG (A blocks B and C; both block D) — verify D appears
+     under both B and C without infinite recursion.
+   - `gh#N` blocked-by ignored for tree shape.
+   - `--json` output is parseable JSON and contains expected fields.
+2. Add `tests/test_nextid.sh`. Cover:
+   - Empty dir → `0001`.
+   - Single ticket `0042-foo.erg` → `0043`.
+   - Gap in sequence (`0001`, `0005` only) → `0006`.
+   - ID lives only in `archive/` → still respected.
+   - Non-`.erg` files in dir → ignored.
+3. Wire both into `Makefile`'s `test` target.
+
+## Exit criteria
+
+- `make test` runs and passes both new suites.
+- CI green.
+- A deliberate regression in `graph.go` (e.g. drop the `gh#` filter)
+  or `nextid.go` (e.g. ignore archive) is caught by the new tests.
