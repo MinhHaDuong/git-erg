@@ -2,7 +2,7 @@
 Title: Drop .wip files and claim/release — coordination is not the spec's concern
 Created: 2026-05-01
 Author: claude
-Status: closed
+Closed: migrated from Status: closed
 
 --- log ---
 2026-05-01T16:50Z claude created — proposal to remove .wip mechanism and the claim/release portion of 0006

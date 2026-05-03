@@ -1,8 +1,8 @@
 %erg v1
 Title: Validate: rule 11 rejects duplicate --- log --- / --- body --- separators
-Status: closed
 Created: 2026-04-29
 Author: claude
+Closed: migrated from Status: closed
 
 --- log ---
 2026-04-29T19:20Z claude created
