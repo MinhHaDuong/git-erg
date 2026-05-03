@@ -203,10 +203,28 @@ this format.
 A ticket is **ready** when:
 - It is **not-closed** (per the criterion above).
 - Every `Blocked-by` local ref points to a **closed** ticket.
-- Every GitHub ref (`gh#N` or `gh:owner/repo#N`) is treated as
-  satisfied for the offline `erg ready` query. (Resolution against
-  the GitHub API is a runtime concern handled by the resolver, not
-  a property of this format.)
+- Every `Blocked-by` forge ref (`host/owner/repo#N`) is treated as
+  **unknown** — erg never makes network calls. Unknown is blocking
+  by default (fail-closed). Remove the forge ref from the ticket
+  once you have verified the dependency is resolved.
+
+## Closing a ticket
+
+`erg close <id|file> <reason> [dir]` closes a ticket atomically:
+
+1. Inserts a `Closed: <reason>` header in the preamble.
+2. Appends a log line: `{timestamp} claude closed — <reason>`.
+3. Scans every open ticket in `[dir]` for `Blocked-by: <id>` and
+   removes that line, appending a log entry to each modified ticket:
+   `{timestamp} claude note blocker <id> closed — Blocked-by removed`.
+
+Step 3 keeps the ticket set clean and enables immediate archiving of
+the closed ticket (no open ticket will reference it after the command
+runs). The removal is recorded in the log of each dependent ticket so
+the history of why it was blocked is not lost.
+
+`erg close` is idempotent: running it twice on the same ticket prints
+`ALREADY_CLOSED` and exits 0.
 
 ## Archiving
 

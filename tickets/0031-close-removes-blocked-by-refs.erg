@@ -1,0 +1,56 @@
+%erg v1
+Title: erg close — remove Blocked-by refs from dependent tickets
+Created: 2026-05-03
+Author: claude
+
+--- log ---
+2026-05-03T00:00Z claude created — extends erg close to clean up dependents on closure
+
+--- body ---
+## Context
+
+`erg close` currently closes only the target ticket. Open tickets
+that reference the closed ID keep their `Blocked-by: <id>` line.
+This blocks archiving the closed ticket and leaves stale refs in
+open tickets.
+
+`rules/tickets.md` now specifies that `erg close` must remove those
+lines. This ticket implements that step.
+
+## Actions
+
+In `close.go`, after writing the closed ticket, add step 3:
+
+1. Load all open tickets in `ticketDir` (same dir used for the close).
+2. For each open ticket with `Blocked-by: <id>`:
+   - Remove that `Blocked-by:` line.
+   - Append log line:
+     `{timestamp} claude note blocker <id> closed — Blocked-by removed`
+   - Write the file.
+
+The closed ticket's own `Blocked-by` lines are left untouched (they
+record the ticket's own dependencies, not dependents).
+
+## Interface
+
+No change to `erg close <id|file> <reason> [dir]` signature.
+Step 3 is silent on success. If a dependent ticket cannot be written,
+print a warning to stderr but do not fail the close (the main ticket
+is already closed).
+
+## Tests
+
+- Close a ticket referenced by two open tickets → both lose the
+  `Blocked-by` line; both gain the log entry.
+- Close a ticket with no dependents → no other files touched.
+- Close already-closed ticket → ALREADY_CLOSED; no files touched.
+- Dependent ticket write failure → warning on stderr; exit 0.
+
+## Exit criteria
+
+- [ ] `erg close` removes `Blocked-by: <id>` from all open tickets
+      in the same dir.
+- [ ] Each modified ticket gains a log entry recording the removal.
+- [ ] Tickets with no dependents: behavior unchanged.
+- [ ] Tests cover all cases above.
+- [ ] `rules/tickets.md` spec matches implementation.
