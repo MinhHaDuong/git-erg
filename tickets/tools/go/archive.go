@@ -79,9 +79,13 @@ func cmdArchive(args []string) int {
 		allErgs = append(allErgs, loadErgs(archiveDir)...)
 	}
 	for i := range allErgs {
-		for _, ref := range allErgs[i].BlockedBy() {
-			if !strings.HasPrefix(ref, "gh#") {
-				referencedIDs[ref] = true
+		refs, errs := allErgs[i].BlockedByRefs()
+		for j, ref := range refs {
+			if errs[j] != nil {
+				continue
+			}
+			if ref.Kind == RefLocal {
+				referencedIDs[ref.ID] = true
 			}
 		}
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -8,6 +9,184 @@ import (
 )
 
 const magicLine = "%erg v1"
+
+// RefKind discriminates the three Blocked-by reference forms defined in
+// rules/tickets.md.
+type RefKind int
+
+const (
+	RefInvalid RefKind = iota
+	RefLocal           // 0042 — local ticket ID
+	RefGHSame          // gh#N — issue in this repo
+	RefGHCross         // gh:owner/repo#N — issue in a named repo
+)
+
+// Ref is a parsed Blocked-by value. Downstream code (validator, ready,
+// graph) must read these fields rather than re-parse Raw — a single
+// parser is the source of truth.
+type Ref struct {
+	Raw    string  // original text as written in the .erg file
+	Kind   RefKind
+	ID     string  // 4-digit ticket ID (RefLocal only)
+	Owner  string  // GitHub login (RefGHCross only)
+	Repo   string  // GitHub repo name (RefGHCross only)
+	Number string  // GitHub issue number (RefGHSame, RefGHCross)
+}
+
+// IsGitHub reports whether the ref targets a GitHub issue (same- or
+// cross-repo). Used by callers that treat all GitHub refs uniformly
+// (e.g., ready/graph offline policy).
+func (r Ref) IsGitHub() bool {
+	return r.Kind == RefGHSame || r.Kind == RefGHCross
+}
+
+// parseRef parses a Blocked-by value into a Ref, or returns a precise
+// error naming the failure mode. Stays purely syntactic — no network,
+// no ticket-existence check.
+func parseRef(raw string) (Ref, error) {
+	if raw == "" {
+		return Ref{Raw: raw}, fmt.Errorf("empty ref")
+	}
+	// Local: exactly 4 ASCII digits.
+	if len(raw) == 4 && allDigits(raw) {
+		return Ref{Raw: raw, Kind: RefLocal, ID: raw}, nil
+	}
+	// gh-same: literal "gh#" + positive integer.
+	if strings.HasPrefix(raw, "gh#") {
+		num := raw[3:]
+		if err := validateIssueNumber(num); err != nil {
+			return Ref{Raw: raw}, fmt.Errorf("malformed gh#N ref %q: %v", raw, err)
+		}
+		return Ref{Raw: raw, Kind: RefGHSame, Number: num}, nil
+	}
+	// gh-cross: literal "gh:" + owner "/" repo "#" number.
+	if strings.HasPrefix(raw, "gh:") {
+		rest := raw[3:]
+		hash := strings.IndexByte(rest, '#')
+		if hash < 0 {
+			return Ref{Raw: raw}, fmt.Errorf("malformed gh: ref %q: missing '#number'", raw)
+		}
+		ownerRepo, num := rest[:hash], rest[hash+1:]
+		slash := strings.IndexByte(ownerRepo, '/')
+		if slash < 0 {
+			return Ref{Raw: raw}, fmt.Errorf("malformed gh: ref %q: expected gh:owner/repo#N", raw)
+		}
+		owner, repo := ownerRepo[:slash], ownerRepo[slash+1:]
+		if err := validateOwner(owner); err != nil {
+			return Ref{Raw: raw}, fmt.Errorf("malformed gh: ref %q: %v", raw, err)
+		}
+		if err := validateRepo(repo); err != nil {
+			return Ref{Raw: raw}, fmt.Errorf("malformed gh: ref %q: %v", raw, err)
+		}
+		if err := validateIssueNumber(num); err != nil {
+			return Ref{Raw: raw}, fmt.Errorf("malformed gh: ref %q: %v", raw, err)
+		}
+		return Ref{Raw: raw, Kind: RefGHCross, Owner: owner, Repo: repo, Number: num}, nil
+	}
+	// Catch case-variant schemes early with a targeted message.
+	lower := strings.ToLower(raw)
+	if strings.HasPrefix(lower, "gh#") || strings.HasPrefix(lower, "gh:") {
+		return Ref{Raw: raw}, fmt.Errorf(
+			"malformed ref %q: scheme is case-sensitive (use literal 'gh#' or 'gh:')", raw)
+	}
+	return Ref{Raw: raw}, fmt.Errorf(
+		"malformed ref %q: not a 4-digit local ID, gh#N, or gh:owner/repo#N", raw)
+}
+
+func allDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// validateIssueNumber enforces the [1-9][0-9]* rule from rules/tickets.md
+// (positive integer, no leading zero).
+func validateIssueNumber(num string) error {
+	if num == "" {
+		return fmt.Errorf("missing issue number")
+	}
+	if !allDigits(num) {
+		return fmt.Errorf("issue number %q is not a positive integer", num)
+	}
+	if num[0] == '0' {
+		return fmt.Errorf("issue number %q has a leading zero", num)
+	}
+	return nil
+}
+
+// validateOwner mirrors GitHub's login rule:
+//
+//	[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9]))*
+//
+// max 39 chars, no leading/trailing '-', no consecutive '-', no underscores.
+func validateOwner(owner string) error {
+	if owner == "" {
+		return fmt.Errorf("empty owner")
+	}
+	if len(owner) > 39 {
+		return fmt.Errorf("owner %q exceeds 39 characters", owner)
+	}
+	for i := 0; i < len(owner); i++ {
+		c := owner[i]
+		switch {
+		case c >= 'A' && c <= 'Z':
+		case c >= 'a' && c <= 'z':
+		case c >= '0' && c <= '9':
+		case c == '-':
+			if i == 0 {
+				return fmt.Errorf("owner %q starts with '-'", owner)
+			}
+			if i == len(owner)-1 {
+				return fmt.Errorf("owner %q ends with '-'", owner)
+			}
+			if owner[i-1] == '-' {
+				return fmt.Errorf("owner %q contains '--'", owner)
+			}
+		default:
+			return fmt.Errorf("owner %q contains invalid character %q", owner, c)
+		}
+	}
+	return nil
+}
+
+// validateRepo mirrors GitHub's repository name rule: [A-Za-z0-9._-]+,
+// max 100 chars, may not be "." or "..", may not start with "." or "-",
+// may not contain "..".
+func validateRepo(repo string) error {
+	if repo == "" {
+		return fmt.Errorf("empty repo")
+	}
+	if len(repo) > 100 {
+		return fmt.Errorf("repo %q exceeds 100 characters", repo)
+	}
+	if repo == "." || repo == ".." {
+		return fmt.Errorf("repo %q is not a valid name", repo)
+	}
+	if repo[0] == '.' || repo[0] == '-' {
+		return fmt.Errorf("repo %q starts with '%c'", repo, repo[0])
+	}
+	if strings.Contains(repo, "..") {
+		return fmt.Errorf("repo %q contains '..'", repo)
+	}
+	for i := 0; i < len(repo); i++ {
+		c := repo[i]
+		switch {
+		case c >= 'A' && c <= 'Z':
+		case c >= 'a' && c <= 'z':
+		case c >= '0' && c <= '9':
+		case c == '.' || c == '_' || c == '-':
+		default:
+			return fmt.Errorf("repo %q contains invalid character %q", repo, c)
+		}
+	}
+	return nil
+}
 
 // Erg is a parsed %erg v1 ticket file.
 type Erg struct {
@@ -79,12 +258,31 @@ func pathIsClosed(path string) bool {
 	return false
 }
 
-// BlockedBy returns all Blocked-by header values, or nil if absent.
+// BlockedBy returns all Blocked-by header values verbatim.
 func (t *Erg) BlockedBy() []string {
 	if vs, ok := t.Headers["Blocked-by"]; ok {
 		return vs
 	}
 	return nil
+}
+
+// BlockedByRefs parses every Blocked-by header value and returns refs
+// aligned with parse errors by index. A nil error means a successful
+// parse; a non-nil error means the corresponding ref is RefInvalid and
+// the validator will reject it. Downstream callers (ready, graph) treat
+// invalid refs as not-yet-known and skip them — by the time tickets
+// are committed, the validator has already rejected any malformed ref.
+func (t *Erg) BlockedByRefs() ([]Ref, []error) {
+	raws := t.BlockedBy()
+	if len(raws) == 0 {
+		return nil, nil
+	}
+	refs := make([]Ref, len(raws))
+	errs := make([]error, len(raws))
+	for i, raw := range raws {
+		refs[i], errs[i] = parseRef(raw)
+	}
+	return refs, errs
 }
 
 // Filename returns the basename of the ticket path.

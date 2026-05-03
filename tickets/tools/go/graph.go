@@ -52,12 +52,16 @@ func cmdGraph(args []string) int {
 	hasParent := make(map[string]bool)
 	for i := range tickets {
 		id := tickets[i].FilenameID()
-		for _, ref := range tickets[i].BlockedBy() {
-			if strings.HasPrefix(ref, "gh#") {
+		refs, errs := tickets[i].BlockedByRefs()
+		for j, ref := range refs {
+			if errs[j] != nil {
 				continue
 			}
-			if _, exists := byID[ref]; exists {
-				children[ref] = append(children[ref], id)
+			if ref.Kind != RefLocal {
+				continue
+			}
+			if _, exists := byID[ref.ID]; exists {
+				children[ref.ID] = append(children[ref.ID], id)
 				hasParent[id] = true
 			}
 		}
@@ -74,11 +78,12 @@ func cmdGraph(args []string) int {
 			return "closed"
 		}
 		t := byID[id]
-		for _, ref := range t.BlockedBy() {
-			if strings.HasPrefix(ref, "gh#") {
+		refs, errs := t.BlockedByRefs()
+		for i, ref := range refs {
+			if errs[i] != nil || ref.Kind != RefLocal {
 				continue
 			}
-			if c, ok := closedByID[ref]; ok && !c {
+			if c, ok := closedByID[ref.ID]; ok && !c {
 				return "open, blocked"
 			}
 		}
