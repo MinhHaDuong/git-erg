@@ -1,6 +1,6 @@
 %erg v1
 Title: Install erg binary on PATH: Makefile target and agent hint
-Status: open
+Status: closed
 Created: 2026-04-29
 Author: user
 
@@ -8,6 +8,7 @@ Author: user
 2026-04-29T11:00Z claude created
 2026-05-01T17:20Z claude unblocked — 0006 closed; the dependency was narrative motivation only (claim/release dropped per 0013; the work — Makefile target + agent hint — is independently valuable for validate/ready/close/pick)
 
+2026-05-03T08:31Z claude status closed — shipped in PR #15 — install-erg-binary target + CLAUDE-PLUGIN.md Prerequisites; follow-up tracked in 0022
 --- body ---
 ## Context
 
