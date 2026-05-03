@@ -95,14 +95,17 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 			"%s: filename does not match NNNN-slug.erg pattern", name))
 	}
 
-	// Rule 8: Blocked-by refs exist
-	for _, refID := range t.BlockedBy() {
-		if strings.HasPrefix(refID, "gh#") {
-			continue // GitHub issue reference — not validated locally
+	// Rule 7: Blocked-by values parse to one of the three ref forms.
+	// Rule 8: local refs point to existing ticket IDs.
+	refs, refErrs := t.BlockedByRefs()
+	for i, ref := range refs {
+		if refErrs[i] != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", name, refErrs[i]))
+			continue
 		}
-		if !allIDs[refID] {
+		if ref.Kind == RefLocal && !allIDs[ref.ID] {
 			errors = append(errors, fmt.Sprintf(
-				"%s: Blocked-by '%s' references unknown ticket ID", name, refID))
+				"%s: Blocked-by '%s' references unknown ticket ID", name, ref.ID))
 		}
 	}
 
@@ -131,22 +134,28 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 }
 
 // detectCycles reports any dependency cycles among the tickets' Blocked-by
-// edges (gh# refs ignored).
+// edges. Only RefLocal edges participate; gh#N and gh:owner/repo#N refs
+// are terminal from this repo's view and cannot form local cycles.
 func detectCycles(tickets []Erg) []string {
 	var errors []string
 
 	adj := make(map[string][]string)
 	for i := range tickets {
 		id := tickets[i].FilenameID()
-		if id != "" {
-			var localRefs []string
-			for _, ref := range tickets[i].BlockedBy() {
-				if !strings.HasPrefix(ref, "gh#") {
-					localRefs = append(localRefs, ref)
-				}
-			}
-			adj[id] = localRefs
+		if id == "" {
+			continue
 		}
+		var localRefs []string
+		refs, errs := tickets[i].BlockedByRefs()
+		for j, ref := range refs {
+			if errs[j] != nil {
+				continue // malformed — already reported by validateErg
+			}
+			if ref.Kind == RefLocal {
+				localRefs = append(localRefs, ref.ID)
+			}
+		}
+		adj[id] = localRefs
 	}
 
 	const (

@@ -20,7 +20,7 @@ Encoding: UTF-8, LF line endings.
 
 Every `.erg` file starts with this line. It declares the format version
 and enables file-type detection without relying on the extension. A future
-`%ticket v2` adds headers without breaking v1 validators (they reject
+`%erg v2` adds headers without breaking v1 validators (they reject
 unknown versions rather than silently misparsing).
 
 ### Structure
@@ -54,10 +54,10 @@ validator rejects files missing either one).
 | `Created` | yes | no | date | `YYYY-MM-DD` |
 | `Author` | yes | no | string | Agent or human identifier |
 | `Closed` | no | no | string | Closure reason (PR ref, supersession note, etc.); non-empty |
-| `Blocked-by` | no | yes | ref | Ticket ID or `gh#N` |
+| `Blocked-by` | no | yes | ref | Local `NNNN`, `gh#N`, or `gh:owner/repo#N` (see grammar) |
 
 No other headers are valid in v1. No `X-` extensions. If v2 needs new
-headers, it declares `%ticket v2` and extends the set.
+headers, it declares `%erg v2` and extends the set.
 
 **`Closed:` header:**
 - Optional, non-repeatable, preamble only.
@@ -70,12 +70,50 @@ headers, it declares `%ticket v2` and extends the set.
   - `Closed: gh#42 — superseded by 0099`
   - `Closed: abandoned — out of scope`
 
-**`Blocked-by` references:**
-- A 4-digit ID (e.g., `0041`) refers to a local ticket.
-- `gh#N` refers to a GitHub issue. Resolved via API when online, treated as
-  satisfied (non-blocking) when offline.
-- Repeatable: one `Blocked-by:` line per dependency.
-- A blocker must be **closed** (per the criterion below) to unblock.
+**`Blocked-by` references** take one of three forms:
+
+```
+ref       := local-ref | gh-same | gh-cross
+local-ref := [0-9]{4}
+gh-same   := "gh#" number
+gh-cross  := "gh:" owner "/" repo "#" number
+number    := [1-9][0-9]*
+```
+
+- **Local** — `0042` refers to a ticket in this `tickets/` directory
+  (or `tickets/archive/`).
+- **Same-repo GitHub** — `gh#N` refers to issue N in the GitHub
+  project hosting the repo that contains this `.erg` file. The bare
+  form is shorthand: it follows the repo. **If the repo is forked or
+  vendored, `gh#N` re-points to the fork's issue tracker.** That's
+  usually what you want for "the bug we filed about ourselves." When
+  it isn't, use the explicit cross-repo form.
+- **Cross-repo GitHub** — `gh:owner/repo#N` names a specific upstream
+  issue regardless of fork. Use this form when the dependency must
+  follow the original repository (third-party libraries, sibling
+  services, anything outside this repo).
+
+`#` is reserved as the issue-number separator; `:` is the scheme
+separator. `gh` is the only scheme defined in v1; future hosts
+(`gl:`, `gh:host/...`) extend the grammar additively.
+
+**Owner and repo rules** mirror GitHub's own validation. The
+validator rejects refs that GitHub would reject:
+
+- `owner` (login) — `[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9]))*`,
+  max 39 characters, no leading or trailing `-`, no underscores.
+- `repo` — `[A-Za-z0-9._-]+`, max 100 characters, may not be `.` or
+  `..`, may not start with `.` or `-`, may not contain `..`.
+
+Schemes are case-sensitive: only literal `gh#` and `gh:` are
+accepted. `GH#`, `Gh:`, etc. are rejected. The number must be a
+positive integer with no leading zero.
+
+Repeatable: one `Blocked-by:` line per dependency. A local blocker
+must be **closed** (per the criterion below) to unblock. GitHub refs
+are resolved out-of-band; the validator parses syntax only, never
+reaches the network, and a malformed `gh:` ref fails at
+`erg validate` rather than at runtime.
 
 ### Closed / not-closed criterion
 
@@ -166,7 +204,10 @@ this format.
 A ticket is **ready** when:
 - It is **not-closed** (per the criterion above).
 - Every `Blocked-by` local ref points to a **closed** ticket.
-- Every `Blocked-by: gh#N` is either resolved via API or treated as satisfied (offline).
+- Every GitHub ref (`gh#N` or `gh:owner/repo#N`) is treated as
+  satisfied for the offline `erg ready` query. (Resolution against
+  the GitHub API is a runtime concern handled by the resolver, not
+  a property of this format.)
 
 ### Archive criteria
 
@@ -187,12 +228,16 @@ The Go validator enforces:
 4. `Created` is a valid ISO date (`YYYY-MM-DD`).
 5. Filename matches `NNNN-{slug}.erg` pattern (4-digit ID, ASCII slug).
 6. No duplicate IDs across `tickets/` and `tickets/archive/`.
-7. `Blocked-by` local refs point to existing ticket IDs.
-8. No dependency cycles.
-9. Log lines match `{timestamp} {actor} {verb}` format.
-10. Each separator (`--- log ---`, `--- body ---`) appears exactly once.
-11. `Closed:` header appears at most once and has a non-empty value.
-12. `Closed:` does not appear in the log or body sections (header-key
+7. `Blocked-by` values parse as one of `local-ref`, `gh-same`, or
+   `gh-cross` (see grammar above). Malformed refs are rejected with
+   a precise message identifying the failure mode.
+8. `Blocked-by` local refs point to existing ticket IDs.
+9. No dependency cycles. Cross-repo refs are terminal from this
+   repo's view and cannot participate in local cycles.
+10. Log lines match `{timestamp} {actor} {verb}` format.
+11. Each separator (`--- log ---`, `--- body ---`) appears exactly once.
+12. `Closed:` header appears at most once and has a non-empty value.
+13. `Closed:` does not appear in the log or body sections (header-key
     match at line start).
 
 ## Migration from %erg v1 with Status

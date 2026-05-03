@@ -6,6 +6,8 @@ Blocked-by: 0016
 
 --- log ---
 2026-05-02T01:05Z claude created — 0016 split, child 1 of 3 (durable spec + validator)
+2026-05-03T16:00Z claude note Deferred #1 resolved — bare gh#N accepted as "same-repo by convention; follows the repo on fork"; cross-repo precision available via gh:owner/repo#N
+2026-05-03T16:00Z claude note implemented — three-form grammar in rules/tickets.md; Ref struct + parser in ticket.go (RefLocal/RefGHSame/RefGHCross); validator and ready/graph/archive consume parsed kinds; 8 new test_validate.sh cases covering each form and failure mode
 
 --- body ---
 ## Scope
@@ -67,9 +69,9 @@ this PR merges — the spec text needs to commit one way.
 
 ## Exit criteria
 
-- [ ] `rules/tickets.md` documents the three-form grammar and the
+- [x] `rules/tickets.md` documents the three-form grammar and the
       owner/repo rules.
-- [ ] Deferred #1 (bare `gh#N` fork risk) decided in spec text.
-- [ ] Validator parses all three forms, rejects malformed.
-- [ ] `Erg` struct exposes `[]Ref{Kind, ...}` for blockers.
-- [ ] Tests cover each form and each failure mode.
+- [x] Deferred #1 (bare `gh#N` fork risk) decided in spec text.
+- [x] Validator parses all three forms, rejects malformed.
+- [x] `Erg` struct exposes `[]Ref{Kind, ...}` for blockers.
+- [x] Tests cover each form and each failure mode.

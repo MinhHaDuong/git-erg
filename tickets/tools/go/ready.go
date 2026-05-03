@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 )
 
 type readyEntry struct {
@@ -57,14 +56,18 @@ func cmdReady(args []string) int {
 
 		tid := t.FilenameID()
 		blocked := false
-		for _, refID := range t.BlockedBy() {
-			if strings.HasPrefix(refID, "gh#") {
+		refs, errs := t.BlockedByRefs()
+		for i, ref := range refs {
+			if errs[i] != nil {
+				continue // malformed refs are validator territory
+			}
+			if ref.IsGitHub() {
 				continue // GitHub refs treated as satisfied offline
 			}
-			if !knownID[refID] {
+			if !knownID[ref.ID] {
 				warnings = append(warnings, fmt.Sprintf(
-					"%s: Blocked-by '%s' not found (treating as satisfied)", t.Filename(), refID))
-			} else if !closedByID[refID] {
+					"%s: Blocked-by '%s' not found (treating as satisfied)", t.Filename(), ref.ID))
+			} else if !closedByID[ref.ID] {
 				blocked = true
 				break
 			}
