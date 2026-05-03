@@ -15,12 +15,17 @@ Blocked-by: 0012
 closed/not-closed criterion. Decisions recorded in 0012's log:
 
 - `Closed:` header is the canonical closure mechanism (in-place, no
-  file move required).
-- Path substring test (`closed` anywhere in path) is opt-in; projects
-  that use directory-based organization get it for free.
+  file move required); value is required non-empty.
+- Path component test (not substring): a component equals `closed`,
+  starts with `closed-`/`closed.`, or ends with `-closed`
+  (case-insensitive). Covers `tickets/closed/`, `archive/closed/`,
+  `0001-foo-closed.erg`; rules out `disclosed`, `enclosed`.
+- `Closed:` detection is a line-start header-key match, not free
+  substring; forbidden in log and body sections.
 - `pending` is dropped entirely.
-- Migration is atomic: `erg migrate` converts all tickets in a repo,
-  must run before the new binary is installed.
+- Migration: `erg migrate` is the one command that tolerates `Status:`
+  lines; all other commands reject them. No global install ordering
+  required — install binary first, migrate repos at your pace.
 
 ## Actions
 
@@ -32,23 +37,30 @@ closed/not-closed criterion. Decisions recorded in 0012's log:
   out of scope", etc.).
 - Document the closed/not-closed criterion:
   > A ticket is **closed** if at least one holds:
-  > 1. The substring `closed` (case-insensitive) appears anywhere in
-  >    the ticket's file path.
-  > 2. The header `Closed:` appears in the ticket's preamble.
+  > 1. A path component (directory name or basename without extension)
+  >    equals `closed`, starts with `closed-`/`closed.`, or ends with
+  >    `-closed` (case-insensitive).
+  > 2. A preamble line begins with `Closed:` (header-key match at line
+  >    start; value required, non-empty).
   > Otherwise the ticket is **not-closed** (open).
-- Document that `Closed:` is forbidden in the log and body sections.
+- Document that `Closed:` is forbidden in log and body sections, and
+  that an empty `Closed:` value is a validation error.
 - Remove `pending` from all enum references.
 - Update the example tickets in the spec accordingly.
 
 ### B. Validator (`tickets/tools/go/`)
 
-- Remove `Status` from the known-headers set; reject it on sight.
-- Add `Closed` as a known optional non-repeatable header, preamble-only.
-- Enforce `Closed:` forbidden in log and body (the parser already
-  section-tracks; add a check).
+- Remove `Status` from the known-headers set; reject it on sight
+  **except** inside `erg migrate` (which is the one command that
+  tolerates `Status:` lines in order to convert them).
+- Add `Closed` as a known optional non-repeatable header, preamble-only;
+  reject empty value.
+- Detection: match `^Closed:` at line start (header-key position), not
+  free substring. Enforce `Closed:` forbidden in log and body sections.
 - Apply the closed/not-closed criterion: derive `Erg.Closed` from
-  path OR preamble `Closed:` header (current `Status: closed` logic
-  replaced).
+  path component test OR preamble `Closed:` header.
+- Path component test: a component equals `closed`, starts with
+  `closed-`/`closed.`, or ends with `-closed` (case-insensitive).
 - `erg ready` exclusion: use `Erg.Closed` (unchanged semantics,
   different source).
 
@@ -58,9 +70,10 @@ Current behaviour: find `Status: open|doing` line, replace with
 `Status: closed`.
 
 New behaviour: append `Closed: <reason>` to the preamble (after last
-existing header, before the blank line preceding `--- log ---`). Do
-not touch any `Status:` line — the validator will reject the file if
-one exists, so migration must have run first.
+existing header, before the blank line preceding `--- log ---`).
+Requires non-empty reason (existing behaviour — `erg close` already
+requires a reason argument). Does not touch any `Status:` line;
+`erg validate` will reject stale `Status:` lines post-migration.
 
 ### D. `erg migrate` new subcommand
 
@@ -92,25 +105,35 @@ migration instructions say to commit immediately).
 ### E. Tests
 
 - Validator rejects `Status:` header (any value).
-- Validator accepts `Closed:` in preamble; rejects it in log/body.
+- Validator accepts `Closed:` in preamble with non-empty value.
+- Validator rejects `Closed:` with empty value.
+- Validator rejects `Closed:` in log or body sections.
+- Validator does not false-positive on `disclosed` or `enclosed` in path.
 - `erg ready` excludes tickets with `Closed:` header.
-- `erg ready` excludes tickets whose path contains `closed`.
+- `erg ready` excludes tickets in a `closed/` path component.
+- `erg ready` excludes tickets with `-closed.erg` basename suffix.
+- `erg ready` does NOT exclude tickets with `disclosed` in path.
 - `erg close` appends `Closed: <reason>` to preamble; no Status line.
-- `erg migrate`: closed ticket → `Closed:` added, `Status:` removed.
+- `erg close` rejects empty reason.
+- `erg migrate`: `Status: closed` ticket → `Closed: migrated from Status: closed` added, `Status:` removed.
 - `erg migrate`: open/doing/pending ticket → `Status:` removed, not closed.
 - `erg migrate` idempotent: running twice produces same result.
+- `erg migrate` tolerates `Status:` lines; `erg validate` rejects them.
 - All existing tests pass.
 
 ## Migration instructions (for README / release notes)
 
 1. Build and install the new binary.
-2. Run `erg migrate tickets/` in each repo.
+2. Run `erg migrate tickets/` in each repo (`erg migrate` tolerates
+   `Status:` lines; all other commands reject them after this point).
 3. Review the diff (`git diff tickets/`).
 4. Commit: `git commit -m "chore: migrate to Closed: header (erg migrate)"`.
 5. Verify: `erg validate tickets/` → PASS.
 
-The pre-commit hook will reject files with `Status:` lines after the
-new binary is installed, so step 2 must precede any new commits.
+No global ordering hazard: install the binary first, then migrate repos
+at your own pace. Until `erg migrate` runs in a repo, only `erg migrate`
+will work on it — `erg validate`, `erg ready`, etc. will reject
+`Status:` lines and exit non-zero.
 
 ## Out of scope
 

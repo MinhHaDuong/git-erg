@@ -1,6 +1,6 @@
 %erg v1
 Title: Drop Status header — derive closed-ness from path or marker
-Status: open
+Status: closed
 Created: 2026-04-30
 Author: claude
 
@@ -11,7 +11,9 @@ Author: claude
 2026-05-03T00:00Z user resolved Q2: path convention open to each project; Closed: header is canonical (in-place, no file move); path substring test is opt-in for directory-organized projects
 2026-05-03T00:00Z user resolved Q3: preamble scope confirmed — forbidden-elsewhere applies to header block only
 2026-05-03T00:00Z user resolved Q4: migration atomic via erg migrate subcommand — converts Status: closed to Closed: header, strips remaining Status: lines, runs before new binary installed
+2026-05-03T00:00Z claude advisor review: four refinements accepted — (1) path test uses word-boundary component match not substring (rules out disclosed/enclosed false positives); (2) Closed: detection is line-start header-key match not free substring; (3) empty Closed: value forbidden — reason required; (4) erg migrate is the one command that tolerates Status: lines, removing global install-ordering hazard
 
+2026-05-03T09:09Z claude status closed — accepted — design complete; implementation in 0022
 --- body ---
 ## Idea
 
@@ -20,16 +22,17 @@ Replace the `Status: open|doing|closed|pending` header with a binary
 
 A ticket is **closed** if and only if at least one of these holds:
 
-1. **Path test.** The substring `closed` (English, case-insensitive)
-   appears anywhere in the ticket's path — in any parent directory name
-   or in the file's basename.
+1. **Path test.** A path component (directory name or basename without
+   extension) equals `closed`, or starts with `closed-` / `closed.`,
+   or ends with `-closed` (case-insensitive). This covers
+   `tickets/closed/`, `archive/closed/`, and `0001-foo-closed.erg`
+   while ruling out false positives like `disclosed` or `enclosed`.
 
-2. **Preamble test.** The substring `closed:` (no internal space, the
-   colon immediately follows) appears in the ticket's preamble,
-   case-insensitive. For valid tickets this string is **forbidden
-   anywhere else** in the preamble — it is reserved as a unique closure
-   marker, used as a header key whose value carries the closure reason
-   or PR reference. Examples:
+2. **Preamble test.** A line in the preamble begins with `Closed:`
+   (case-insensitive header-key match at line start; value required,
+   non-empty). The `Closed:` key is **forbidden** on any other preamble
+   line, and must not appear in the log or body sections. The value
+   carries the closure reason or PR reference. Examples:
    - `Closed: completed in PR #5`
    - `Closed: gh#42 — superseded by 0099`
    - `Closed: abandoned — out of scope`
@@ -75,5 +78,5 @@ questions above are resolved.
 ## Exit criteria
 
 - [x] Open questions answered (in the log or in a follow-up ticket)
-- [ ] Either accepted (follow-up implementation ticket filed) or
-      rejected with rationale recorded
+- [x] Either accepted (follow-up implementation ticket filed) or
+      rejected with rationale recorded — accepted; 0022 filed
