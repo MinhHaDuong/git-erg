@@ -99,10 +99,26 @@ already clean: P tickets
 
 Exit 0 always (migration is idempotent; running twice is safe).
 
-Does NOT commit. User reviews the diff and commits manually (or the
-migration instructions say to commit immediately).
+Does NOT commit. User reviews the diff and commits manually.
 
-### E. Tests
+### E. `erg update` integration
+
+After a successful binary swap, `cmdUpdate` scans the ticket directory
+(default: `tickets/`) for any file with a `Status:` line in its
+preamble. If any found, automatically invoke `cmdMigrate` and print:
+
+```
+erg: updated (abc123 → def456)
+erg: detected Status: headers in N tickets — running migrate...
+migrated: N tickets (K closed, M open/doing/pending stripped)
+Review with: git diff tickets/
+Then commit: git commit -m "chore: migrate to Closed: header"
+```
+
+If no `Status:` lines found after update, print nothing extra (already
+migrated or fresh install).
+
+### F. Tests
 
 - Validator rejects `Status:` header (any value).
 - Validator accepts `Closed:` in preamble with non-empty value.
@@ -119,6 +135,8 @@ migration instructions say to commit immediately).
 - `erg migrate`: open/doing/pending ticket → `Status:` removed, not closed.
 - `erg migrate` idempotent: running twice produces same result.
 - `erg migrate` tolerates `Status:` lines; `erg validate` rejects them.
+- `erg update` auto-runs migrate when Status: lines detected post-update.
+- `erg update` is silent about migration when already clean.
 - All existing tests pass.
 
 ## Migration instructions (for README / release notes)
@@ -149,7 +167,8 @@ will work on it — `erg validate`, `erg ready`, etc. will reject
 - [ ] Validator rejects `Status:`, accepts `Closed:` per §B
 - [ ] `erg close` appends `Closed:` header per §C
 - [ ] `erg migrate` converts all tickets atomically per §D
-- [ ] Tests cover all cases in §E
+- [ ] `erg update` auto-invokes migrate when Status: lines detected per §E
+- [ ] Tests cover all cases in §F
 - [ ] `make test` and `make validate` green on this repo's own tickets
       (after running `erg migrate` on them)
 - [ ] Migration instructions documented

@@ -1,0 +1,93 @@
+%erg v1
+Title: Distribution, installation, update, and uninstallation model — design
+Created: 2026-05-03
+Author: user
+Status: open
+
+--- log ---
+2026-05-03T00:00Z claude created — surfaced during 0022 discussion; no prior ticket; design objectives need statement before implementation decisions
+
+--- body ---
+## Problem
+
+git-erg travels with repos as vendored source + binary. The current
+model (install script, `erg update`, `make install`) grew piece by
+piece without a stated design. As the system evolves (spec changes,
+migration subcommands, multi-repo deployments), the lack of a coherent
+distribution story creates:
+
+- Unclear upgrade path when spec changes land (0022 is the first
+  breaking change)
+- No uninstall path documented
+- `erg update` only ships the binary; spec + skills lag behind
+- No mechanism to propagate breaking changes to N installed repos
+  without manual intervention per-repo
+
+## Design objectives (to establish)
+
+The following are candidate objectives — confirm, reject, or extend
+before designing solutions:
+
+1. **Portability** — works in isolated environments (web containers,
+   CI, offline). No network requirement for day-to-day use.
+2. **Zero user-level dependency** — no Go toolchain, no package
+   manager, no root access required at runtime.
+3. **Offline-first** — `erg validate`, `erg ready`, etc. never fail
+   due to network absence.
+4. **Agent-safe** — operations safe to run unattended; no interactive
+   prompts, no silent data loss.
+5. **Multi-repo** — same erg version deployed across N repos; upgrade
+   path doesn't require N manual steps for non-breaking changes.
+6. **Breakage isolation** — breaking spec changes (like 0022) require
+   explicit per-repo migration, never silent corruption.
+
+## Questions to answer
+
+### Install
+- What is the canonical install path? (`make install DEST=` today)
+- Does install require the git-erg source repo to be present, or can
+  it bootstrap from the binary alone?
+- Should `erg install` be a subcommand (self-bootstrapping from the
+  binary) instead of requiring a separate script?
+
+### Update
+- `erg update` today: binary only, manual, per-repo.
+- Should it also update `rules/tickets.md` and skills? If so, from
+  where? (Raw GitHub? Embedded in binary?)
+- Should spec + skills be embedded in the binary (single-file
+  distribution) to eliminate the source-repo dependency on update?
+- How does a project know it's behind? Version/hash comparison for
+  binary is solved; no equivalent for spec or skills.
+
+### Breaking changes
+- `erg update` + auto-`erg migrate` (landing in 0022) handles the
+  ticket-file migration. What handles spec + skills staleness?
+- Should `erg update` refuse to run if the spec file hash doesn't
+  match the embedded spec (forcing `erg update --full`)?
+
+### Uninstall
+- No documented uninstall path today.
+- What does a clean uninstall look like? (Remove binary, hook,
+  skills, rules, CLAUDE.md section — tickets stay, they're data.)
+- Should `erg uninstall` be a subcommand?
+
+### Multi-repo coordination
+- For N repos, is the expected workflow "run `erg update` in each"
+  or is there a fleet-level operation?
+- Does the housekeeping skill / beat cycle handle this, or is it
+  out of scope for the binary?
+
+## Out of scope
+
+Ticket data migration (covered by 0022). Cross-repo blocker
+resolution (covered by 0016 chain). This ticket is about the
+lifecycle of the tooling itself, not the tickets it manages.
+
+## Exit criteria
+
+- [ ] Design objectives confirmed (or amended) by user
+- [ ] Install model decided
+- [ ] Update model decided (binary-only vs full; embedding vs fetch)
+- [ ] Breaking-change propagation model decided
+- [ ] Uninstall model decided
+- [ ] Implementation tickets filed for any non-trivial decisions
