@@ -74,10 +74,13 @@ func cmdGraph(args []string) int {
 
 	// Determine annotation for a ticket
 	annotate := func(id string) string {
+		t := byID[id]
+		if t == nil {
+			return "unknown"
+		}
 		if closedByID[id] {
 			return "closed"
 		}
-		t := byID[id]
 		refs, errs := t.BlockedByRefs()
 		for i, ref := range refs {
 			if errs[i] != nil || ref.Kind != RefLocal {
@@ -109,6 +112,9 @@ func cmdGraph(args []string) int {
 		var nodes []jsonNode
 		for i := range tickets {
 			id := tickets[i].FilenameID()
+			if id == "" {
+				continue // unaddressable; validator rejects on commit
+			}
 			status := "open"
 			if tickets[i].Closed() {
 				status = "closed"
