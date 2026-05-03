@@ -7,11 +7,10 @@ Author: claude
 --- log ---
 2026-04-30T12:00Z claude created proposal — replace Status enum with binary closed criterion
 2026-05-01T17:35Z claude amended rationale — see "Amendment" section: 0013 invalidates the `.wip`-based justification for dropping `doing`, but the simpler argument (no Status enum at all) makes that justification unnecessary
-2026-05-03T00:00Z user resolved open questions:
-  Q1 pending: drop entirely — "less is more"; branch is truth for WIP state
-  Q2 path convention: leave open to each project; Closed: header is canonical (in-place, no file move required); path substring test is opt-in for projects using directory-based organization; no convention mandated
-  Q3 preamble scope: confirmed — forbidden-elsewhere rule applies to header block only (between %erg v1 and --- log ---)
-  Q4 migration: atomic — include erg migrate subcommand; runs per-repo, converts Status: closed → Closed: migrated from Status: closed, strips all remaining Status: lines; must run before new binary installed
+2026-05-03T00:00Z user resolved Q1: drop pending entirely — less is more; branch is truth for WIP state
+2026-05-03T00:00Z user resolved Q2: path convention open to each project; Closed: header is canonical (in-place, no file move); path substring test is opt-in for directory-organized projects
+2026-05-03T00:00Z user resolved Q3: preamble scope confirmed — forbidden-elsewhere applies to header block only
+2026-05-03T00:00Z user resolved Q4: migration atomic via erg migrate subcommand — converts Status: closed to Closed: header, strips remaining Status: lines, runs before new binary installed
 
 --- body ---
 ## Idea

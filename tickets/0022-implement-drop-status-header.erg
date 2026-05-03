@@ -1,0 +1,132 @@
+%erg v1
+Title: Implement 0012 — drop Status header, add Closed: marker, erg migrate
+Created: 2026-05-03
+Author: claude
+Status: open
+Blocked-by: 0012
+
+--- log ---
+2026-05-03T00:00Z claude created — implementation ticket for 0012 design; all design questions resolved in 0012 log
+
+--- body ---
+## Context
+
+0012 accepted. Replace the `Status:` header enum with a binary
+closed/not-closed criterion. Decisions recorded in 0012's log:
+
+- `Closed:` header is the canonical closure mechanism (in-place, no
+  file move required).
+- Path substring test (`closed` anywhere in path) is opt-in; projects
+  that use directory-based organization get it for free.
+- `pending` is dropped entirely.
+- Migration is atomic: `erg migrate` converts all tickets in a repo,
+  must run before the new binary is installed.
+
+## Actions
+
+### A. `rules/tickets.md` spec change
+
+- Remove `Status:` from the headers table.
+- Add `Closed:` header row: optional, non-repeatable, preamble only;
+  value carries reason (PR reference, supersession note, "abandoned —
+  out of scope", etc.).
+- Document the closed/not-closed criterion:
+  > A ticket is **closed** if at least one holds:
+  > 1. The substring `closed` (case-insensitive) appears anywhere in
+  >    the ticket's file path.
+  > 2. The header `Closed:` appears in the ticket's preamble.
+  > Otherwise the ticket is **not-closed** (open).
+- Document that `Closed:` is forbidden in the log and body sections.
+- Remove `pending` from all enum references.
+- Update the example tickets in the spec accordingly.
+
+### B. Validator (`tickets/tools/go/`)
+
+- Remove `Status` from the known-headers set; reject it on sight.
+- Add `Closed` as a known optional non-repeatable header, preamble-only.
+- Enforce `Closed:` forbidden in log and body (the parser already
+  section-tracks; add a check).
+- Apply the closed/not-closed criterion: derive `Erg.Closed` from
+  path OR preamble `Closed:` header (current `Status: closed` logic
+  replaced).
+- `erg ready` exclusion: use `Erg.Closed` (unchanged semantics,
+  different source).
+
+### C. `erg close` rewrite
+
+Current behaviour: find `Status: open|doing` line, replace with
+`Status: closed`.
+
+New behaviour: append `Closed: <reason>` to the preamble (after last
+existing header, before the blank line preceding `--- log ---`). Do
+not touch any `Status:` line — the validator will reject the file if
+one exists, so migration must have run first.
+
+### D. `erg migrate` new subcommand
+
+```
+erg migrate [dir]
+```
+
+Idempotent. For every `.erg` file under `dir` (default: `tickets/`):
+
+1. If preamble contains `Status: closed` (any case):
+   - Remove the `Status:` line.
+   - Append `Closed: migrated from Status: closed` to the preamble.
+2. If preamble contains `Status: doing` or `Status: pending` or
+   `Status: open` (any case):
+   - Remove the `Status:` line. (Ticket becomes not-closed — correct.)
+3. If no `Status:` line: no-op.
+
+After processing all files, print a summary:
+```
+migrated: N tickets (K closed, M open/doing/pending stripped)
+already clean: P tickets
+```
+
+Exit 0 always (migration is idempotent; running twice is safe).
+
+Does NOT commit. User reviews the diff and commits manually (or the
+migration instructions say to commit immediately).
+
+### E. Tests
+
+- Validator rejects `Status:` header (any value).
+- Validator accepts `Closed:` in preamble; rejects it in log/body.
+- `erg ready` excludes tickets with `Closed:` header.
+- `erg ready` excludes tickets whose path contains `closed`.
+- `erg close` appends `Closed: <reason>` to preamble; no Status line.
+- `erg migrate`: closed ticket → `Closed:` added, `Status:` removed.
+- `erg migrate`: open/doing/pending ticket → `Status:` removed, not closed.
+- `erg migrate` idempotent: running twice produces same result.
+- All existing tests pass.
+
+## Migration instructions (for README / release notes)
+
+1. Build and install the new binary.
+2. Run `erg migrate tickets/` in each repo.
+3. Review the diff (`git diff tickets/`).
+4. Commit: `git commit -m "chore: migrate to Closed: header (erg migrate)"`.
+5. Verify: `erg validate tickets/` → PASS.
+
+The pre-commit hook will reject files with `Status:` lines after the
+new binary is installed, so step 2 must precede any new commits.
+
+## Out of scope
+
+- Path convention for organizing closed tickets into subdirectories
+  (left to each project; the path test makes any convention work).
+- `erg archive` interaction (archive implies closed; no change needed —
+  archive dir name contains `archive`, not `closed`, so path test
+  doesn't fire; `Closed:` header in archived tickets is sufficient).
+
+## Exit criteria
+
+- [ ] `rules/tickets.md` updated per §A
+- [ ] Validator rejects `Status:`, accepts `Closed:` per §B
+- [ ] `erg close` appends `Closed:` header per §C
+- [ ] `erg migrate` converts all tickets atomically per §D
+- [ ] Tests cover all cases in §E
+- [ ] `make test` and `make validate` green on this repo's own tickets
+      (after running `erg migrate` on them)
+- [ ] Migration instructions documented
