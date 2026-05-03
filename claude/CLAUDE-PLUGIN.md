@@ -1,7 +1,11 @@
 # Ticket system
 
 This project uses `%erg v1` local tickets for work coordination.
-You read and write `.erg` text files directly — no CLI needed.
+You read and write `.erg` text files directly.
+
+## Prerequisites
+
+`erg` must be on PATH. If missing: `make install-erg-binary` from the repo root.
 
 ## Commands
 
@@ -18,7 +22,6 @@ You read and write `.erg` text files directly — no CLI needed.
 ## Notes
 
 - The validator lives in `tickets/tools/go/` with its own `go.mod` — this is isolated from any project-level Go modules.
-- Build it with `cd tickets/tools/go && go build -o erg .`
 
 ## Format spec
 
