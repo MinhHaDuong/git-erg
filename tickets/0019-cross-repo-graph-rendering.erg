@@ -4,10 +4,12 @@ Created: 2026-05-02
 Author: claude
 Blocked-by: 0016
 Blocked-by: 0018
+Closed: obsolete — erg graph removed; cross-repo edges still readable from Blocked-by: headers
 
 --- log ---
 2026-05-02T01:07Z claude created — 0016 split, child 3 of 3 (graph rendering)
 
+2026-05-03T17:47Z claude closed — obsolete — erg graph removed; cross-repo edges still readable from Blocked-by: headers
 --- body ---
 ## Scope
 

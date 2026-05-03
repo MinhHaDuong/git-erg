@@ -57,6 +57,26 @@ erg validate tickets/
 erg ready tickets/
 ```
 
+## Inspect the dependency DAG
+
+Edges live directly in `Blocked-by:` headers, so any tool that reads
+text can render the graph. Headers are preamble-only, so awk through
+the first `--- log ---` to skip body matches. The recipes below match
+local refs (4-digit IDs) only; drop the `[0-9]{4}$` anchor to also
+include `gh#N` and `gh:owner/repo#N` cross-repo refs.
+
+```bash
+# Adjacency list: blocker → blocked
+awk '/^--- log ---/{nextfile} /^Blocked-by:[[:space:]]+[0-9]{4}$/{print FILENAME, $2}' tickets/*.erg \
+  | sed -E 's|tickets/([0-9]{4})[^ ]*|\1|' \
+  | awk '{print $2" -> "$1}'
+
+# Topological order (requires GNU coreutils `tsort`)
+awk '/^--- log ---/{nextfile} /^Blocked-by:[[:space:]]+[0-9]{4}$/{print FILENAME, $2}' tickets/*.erg \
+  | sed -E 's|tickets/([0-9]{4})[^ ]*|\1|' \
+  | awk '{print $2, $1}' | tsort
+```
+
 ## Format
 
 See [rules/tickets.md](rules/tickets.md) for the complete `%erg v1` specification.

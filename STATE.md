@@ -1,10 +1,10 @@
 # State — git-erg
 
-_Last updated: 2026-05-03 — closed 0017 (cross-repo Blocked-by spec + validator) via PR #19; migrated 0024–0029 stale Status: headers; 0018 now ready._
+_Last updated: 2026-05-03 — removed `erg graph` from the binary (199 LOC, no programmatic consumers; replaced by `Blocked-by:` grep recipe in README); closed 0019, rescoped 0024 to next-id only._
 
 ## Stats
 
-- Tickets: 29 total — 16 closed, 13 open (6 ready, 6 blocked, 1 fixture)
+- Tickets: 29 total — 17 closed, 12 open (6 ready, 5 blocked, 1 fixture)
 - Tests: green
 - Open PRs: none
 
@@ -15,7 +15,7 @@ _Last updated: 2026-05-03 — closed 0017 (cross-repo Blocked-by spec + validato
 | 0015 | Add Tags header for revocable triage labels                        | Beat-ready; unblocks 0008 |
 | 0018 | Cross-repo resolver + erg ready integration                        | Unblocked by 0017; network + cache + auth |
 | 0023 | Distribution model — design                                        | Human gate; objectives need confirmation |
-| 0024 | Integration tests for `erg graph` and `erg next-id`                | Test backfill; unblocks 0026/0028 |
+| 0024 | Integration tests for `erg next-id`                                | Test backfill; unblocks 0026/0028 (graph dropped — command removed) |
 | 0025 | Cover `archive --execute` and `update` replace path                | Test backfill; destructive paths |
 | 0029 | Installer round-trip test and harness hardening                    | Test backfill; independent |
 
@@ -28,17 +28,16 @@ indefinitely; it has no actionable work.
 |------|----------------------------------------------|------------------|
 | 0002 | Sample blocked                               | 0001 (fixture)   |
 | 0008 | Add erg pick command                         | 0015             |
-| 0019 | erg graph cross-repo rendering               | 0018             |
 | 0026 | Go unit tests for parser and validator       | 0024             |
 | 0027 | CI add `go test` and coverage                | 0026             |
 | 0028 | Fill remaining branch coverage               | 0024             |
 
 ## Sequencing
 
-1. **0018** (cross-repo resolver) — completes the 0016 chain; unblocks 0019.
+1. **0018** (cross-repo resolver) — completes the 0016 chain.
 2. **0015** (Tags header) — unblocks 0008.
 3. **0023** (distribution model) — human gate; resolve before next install-path work.
-4. **0024** (graph/next-id tests) — gate for 0026/0028 test-coverage chain.
+4. **0024** (next-id tests) — gate for 0026/0028 test-coverage chain.
 
 ## Notes
 
