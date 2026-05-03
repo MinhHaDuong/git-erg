@@ -2,7 +2,6 @@
 Title: introduce Go unit tests for parser, validator, and helpers
 Created: 2026-05-03
 Author: claude
-Status: open
 Blocked-by: 0024
 
 --- log ---

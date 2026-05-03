@@ -2,7 +2,6 @@
 Title: extend CI to run `go test` and report coverage
 Created: 2026-05-03
 Author: claude
-Status: open
 Blocked-by: 0026
 
 --- log ---

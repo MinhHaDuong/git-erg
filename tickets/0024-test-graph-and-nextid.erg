@@ -2,7 +2,6 @@
 Title: add integration tests for `erg graph` and `erg next-id`
 Created: 2026-05-03
 Author: claude
-Status: open
 
 --- log ---
 2026-05-03T14:16Z claude created — surfaced by test-coverage audit; both commands ship in the public CLI with zero tests
