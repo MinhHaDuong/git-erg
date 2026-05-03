@@ -2,9 +2,11 @@
 Title: cover `archive --execute` and the real `update` replace path
 Created: 2026-05-03
 Author: claude
+Closed: abandoned — erg archive command removed; storage path is irrelevant to open/closed status, feature added complexity without semantic value
 
 --- log ---
 2026-05-03T14:16Z claude created — surfaced by test-coverage audit; both destructive paths uncovered
+2026-05-03T00:00Z user closed — archive feature dropped entirely
 
 --- body ---
 ## Context

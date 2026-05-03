@@ -14,9 +14,9 @@ make install DEST=/path/to/your/project
 ```
 
 This builds the binary, copies source and rules into the target project,
-creates `tickets/` and `tickets/archive/`, appends the pre-commit hook
-(composing with any existing hook), adds the binary to `.gitignore`,
-and skips sample tickets so you start fresh at `0001`.
+creates `tickets/`, appends the pre-commit hook (composing with any existing
+hook), adds the binary to `.gitignore`, and skips sample tickets so you
+start fresh at `0001`.
 
 You can also run the script directly: `./bin/install.sh /path/to/project`
 

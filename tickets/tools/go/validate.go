@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -26,7 +25,7 @@ var (
 )
 
 // validateErg returns rule violations for a single ticket. allIDs lists every
-// ticket ID known to the run (live + archived) for Blocked-by resolution.
+// ticket ID known to the run for Blocked-by resolution.
 func validateErg(t *Erg, allIDs map[string]bool) []string {
 	var errors []string
 	name := t.Filename()
@@ -208,9 +207,8 @@ func detectCycles(tickets []Erg) []string {
 	return errors
 }
 
-// validateAll runs every rule across the supplied tickets, treating extraIDs
-// (typically archived ticket IDs) as valid Blocked-by targets.
-func validateAll(tickets []Erg, extraIDs map[string]bool) []string {
+// validateAll runs every rule across the supplied tickets.
+func validateAll(tickets []Erg) []string {
 	var errors []string
 
 	// Rule 7: no duplicate IDs
@@ -231,23 +229,9 @@ func validateAll(tickets []Erg, extraIDs map[string]bool) []string {
 		}
 	}
 
-	// Check collisions with archived ticket IDs
-	if extraIDs != nil {
-		for tid := range idToFiles {
-			if extraIDs[tid] {
-				errors = append(errors, fmt.Sprintf(
-					"ID '%s' in %s collides with an archived ticket",
-					tid, strings.Join(idToFiles[tid], ", ")))
-			}
-		}
-	}
-
 	// Build allIDs for reference checking
 	allIDs := make(map[string]bool)
 	for id := range idToFiles {
-		allIDs[id] = true
-	}
-	for id := range extraIDs {
 		allIDs[id] = true
 	}
 
@@ -288,25 +272,7 @@ func cmdValidate(args []string) int {
 		return 0
 	}
 
-	// Load archived ticket IDs as valid Blocked-by targets
-	extraIDs := make(map[string]bool)
-	for _, arg := range args {
-		info, err := os.Stat(arg)
-		if err != nil || !info.IsDir() {
-			continue
-		}
-		archiveDir := filepath.Join(arg, "archive")
-		if info, err := os.Stat(archiveDir); err == nil && info.IsDir() {
-			for _, at := range loadErgs(archiveDir) {
-				id := at.FilenameID()
-				if id != "" {
-					extraIDs[id] = true
-				}
-			}
-		}
-	}
-
-	errors := validateAll(tickets, extraIDs)
+	errors := validateAll(tickets)
 	if len(errors) > 0 {
 		fmt.Printf("ERG VALIDATION FAILED (%d error(s)):\n", len(errors))
 		for _, e := range errors {
