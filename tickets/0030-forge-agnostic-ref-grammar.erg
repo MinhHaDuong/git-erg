@@ -3,10 +3,12 @@ Title: Forge-agnostic Blocked-by grammar — replace gh: and gh#N
 Created: 2026-05-03
 Author: claude
 Blocked-by: 0017
+Closed: implemented — forge-agnostic grammar replaces gh: / gh#N; tests pass; forge refs now blocking in ready
 
 --- log ---
 2026-05-03T00:00Z claude created — design decision: erg works offline in isolated VMs; remote forge refs are always unknown; drop gh-specific syntax
 
+2026-05-04T18:06Z claude closed — implemented — forge-agnostic grammar replaces gh: / gh#N; tests pass; forge refs now blocking in ready
 --- body ---
 ## Decision
 
