@@ -195,6 +195,47 @@ else
     fail "JSON output works"
 fi
 
+# --- Ready excludes tickets carrying skip tags ---
+rm -f "$FIXTURES/ready/"*.erg
+cat > "$FIXTURES/ready/0040-tagged.erg" <<'EOF'
+%erg v1
+Title: Needs human triage
+Created: 2026-01-01
+Author: a
+Tags: needs-human
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+EOF
+output=$($ERG ready "$FIXTURES/ready")
+if echo "$output" | grep -q "0040"; then
+    fail "skip-tagged ticket excluded from ready"
+else
+    pass "skip-tagged ticket excluded from ready"
+fi
+
+# --- JSON output includes tags array for ready entries ---
+rm -f "$FIXTURES/ready/"*.erg
+cat > "$FIXTURES/ready/0041-untagged.erg" <<'EOF'
+%erg v1
+Title: Untagged ready ticket
+Created: 2026-01-01
+Author: a
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+EOF
+output=$($ERG ready --json "$FIXTURES/ready")
+if echo "$output" | grep -q '"tags": \['; then
+    pass "ready JSON includes tags array"
+else
+    fail "ready JSON includes tags array"
+fi
+
 # --- Empty dir ---
 rm -f "$FIXTURES/ready/"*.erg
 # --- Forge-ref blocker is blocking ---

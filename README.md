@@ -67,7 +67,7 @@ Edges live directly in `Blocked-by:` headers, so any tool that reads
 text can render the graph. Headers are preamble-only, so awk through
 the first `--- log ---` to skip body matches. The recipes below match
 local refs (4-digit IDs) only; drop the `[0-9]{4}$` anchor to also
-include `gh#N` and `gh:owner/repo#N` cross-repo refs.
+include forge refs like `github.com/owner/repo#N`.
 
 ```bash
 # Adjacency list: blocker → blocked

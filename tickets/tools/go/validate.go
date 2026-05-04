@@ -68,7 +68,7 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 		}
 	}
 
-	// Rule: Tags: values must be from the closed value set.
+	// Rule 3a: Tags: values must be from the closed value set.
 	if tags, ok := t.Headers["Tags"]; ok {
 		for _, v := range tags {
 			if !validTagValues[strings.TrimSpace(v)] {
@@ -111,7 +111,7 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 			"%s: filename does not match NNNN-slug.erg pattern", name))
 	}
 
-	// Rule 7: Blocked-by values parse to one of the three ref forms.
+	// Rule 7: Blocked-by values parse to one of the two ref forms.
 	// Rule 8: local refs point to existing ticket IDs.
 	refs, refErrs := t.BlockedByRefs()
 	for i, ref := range refs {
@@ -150,8 +150,8 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 }
 
 // detectCycles reports any dependency cycles among the tickets' Blocked-by
-// edges. Only RefLocal edges participate; gh#N and gh:owner/repo#N refs
-// are terminal from this repo's view and cannot form local cycles.
+// edges. Only RefLocal edges participate; forge refs are terminal from
+// this repo's view and cannot form local cycles.
 func detectCycles(tickets []Erg) []string {
 	var errors []string
 

@@ -59,19 +59,26 @@ func parseRef(raw string) (Ref, error) {
 		return Ref{Raw: raw}, fmt.Errorf(
 			"forge ref %q uses deprecated 'gh#' scheme; same-repo refs are not supported", raw)
 	}
+
+	// Catch case-variant old schemes before forge parsing.
+	lower := strings.ToLower(raw)
+	if strings.HasPrefix(lower, "gh#") || strings.HasPrefix(lower, "gh:") {
+		return Ref{Raw: raw}, fmt.Errorf(
+			"forge ref %q: scheme is case-sensitive (use lowercase 'gh' if intentional, or 'host/owner/repo#N')", raw)
+	}
 	
 	// Forge: host "/" owner "/" repo "#" number.
 	// Parse host, owner, repo from the part before the # sign.
 	hashIdx := strings.LastIndexByte(raw, '#')
 	if hashIdx > 0 {
-		host_owner_repo := raw[:hashIdx]
+		hostOwnerRepo := raw[:hashIdx]
 		num := raw[hashIdx+1:]
 		
 		// Split host / owner / repo.
-		parts := strings.Split(host_owner_repo, "/")
+		parts := strings.Split(hostOwnerRepo, "/")
 		if len(parts) == 3 {
 			host, owner, repo := parts[0], parts[1], parts[2]
-			if host != "" && owner != "" && repo != "" {
+			if host != "" && owner != "" && repo != "" && !strings.Contains(host, ":") {
 				// Validate the number format.
 				if err := validateIssueNumber(num); err != nil {
 					return Ref{Raw: raw}, fmt.Errorf("malformed ref %q: %v", raw, err)
@@ -79,13 +86,6 @@ func parseRef(raw string) (Ref, error) {
 				return Ref{Raw: raw, Kind: RefForge, Host: host, Owner: owner, Repo: repo, Number: num}, nil
 			}
 		}
-	}
-	
-	// Catch case-variant old schemes early.
-	lower := strings.ToLower(raw)
-	if strings.HasPrefix(lower, "gh#") || strings.HasPrefix(lower, "gh:") {
-		return Ref{Raw: raw}, fmt.Errorf(
-			"forge ref %q: scheme is case-sensitive (use lowercase 'gh' if intentional, or 'host/owner/repo#N')", raw)
 	}
 	
 	return Ref{Raw: raw}, fmt.Errorf(
@@ -195,6 +195,22 @@ func (t *Erg) BlockedBy() []string {
 		return vs
 	}
 	return nil
+}
+
+// Tags returns all normalized Tags header values.
+func (t *Erg) Tags() []string {
+	vs, ok := t.Headers["Tags"]
+	if !ok || len(vs) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(vs))
+	for _, v := range vs {
+		t := strings.TrimSpace(v)
+		if t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // BlockedByRefs parses every Blocked-by header value and returns refs

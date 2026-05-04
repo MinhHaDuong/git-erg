@@ -66,6 +66,7 @@ validator rejects files missing either one).
 | `Author` | yes | no | string | Agent or human identifier |
 | `Closed` | no | no | string | Closure reason (PR ref, supersession note, etc.); non-empty |
 | `Blocked-by` | no | yes | ref | Local `NNNN` or forge ref `host/owner/repo#N` (see grammar) |
+| `Tags` | no | yes | enum | `needs-human`, `deferred`, `post-talk`, `post-conference` |
 
 No other headers are valid in v1. No `X-` extensions. If v2 needs new
 headers, it declares `%erg v2` and extends the set.
@@ -241,9 +242,9 @@ the history of why it was blocked is not lost.
 
 Move a closed ticket to `tickets/archive/` (or any subdirectory of
 `tickets/`) once no open ticket references it. `erg validate [dir]`
-reads only the files directly in `dir` — **it does not recurse into
-subdirectories**. Archived tickets are therefore outside the
-validation scope and do not grow the pre-commit cost.
+recurses into subdirectories and validates every `.erg` file it finds.
+Archived tickets remain inside validation scope when validating the
+top-level `tickets/` directory.
 
 Do not archive a ticket that is still named in a `Blocked-by:` header
 of an open ticket — the validator would then report a missing reference.
@@ -285,8 +286,10 @@ Existing tickets carrying `Status:` headers are converted by
 `git diff tickets/` and commit manually. After migration completes,
 `erg validate` rejects any remaining `Status:` lines.
 
-`erg update` invokes `erg migrate` automatically when it detects
-`Status:` lines after a successful binary swap.
+`erg update` never mutates ticket files. When it detects `Status:`
+lines after a successful binary swap, it prints an explicit migration
+hint (`erg migrate ...`) so migration remains a separate, reviewable
+step.
 
 ## Relationship to GitHub Issues
 

@@ -153,8 +153,9 @@ readers do not reinvent the `.wip` mechanism from silence.
 
 **Decision:** No cache. Local tickets are local-only; they never need to
 exist on the forge. GitHub Issues remain the inter-agent coordination
-layer. The `gh#N` reference in `Blocked-by` is resolved on demand (API
-call when online, treated as satisfied when offline).
+layer. Forge references in `Blocked-by` use the form
+`host/owner/repo#N`; they are never resolved by erg and are treated as
+offline-unknown (blocking) until manually removed.
 
 ### 8. Agent-friendly with efficient binary helper
 
