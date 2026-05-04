@@ -6,7 +6,7 @@ Status: Working draft
 
 ## Overview
 
-Local ticket system for agent coordination across worktrees on one machine.
+An agent-friendly local ticket system for development in disconnected environment.
 Not a replacement for GitHub Issues — those handle inter-agent and human coordination.
 Tickets are committed to git and travel with the repo.
 

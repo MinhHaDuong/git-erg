@@ -1,5 +1,5 @@
 # git-erg
-Agent-native local ticket system for git worktree coordination.
+An agent-friendly local ticket system for development in disconnected environment.
 
 Author: Minh Ha-Duong <minh.ha-duong@cnrs.fr>
 Last modified: 2026-05-04
