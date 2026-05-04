@@ -3,11 +3,13 @@ Title: make erg migrate explicit instead of update-time side effect
 Created: 2026-05-04
 Author: copilot
 Blocked-by: 0023
+Closed: implemented — erg update no longer auto-runs migrate; emits explicit hint; test passes
 
 --- log ---
 2026-05-04T11:35Z copilot created — split from 0023; schema migration should remain an explicit reviewed step
 2026-05-04T11:50Z copilot sequencing-noted — this ticket should land before 0033 so update can truthfully claim it is binary-only
 
+2026-05-04T16:51Z claude closed — implemented — erg update no longer auto-runs migrate; emits explicit hint; test passes
 --- body ---
 ## Context
 
