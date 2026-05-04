@@ -12,9 +12,9 @@ Status: Working draft
 
 ## Specification
 
-The normative specification is in `rules/tickets.md`.
-The reference implementation is in `tickets/tools/go/erg`.
-Design rationale is documented in `docs/pep-erg-v1.md`.
+Normative specification:  `tickets/spec-erg-v1.md`.
+Reference implementation: `tickets/tools/go/erg`.
+Design rationale: `pep-erg-v1.md`.
 
 ## Install into a project
 
@@ -87,30 +87,6 @@ awk '/^--- log ---/{nextfile} /^Blocked-by:[[:space:]]+[0-9]{4}$/{print FILENAME
   | sed -E 's|tickets/([0-9]{4})[^ ]*|\1|' \
   | awk '{print $2, $1}' | tsort
 ```
-
-## Format
-
-See [rules/tickets.md](rules/tickets.md) for the complete `%erg v1` specification.
-
-## For Claude Code users
-
-The install script sets up skills and rules automatically. To do it manually:
-
-Copy `claude/` into your project's `.claude/` directory to get skills:
-`/ticket-new`, `/ticket-close`, `/ticket-ready`
-
-Copy `rules/tickets.md` into `.claude/rules/`.
-
-## For other agents
-
-Read `rules/tickets.md`. That's the complete spec. Write `.erg` files directly.
-The Go binary validates on commit — your agent doesn't need it to operate.
-
-## Design
-
-See [docs/pep-erg-v1.md](docs/pep-erg-v1.md) for design rationale, alternatives
-explored, and architectural decisions.
-
 ## License
 
 MIT
