@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -262,42 +263,73 @@ func validateAll(tickets []Erg) []string {
 	return errors
 }
 
-// cmdValidate implements `erg validate [dir|file ...]`.
+// globLocalIDs scans dir (non-recursively) for .erg files and returns a set
+// of their filename IDs. Used by cmdValidate for per-file ref checking
+// without loading a full corpus.
+func globLocalIDs(dir string) map[string]bool {
+	ids := make(map[string]bool)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ids
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".erg") {
+			continue
+		}
+		stem := strings.TrimSuffix(e.Name(), ".erg")
+		if idx := strings.Index(stem, "-"); idx > 0 {
+			ids[stem[:idx]] = true
+		}
+	}
+	return ids
+}
+
+// cmdValidate implements `erg validate <file ...>` — per-file format checks.
 func cmdValidate(args []string) int {
 	if len(args) == 0 {
-		args = []string{"tickets/"}
+		fmt.Fprintln(os.Stderr, "Usage: erg validate <file ...>")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Validate individual .erg ticket files (format, headers, refs).")
+		fmt.Fprintln(os.Stderr, "For corpus-level checks (duplicate IDs, cycles), use: erg check [dir]")
+		return 1
 	}
 
-	var tickets []Erg
+	var allErrors []string
+	count := 0
 	for _, arg := range args {
 		info, err := os.Stat(arg)
 		if err != nil {
-			fmt.Printf("WARNING: skipping %s (%v)\n", arg, err)
+			fmt.Fprintf(os.Stderr, "WARNING: skipping %s (%v)\n", arg, err)
 			continue
 		}
 		if info.IsDir() {
-			tickets = append(tickets, loadErgs(arg)...)
-		} else if strings.HasSuffix(arg, ".erg") {
-			tickets = append(tickets, parseErg(arg))
-		} else {
-			fmt.Printf("WARNING: skipping %s (not a .erg file or directory)\n", arg)
+			fmt.Fprintf(os.Stderr, "ERROR: %s is a directory; use 'erg check %s' for directory validation\n", arg, arg)
+			return 1
 		}
+		if !strings.HasSuffix(arg, ".erg") {
+			fmt.Fprintf(os.Stderr, "WARNING: skipping %s (not a .erg file)\n", arg)
+			continue
+		}
+		t := parseErg(arg)
+		localIDs := globLocalIDs(filepath.Dir(arg))
+		errs := validateErg(&t, localIDs)
+		allErrors = append(allErrors, errs...)
+		count++
 	}
 
-	if len(tickets) == 0 {
+	if count == 0 {
 		fmt.Println("No .erg files found.")
 		return 0
 	}
 
-	errors := validateAll(tickets)
-	if len(errors) > 0 {
-		fmt.Printf("ERG VALIDATION FAILED (%d error(s)):\n", len(errors))
-		for _, e := range errors {
+	if len(allErrors) > 0 {
+		fmt.Printf("ERG VALIDATION FAILED (%d error(s)):\n", len(allErrors))
+		for _, e := range allErrors {
 			fmt.Printf("  %s\n", e)
 		}
 		return 1
 	}
 
-	fmt.Printf("ERG VALIDATION: PASS (%d tickets)\n", len(tickets))
+	fmt.Printf("ERG VALIDATION: PASS (%d file(s))\n", count)
 	return 0
 }

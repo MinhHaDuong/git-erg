@@ -54,8 +54,11 @@ Author: claude
 Need auth before shipping the API.
 EOF
 
-# Validate
-erg validate tickets/
+# Validate a single ticket
+erg validate tickets/0001-add-auth.erg
+
+# Check entire corpus (duplicate IDs, cycles, refs)
+erg check tickets/
 
 # List ready tickets
 erg ready tickets/

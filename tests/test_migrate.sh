@@ -146,12 +146,11 @@ else
     fail "summary reports already-clean count (got: $out)"
 fi
 
-# --- After migration the migrated file validates ---
-$ERG validate "$FIXTURES" >/dev/null 2>&1
-ec=$?
+# --- After migration the migrated files pass check ---
+# Use 'check' for directory-level validation; 'validate' takes files only.
+out=$($ERG check "$FIXTURES" 2>&1 || true)
 # Ignore ID collision errors caused by repeated 0001/0002 IDs across older
 # fixtures; just verify there is no Status: complaint.
-out=$($ERG validate "$FIXTURES" 2>&1 || true)
 if echo "$out" | grep -qi "Status:"; then
     fail "no Status: complaint after migration"
 else
