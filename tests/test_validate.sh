@@ -533,5 +533,44 @@ else
     fail "real tickets pass"
 fi
 
+# --- Tags: valid value accepted ---
+cat > "$FIXTURES/0099-tags-valid.erg" <<'EOF'
+%erg v1
+Title: Tags valid
+Created: 2026-01-01
+Author: a
+Tags: needs-human
+Tags: deferred
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+EOF
+if $ERG validate "$FIXTURES/0099-tags-valid.erg" >/dev/null 2>&1; then
+    pass "Tags: valid values accepted"
+else
+    fail "Tags: valid values accepted"
+fi
+
+# --- Tags: unknown value rejected ---
+cat > "$FIXTURES/0099-tags-invalid.erg" <<'EOF'
+%erg v1
+Title: Tags invalid
+Created: 2026-01-01
+Author: a
+Tags: unknown-label
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+EOF
+if $ERG validate "$FIXTURES/0099-tags-invalid.erg" >/dev/null 2>&1; then
+    fail "Tags: unknown value rejected"
+else
+    pass "Tags: unknown value rejected"
+fi
+
 echo "validate: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

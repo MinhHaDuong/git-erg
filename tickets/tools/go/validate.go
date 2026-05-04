@@ -15,7 +15,14 @@ var (
 	}
 	validHeaders = map[string]bool{
 		"Title": true, "Created": true, "Author": true,
-		"Closed": true, "Blocked-by": true,
+		"Closed": true, "Blocked-by": true, "Tags": true,
+	}
+	// validTagValues is the closed value set for the Tags: header (v1.x).
+	validTagValues = map[string]bool{
+		"needs-human":      true,
+		"deferred":         true,
+		"post-talk":        true,
+		"post-conference":  true,
 	}
 	isoDateRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 	// Filename: 4-digit ID, dash, lowercase kebab slug
@@ -58,6 +65,16 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 		if singletonHeaders[key] && len(vals) > 1 {
 			errors = append(errors, fmt.Sprintf(
 				"%s: header '%s' is non-repeatable (appears %d times)", name, key, len(vals)))
+		}
+	}
+
+	// Rule: Tags: values must be from the closed value set.
+	if tags, ok := t.Headers["Tags"]; ok {
+		for _, v := range tags {
+			if !validTagValues[strings.TrimSpace(v)] {
+				errors = append(errors, fmt.Sprintf(
+					"%s: unknown Tags value '%s' (not in v1 closed set)", name, v))
+			}
 		}
 	}
 
