@@ -37,6 +37,7 @@ If a ticket requires any of the above: mark `not-picked` with reason and continu
 
 Unattended edits are allowed only in these paths:
 
+- `tickets/*.erg`
 - `tickets/**/*.erg`
 - `tickets/tools/go/*.go`
 - `tests/*.sh`
@@ -50,6 +51,8 @@ Any required edit outside this set: open PR as draft and stop merge for that tic
 
 For each ticket PR, require:
 
+- verification by a panel of external agents
+- correction of all remarks surfaced by the verification panel, no matter how small worded
 - focused tests for touched area (if present)
 - `make test`
 - `make validate`
