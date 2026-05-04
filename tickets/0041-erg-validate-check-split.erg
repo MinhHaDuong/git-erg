@@ -1,0 +1,53 @@
+%erg v1
+Title: Implement erg validate <files> and erg check [dir] — split validation commands
+Created: 2026-05-04
+Author: claude
+
+--- log ---
+2026-05-04T22:30Z claude reimagine — blast radius: Makefile:39, integration/settings.json:12, README.md:58, spec-erg-v1.md:265, test_validate.sh (8 dir-arg tests → test_check.sh), tests/README.md, main.go usage, test_migrate.sh:150 (dir arg). Spec decision: validate rejects dir args entirely (files only), superseding 0037 dir support. check runs validateAll (per-file + corpus) plus folder closure. Makefile validate target calls erg check.
+2026-05-04T21:45Z claude created — follow-up to 0037 design work
+2026-05-04T20:56Z claude note blocker 0037 closed — Blocked-by removed
+--- body ---
+## Context
+
+0037 defines the design: `erg validate` becomes per-file format + ref-existence
+only; `erg check` handles full-corpus DAG coherence, ID uniqueness, and folder
+closure. This ticket implements both commands in the binary.
+
+## Actions
+
+### A. `erg validate <files…>`
+
+Change `cmdValidate` to:
+- Require explicit file arguments (no directory default; print usage if none given)
+- Check per file: magic line, header syntax, required fields, log format (existing)
+- Check per file: each `Blocked-by:` local ref exists as a filename in the same
+  ticket dir (glob `{dir}/{id}-*.erg`); forge refs skipped as offline-unknown
+- Never recurse into subdirectories
+- Exit 0 if all pass, 1 on any error
+
+### B. `erg check [dir]`
+
+New command:
+- Default dir: `tickets/`
+- Load all `.erg` files recursively from dir
+- Check: no duplicate IDs across all files
+- Check: no cycles in the Blocked-by graph (DFS)
+- Check: all local Blocked-by refs resolve to a known ID
+- Check (warn only): open tickets in `closed/` subdir or vice versa
+- Output: `PASS` or per-violation lines `VIOLATION <file> <code>: <desc>`
+- Exit 0 if no errors (warnings do not fail)
+
+### C. Tests
+
+- `test_validate.sh`: update to pass explicit file args; add test for
+  "no args → usage error"
+- New `test_check.sh`: cycle detection, duplicate ID, cross-folder warn
+
+## Exit criteria
+
+- `erg validate <files>` accepts only file args; no directory scanning
+- `erg validate` (no args) prints usage and exits non-zero
+- `erg check [dir]` detects cycles, duplicate IDs, unresolved local refs
+- Folder closure mismatch emits a warning (exit 0)
+- All existing tests pass; new tests cover the above

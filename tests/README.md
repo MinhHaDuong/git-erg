@@ -15,7 +15,7 @@ tests/fixtures/invalid/
 
 Use these when the ticket file itself is the object under test, especially for:
 
-* `erg validate`
+* `erg validate` / `erg check`
 * parser / schema rules
 * known-good and known-bad `.erg` examples
 

@@ -3,7 +3,8 @@
 //
 // Usage:
 //
-//	erg validate [dir|file ...]
+//	erg validate <file ...>
+//	erg check    [dir]
 //	erg ready    [dir] [--json]
 //	erg next-id  [dir]
 //	erg close    <id|file> <reason> [dir]
@@ -23,7 +24,8 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "Usage: erg <command> [args...]")
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintln(os.Stderr, "Commands:")
-	fmt.Fprintln(os.Stderr, "  validate [dir|files...]   Validate erg v1 ticket files")
+	fmt.Fprintln(os.Stderr, "  validate <files...>       Validate individual .erg files (format, headers, refs)")
+	fmt.Fprintln(os.Stderr, "  check [dir]               Corpus-level checks (duplicate IDs, cycles, refs)")
 	fmt.Fprintln(os.Stderr, "  ready [dir] [--json]      Show tickets ready for work")
 	fmt.Fprintln(os.Stderr, "  next-id [dir]             Print the next available ticket ID")
 	fmt.Fprintln(os.Stderr, "  close <id|file> <reason> [dir]  Close a ticket atomically")
@@ -47,6 +49,8 @@ func main() {
 	switch cmd {
 	case "validate":
 		exitCode = cmdValidate(rest)
+	case "check":
+		exitCode = cmdCheck(rest)
 	case "ready":
 		exitCode = cmdReady(rest)
 	case "next-id":
