@@ -18,16 +18,10 @@ Design rationale: `pep-erg-v1.md`.
 
 ## Install into a project
 
-```bash
-make install DEST=/path/to/your/project
-```
+The standalone shell installer has been removed.
 
-This builds the binary, copies source and rules into the target project,
-creates `tickets/`, appends the pre-commit hook (composing with any existing
-hook), adds the binary to `.gitignore`, and skips sample tickets so you
-start fresh at `0001`.
-
-You can also run the script directly: `./install.sh /path/to/project`
+Project bootstrap is being moved into the `erg` CLI itself (`erg init` /
+`erg uninstall`) so the binary is the only required artifact.
 
 ## Binary policy
 

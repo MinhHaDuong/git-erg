@@ -1,20 +1,22 @@
 %erg v1
-Title: add installer round-trip test and harden shell test harness
+Title: add init/uninstall round-trip test and harden shell test harness
 Created: 2026-05-03
 Author: claude
+Blocked-by: 0032
 
 --- log ---
 2026-05-03T14:16Z claude created — surfaced by test-coverage audit; installer + harness gaps independent of CLI coverage
+2026-05-04T11:50Z copilot retargeted — 0023 resolved bootstrap around erg init/uninstall; obsolete install.sh/.claude expectations replaced with init/uninstall round-trip coverage
 
 --- body ---
 ## Context
 
 Two harness-level gaps that are independent of CLI coverage:
 
-- `bin/install.sh` (~140 LOC) mutates a target repo's
-  `.git/hooks/pre-commit`, `.claude/settings.json`,
-  `.claude/skills/`, etc. A regression here bricks downstream
-  installs (IDH, climate-finance, AEDIST). Zero tests.
+- The new bootstrap path will be `erg init` / `erg uninstall`, which
+  mutates a target repo's `tickets/`, `AGENTS.md`, `.gitignore`, and
+  `.git/hooks/pre-commit`. A regression here bricks downstream repo
+  setup. Zero round-trip tests today.
 - The shell suite in `tests/` shares `tests/fixtures/` across all
   five test files, so the suites cannot run in parallel and trap
   cleanup is fragile. Example: `test_validate.sh:14` does
@@ -23,17 +25,21 @@ Two harness-level gaps that are independent of CLI coverage:
 
 ## Actions
 
-1. **Installer round-trip** — add `tests/test_install.sh`:
+1. **Init/uninstall round-trip** — add `tests/test_init.sh`:
    - `mktemp -d` + `git init` to create a clean target repo.
-   - Run `sh bin/install.sh "$TMP"`.
+   - Build or copy the `erg` binary into the temp repo.
+   - Run `erg init "$TMP"`.
    - Assert: every expected file exists with non-zero size
-     (`tickets/tools/go/main.go`, `.claude/rules/tickets.md`,
-     `.claude/skills/ticket-new/`, `.git/hooks/pre-commit` with the
-     `# --- git-erg ---` markers).
-   - Build the validator there, write a sample ticket, run
-     `git commit` — assert the pre-commit hook validates and accepts.
-   - Run `sh bin/install.sh "$TMP"` a second time; assert idempotent
-     (no errors, no duplicate hook fragments).
+     (`tickets/tools/go/main.go`, `tickets/spec-erg-v1.md`,
+     `tickets/integration/`, `.git/hooks/pre-commit` with the
+     `# --- git-erg ---` markers, `AGENTS.md` hint line, `.gitignore`
+     binary entry).
+   - Write a sample ticket, run `git commit` — assert the pre-commit
+     hook validates and accepts.
+   - Run `erg init "$TMP"` a second time; assert idempotent
+     (no errors, no duplicate hook fragments or AGENTS.md lines).
+   - Run `erg uninstall "$TMP"`; assert managed fragments/assets are
+     removed while user ticket data remains.
    - Cleanup with `rm -rf $TMP`.
 2. **Harness hardening**:
    - Move each shell test's fixtures into
@@ -52,9 +58,8 @@ Two harness-level gaps that are independent of CLI coverage:
 
 ## Exit criteria
 
-- `tests/test_install.sh` green in CI.
+- `tests/test_init.sh` green in CI.
 - All five existing shell suites pass when run in parallel
   (`make -j5 test-validate test-ready test-archive test-update
   test-close`, or equivalent).
-- `bin/install.sh` regression (e.g. drop a `cp` line) is caught by
-  the new test.
+- `erg init` / `erg uninstall` regressions are caught by the new test.

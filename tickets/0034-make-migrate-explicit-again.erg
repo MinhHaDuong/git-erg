@@ -6,6 +6,7 @@ Blocked-by: 0023
 
 --- log ---
 2026-05-04T11:35Z copilot created — split from 0023; schema migration should remain an explicit reviewed step
+2026-05-04T11:50Z copilot sequencing-noted — this ticket should land before 0033 so update can truthfully claim it is binary-only
 
 --- body ---
 ## Context

@@ -9,10 +9,9 @@
 #   make test       Run shell integration tests
 #   make validate   Validate tickets in tickets/
 #   make ready      List ready tickets
-#   make install DEST=/path/to/project  Install into a project
 #   make install-erg-binary              Install erg to ~/.local/bin
 
-.PHONY: build test validate ready clean install install-erg-binary update-bootstrap-binary
+.PHONY: build test validate ready clean install-erg-binary update-bootstrap-binary
 
 ERG_BIN := $(CURDIR)/build/erg
 BOOTSTRAP_BIN := $(CURDIR)/tickets/tools/go/erg
@@ -50,12 +49,6 @@ install-erg-binary:
 		echo "ERROR: bootstrap binary not usable and Go not found — cannot install erg" >&2; exit 1; \
 	fi
 	@echo "erg installed to $(HOME)/.local/bin/erg"
-
-install:
-ifndef DEST
-	$(error DEST is required. Usage: make install DEST=/path/to/project)
-endif
-	sh install.sh "$(DEST)"
 
 clean:
 	rm -rf build
