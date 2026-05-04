@@ -6,7 +6,8 @@
 
 # Usage:
 #   make build      Build the erg binary
-#   make test       Run shell integration tests
+#   make test       Run Go unit tests and shell integration tests
+#   make unit-test  Run Go unit tests with coverage report
 #   make validate   Validate tickets in tickets/
 #   make ready      List ready tickets
 #   make install-erg-binary              Install erg to ~/.local/bin
@@ -14,7 +15,7 @@
 TEST_SUITES := validate ready update close migrate nextid init main
 TEST_TARGETS := $(TEST_SUITES:%=test-%)
 
-.PHONY: build test _test-lint $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary
+.PHONY: build test unit-test _test-lint $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary
 
 ERG_BIN := $(CURDIR)/build/erg
 BOOTSTRAP_BIN := $(CURDIR)/tickets/tools/go/erg
@@ -32,7 +33,11 @@ _test-lint:
 $(TEST_TARGETS): test-%: build _test-lint
 	@ERG_BIN=$(ERG_BIN) sh tests/test_$*.sh
 
-test: $(TEST_TARGETS)
+unit-test: build
+	cd tickets/tools/go && go test -cover -coverprofile=$(CURDIR)/build/coverage.out ./... && \
+		go tool cover -func=$(CURDIR)/build/coverage.out
+
+test: unit-test $(TEST_TARGETS)
 	@echo "ALL TESTS PASSED"
 
 validate: build
