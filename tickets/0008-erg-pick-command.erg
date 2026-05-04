@@ -9,6 +9,7 @@ Author: user
 
 2026-05-04T16:50Z claude note blocker 0015 closed — Blocked-by removed
 2026-05-04T21:00Z claude raid-skip — stale Blocked-by: 0014 still in header (0014 is closed); body references deprecated Status: workflow; needs header cleanup and body refresh before safe execution
+2026-05-04T21:15Z claude note body refreshed — replaced Status: references with Tags:/Closed: per spec-erg-v1.md; ticket ready for implementation
 --- body ---
 ## Context
 
@@ -45,15 +46,15 @@ the unimplemented `erg sweep-write`.
 From the set of open, unblocked, unclaimed tickets:
 
 **Exclude** (mechanical, no body reading needed for these):
-- Status or tags include: `needs-human`, `deferred`, `post-talk`, `post-conference`
+- Tags include: `needs-human`, `deferred`, `post-talk`, `post-conference`
 
 **Exclude with body reading**:
 - A `FAILED` or `BLOCKED` entry in `## Attempt log` less than 24 h old
-- A `sweep-pick: picked` log line less than 8 h old AND Status still `open`
+- A `sweep-pick: picked` log line less than 8 h old AND ticket not closed
 
 **3-strikes** — ticket with 3+ `## Attempt log` entries:
 - Append log line: `{ISO8601} claude note sweep-skip: three-strikes`
-- Update Status to `needs-human`
+- Add `Tags: needs-human` to preamble
 - Commit modified files before returning
 - Exclude from shortlist
 
