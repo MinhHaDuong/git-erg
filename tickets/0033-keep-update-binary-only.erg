@@ -4,12 +4,12 @@ Created: 2026-05-04
 Author: copilot
 Blocked-by: 0023
 Blocked-by: 0032
-Blocked-by: 0034
 
 --- log ---
 2026-05-04T11:35Z copilot created — split from 0023; update contract should stay narrow and predictable
 2026-05-04T11:50Z copilot blocked — depends on 0032 for a real init target and on 0034 to remove the current update-time migrate side effect
 
+2026-05-04T16:51Z claude note blocker 0034 closed — Blocked-by removed
 --- body ---
 ## Context
 
