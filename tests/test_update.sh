@@ -44,5 +44,31 @@ else
     FAIL=$((FAIL+1))
 fi
 
+# Test: update with Status: tickets → emits hint, does NOT rewrite files
+TICKET_DIR=$(mktemp -d)
+cat > "$TICKET_DIR/0001-legacy.erg" <<'ERGEOF'
+%erg v1
+Title: Legacy ticket
+Created: 2026-01-01
+Author: a
+Status: open
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+ERGEOF
+BEFORE=$(cat "$TICKET_DIR/0001-legacy.erg")
+OUT=$(ERG_UPDATE_URL=http://127.0.0.1:$PORT/erg ERG_TICKET_DIR="$TICKET_DIR" "$ERG" update 2>&1 || true)
+AFTER=$(cat "$TICKET_DIR/0001-legacy.erg")
+if [ "$BEFORE" = "$AFTER" ]; then
+    echo "PASS: update does not rewrite ticket files"
+    PASS=$((PASS+1))
+else
+    echo "FAIL: update rewrote ticket files"
+    FAIL=$((FAIL+1))
+fi
+rm -rf "$TICKET_DIR"
+
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
