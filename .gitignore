@@ -13,3 +13,6 @@ beat-log.jsonl
 .claude/.cache/
 
 build/erg
+
+# Go coverage profiles
+tickets/tools/go/*.out
