@@ -165,8 +165,8 @@ func isStatusHeaderLine(line string) bool {
 }
 
 // hasStatusHeader scans dir for any .erg file containing a `Status:` line
-// in the preamble. Used by `erg update` to decide whether to auto-invoke
-// migrate after a binary swap.
+// in the preamble. Used by `erg update` to decide whether to print
+// migration guidance after a binary swap.
 func hasStatusHeader(dir string) bool {
 	stopWalk := fmt.Errorf("found")
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {

@@ -7,6 +7,14 @@ import (
 
 type readyEntry struct {
 	id, title, file string
+	tags            []string
+}
+
+var skipReadyTags = map[string]bool{
+	"needs-human":     true,
+	"deferred":        true,
+	"post-talk":       true,
+	"post-conference": true,
 }
 
 // cmdReady implements `erg ready [dir] [--json]`.
@@ -55,27 +63,37 @@ func cmdReady(args []string) int {
 		openCount++
 
 		tid := t.FilenameID()
+		tags := t.Tags()
 		blocked := false
-		refs, errs := t.BlockedByRefs()
-		for i, ref := range refs {
-			if errs[i] != nil {
-				continue // malformed refs are validator territory
-			}
-			if ref.IsForge() {
-				// Forge refs are offline-unknown → blocking.
-				blocked = true
-				break
-			}
-			if !knownID[ref.ID] {
-				warnings = append(warnings, fmt.Sprintf(
-					"%s: Blocked-by '%s' not found (treating as satisfied)", t.Filename(), ref.ID))
-			} else if !closedByID[ref.ID] {
+		for _, tag := range tags {
+			if skipReadyTags[tag] {
 				blocked = true
 				break
 			}
 		}
+
 		if !blocked {
-			ready = append(ready, readyEntry{tid, t.Title(), t.Filename()})
+			refs, errs := t.BlockedByRefs()
+			for i, ref := range refs {
+				if errs[i] != nil {
+					continue // malformed refs are validator territory
+				}
+				if ref.IsForge() {
+					// Forge refs are offline-unknown → blocking.
+					blocked = true
+					break
+				}
+				if !knownID[ref.ID] {
+					warnings = append(warnings, fmt.Sprintf(
+						"%s: Blocked-by '%s' not found (treating as satisfied)", t.Filename(), ref.ID))
+				} else if !closedByID[ref.ID] {
+					blocked = true
+					break
+				}
+			}
+		}
+		if !blocked {
+			ready = append(ready, readyEntry{tid, t.Title(), t.Filename(), tags})
 		}
 	}
 
@@ -93,8 +111,19 @@ func cmdReady(args []string) int {
 				if i == len(ready)-1 {
 					comma = ""
 				}
-				fmt.Printf("  {\n    \"id\": \"%s\",\n    \"title\": \"%s\",\n    \"file\": \"%s\"\n  }%s\n",
-					jsonEscape(r.id), jsonEscape(r.title), jsonEscape(r.file), comma)
+				tagJSON := "[]"
+				if len(r.tags) > 0 {
+					tagJSON = "["
+					for j, tag := range r.tags {
+						if j > 0 {
+							tagJSON += ", "
+						}
+						tagJSON += fmt.Sprintf("\"%s\"", jsonEscape(tag))
+					}
+					tagJSON += "]"
+				}
+				fmt.Printf("  {\n    \"id\": \"%s\",\n    \"title\": \"%s\",\n    \"file\": \"%s\",\n    \"tags\": %s\n  }%s\n",
+					jsonEscape(r.id), jsonEscape(r.title), jsonEscape(r.file), tagJSON, comma)
 			}
 			fmt.Println("]")
 		}

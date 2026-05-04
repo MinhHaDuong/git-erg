@@ -447,6 +447,24 @@ else
     fail "GH# (wrong case) rejected (got: $out)"
 fi
 
+# --- Mixed-case gh: variant with extra path rejected (case-sensitive) ---
+cat > "$FIXTURES/0028-gh-case-colon-extra.erg" <<'EOF'
+%erg v1
+Title: Wrong case with colon
+Created: 2026-01-01
+Author: a
+Blocked-by: GH:owner/repo/extra#1
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0028-gh-case-colon-extra.erg" 2>&1 || true)
+if echo "$out" | grep -q "case-sensitive"; then
+    pass "GH:owner/repo/extra#1 rejected (case-sensitive)"
+else
+    fail "GH:owner/repo/extra#1 rejected (got: $out)"
+fi
+
 # --- Leading-zero issue number in forge ref rejected ---
 cat > "$FIXTURES/0026-forge-zero.erg" <<'EOF'
 %erg v1
@@ -464,7 +482,6 @@ if echo "$out" | grep -q "leading zero"; then
 else
     fail "forge ref with leading zero rejected (got: $out)"
 fi
-
 # --- Forge ref is parsed correctly (no local cycle error) ---
 mkdir -p "$FIXTURES/cross"
 cat > "$FIXTURES/cross/0001-one.erg" <<'EOF'
