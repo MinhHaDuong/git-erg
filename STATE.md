@@ -1,10 +1,10 @@
 # State — git-erg
 
-_Last updated: 2026-05-04 — archived closed tickets under `tickets/closed/`; corrected next-id to scan non-recursively (spec compliance); distribution design split into 0032/0033/0034._
+_Last updated: 2026-05-04 — closed 0026/0027/0028/0029/0033/0035 (merged PRs); filed 0036/0037; all open tickets are ready._
 
 ## Stats
 
-- Tickets: 34 total — 20 closed, 14 open (7 ready, 7 blocked)
+- Tickets: 31 total — 26 closed, 5 open (3 ready + fixtures 0001/0002 in archive/)
 - Tests: green
 - Open PRs: none
 
@@ -12,44 +12,24 @@ _Last updated: 2026-05-04 — archived closed tickets under `tickets/closed/`; c
 
 | #    | Title                                                              | Notes |
 |------|--------------------------------------------------------------------|-------|
-| 0001 | Sample open ticket — blocker fixture for 0002                      | Fixture; do not pick for feature work |
-| 0015 | Add Tags header for revocable triage labels                        | Unblocks 0008 |
-| 0024 | Integration tests for `erg next-id`                                | Unblocks 0026/0028 |
-| 0030 | Forge-agnostic Blocked-by grammar                                  | Grammar simplification follow-up |
-| 0031 | `erg close` removes `Blocked-by` refs from dependent tickets       | Independent behavior hardening |
-| 0032 | Implement `erg init` / `erg uninstall` from embedded assets        | Distribution execution step 1 |
-| 0034 | Make `erg migrate` explicit instead of update-time side effect     | Distribution execution step 2 |
-
-0001 is the open half of the validator fixture pair (0001 + 0002) — leave open
-indefinitely; it has no actionable work.
+| 0008 | Add erg pick command: mechanical shortlist for the IDH pick-ticket skill | Body references deprecated Status: workflow — refresh before executing |
+| 0036 | Add standing regression check for shell test binary defaults       | Follow-up from 0035 |
+| 0037 | Make `erg validate` non-recursive by default                       | Spec already states non-recursive; implementation gap |
 
 ## Blocked
 
-| #    | Title                                        | Blocked by       |
-|------|----------------------------------------------|------------------|
-| 0002 | Sample blocked                               | 0001 (fixture)   |
-| 0008 | Add erg pick command                         | 0015             |
-| 0026 | Go unit tests for parser and validator       | 0024             |
-| 0027 | CI add `go test` and coverage                | 0026             |
-| 0028 | Fill remaining branch coverage               | 0024             |
-| 0029 | Init/uninstall round-trip test + harness hardening | 0032       |
-| 0033 | Keep `erg update` binary-only                | 0023, 0032, 0034 |
+None.
 
 ## Sequencing
 
-1. **0032** (`erg init`/`erg uninstall`) — distribution execution step 1.
-2. **0034** (explicit migrate flow) — distribution execution step 2.
-3. **0033** (`erg update` binary-only contract) — lands after 0032/0034.
-4. **0024 → 0026 → 0027** — test and coverage chain.
-5. **0015 → 0008** — tags then pick command.
+1. **0037** (`erg validate` non-recursive) — self-contained, low risk.
+2. **0036** (regression test for binary defaults) — self-contained.
+3. **0008** (`erg pick` command) — depends on ticket body refresh first; larger scope.
 
 ## Notes
 
-- **`Status:` is no longer part of the format.** Closure is now derived
-  from the path component test or a `Closed: <reason>` preamble header.
-  `erg validate` rejects any `Status:` line; `erg migrate` is the only
-  command that tolerates it (in order to convert it).
-- **`needs-human` status gap:** resolved by 0015 — `needs-human` becomes a
-  Tag, not a Status value. Unrepresentable until 0015 lands.
+- **`Status:` is no longer part of the format.** Closure is derived from the path component test or a `Closed:` preamble header. `erg validate` rejects any `Status:` line; `erg migrate` is the only command that tolerates it (to convert it).
+- **Closed-in-place tickets**: 0026/0027/0028/0029/0033/0035 live in `tickets/` with `Closed:` headers — not yet moved to `tickets/closed/`. Safe to archive when convenient.
+- **Fixture tickets 0001/0002** live in `tickets/archive/` without `Closed:` headers — `erg ready` surfaces them as open because `archive/` is not a closed path. Leave as-is; they are not actionable work.
 
 Autonomous-run policy is maintained in `AGENTS.md`.
