@@ -1,17 +1,16 @@
 #!/bin/sh
 # Integration tests for: erg validate
-set -e
+set -eu
 
 ERG="${ERG_BIN:-build/erg}"
-FIXTURES="tests/fixtures"
+FIXTURES=$(mktemp -d)
 PASS=0
 FAIL=0
 
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
-mkdir -p "$FIXTURES"
-trap 'rm -rf "$FIXTURES"/*.erg "$FIXTURES"/dup/' EXIT
+trap 'rm -rf "$FIXTURES"' EXIT
 
 echo "=== erg validate ==="
 
@@ -223,7 +222,6 @@ fi
 
 # --- Blocked-by ID found in closed/ subdir passes ---
 TDIR=$(mktemp -d)
-trap 'rm -rf "$FIXTURES"/*.erg "$FIXTURES"/dup/ "$TDIR"' EXIT
 mkdir -p "$TDIR/closed"
 cat > "$TDIR/closed/0012-closed-ref.erg" <<'EOF'
 %erg v1

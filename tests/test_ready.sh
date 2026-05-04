@@ -1,6 +1,6 @@
 #!/bin/sh
 # Integration tests for: erg ready
-set -e
+set -eu
 
 ERG="${ERG_BIN:-build/erg}"
 FIXTURES="tests/fixtures"
