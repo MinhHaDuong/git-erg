@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -17,14 +16,20 @@ func cmdNextID(args []string) int {
 
 	maxID := 0
 
-	err := filepath.Walk(ticketDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
+	entries, err := os.ReadDir(ticketDir)
+	if err != nil {
+		fmt.Printf("%04d\n", 1)
+		return 0
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
 		}
-		if info.IsDir() || !strings.HasSuffix(path, ".erg") {
-			return nil
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".erg") {
+			continue
 		}
-		name := filepath.Base(path)
 		stem := strings.TrimSuffix(name, ".erg")
 		if idx := strings.Index(stem, "-"); idx > 0 {
 			stem = stem[:idx]
@@ -32,11 +37,6 @@ func cmdNextID(args []string) int {
 		if n, err := strconv.Atoi(stem); err == nil && n > maxID {
 			maxID = n
 		}
-		return nil
-	})
-	if err != nil {
-		fmt.Printf("%04d\n", 1)
-		return 0
 	}
 
 	fmt.Printf("%04d\n", maxID+1)

@@ -2,11 +2,13 @@
 Title: add integration tests for `erg next-id`
 Created: 2026-05-03
 Author: claude
+Closed: implemented: next-id now non-recursive; integration tests enforce archive subdir ignored
 
 --- log ---
 2026-05-03T14:16Z claude created — surfaced by test-coverage audit; both commands ship in the public CLI with zero tests
 2026-05-03T17:47Z claude rescoped — erg graph removed from binary; ticket now covers next-id only
 
+2026-05-04T18:33Z claude closed — implemented: next-id now non-recursive; integration tests enforce archive subdir ignored
 --- body ---
 ## Context
 
