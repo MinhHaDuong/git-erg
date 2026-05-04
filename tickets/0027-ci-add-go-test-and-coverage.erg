@@ -3,11 +3,13 @@ Title: extend CI to run `go test` and report coverage
 Created: 2026-05-03
 Author: claude
 Blocked-by: 0026
+Closed: merged — unit-test Makefile target + CI coverage in PR #42
 
 --- log ---
 2026-05-04T23:00Z claude started — blocker 0026 merged; adding unit-test Makefile target and CI coverage
 2026-05-03T14:16Z claude created — surfaced by test-coverage audit; CI runs only shell suite today
 
+2026-05-04T20:58Z claude closed — merged — unit-test Makefile target + CI coverage in PR #42
 --- body ---
 ## Context
 
