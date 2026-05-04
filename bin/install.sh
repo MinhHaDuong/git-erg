@@ -6,7 +6,6 @@
 #   make install DEST=/path/to/project
 #
 # Installs:
-#   .claude/CLAUDE.md         Project instructions with @import
 #   .claude/rules/tickets.md  Format spec (%erg v1)
 #   .claude/skills/           Slash commands (ticket-new, ticket-close, ticket-ready)
 #   .claude/settings.json     PostToolUse validation hook
@@ -82,20 +81,6 @@ else
         cp "$SRC/claude/settings.json" "$DEST/.claude/settings.json"
         ok ".claude/settings.json (validation hook)"
     fi
-fi
-
-# --- CLAUDE.md (inside .claude/, not project root) ---
-CLAUDE_MD="$DEST/.claude/CLAUDE.md"
-if [ -f "$CLAUDE_MD" ] && grep -qF "$MARKER" "$CLAUDE_MD"; then
-    skip ".claude/CLAUDE.md"
-elif [ -f "$CLAUDE_MD" ]; then
-    printf '\n%s begin\n' "$MARKER" >> "$CLAUDE_MD"
-    cat "$SRC/claude/CLAUDE-PLUGIN.md" >> "$CLAUDE_MD"
-    printf '\n%s end\n' "$MARKER" >> "$CLAUDE_MD"
-    ok ".claude/CLAUDE.md (appended ticket system section)"
-else
-    { printf '%s begin\n' "$MARKER"; cat "$SRC/claude/CLAUDE-PLUGIN.md"; printf '\n%s end\n' "$MARKER"; } > "$CLAUDE_MD"
-    ok ".claude/CLAUDE.md (project instructions)"
 fi
 
 # --- Ticket directories ---

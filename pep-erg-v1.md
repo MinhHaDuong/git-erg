@@ -201,7 +201,7 @@ in `tickets/tools/`. Agent-specific wiring (rules, skills) lives in
 - Configurable location: adds a settings layer for zero benefit — one
   canonical location is simpler than a configurable one.
 
-**Plugin split:** Agent-specific wiring (`.claude/rules/`, `.claude/skills/`)
+**Integration split:** Agent-specific wiring (`.claude/rules/`, `.claude/skills/`)
 is separate from portable artifacts (`tickets/`). This mirrors how
 `hooks/` (git infra) is separate from `.claude/rules/git.md` (agent
 instructions about git). A non-Claude agent ignores `.claude/` and reads
@@ -225,7 +225,7 @@ but are not the primary path.
 
 ## What changed from PR #385
 
-| PR #385 | v1 plugin |
+| PR #385 | v1 system |
 |---------|-----------|
 | 3 implementations (Python, bash, Go) | 1 validator (Go), Python as test fallback |
 | Mnemonic IDs (`ta`, `vt`, `rt`) | Sequential numeric IDs (`0001`, `0002`) |
