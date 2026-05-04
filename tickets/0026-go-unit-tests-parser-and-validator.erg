@@ -3,11 +3,13 @@ Title: introduce Go unit tests for parser, validator, and helpers
 Created: 2026-05-03
 Author: claude
 Blocked-by: 0024
+Closed: merged
 
 --- log ---
 2026-05-03T14:16Z claude created — surfaced by test-coverage audit; no `*_test.go` files exist anywhere in the repo
 2026-05-04T22:30Z claude action-3-dropped — parseLogTimestamp does not exist in codebase; archive_test.go not created; no coverage gap
 
+2026-05-04T20:35Z claude closed — merged
 --- body ---
 ## Context
 
