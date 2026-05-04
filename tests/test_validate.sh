@@ -482,7 +482,6 @@ if echo "$out" | grep -q "leading zero"; then
 else
     fail "forge ref with leading zero rejected (got: $out)"
 fi
-
 # --- Forge ref is parsed correctly (no local cycle error) ---
 mkdir -p "$FIXTURES/cross"
 cat > "$FIXTURES/cross/0001-one.erg" <<'EOF'

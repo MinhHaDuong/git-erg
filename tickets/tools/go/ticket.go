@@ -66,7 +66,7 @@ func parseRef(raw string) (Ref, error) {
 		return Ref{Raw: raw}, fmt.Errorf(
 			"forge ref %q: scheme is case-sensitive (use lowercase 'gh' if intentional, or 'host/owner/repo#N')", raw)
 	}
-	
+
 	// Forge: host "/" owner "/" repo "#" number.
 	// Parse host, owner, repo from the part before the # sign.
 	hashIdx := strings.LastIndexByte(raw, '#')
@@ -87,7 +87,7 @@ func parseRef(raw string) (Ref, error) {
 			}
 		}
 	}
-	
+
 	return Ref{Raw: raw}, fmt.Errorf(
 		"malformed ref %q: not a 4-digit local ID or host/owner/repo#N", raw)
 }
