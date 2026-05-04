@@ -2,7 +2,6 @@
 Title: add init/uninstall round-trip test and harden shell test harness
 Created: 2026-05-03
 Author: claude
-Blocked-by: 0032
 
 --- log ---
 2026-05-03T14:16Z claude created — surfaced by test-coverage audit; installer + harness gaps independent of CLI coverage

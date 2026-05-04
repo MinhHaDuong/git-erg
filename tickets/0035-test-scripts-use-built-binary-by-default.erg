@@ -2,10 +2,12 @@
 Title: make test scripts default to build/erg to avoid stale vendored binary runs
 Created: 2026-05-04
 Author: claude
+Closed: done
 
 --- log ---
 2026-05-04T19:25Z claude created — celebrate sweep found repeated default-binary anti-pattern across shell tests
 
+2026-05-04T19:48Z claude closed — done
 --- body ---
 ## Context
 

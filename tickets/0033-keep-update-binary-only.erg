@@ -2,8 +2,6 @@
 Title: keep erg update binary-only and hand off repo sync to init
 Created: 2026-05-04
 Author: copilot
-Blocked-by: 0023
-Blocked-by: 0032
 
 --- log ---
 2026-05-04T11:35Z copilot created — split from 0023; update contract should stay narrow and predictable
