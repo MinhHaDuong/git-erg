@@ -21,6 +21,7 @@ test: build
 	@sh tests/test_update.sh
 	@sh tests/test_close.sh
 	@sh tests/test_migrate.sh
+	@sh tests/test_nextid.sh
 	@echo "ALL TESTS PASSED"
 
 validate: build
