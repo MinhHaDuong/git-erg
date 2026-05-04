@@ -5,6 +5,7 @@ Author: claude
 Blocked-by: 0026
 
 --- log ---
+2026-05-04T23:00Z claude started — blocker 0026 merged; adding unit-test Makefile target and CI coverage
 2026-05-03T14:16Z claude created — surfaced by test-coverage audit; CI runs only shell suite today
 
 --- body ---
