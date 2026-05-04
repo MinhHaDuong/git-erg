@@ -1,11 +1,20 @@
 # git-erg
-
 Agent-native local ticket system for git worktree coordination.
+
+Author: Minh Ha-Duong <minh.ha-duong@cnrs.fr>
+Last modified: 2026-05-04
+Status: Working draft
 
 - **File-based**: plain text `.erg` files committed to git
 - **Offline-first**: no network, no API, no database
-- **Zero dependencies**: single Go binary, shell tests
-- **Agent-friendly by design**: the spec is the interface, the binary is the guardrail
+- **Zero runtime dependencies**: single Go binary, shell tests
+- **Agent-friendly by design**: the spec is the interface, the binary is the guardrail and token-saving utilities
+
+## Specification
+
+The normative specification is in `rules/tickets.md`.
+The reference implementation is in `tickets/tools/go/erg`.
+Design rationale is documented in `docs/pep-erg-v1.md`.
 
 ## Install into a project
 
@@ -20,13 +29,15 @@ start fresh at `0001`.
 
 You can also run the script directly: `./bin/install.sh /path/to/project`
 
-## Platform compatibility
+## Binary policy
 
-The committed `tickets/tools/go/erg` binary is a statically-linked ELF 64-bit
-executable for Linux x86-64. It runs on any Linux x86-64 system (developer
-machines, CI runners, Claude Code web containers) with no dynamic dependencies.
-It will **not** run on macOS or ARM. Users on those platforms must build from
-source: `cd tickets/tools/go && go build -o erg .`
+`tickets/tools/go/erg` is a committed Linux x86-64 bootstrap binary for environments where Go may be unavailable (CI runners, agents). It will **not** run on macOS or ARM.
+
+Source is authoritative. CI builds always compile from source and do not rely on the committed binary: all tests and development builds must use `build/erg`, rebuilt from source via `make build`.
+
+The bootstrap binary is updated explicitly via `make update-bootstrap-binary`
+(typically after changes to the Go code or when releasing) and must never be
+modified by `make test`.
 
 ## Quick start
 

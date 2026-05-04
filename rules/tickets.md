@@ -1,10 +1,22 @@
 # Ticket format spec — %erg v1
 
+Author: Minh Ha-Duong <minh.ha-duong@cnrs.fr>
+Last modified: 2026-05-04
+Status: Working draft
+
 ## Overview
 
 Local ticket system for agent coordination across worktrees on one machine.
 Not a replacement for GitHub Issues — those handle inter-agent and human coordination.
 Tickets are committed to git and travel with the repo.
+
+## Scope
+
+This file is normative. It defines the %erg v1 format and validator rules.
+The Go `erg` validator is the reference implementation and enforces these rules at commit time.
+Any divergence between this document and the validator must be resolved by aligning the specification with the enforced behavior.
+Rationale and design decisions are documented in `docs/pep-erg-v1.md`.
+An informative grammar is available in `docs/grammar-erg-v1.md`.
 
 ## File format
 
@@ -120,16 +132,33 @@ longer expressible.
 The ticket ID is derived from the filename, not a header.
 
 Filename pattern: `{ID}-{slug}.erg`
-- ID: zero-padded sequential number, 4 digits. `0001`, `0002`, ...
-- Slug: lowercase kebab-case, ASCII only (`[a-z0-9-]`).
+- ID: zero-padded sequential number, 4 digits (`0001`, `0002`, …)
+- Slug: lowercase kebab-case, ASCII only (`[a-z0-9-]`)
 
-To assign the next ID: read filenames in `tickets/`, extract the numeric
-prefix from each, take the maximum, increment by 1, zero-pad to 4 digits.
-If no tickets exist, start at `0001`.
+Preferred method:
 
-**Collision handling:** optimistic. Two worktrees may pick the same number.
-The pre-commit validator catches duplicate IDs. The agent that loses renames
-its ticket (increment again). This matches git's own optimistic concurrency.
+```sh
+erg next-id tickets/
+```
+
+This command reads the files directly in the given directory (non-recursive),
+selects filenames ending in `.erg`, extracts the numeric prefix before the
+first `-` if present (or the full stem otherwise), and keeps the maximum
+parsable integer. The next ID is that maximum plus 1, zero-padded to 4 digits.
+
+If no valid ticket filenames are found, or the directory does not exist,
+the command returns `0001`.
+
+Fallback method (if the binary is unavailable): perform the same filename
+scan on `.erg` files in `tickets/`.
+
+The scan is local to the working directory. Other branches, worktrees,
+or remotes are not considered.
+
+**Collision handling:** optimistic. Multiple worktrees or branches may
+select the same ID concurrently. The pre-commit validator rejects
+duplicates. The agent that loses renames its ticket by obtaining a new
+ID and retrying.
 
 ### Log section
 
@@ -274,8 +303,7 @@ The two systems are independent.
 
 ## Postel's Law
 
-**Strict on write, tolerant on read.** The validator enforces `%erg v1`
-on commit. But you — the agent — are the parser for arbitrary input. If you
-receive ticket-like information in any form (raw JSON from `gh`, a sentence,
-a markdown sketch), understand the intent and write clean `%erg v1`. The
-pre-commit hook catches mistakes. The tolerance is in you, not the tooling.
+The validator enforces %erg v1 on commit (strict on write).
+
+Agents may interpret non-conforming input, but must produce valid %erg v1
+when creating or modifying tickets. Non-conforming files are rejected by the validator.

@@ -11,3 +11,5 @@ beat-log.jsonl
 .claude/worktrees/
 .claude/sweep-state/
 .claude/.cache/
+
+build/erg
