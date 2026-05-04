@@ -2,9 +2,12 @@
 Title: Fix dead grep and missing trap cleanup in test_ready.sh claimed tests
 Created: 2026-05-04
 Author: claude
+Closed: done — dead grep removed, trap cleanup added
 
 --- log ---
 2026-05-04T22:30Z claude created — two hygiene findings from PR #43 review
+2026-05-04T23:00Z claude reimagined — both issues confirmed at exact lines, minimal fix
+2026-05-04T23:01Z claude status closed — dead grep removed, trap cleanup added
 
 --- body ---
 ## Context
