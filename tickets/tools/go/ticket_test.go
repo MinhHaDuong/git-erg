@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -36,18 +35,15 @@ func TestParseHeaderLine(t *testing.T) {
 	}
 }
 
-// minimalErg returns the content of a valid minimal .erg ticket.
-func minimalErg(title string) string {
+// ergWithTitle returns a minimal valid ticket with the given title.
+// Uses the same base as validErgContent but with a parameterised title.
+func ergWithTitle(title string) string {
 	return "%erg v1\nTitle: " + title + "\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
 }
 
 func TestParseErg(t *testing.T) {
 	t.Run("minimal valid ticket", func(t *testing.T) {
-		dir := t.TempDir()
-		path := filepath.Join(dir, "0001-test.erg")
-		if err := os.WriteFile(path, []byte(minimalErg("My Title")), 0644); err != nil {
-			t.Fatal(err)
-		}
+		path := writeErg(t, t.TempDir(), "0001-test.erg", ergWithTitle("My Title"))
 		erg := parseErg(path)
 		if !erg.HasMagic {
 			t.Error("expected HasMagic=true")
@@ -64,12 +60,8 @@ func TestParseErg(t *testing.T) {
 	})
 
 	t.Run("missing magic line", func(t *testing.T) {
-		dir := t.TempDir()
-		path := filepath.Join(dir, "0001-test.erg")
 		content := "Title: foo\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-			t.Fatal(err)
-		}
+		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
 		erg := parseErg(path)
 		if erg.HasMagic {
 			t.Error("expected HasMagic=false")
@@ -77,12 +69,8 @@ func TestParseErg(t *testing.T) {
 	})
 
 	t.Run("CRLF line endings", func(t *testing.T) {
-		dir := t.TempDir()
-		path := filepath.Join(dir, "0001-test.erg")
-		content := strings.ReplaceAll(minimalErg("CRLF Title"), "\n", "\r\n")
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-			t.Fatal(err)
-		}
+		content := strings.ReplaceAll(ergWithTitle("CRLF Title"), "\n", "\r\n")
+		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
 		erg := parseErg(path)
 		if !erg.HasMagic {
 			t.Error("expected HasMagic=true with CRLF endings")
@@ -93,14 +81,8 @@ func TestParseErg(t *testing.T) {
 	})
 
 	t.Run("no trailing newline", func(t *testing.T) {
-		dir := t.TempDir()
-		path := filepath.Join(dir, "0001-test.erg")
 		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n--- log ---\n--- body ---"
-		// no trailing newline
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-			t.Fatal(err)
-		}
-		// should not panic
+		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
 		erg := parseErg(path)
 		if !erg.HasMagic {
 			t.Error("expected HasMagic=true")
@@ -108,12 +90,8 @@ func TestParseErg(t *testing.T) {
 	})
 
 	t.Run("repeated Blocked-by header", func(t *testing.T) {
-		dir := t.TempDir()
-		path := filepath.Join(dir, "0001-test.erg")
 		content := "%erg v1\nTitle: A\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0002\nBlocked-by: 0003\n\n--- log ---\n--- body ---\n"
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-			t.Fatal(err)
-		}
+		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
 		erg := parseErg(path)
 		bb := erg.BlockedBy()
 		if len(bb) != 2 {
@@ -122,9 +100,7 @@ func TestParseErg(t *testing.T) {
 	})
 
 	t.Run("file does not exist", func(t *testing.T) {
-		dir := t.TempDir()
-		path := filepath.Join(dir, "nonexistent.erg")
-		// should not panic
+		path := filepath.Join(t.TempDir(), "nonexistent.erg")
 		erg := parseErg(path)
 		if erg.HasMagic {
 			t.Error("expected HasMagic=false for nonexistent file")

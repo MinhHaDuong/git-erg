@@ -24,71 +24,71 @@ func validErgContent() string {
 
 func TestValidateErg(t *testing.T) {
 	cases := []struct {
-		name        string
-		filename    string
-		content     string
-		wantErrors  bool
-		wantSubstr  string // non-empty: at least one error must contain this
+		name       string
+		filename   string
+		content    string
+		wantErrors bool
+		wantSubstr string // non-empty: at least one error must contain this
 	}{
 		{
-			name:     "clean ticket",
-			filename: "0001-test.erg",
-			content:  validErgContent(),
+			name:       "clean ticket",
+			filename:   "0001-test.erg",
+			content:    validErgContent(),
 			wantErrors: false,
 		},
 		{
-			name:     "missing magic line",
-			filename: "0001-test.erg",
-			content:  "Title: foo\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n",
+			name:       "missing magic line",
+			filename:   "0001-test.erg",
+			content:    "Title: foo\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "magic",
 		},
 		{
-			name:     "missing required Title header",
-			filename: "0001-test.erg",
-			content:  "%erg v1\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n",
+			name:       "missing required Title header",
+			filename:   "0001-test.erg",
+			content:    "%erg v1\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "Title",
 		},
 		{
-			name:     "Status header present",
-			filename: "0001-test.erg",
-			content:  "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nStatus: open\n\n--- log ---\n--- body ---\n",
+			name:       "Status header present",
+			filename:   "0001-test.erg",
+			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nStatus: open\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "Status",
 		},
 		{
-			name:     "unknown header",
-			filename: "0001-test.erg",
-			content:  "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nFoo: bar\n\n--- log ---\n--- body ---\n",
+			name:       "unknown header",
+			filename:   "0001-test.erg",
+			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nFoo: bar\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "unknown header",
 		},
 		{
-			name:     "Created not a valid ISO date",
-			filename: "0001-test.erg",
-			content:  "%erg v1\nTitle: X\nCreated: not-a-date\nAuthor: test\n\n--- log ---\n--- body ---\n",
+			name:       "Created not a valid ISO date",
+			filename:   "0001-test.erg",
+			content:    "%erg v1\nTitle: X\nCreated: not-a-date\nAuthor: test\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "ISO date",
 		},
 		{
-			name:     "Blocked-by unknown ID",
-			filename: "0001-test.erg",
-			content:  "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0042\n\n--- log ---\n--- body ---\n",
+			name:       "Blocked-by unknown ID",
+			filename:   "0001-test.erg",
+			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0042\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "unknown ticket ID",
 		},
 		{
-			name:     "missing log separator",
-			filename: "0001-test.erg",
-			content:  "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- body ---\n",
+			name:       "missing log separator",
+			filename:   "0001-test.erg",
+			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "log",
 		},
 		{
-			name:     "missing body separator",
-			filename: "0001-test.erg",
-			content:  "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n",
+			name:       "missing body separator",
+			filename:   "0001-test.erg",
+			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n",
 			wantErrors: true,
 			wantSubstr: "body",
 		},
@@ -169,7 +169,6 @@ func TestValidateErg(t *testing.T) {
 			dir := t.TempDir()
 			path := writeErg(t, dir, tc.filename, tc.content)
 			erg := parseErg(path)
-			// For the "Blocked-by unknown ID" case, pass an empty allIDs map.
 			errs := validateErg(&erg, map[string]bool{})
 			if tc.wantErrors && len(errs) == 0 {
 				t.Errorf("expected at least one validation error, got none")
