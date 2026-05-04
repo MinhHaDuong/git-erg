@@ -1,5 +1,5 @@
 # git-erg
-An agent-friendly local ticket system for development in disconnected environment.
+An agent-friendly local ticket system for development in disconnected environments.
 
 Author: Minh Ha-Duong <minh.ha-duong@cnrs.fr>
 Last modified: 2026-05-04
@@ -20,7 +20,7 @@ Design rationale: `pep-erg-v1.md`.
 
 The standalone shell installer has been removed.
 
-Project bootstrap is being moved into the `erg` CLI itself (`erg init` /
+Project bootstrap is moving into the `erg` CLI itself (`erg init` /
 `erg uninstall`) so the binary is the only required artifact.
 
 ## Binary policy
@@ -43,7 +43,6 @@ make build
 cat > tickets/0001-add-auth.erg <<'EOF'
 %erg v1
 Title: Add authentication flow
-Status: open
 Created: 2026-03-27
 Author: claude
 
@@ -72,13 +71,15 @@ include `gh#N` and `gh:owner/repo#N` cross-repo refs.
 
 ```bash
 # Adjacency list: blocker → blocked
-awk '/^--- log ---/{nextfile} /^Blocked-by:[[:space:]]+[0-9]{4}$/{print FILENAME, $2}' tickets/*.erg \
-  | sed -E 's|tickets/([0-9]{4})[^ ]*|\1|' \
+find tickets -type f -name '*.erg' -print0 \
+  | xargs -0 awk '/^--- log ---/{nextfile} /^Blocked-by:[[:space:]]+[0-9]{4}$/{print FILENAME, $2}' \
+  | sed -E 's|.*/([0-9]{4})[^ ]*|\1|' \
   | awk '{print $2" -> "$1}'
 
 # Topological order (requires GNU coreutils `tsort`)
-awk '/^--- log ---/{nextfile} /^Blocked-by:[[:space:]]+[0-9]{4}$/{print FILENAME, $2}' tickets/*.erg \
-  | sed -E 's|tickets/([0-9]{4})[^ ]*|\1|' \
+find tickets -type f -name '*.erg' -print0 \
+  | xargs -0 awk '/^--- log ---/{nextfile} /^Blocked-by:[[:space:]]+[0-9]{4}$/{print FILENAME, $2}' \
+  | sed -E 's|.*/([0-9]{4})[^ ]*|\1|' \
   | awk '{print $2, $1}' | tsort
 ```
 ## License

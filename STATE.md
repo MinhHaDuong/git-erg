@@ -1,10 +1,10 @@
 # State — git-erg
 
-_Last updated: 2026-05-03 — removed `erg graph` from the binary (199 LOC, no programmatic consumers; replaced by `Blocked-by:` grep recipe in README); closed 0019, rescoped 0024 to next-id only._
+_Last updated: 2026-05-04 — archived closed tickets under `tickets/closed/`; updated load/next-id behavior to scan recursively; distribution design split into 0032/0033/0034._
 
 ## Stats
 
-- Tickets: 29 total — 17 closed, 12 open (6 ready, 5 blocked, 1 fixture)
+- Tickets: 34 total — 20 closed, 14 open (7 ready, 7 blocked)
 - Tests: green
 - Open PRs: none
 
@@ -12,12 +12,13 @@ _Last updated: 2026-05-03 — removed `erg graph` from the binary (199 LOC, no p
 
 | #    | Title                                                              | Notes |
 |------|--------------------------------------------------------------------|-------|
-| 0015 | Add Tags header for revocable triage labels                        | Beat-ready; unblocks 0008 |
-| 0018 | Cross-repo resolver + erg ready integration                        | Unblocked by 0017; network + cache + auth |
-| 0023 | Distribution model — design                                        | Human gate; objectives need confirmation |
-| 0024 | Integration tests for `erg next-id`                                | Test backfill; unblocks 0026/0028 (graph dropped — command removed) |
-| 0025 | Cover `archive --execute` and `update` replace path                | Test backfill; destructive paths |
-| 0029 | Installer round-trip test and harness hardening                    | Test backfill; independent |
+| 0001 | Sample open ticket — blocker fixture for 0002                      | Fixture; do not pick for feature work |
+| 0015 | Add Tags header for revocable triage labels                        | Unblocks 0008 |
+| 0024 | Integration tests for `erg next-id`                                | Unblocks 0026/0028 |
+| 0030 | Forge-agnostic Blocked-by grammar                                  | Grammar simplification follow-up |
+| 0031 | `erg close` removes `Blocked-by` refs from dependent tickets       | Independent behavior hardening |
+| 0032 | Implement `erg init` / `erg uninstall` from embedded assets        | Distribution execution step 1 |
+| 0034 | Make `erg migrate` explicit instead of update-time side effect     | Distribution execution step 2 |
 
 0001 is the open half of the validator fixture pair (0001 + 0002) — leave open
 indefinitely; it has no actionable work.
@@ -31,13 +32,16 @@ indefinitely; it has no actionable work.
 | 0026 | Go unit tests for parser and validator       | 0024             |
 | 0027 | CI add `go test` and coverage                | 0026             |
 | 0028 | Fill remaining branch coverage               | 0024             |
+| 0029 | Init/uninstall round-trip test + harness hardening | 0032       |
+| 0033 | Keep `erg update` binary-only                | 0023, 0032, 0034 |
 
 ## Sequencing
 
-1. **0018** (cross-repo resolver) — completes the 0016 chain.
-2. **0015** (Tags header) — unblocks 0008.
-3. **0023** (distribution model) — human gate; resolve before next install-path work.
-4. **0024** (next-id tests) — gate for 0026/0028 test-coverage chain.
+1. **0032** (`erg init`/`erg uninstall`) — distribution execution step 1.
+2. **0034** (explicit migrate flow) — distribution execution step 2.
+3. **0033** (`erg update` binary-only contract) — lands after 0032/0034.
+4. **0024 → 0026 → 0027** — test and coverage chain.
+5. **0015 → 0008** — tags then pick command.
 
 ## Notes
 
@@ -47,3 +51,5 @@ indefinitely; it has no actionable work.
   command that tolerates it (in order to convert it).
 - **`needs-human` status gap:** resolved by 0015 — `needs-human` becomes a
   Tag, not a Status value. Unrepresentable until 0015 lands.
+
+Autonomous-run policy is maintained in `AGENTS.md`.
