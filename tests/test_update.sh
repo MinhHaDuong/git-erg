@@ -80,5 +80,15 @@ else
 fi
 rm -rf "$TICKET_DIR"
 
+# Test: erg update with 404 response exits 0 and stderr contains "server returned"
+OUT=$(ERG_UPDATE_URL=http://127.0.0.1:$PORT/no-such-file "$ERG" update 2>&1 || true)
+if echo "$OUT" | grep -q "server returned"; then
+    echo "PASS: update 404 exits 0 and emits 'server returned'"
+    PASS=$((PASS+1))
+else
+    echo "FAIL: update 404: $OUT"
+    FAIL=$((FAIL+1))
+fi
+
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

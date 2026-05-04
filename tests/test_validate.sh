@@ -657,5 +657,26 @@ else
     pass "Tags: unknown value rejected"
 fi
 
+# --- Nonexistent path emits WARNING and exits 0 ---
+out=$($ERG validate /no/such/path 2>&1 || true)
+if echo "$out" | grep -q "WARNING" && $ERG validate /no/such/path >/dev/null 2>&1; then
+    pass "nonexistent path: exit 0 with WARNING"
+else
+    fail "nonexistent path: exit 0 with WARNING (got: $out)"
+fi
+
+# --- Non-.erg file emits WARNING and exits 0 ---
+touch "$FIXTURES/junk.txt"
+out=$($ERG validate "$FIXTURES/junk.txt" 2>&1 || true)
+if $ERG validate "$FIXTURES/junk.txt" >/dev/null 2>&1; then
+    if echo "$out" | grep -q "WARNING" && echo "$out" | grep -q "not a .erg file"; then
+        pass "non-.erg file: exit 0 with WARNING"
+    else
+        fail "non-.erg file: exit 0 with WARNING (got: $out)"
+    fi
+else
+    fail "non-.erg file: expected exit 0"
+fi
+
 echo "validate: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

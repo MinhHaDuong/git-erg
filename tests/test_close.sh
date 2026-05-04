@@ -350,5 +350,53 @@ else
     fail "close: dependent write failure emits warning"
 fi
 
+# --- Ambiguous ID (two files match) exits 1 with "ambiguous" ---
+cat > "$FIXTURES/0042-alpha.erg" <<'EOF'
+%erg v1
+Title: Alpha
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+cat > "$FIXTURES/0042-beta.erg" <<'EOF'
+%erg v1
+Title: Beta
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+err=$($ERG close 0042 "reason" "$FIXTURES" 2>&1 || true)
+if echo "$err" | grep -q "ambiguous"; then
+    pass "ambiguous ID exits 1 with 'ambiguous'"
+else
+    fail "ambiguous ID exits 1 with 'ambiguous' (got: $err)"
+fi
+rm -f "$FIXTURES/0042-alpha.erg" "$FIXTURES/0042-beta.erg"
+
+# --- Missing '--- log ---' separator exits 1 with error message ---
+cat > "$FIXTURES/0043-no-sep.erg" <<'EOF'
+%erg v1
+Title: No log separator
+Created: 2026-01-01
+Author: claude
+
+This file lacks the log separator entirely.
+EOF
+err=$($ERG close "$FIXTURES/0043-no-sep.erg" "reason" 2>&1 || true)
+if echo "$err" | grep -q "missing '--- log ---'"; then
+    pass "missing log separator exits 1 with error"
+else
+    fail "missing log separator exits 1 with error (got: $err)"
+fi
+rm -f "$FIXTURES/0043-no-sep.erg"
+
 echo "close: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

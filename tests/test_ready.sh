@@ -319,5 +319,27 @@ else
     fail "empty dir handled"
 fi
 
+# --- Unknown blocker ID: ticket appears in ready list and WARNING on stderr ---
+rm -f "$FIXTURES/ready/"*.erg
+cat > "$FIXTURES/ready/0050-unknown-blocker.erg" <<'EOF'
+%erg v1
+Title: Blocked by unknown ticket
+Created: 2026-01-01
+Author: a
+Blocked-by: 9999
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+EOF
+stdout=$($ERG ready "$FIXTURES/ready" 2>/dev/null)
+stderr=$($ERG ready "$FIXTURES/ready" 2>&1 >/dev/null || true)
+if echo "$stdout" | grep -q "0050" && echo "$stderr" | grep -q "WARNING" && echo "$stderr" | grep -q "9999"; then
+    pass "unknown blocker: ticket is ready and WARNING on stderr with ID"
+else
+    fail "unknown blocker: ticket is ready and WARNING on stderr with ID (stdout: $stdout) (stderr: $stderr)"
+fi
+
 echo "ready: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
