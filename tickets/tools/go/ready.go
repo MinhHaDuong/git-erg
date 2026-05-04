@@ -3,11 +3,20 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 )
+
+type blockedByEntry struct {
+	kind string
+	id   string
+	ref  string
+}
 
 type readyEntry struct {
 	id, title, file string
 	tags            []string
+	ready           bool
+	blockedBy       []blockedByEntry
 }
 
 var skipReadyTags = map[string]bool{
@@ -52,6 +61,7 @@ func cmdReady(args []string) int {
 	}
 
 	var warnings []string
+	var openEntries []readyEntry
 	var ready []readyEntry
 	openCount := 0
 
@@ -65,6 +75,7 @@ func cmdReady(args []string) int {
 		tid := t.FilenameID()
 		tags := t.Tags()
 		blocked := false
+		var blockedBy []blockedByEntry
 		for _, tag := range tags {
 			if skipReadyTags[tag] {
 				blocked = true
@@ -81,6 +92,7 @@ func cmdReady(args []string) int {
 				if ref.IsForge() {
 					// Forge refs are offline-unknown → blocking.
 					blocked = true
+					blockedBy = append(blockedBy, blockedByEntry{kind: "forge", ref: ref.Raw})
 					break
 				}
 				if !knownID[ref.ID] {
@@ -88,12 +100,16 @@ func cmdReady(args []string) int {
 						"%s: Blocked-by '%s' not found (treating as satisfied)", t.Filename(), ref.ID))
 				} else if !closedByID[ref.ID] {
 					blocked = true
+					blockedBy = append(blockedBy, blockedByEntry{kind: "local", id: ref.ID})
 					break
 				}
 			}
 		}
+
+		entry := readyEntry{tid, t.Title(), t.Filename(), tags, !blocked, blockedBy}
+		openEntries = append(openEntries, entry)
 		if !blocked {
-			ready = append(ready, readyEntry{tid, t.Title(), t.Filename(), tags})
+			ready = append(ready, entry)
 		}
 	}
 
@@ -102,15 +118,21 @@ func cmdReady(args []string) int {
 	}
 
 	if useJSON {
-		if len(ready) == 0 {
+		if len(openEntries) == 0 {
 			fmt.Println("[]")
 		} else {
 			fmt.Println("[")
-			for i, r := range ready {
+			for i, r := range openEntries {
 				comma := ","
-				if i == len(ready)-1 {
+				if i == len(openEntries)-1 {
 					comma = ""
 				}
+
+				readyJSON := "false"
+				if r.ready {
+					readyJSON = "true"
+				}
+
 				tagJSON := "[]"
 				if len(r.tags) > 0 {
 					tagJSON = "["
@@ -122,8 +144,25 @@ func cmdReady(args []string) int {
 					}
 					tagJSON += "]"
 				}
-				fmt.Printf("  {\n    \"id\": \"%s\",\n    \"title\": \"%s\",\n    \"file\": \"%s\",\n    \"tags\": %s\n  }%s\n",
-					jsonEscape(r.id), jsonEscape(r.title), jsonEscape(r.file), tagJSON, comma)
+
+				blockedByJSON := "[]"
+				if len(r.blockedBy) > 0 {
+					blockedByJSON = "["
+					for j, b := range r.blockedBy {
+						if j > 0 {
+							blockedByJSON += ", "
+						}
+						if b.kind == "forge" {
+							blockedByJSON += fmt.Sprintf("{\"kind\": \"forge\", \"ref\": \"%s\"}", jsonEscape(b.ref))
+						} else {
+							blockedByJSON += fmt.Sprintf("{\"kind\": \"local\", \"id\": \"%s\"}", jsonEscape(b.id))
+						}
+					}
+					blockedByJSON += "]"
+				}
+
+				fmt.Printf("  {\n    \"id\": \"%s\",\n    \"title\": \"%s\",\n    \"file\": \"%s\",\n    \"ready\": %s,\n    \"tags\": %s,\n    \"blocked_by\": %s\n  }%s\n",
+					jsonEscape(r.id), jsonEscape(r.title), jsonEscape(r.file), readyJSON, tagJSON, blockedByJSON, comma)
 			}
 			fmt.Println("]")
 		}
@@ -139,7 +178,11 @@ func cmdReady(args []string) int {
 		} else {
 			fmt.Printf("Ready tickets (%d):\n", len(ready))
 			for _, r := range ready {
-				fmt.Printf("  %-8s %-40s %s\n", r.id, r.file, r.title)
+				tagsSuffix := ""
+				if len(r.tags) > 0 {
+					tagsSuffix = fmt.Sprintf(" (tags: %s)", strings.Join(r.tags, ", "))
+				}
+				fmt.Printf("  %-8s %-40s %s%s\n", r.id, r.file, r.title, tagsSuffix)
 			}
 		}
 	}

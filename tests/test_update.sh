@@ -59,13 +59,23 @@ Status: open
 --- body ---
 ERGEOF
 BEFORE=$(cat "$TICKET_DIR/0001-legacy.erg")
-OUT=$(ERG_UPDATE_URL=http://127.0.0.1:$PORT/erg ERG_TICKET_DIR="$TICKET_DIR" "$ERG" update 2>&1 || true)
+# Force a real update path (different hash) so migrate hint logic runs.
+cp "$ERG" "$TMPDIR/erg-new"
+printf '\n' >> "$TMPDIR/erg-new"
+OUT=$(ERG_UPDATE_URL=http://127.0.0.1:$PORT/erg-new ERG_TICKET_DIR="$TICKET_DIR" "$ERG" update 2>&1 || true)
 AFTER=$(cat "$TICKET_DIR/0001-legacy.erg")
 if [ "$BEFORE" = "$AFTER" ]; then
     echo "PASS: update does not rewrite ticket files"
     PASS=$((PASS+1))
 else
     echo "FAIL: update rewrote ticket files"
+    FAIL=$((FAIL+1))
+fi
+if echo "$OUT" | grep -q "erg migrate"; then
+    echo "PASS: update emits migrate hint"
+    PASS=$((PASS+1))
+else
+    echo "FAIL: update missing migrate hint"
     FAIL=$((FAIL+1))
 fi
 rm -rf "$TICKET_DIR"

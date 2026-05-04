@@ -312,5 +312,43 @@ else
     fail "close: no-dependent close leaves other files untouched"
 fi
 
+# --- Dependent write failure warns but close succeeds ---
+cat > "$FIXTURES/8020-target.erg" <<'EOF'
+%erg v1
+Title: Target with unwritable dependent
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+cat > "$FIXTURES/8021-dependent-unwritable.erg" <<'EOF'
+%erg v1
+Title: Unwritable dependent
+Created: 2026-01-01
+Author: claude
+Blocked-by: 8020
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+chmod 444 "$FIXTURES/8021-dependent-unwritable.erg"
+OUT=$($ERG close 8020 "done" "$FIXTURES" 2>&1 || true)
+chmod 644 "$FIXTURES/8021-dependent-unwritable.erg"
+if echo "$OUT" | grep -q "CLOSED"; then
+    pass "close: dependent write failure keeps close success"
+else
+    fail "close: dependent write failure keeps close success"
+fi
+if echo "$OUT" | grep -q "warning: cannot write"; then
+    pass "close: dependent write failure emits warning"
+else
+    fail "close: dependent write failure emits warning"
+fi
+
 echo "close: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

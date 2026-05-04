@@ -88,13 +88,8 @@ validation rather than parsing silently.
 - Exclude any ticket carrying a tag in the "skip" subset
   (`needs-human`, `deferred`, `post-talk`, `post-conference` — i.e.
   the entire current set, since each implies "not ready").
-- Plain-text output: append `(tags: needs-human, deferred)` to the
-  line for diagnostic visibility.
 - JSON output: emit a `tags` array (always present, possibly empty)
-  for each ready candidate. Note: ready already excludes tagged
-  tickets, so the field will mostly be empty in this output. The
-  field exists for symmetry with `erg pick` (below) and forward
-  compatibility.
+  for each open ticket candidate, including blocked ones.
 
 ## `erg pick` (consumed by 0008)
 

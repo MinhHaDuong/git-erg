@@ -236,6 +236,57 @@ else
     fail "ready JSON includes tags array"
 fi
 
+# --- JSON output includes blocked_by for forge blockers ---
+cat > "$FIXTURES/ready/0042-forge-blocked-json.erg" <<'EOF'
+%erg v1
+Title: Forge blocked for JSON
+Created: 2026-01-01
+Author: a
+Blocked-by: github.com/anthropics/claude-code#1234
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+EOF
+output=$($ERG ready --json "$FIXTURES/ready")
+if echo "$output" | grep -q '"blocked_by": \[{"kind": "forge", "ref": "github.com/anthropics/claude-code#1234"}'; then
+    pass "ready JSON includes forge blocked_by"
+else
+    fail "ready JSON includes forge blocked_by"
+fi
+
+# --- JSON output includes blocked_by for local blockers ---
+cat > "$FIXTURES/ready/0043-local-blocker.erg" <<'EOF'
+%erg v1
+Title: Local blocker
+Created: 2026-01-01
+Author: a
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+EOF
+cat > "$FIXTURES/ready/0044-local-blocked.erg" <<'EOF'
+%erg v1
+Title: Local blocked for JSON
+Created: 2026-01-01
+Author: a
+Blocked-by: 0043
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+EOF
+output=$($ERG ready --json "$FIXTURES/ready")
+if echo "$output" | grep -q '"blocked_by": \[{"kind": "local", "id": "0043"}'; then
+    pass "ready JSON includes local blocked_by"
+else
+    fail "ready JSON includes local blocked_by"
+fi
+
 # --- Empty dir ---
 rm -f "$FIXTURES/ready/"*.erg
 # --- Forge-ref blocker is blocking ---
