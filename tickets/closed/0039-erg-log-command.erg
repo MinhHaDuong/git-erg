@@ -1,0 +1,36 @@
+%erg v1
+Title: Add erg log <id> <line> command — append arbitrary log entries
+Created: 2026-05-04
+Author: claude
+Closed: done — erg log command implemented
+--- log ---
+2026-05-04T22:00Z claude created — needed by IDH/0057: verify-gate and raid circuit-breaker append bump log lines directly; no binary command exists to do this safely
+2026-05-04T22:10Z claude reimagined — implementation plan: log.go with cmdLog, wire into main.go, test_log.sh following test_close.sh pattern
+2026-05-04T22:20Z claude closed — erg log command implemented
+
+--- body ---
+## Context
+
+IDH skills `verify-gate` and `raid` append log lines to ticket files directly
+(e.g., `bump verify-reroll`, `bump circuit-breaker`). Routing these through
+the binary eliminates permission friction (IDH/0057).
+
+`erg close` already appends a log entry as a side-effect. A general-purpose
+`erg log` command covers the remaining append-only mutation sites.
+
+## Actions
+
+Implement `erg log <id> <line> [dir]`:
+- Find ticket file by 4-digit ID in dir (default: `tickets/`)
+- Append line to the log section: `{ISO8601} {line}`
+  (timestamp prepended automatically; caller provides actor + verb + detail)
+- Output: `LOGGED`
+
+## Exit criteria
+
+- `erg log 0042 "claude bump circuit-breaker — agent timeout"` appends a
+  correctly formatted log line to ticket 0042
+- Timestamp is ISO8601 UTC at minute precision
+- Command is idempotent-safe (two calls with same line produce two entries —
+  log is append-only by design)
+- Test: log a line, grep for it in the ticket file

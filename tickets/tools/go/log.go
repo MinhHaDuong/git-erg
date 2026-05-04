@@ -1,0 +1,61 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+)
+
+// cmdLog implements `erg log <id> <line> [dir]`.
+func cmdLog(args []string) int {
+	if len(args) < 2 {
+		fmt.Fprintln(os.Stderr, "Usage: erg log <id> <line> [dir]")
+		return 1
+	}
+
+	id := args[0]
+	line := args[1]
+	ticketDir := "tickets"
+	if len(args) >= 3 {
+		ticketDir = args[2]
+	}
+
+	if strings.TrimSpace(line) == "" {
+		fmt.Fprintln(os.Stderr, "log: line is required and must be non-empty")
+		return 1
+	}
+
+	// Resolve to file path.
+	pattern := filepath.Join(ticketDir, fmt.Sprintf("%s-*.erg", id))
+	matches, err := filepath.Glob(pattern)
+	if err != nil || len(matches) == 0 {
+		fmt.Fprintf(os.Stderr, "log: no ticket found for ID %s in %s\n", id, ticketDir)
+		return 1
+	}
+	if len(matches) > 1 {
+		fmt.Fprintf(os.Stderr, "log: ambiguous ID %s — matches: %s\n", id, strings.Join(matches, ", "))
+		return 1
+	}
+	ticketPath := matches[0]
+
+	data, err := os.ReadFile(ticketPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "log: cannot read %s: %v\n", ticketPath, err)
+		return 1
+	}
+
+	now := time.Now().UTC().Format("2006-01-02T15:04Z")
+	logLine := now + " " + line
+
+	content := appendLogLine(string(data), logLine)
+
+	if err := os.WriteFile(ticketPath, []byte(content), 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "log: cannot write %s: %v\n", ticketPath, err)
+		return 1
+	}
+
+	fmt.Println("LOGGED")
+	return 0
+}
