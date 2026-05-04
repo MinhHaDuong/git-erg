@@ -2,7 +2,7 @@
 # Integration tests for: erg migrate
 set -e
 
-ERG="${ERG_BIN:-tickets/tools/go/erg}"
+ERG="${ERG_BIN:-build/erg}"
 FIXTURES="tests/fixtures/migrate"
 PASS=0
 FAIL=0

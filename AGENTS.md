@@ -75,3 +75,15 @@ Otherwise: leave PR open with explicit blocker note and continue next ticket.
 
 When one ticket is blocked/unclear/risky, skip it and proceed to the next ready ticket.
 Unattended run should stop only when no safe ready ticket remains.
+
+### 7) Shell test binary rule
+
+Shell integration tests under `tests/*.sh` must default:
+
+- `ERG="${ERG_BIN:-build/erg}"`
+
+Never default to `tickets/tools/go/erg` in test scripts. The committed
+bootstrap binary can be stale when scripts are invoked directly.
+
+`make test` must enforce this with a grep check and fail fast if any
+script reintroduces the legacy default.

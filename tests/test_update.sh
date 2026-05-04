@@ -2,7 +2,7 @@
 # Integration tests for: erg version, erg update
 set -e
 
-ERG="${ERG_BIN:-tickets/tools/go/erg}"
+ERG="${ERG_BIN:-build/erg}"
 PASS=0; FAIL=0
 
 # Test: erg version exits 0 and prints 64-char hex

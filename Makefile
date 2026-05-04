@@ -21,6 +21,10 @@ build:
 	cd tickets/tools/go && go build -o $(ERG_BIN) .
 
 test: build
+	@if grep -R -n 'ERG="$${ERG_BIN:-tickets/tools/go/erg}"' tests/*.sh >/dev/null; then \
+		echo "ERROR: tests must default ERG to build/erg (found legacy tickets/tools/go/erg default)" >&2; \
+		exit 1; \
+	fi
 	@ERG_BIN=$(ERG_BIN) sh tests/test_validate.sh
 	@ERG_BIN=$(ERG_BIN) sh tests/test_ready.sh
 	@ERG_BIN=$(ERG_BIN) sh tests/test_update.sh

@@ -2,7 +2,7 @@
 # Integration tests for: erg next-id
 set -e
 
-ERG="${ERG_BIN:-tickets/tools/go/erg}"
+ERG="${ERG_BIN:-build/erg}"
 PASS=0
 FAIL=0
 
