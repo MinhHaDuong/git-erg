@@ -2,31 +2,41 @@
 
 **Status:** Draft
 **Created:** 2026-03-27
-**Author:** claude (with MHD)
-**Context:** PR #385 (t237-local-ticket-system), issue #435
+**Modified:** 2026-04-04
+**Author:** Minmh Ha-Duong <minh.ha-duong@cnrs.fr>
 
 ## Abstract
 
-A file-based ticket system designed for AI agent coordination across
-git worktrees on a single machine. Tickets are plain-text files with a
+An agent-friendly file-based ticket system designed for development in disconnected environments. Tickets are plain-text files with a
 versioned format (`%erg v1`), committed to git, and validated by a
 pre-commit hook. The system complements (not replaces) GitHub Issues.
 
+The source of truth is the specification in `tickets/spec-erg-v1.md`.
+This PEP documents the rationale supporting the specification.
+
 ## Motivation
 
-When an AI agent works across multiple git worktrees on the same machine,
-two failure modes emerge:
+Using an online forge like GitHub or Gitlab means that listing open issues requires an  API call. In offline, rate-limited, or latency-sensitive contexts, this blocks the agent's ability to pick work. The erg ticket system uses local files for offline reads and a simple text format that works equally well with human and agent workflows.
 
-1. **Friendly fire**: Agent A in worktree `../t003-auth/` and agent B in
-   `../t005-cache/` both pick the same task because neither can see the
-   other's uncommitted state.
+### Name
 
-2. **Network dependency**: Listing open issues requires a GitHub API call.
-   In offline, rate-limited, or latency-sensitive contexts, this blocks
-   the agent's ability to pick work.
+The word `erg` is an old unit of work in Physics, so it stands right as an extension of a ticket file.
 
-The ticket system solves both with local files for offline reads and a
-simple text format that works equally well with human and agent workflows.
+**Alternatives considered:**
+- `.ticket` was too long and already encoded in path name.
+- `.tix` sounded closer by was not as scientifically legitimate as `.erg`
+
+### Text based files with structured body
+
+Tickets have:
+- The magic line
+- A preamble of Key: Value headers
+- Separator
+- Timestamped log lines
+- Separator
+- Freeform body.
+
+The format was inspired by Internet Message Format (email) RFC 5322.
 
 ## Design choices and rationale
 
@@ -48,7 +58,7 @@ rather than silently misparsing).
 
 ### 2. Closed header set (no X- extensions)
 
-**Choice:** v1 defines exactly 5 headers: Title, Status, Created, Author,
+**Choice:** v1 defines exactly 5 headers: Title, Closed, Created, Author,
 Blocked-by. No `X-` extensions are allowed.
 
 **Rationale:** Agents work best with rigid schemas where there's exactly
@@ -79,10 +89,10 @@ The agent that loses renames its ticket (increment again). This matches
 git's own optimistic concurrency model.
 
 **Alternatives considered:**
-- Mnemonic IDs (PR #385): creative, readable, but collision-prone and
+- Mnemonic acronym IDs: creative, readable, but collision-prone and
   not mechanically assignable.
 - UUIDs: unique but unreadable, poor for human consumption.
-- Hash-based IDs: explored in early PR #385 commits, abandoned because
+- Hash-based IDs: explored early, abandoned because
   hashes are opaque and don't sort chronologically.
 
 ### 4. ID in filename, not header
@@ -98,27 +108,20 @@ filename is the canonical identifier.
 - `Id:` header (PR #385): required a validation rule to ensure
   header/filename consistency. Redundant information invites divergence.
 
-### 5. Four status values: open, doing, closed, pending
+### 5. Binary status values: open or closed
 
-**Choice:** `open` (available), `doing` (work in progress), `closed` (done),
-`pending` (awaiting external input).
+**Choice:** defaults to `open` (available), can be marked `closed` (done) in two ways: with a `Closed: [reason]` header or with the word `Closed` in the path name (directory or filename).
 
-**Rationale:** `pending` was added to exclude tickets awaiting review or
-human input from the ready query. Without it, agents would pick up
-tickets that can't be worked on. `doing` signals in-progress work without
-requiring any lock or claim file.
+**Rationale:** Closing at the right time is hard enough. `pending` or `doing` adds ceremony without benefit if not executed perfectly, which is hard when development is distributed across machines and worktrees. Follow the `git` approach of optimistic concurrency. Synchronisation has a solution: use a forge not a local-first ticket system. The `erg` system is designed non-exclusive.
 
 **Alternatives considered:**
-- Three statuses (open/doing/closed): no way to express "waiting for
-  review" without a separate mechanism.
-- Labels for sub-states: would require validating label values, adding
-  complexity to the closed header set.
+- Three statuses (open/doing/closed): no way to express "waiting for review" without a separate mechanism.
+- Four statuses (open/doing/pending/closed): consumes even more tokens to manage and still never right.
+- Labels for sub-states: would require validating label values, adding complexity to the closed header set.
 
-### 6. Coordination is out of scope (removed in 0013)
+### 6. Coordination is out of scope
 
-The original v1 proposal included a `.git/ticket-wip/` claim protocol
-for cross-worktree coordination. This was deliberately removed (ticket
-0013, 2026-05-02) for three reasons:
+On top of doing/pending status, the original proposal included a `.git/ticket-wip/` claim protocol for cross-worktree coordination. This was removed for three reasons:
 
 1. **Not a reliable lock.** Absence of a `.wip` file does not prove
    "not WIP" — agents may forget to claim, may crash mid-claim, or may
@@ -131,11 +134,9 @@ for cross-worktree coordination. This was deliberately removed (ticket
 The spec now explicitly declares coordination out of scope so future
 readers do not reinvent the `.wip` mechanism from silence.
 
-### 7. GitHub Issues as separate coordination layer
+### 7. Forge Issues are a separate coordination layer
 
-**Choice:** The ticket system does NOT cache GitHub Issues locally. A
-ticket may reference a GitHub issue (`Blocked-by: gh#435`) but never
-mirrors its state.
+**Choice:** A ticket may reference a forge issue (`Blocked-by: github.com/MinhHaDuong/git-erg#435`) but never mirrors its state. The ticket system does NOT cache forge Issues locally.
 
 **Rationale explored in conversation:**
 
@@ -155,31 +156,24 @@ exist on the forge. GitHub Issues remain the inter-agent coordination
 layer. The `gh#N` reference in `Blocked-by` is resolved on demand (API
 call when online, treated as satisfied when offline).
 
-### 8. Agent-friendly by design
+### 8. Agent-friendly with efficient binary helper
 
-**Choice:** The agent reads `.erg` files directly using `Read`/`Edit`
-tools. The Go binary is a validator in the pre-commit hook, not the
-primary interface.
+**Choice:** The primary interface is the `erg` binary. As fallback, agents can manipulate `.erg` files directly using `Read`/`Edit` tools. The binary runs as a validator in a pre-commit hook.
 
-**Rationale:** Agents are better at parsing structured text than at
-running CLIs. The rules file (`.claude/rules/tickets.md`) is the complete
-specification — an agent that reads only that file can create, query, and
-close tickets correctly. The CLI tools exist as guardrails, not interfaces.
+**Rationale:** Agents are good at running CLIs and at parsing structured text, but the former is cheaper and faster.
 
-**Architecture:**
-
-| Component | Role |
-|-----------|------|
-| `.claude/rules/tickets.md` | Format spec (agent reads this) |
-| `.claude/skills/ticket-*` | Agent verbs (slash commands) |
-| `tickets/tools/go/erg` | Validator binary (pre-commit) |
-| `tickets/tools/*.py` | Python fallback + test harness |
+**Alternative considered:** The agent reads `.erg` files directly using `Read`/`Edit`
+tools, the binary is only a validator in the pre-commit hook, not the
+primary interface. Problem: asking an LLM to burn tokens for something that a local binary can do faster and deterministic is irresponsible.
 
 ### 9. Directory location: `tickets/` at repo root
 
 **Choice:** Tickets live in `tickets/` at the repository root. Tools live
 in `tickets/tools/`. Agent-specific wiring (rules, skills) lives in
-`.claude/`.
+`tickets/integration`.
+
+**Constraints**.
+- Blockers should live in the same directory as blocked tickets.
 
 **Rationale (interoperability, discoverability, ergonomics):**
 
@@ -192,6 +186,7 @@ in `tickets/tools/`. Agent-specific wiring (rules, skills) lives in
 - **Ergonomics:** Tools co-located with data (`tickets/tools/` next to
   `tickets/*.erg`) means the validator doesn't need a config file to
   know where to look. Short paths tab-complete well.
+- **Flexibility** Projects start with a simple `tickets/` directory. They can create `archive/` or `closed/` tickets.
 
 **Alternatives considered:**
 - `.ergs/` (hidden): invisible by default, violates "ls tells you
@@ -207,51 +202,24 @@ is separate from portable artifacts (`tickets/`). This mirrors how
 instructions about git). A non-Claude agent ignores `.claude/` and reads
 `tickets/README.md` for the spec pointer.
 
-### 10. Go binary as single validator
+### 10. Go binary as a single implementation
 
-**Choice:** Single Go binary (`erg`) implements validate, ready,
-and archive. No Python/bash/Perl alternatives.
+**Choice:** Single Go binary (`erg`) implements validate, ready, close,
+and archive. No alternatives provided.
 
-**Rationale:** PR #385 explored Python, bash, Perl, and Go implementations
-simultaneously. The Go binary won: zero dependencies, fast, single file,
-cross-compilable. The Python tools are kept as a test harness and fallback
-but are not the primary path.
+**Rationale:** The Go binary won because it runs with zero dependencies, fast, single file, cross-compilable.
 
-**Alternatives explored (PR #385 history):**
-- Python first (PR #385 initial): worked but required `PYTHONPATH` setup.
-- Bash+awk (commit `5b7dd3a`): 34x slower than pure bash variant.
-- Perl (commit `e41f4d3`): 2.5x faster than Python, dropped as niche.
-- Rust (commit `32dff03`): overkill for the problem size.
-
-## What changed from PR #385
-
-| PR #385 | v1 system |
-|---------|-----------|
-| 3 implementations (Python, bash, Go) | 1 validator (Go), Python as test fallback |
-| Mnemonic IDs (`ta`, `vt`, `rt`) | Sequential numeric IDs (`0001`, `0002`) |
-| `Id:` header + filename consistency check | ID from filename only |
-| `X-` extension headers | Closed header set, versioned |
-| Open header schema | Closed set: 5 headers in v1 |
-| Tools as primary interface | Agent reads/writes files; tools are guardrails |
-| No magic line | `%erg v1` |
-| 3 statuses | 4 statuses (`pending` added) |
-
-## What was imported from PR #385
-
-- **Go binary structure** (parser, validator, ready, archive) — adapted
-  for v1 format rules.
-- **Test suite** (validate, ready, archive) — rewritten for v1 fixtures.
-- **DAG-safe archive logic** — unchanged (Blocked-by reference protection).
-
-## Specification
-
-See `.claude/rules/tickets.md` for the complete format specification.
-That file is authoritative; this PEP documents the rationale.
+**Alternatives explored:**
+- Python: worked but required `PYTHONPATH` setup. Code readability does not matter anymore.
+- Perl: 2.5x faster than Python, dropped as niche.
+- Bash: Much slower, less portable.
+- sh, awk: POSIX compliant, still slow.
+- Rust: No real difference with Go. Lost on verbosity.
+- Provide alternative reference implementation: more complexity, zero real benefit.
 
 ### 11. Postel's Law: tolerant on read, strict on write
 
-**Choice:** The validator enforces `%erg v1` strictly on commit. But the
-agent — not the tooling — is the parser for arbitrary input.
+**Choice:** Nothing prevents an agent to parse a free-form text file as a ticket. The validator enforces `%erg v1` strictly on commit for `.erg` files.
 
 **Rationale:** An agent may receive ticket-like information in any form:
 raw `gh issue view --json` output, a sentence in conversation, a markdown
@@ -260,21 +228,8 @@ this into `%erg v1` before it can reason about it would be a barrier.
 
 Instead: the agent reads whatever it finds, understands the intent, and
 writes clean `%erg v1`. The pre-commit hook catches any formatting
-mistakes. The tolerance is in the LLM, not the tooling.
+mistakes.
 
 This keeps the tooling simple (one format to parse, one format to
 validate) while making the system maximally agent-friendly. The strict
 format is a *write contract*, not a *read requirement*.
-
-**Implication for skills:** Skill prompts accept any input shape and
-normalize to `%erg v1` on output. The `/ticket-new` skill can take
-a JSON blob, a sentence, or a structured template — it produces the
-same canonical format.
-
-## Open questions
-
-1. **v2 header candidates**: Labels, Priority, Assignee — add when needed.
-2. **Archive retention**: 90 days is arbitrary. Should it be configurable
-   per-project?
-3. **Log verb enforcement**: The spec lists a closed verb set but the
-   validator only checks structural format (rule 10). Enforce in v2?
