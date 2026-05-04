@@ -2,9 +2,11 @@
 Title: Add erg archive command — move closed tickets to tickets/closed/
 Created: 2026-05-04
 Author: claude
+Closed: done — erg archive command implemented with blocker-check
 
 --- log ---
 2026-05-04T23:30Z claude created — housekeeping pain point: closed tickets accumulate in tickets/ because there is no binary command to move them safely
+2026-05-05T00:00Z claude implemented — archive.go with blocker-guard, test_archive.sh (14 tests), wired into main.go + Makefile
 
 --- body ---
 ## Context
