@@ -99,6 +99,31 @@ func TestParseErg(t *testing.T) {
 		}
 	})
 
+	t.Run("magic line padded with whitespace", func(t *testing.T) {
+		// parseErg uses TrimSpace before comparing to magicLine, so leading/trailing
+		// spaces on the first line must still be accepted as a valid magic marker.
+		content := "  %erg v1  \nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
+		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
+		erg := parseErg(path)
+		if !erg.HasMagic {
+			t.Error("expected HasMagic=true for magic line padded with whitespace")
+		}
+	})
+
+	t.Run("separator inside body section", func(t *testing.T) {
+		// A second '--- log ---' inside the body increments LogSepCount but must
+		// not change the section or cause a panic.
+		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n--- log ---\n"
+		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
+		erg := parseErg(path)
+		if !erg.HasMagic {
+			t.Error("expected HasMagic=true")
+		}
+		if erg.LogSepCount != 2 {
+			t.Errorf("LogSepCount = %d, want 2 (separator counted even inside body)", erg.LogSepCount)
+		}
+	})
+
 	t.Run("file does not exist", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "nonexistent.erg")
 		erg := parseErg(path)

@@ -274,4 +274,19 @@ func TestDetectCycles(t *testing.T) {
 			t.Errorf("expected no errors for branched DAG, got: %v", errs)
 		}
 	})
+
+	t.Run("multiple disjoint cycles", func(t *testing.T) {
+		// Two independent cycles: A->B->A and C->D->C.
+		// Both must be detected — the DFS must not stop after the first cycle.
+		dir := t.TempDir()
+		makeTicket(t, dir, "0001", "0002")
+		makeTicket(t, dir, "0002", "0001")
+		makeTicket(t, dir, "0003", "0004")
+		makeTicket(t, dir, "0004", "0003")
+		tickets := loadErgs(dir)
+		errs := detectCycles(tickets)
+		if len(errs) == 0 {
+			t.Error("expected cycle errors for two disjoint cycles, got none")
+		}
+	})
 }
