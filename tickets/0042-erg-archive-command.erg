@@ -1,0 +1,43 @@
+%erg v1
+Title: Add erg archive command — move closed tickets to tickets/closed/
+Created: 2026-05-04
+Author: claude
+
+--- log ---
+2026-05-04T23:30Z claude created — housekeeping pain point: closed tickets accumulate in tickets/ because there is no binary command to move them safely
+
+--- body ---
+## Context
+
+Tickets with a `Closed:` header (or closed status in log) accumulate in
+`tickets/` because there is no binary command to move them to
+`tickets/closed/`. Agents and humans do this manually via `git mv`, which
+requires knowing the convention and risks moving tickets that are still
+blocking others.
+
+`erg archive [id...]` (no args = all) moves closed tickets to `tickets/closed/`
+after verifying they are not blocking any open ticket via `Blocked-by`.
+
+## Actions
+
+Implement `erg archive [id...] [dir]`:
+1. Collect targets: if IDs given, find those specific ticket files; else scan
+   `dir` (default `tickets/`) for tickets with a non-empty `Closed:` header.
+2. For each target, check that no open ticket in `dir` has a `Blocked-by`
+   pointing to the target's ID. If any do, print a warning and skip that ticket.
+3. Move qualifying tickets to `tickets/closed/` via `os.Rename` (same
+   filesystem, so atomic).
+4. Print `ARCHIVED <filename>` for each moved ticket, `SKIPPED <filename>
+   (blocked by <id>)` for each skipped.
+5. Exit 0 if at least one ticket was archived or checked; exit 1 on filesystem
+   errors.
+
+## Exit criteria
+
+- `erg archive` with no args moves all `Closed:`-headered tickets from
+  `tickets/` to `tickets/closed/`.
+- A ticket blocked by an open ticket is skipped with a clear warning.
+- A ticket with no `Closed:` header is silently ignored.
+- `erg archive 0037` archives a specific ticket by ID.
+- Test: create two closed tickets (one blocked by an open ticket), run
+  `erg archive`, verify only the unblocked one moved.
