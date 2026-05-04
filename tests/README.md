@@ -1,0 +1,57 @@
+# Test policy
+
+## Fixture strategy
+
+Use two patterns, depending on what the test is asserting.
+
+### 1. Static fixtures for ticket-format validation
+
+Use static fixtures under:
+
+```text
+tests/fixtures/valid/
+tests/fixtures/invalid/
+````
+
+Use these when the ticket file itself is the object under test, especially for:
+
+* `erg validate`
+* parser / schema rules
+* known-good and known-bad `.erg` examples
+
+Static fixtures should be small, named after the behavior they test, and not mutated by tests.
+
+### 2. Ephemeral directories for CLI behavior
+
+Use temporary directories created with `mktemp -d` when the test depends on filesystem state, filenames, relationships between files, or command-side effects.
+
+Pattern:
+
+```sh
+TDIR=$(mktemp -d)
+trap 'rm -rf "$TDIR"' EXIT
+```
+
+Use this for:
+
+* `erg next-id`
+* `erg ready`
+* `erg close`
+* `erg migrate`
+* tests that create, rewrite, move, or close tickets
+* duplicate-ID and dependency-cycle scenarios
+
+## Rule of thumb
+
+If the test checks **whether a ticket is valid**, use static fixtures.
+
+If the test checks **what a command does**, use an ephemeral directory.
+
+## Constraints
+
+* POSIX `sh` only.
+* One test file per command: `tests/test_<cmd>.sh`.
+* Tests must exit non-zero on failure.
+* Prefer explicit `pass()` / `fail()` labels.
+* Do not mutate files under `tests/fixtures/`.
+
