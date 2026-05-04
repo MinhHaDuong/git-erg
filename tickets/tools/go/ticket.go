@@ -450,20 +450,24 @@ func isClosedHeaderLine(line string) bool {
 	return len(line) >= len(key) && line[:len(key)] == key
 }
 
-// loadErgs parses every .erg file directly in dir, sorted by filename.
+// loadErgs parses every .erg file under dir recursively, sorted by path.
 func loadErgs(dir string) []Erg {
-	entries, err := os.ReadDir(dir)
+	var tickets []Erg
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() || !strings.HasSuffix(path, ".erg") {
+			return nil
+		}
+		tickets = append(tickets, parseErg(path))
+		return nil
+	})
 	if err != nil {
 		return nil
 	}
-	var tickets []Erg
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".erg") {
-			tickets = append(tickets, parseErg(filepath.Join(dir, e.Name())))
-		}
-	}
 	sort.Slice(tickets, func(i, j int) bool {
-		return tickets[i].Filename() < tickets[j].Filename()
+		return tickets[i].Path < tickets[j].Path
 	})
 	return tickets
 }

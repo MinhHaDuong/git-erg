@@ -221,6 +221,38 @@ else
     pass "unknown blocked-by rejected"
 fi
 
+# --- Blocked-by ID found in closed/ subdir passes ---
+TDIR=$(mktemp -d)
+trap 'rm -rf "$FIXTURES"/*.erg "$FIXTURES"/dup/ "$TDIR"' EXIT
+mkdir -p "$TDIR/closed"
+cat > "$TDIR/closed/0012-closed-ref.erg" <<'EOF'
+%erg v1
+Title: Closed ref target
+Created: 2026-01-01
+Author: a
+Closed: done
+
+--- log ---
+--- body ---
+EOF
+cat > "$TDIR/0013-closed-subdir-ref.erg" <<'EOF'
+%erg v1
+Title: Ref to closed subdir ticket
+Created: 2026-01-01
+Author: a
+Blocked-by: 0012
+
+--- log ---
+--- body ---
+EOF
+if $ERG validate "$TDIR" >/dev/null 2>&1; then
+    pass "blocked-by in closed subdir accepted"
+else
+    fail "blocked-by in closed subdir accepted"
+fi
+rm -rf "$TDIR"
+TDIR=
+
 # --- gh#N references pass ---
 cat > "$FIXTURES/0012-gh-ref.erg" <<'EOF'
 %erg v1

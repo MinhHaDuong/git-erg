@@ -156,6 +156,37 @@ else
     fail "unblocked after close is ready"
 fi
 
+# --- Blocked by closed ticket in closed/ subdir: still ready ---
+rm -f "$FIXTURES/ready/"*.erg
+mkdir -p "$FIXTURES/ready/closed"
+cat > "$FIXTURES/ready/closed/0001-blocker.erg" <<'EOF'
+%erg v1
+Title: Archived blocker
+Created: 2026-01-01
+Author: a
+Closed: done
+
+--- log ---
+--- body ---
+EOF
+cat > "$FIXTURES/ready/0002-blocked.erg" <<'EOF'
+%erg v1
+Title: Blocked by archived ticket
+Created: 2026-01-01
+Author: a
+Blocked-by: 0001
+
+--- log ---
+--- body ---
+EOF
+output=$($ERG ready "$FIXTURES/ready")
+if echo "$output" | grep -q "0002"; then
+    pass "blocked-by closed subdir ticket is ready"
+else
+    fail "blocked-by closed subdir ticket is ready"
+fi
+rm -rf "$FIXTURES/ready/closed"
+
 # --- JSON output ---
 output=$($ERG ready --json "$FIXTURES/ready")
 if echo "$output" | grep -q '"id"'; then
