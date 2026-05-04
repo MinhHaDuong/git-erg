@@ -1,17 +1,16 @@
 #!/bin/sh
 # Integration tests for: erg validate
-set -e
+set -eu
 
 ERG="${ERG_BIN:-build/erg}"
-FIXTURES="tests/fixtures"
+FIXTURES=$(mktemp -d)
 PASS=0
 FAIL=0
 
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
-mkdir -p "$FIXTURES"
-trap 'rm -rf "$FIXTURES"/*.erg "$FIXTURES"/dup/' EXIT
+trap 'rm -rf "$FIXTURES"' EXIT
 
 echo "=== erg validate ==="
 
@@ -223,7 +222,6 @@ fi
 
 # --- Blocked-by ID found in closed/ subdir passes ---
 TDIR=$(mktemp -d)
-trap 'rm -rf "$FIXTURES"/*.erg "$FIXTURES"/dup/ "$TDIR"' EXIT
 mkdir -p "$TDIR/closed"
 cat > "$TDIR/closed/0012-closed-ref.erg" <<'EOF'
 %erg v1
@@ -657,6 +655,27 @@ if $ERG validate "$FIXTURES/0099-tags-invalid.erg" >/dev/null 2>&1; then
     fail "Tags: unknown value rejected"
 else
     pass "Tags: unknown value rejected"
+fi
+
+# --- Nonexistent path emits WARNING and exits 0 ---
+out=$($ERG validate /no/such/path 2>&1 || true)
+if echo "$out" | grep -q "WARNING" && $ERG validate /no/such/path >/dev/null 2>&1; then
+    pass "nonexistent path: exit 0 with WARNING"
+else
+    fail "nonexistent path: exit 0 with WARNING (got: $out)"
+fi
+
+# --- Non-.erg file emits WARNING and exits 0 ---
+touch "$FIXTURES/junk.txt"
+out=$($ERG validate "$FIXTURES/junk.txt" 2>&1 || true)
+if $ERG validate "$FIXTURES/junk.txt" >/dev/null 2>&1; then
+    if echo "$out" | grep -q "WARNING" && echo "$out" | grep -q "not a .erg file"; then
+        pass "non-.erg file: exit 0 with WARNING"
+    else
+        fail "non-.erg file: exit 0 with WARNING (got: $out)"
+    fi
+else
+    fail "non-.erg file: expected exit 0"
 fi
 
 echo "validate: $PASS passed, $FAIL failed"

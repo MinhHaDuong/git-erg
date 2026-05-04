@@ -55,3 +55,15 @@ If the test checks **what a command does**, use an ephemeral directory.
 * Prefer explicit `pass()` / `fail()` labels.
 * Do not mutate files under `tests/fixtures/`.
 
+## Parallel safety
+
+Each test file is self-contained:
+- `test_validate.sh` uses a private `mktemp -d` for ephemeral fixtures.
+- All other test files already use `mktemp -d` or dedicated subdirectories.
+- Suites may be run in parallel: `make test` with `-j` flag.
+
+## Shell hygiene
+
+All test files use `set -eu`. To add a variable that may be unset,
+declare it with a default before any `trap` that references it.
+

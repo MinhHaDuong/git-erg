@@ -77,6 +77,10 @@ func cmdUpdate(_ []string) int {
 		fmt.Fprintf(os.Stderr, "update: failed to read response: %v\n", err)
 		return 0
 	}
+	if len(body) == 0 {
+		fmt.Fprintf(os.Stderr, "update: server returned empty body\n")
+		return 0
+	}
 
 	sum := sha256.Sum256(body)
 	remoteHash := hex.EncodeToString(sum[:])

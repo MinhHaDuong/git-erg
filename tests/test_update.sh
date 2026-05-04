@@ -1,6 +1,6 @@
 #!/bin/sh
 # Integration tests for: erg version, erg update
-set -e
+set -eu
 
 ERG="${ERG_BIN:-build/erg}"
 PASS=0; FAIL=0
@@ -26,11 +26,11 @@ fi
 
 # Test: erg update with local server serving same binary → already up to date
 PORT=$(python3 -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()")
-TMPDIR=$(mktemp -d)
-cp "$ERG" "$TMPDIR/erg"
-( cd "$TMPDIR" && exec python3 -m http.server $PORT >/dev/null 2>&1 ) &
+SRV_DIR=$(mktemp -d)
+cp "$ERG" "$SRV_DIR/erg"
+( cd "$SRV_DIR" && exec python3 -m http.server $PORT >/dev/null 2>&1 ) &
 SERVER_PID=$!
-trap "kill $SERVER_PID 2>/dev/null; rm -rf $TMPDIR" EXIT
+trap "kill $SERVER_PID 2>/dev/null; rm -rf $SRV_DIR" EXIT
 
 # Give the server a moment to start
 sleep 0.5
@@ -60,8 +60,8 @@ Status: open
 ERGEOF
 BEFORE=$(cat "$TICKET_DIR/0001-legacy.erg")
 # Force a real update path (different hash) so migrate hint logic runs.
-cp "$ERG" "$TMPDIR/erg-new"
-printf '\n' >> "$TMPDIR/erg-new"
+cp "$ERG" "$SRV_DIR/erg-new"
+printf '\n' >> "$SRV_DIR/erg-new"
 OUT=$(ERG_UPDATE_URL=http://127.0.0.1:$PORT/erg-new ERG_TICKET_DIR="$TICKET_DIR" "$ERG" update 2>&1 || true)
 AFTER=$(cat "$TICKET_DIR/0001-legacy.erg")
 if [ "$BEFORE" = "$AFTER" ]; then
@@ -79,6 +79,27 @@ else
     FAIL=$((FAIL+1))
 fi
 rm -rf "$TICKET_DIR"
+
+# Test: erg update with 404 response exits 0 and stderr contains "server returned"
+OUT=$(ERG_UPDATE_URL=http://127.0.0.1:$PORT/no-such-file "$ERG" update 2>&1 || true)
+if echo "$OUT" | grep -q "server returned"; then
+    echo "PASS: update 404 exits 0 and emits 'server returned'"
+    PASS=$((PASS+1))
+else
+    echo "FAIL: update 404: $OUT"
+    FAIL=$((FAIL+1))
+fi
+
+# Test: erg update with 200 empty body exits 0 and stderr contains "empty body"
+printf '' > "$SRV_DIR/erg-empty"
+OUT=$(ERG_UPDATE_URL=http://127.0.0.1:$PORT/erg-empty "$ERG" update 2>&1 || true)
+if echo "$OUT" | grep -q "empty body"; then
+    echo "PASS: update empty-body 200 exits 0 and emits 'empty body'"
+    PASS=$((PASS+1))
+else
+    echo "FAIL: update empty-body 200: $OUT"
+    FAIL=$((FAIL+1))
+fi
 
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Integration tests for: erg init, erg uninstall
-set -e
+set -eu
 
 ERG="${ERG_BIN:-build/erg}"
 PASS=0
