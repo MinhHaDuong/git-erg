@@ -6,6 +6,7 @@ Blocked-by: 0024
 
 --- log ---
 2026-05-03T14:16Z claude created — surfaced by test-coverage audit; no `*_test.go` files exist anywhere in the repo
+2026-05-04T22:30Z claude action-3-dropped — parseLogTimestamp does not exist in codebase; archive_test.go not created; no coverage gap
 
 --- body ---
 ## Context
@@ -33,8 +34,9 @@ that shell tests cannot reach efficiently or precisely:
    `parseErg`, `jsonEscape`. Use table-driven tests.
 2. Add `tickets/tools/go/validate_test.go` covering `validateErg`
    (one case per rule) and `detectCycles`.
-3. Add `tickets/tools/go/archive_test.go` covering
-   `parseLogTimestamp`.
+3. ~~Add `tickets/tools/go/archive_test.go` covering
+   `parseLogTimestamp`.~~ DROPPED: `parseLogTimestamp` does not exist
+   in the codebase (`archive.go` was never added). No coverage gap.
 4. Keep tests pure — no filesystem fixtures except via `t.TempDir()`.
 5. Naming: `TestParseErg_CRLF`, `TestDetectCycles_SelfLoop`, etc.
 
@@ -49,6 +51,8 @@ convention; can run in parallel if we agree on a layout up front.
 
 ## Exit criteria
 
-- All three `*_test.go` files committed.
+- Two `*_test.go` files committed (`ticket_test.go`, `validate_test.go`).
+  Action 3 (`archive_test.go`) was dropped — `parseLogTimestamp` does not
+  exist in the codebase.
 - Local `go test ./...` green.
 - Coverage report attached in PR description.
