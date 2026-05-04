@@ -6,11 +6,11 @@
 #   make install DEST=/path/to/project
 #
 # Installs:
-#   .claude/rules/tickets.md  Format spec (%erg v1)
-#   .claude/skills/           Slash commands (ticket-new, ticket-close, ticket-ready)
-#   .claude/settings.json     PostToolUse validation hook
-#   tickets/                  Ticket directory + archive + validator source
-#   .git/hooks/pre-commit     Validation on commit
+#   tickets/spec-erg-v1.md         Format spec (%erg v1)
+#   tickets/integration/skills/    Agent verbs (ticket-new, ticket-close, ticket-ready)
+#   tickets/integration/settings.json  PostToolUse validation hook (Claude)
+#   tickets/                       Ticket directory + validator source
+#   .git/hooks/pre-commit          Validation on commit
 #
 # Idempotent. Safe to re-run.
 
@@ -51,44 +51,38 @@ else
     ok "tickets/tools/go/ (validator source)"
 fi
 
-# --- Rules ---
-mkdir -p "$DEST/.claude/rules"
-if [ -f "$DEST/.claude/rules/tickets.md" ] && diff -q "$SRC/rules/tickets.md" "$DEST/.claude/rules/tickets.md" >/dev/null 2>&1; then
-    skip ".claude/rules/tickets.md"
+# --- Spec ---
+mkdir -p "$DEST/tickets"
+if [ -f "$DEST/tickets/spec-erg-v1.md" ] && diff -q "$SRC/tickets/spec-erg-v1.md" "$DEST/tickets/spec-erg-v1.md" >/dev/null 2>&1; then
+    skip "tickets/spec-erg-v1.md"
 else
-    cp "$SRC/rules/tickets.md" "$DEST/.claude/rules/"
-    ok ".claude/rules/tickets.md (format spec)"
+    cp "$SRC/tickets/spec-erg-v1.md" "$DEST/tickets/"
+    ok "tickets/spec-erg-v1.md (format spec)"
 fi
 
 # --- Skills ---
-mkdir -p "$DEST/.claude/skills"
-if [ -d "$DEST/.claude/skills/ticket-new" ] && diff -rq "$SRC/claude/skills/" "$DEST/.claude/skills/" >/dev/null 2>&1; then
-    skip ".claude/skills/"
+mkdir -p "$DEST/tickets/integration/skills"
+if [ -d "$DEST/tickets/integration/skills/ticket-new" ] && diff -rq "$SRC/tickets/integration/skills/" "$DEST/tickets/integration/skills/" >/dev/null 2>&1; then
+    skip "tickets/integration/skills/"
 else
-    cp -r "$SRC/claude/skills/"* "$DEST/.claude/skills/"
-    ok ".claude/skills/ (ticket-new, ticket-close, ticket-ready)"
+    cp -r "$SRC/tickets/integration/skills/"* "$DEST/tickets/integration/skills/"
+    ok "tickets/integration/skills/ (ticket-new, ticket-close, ticket-ready)"
 fi
 
 # --- Settings (hooks) ---
-if [ -f "$DEST/.claude/settings.json" ] && grep -qF "erg validate" "$DEST/.claude/settings.json" 2>/dev/null; then
-    skip ".claude/settings.json"
+mkdir -p "$DEST/tickets/integration"
+if [ -f "$DEST/tickets/integration/settings.json" ] && grep -qF "erg validate" "$DEST/tickets/integration/settings.json" 2>/dev/null; then
+    skip "tickets/integration/settings.json"
 else
-    if [ -f "$DEST/.claude/settings.json" ]; then
+    if [ -f "$DEST/tickets/integration/settings.json" ]; then
         # Don't overwrite existing settings — warn user
-        echo "  ! .claude/settings.json exists — merge manually from claude/settings.json"
-        echo "    Merge the PostToolUse validation hook from claude/settings.json"
+        echo "  ! tickets/integration/settings.json exists — merge manually from tickets/integration/settings.json"
+        echo "    Merge the PostToolUse validation hook from tickets/integration/settings.json"
     else
-        cp "$SRC/claude/settings.json" "$DEST/.claude/settings.json"
-        ok ".claude/settings.json (validation hook)"
+        cp "$SRC/tickets/integration/settings.json" "$DEST/tickets/integration/settings.json"
+        ok "tickets/integration/settings.json (validation hook)"
     fi
 fi
-
-# --- Ticket directories ---
-mkdir -p "$DEST/tickets/archive"
-if [ ! -f "$DEST/tickets/archive/.gitkeep" ]; then
-    touch "$DEST/tickets/archive/.gitkeep"
-fi
-ok "tickets/ and tickets/archive/"
 
 # --- .gitignore ---
 GITIGNORE_LINE="tickets/tools/go/erg"
@@ -110,12 +104,12 @@ if [ -f "$HOOK_FILE" ] && grep -qF "$MARKER" "$HOOK_FILE"; then
 else
     if [ -f "$HOOK_FILE" ]; then
         printf '\n%s begin\n' "$MARKER" >> "$HOOK_FILE"
-        tail -n +2 "$SRC/hooks/pre-commit" >> "$HOOK_FILE"
+        tail -n +2 "$SRC/tickets/integration/hooks/pre-commit" >> "$HOOK_FILE"
         printf '%s end\n' "$MARKER" >> "$HOOK_FILE"
     else
         mkdir -p "$DEST/.git/hooks"
         printf '#!/bin/sh\n\n%s begin\n' "$MARKER" > "$HOOK_FILE"
-        tail -n +2 "$SRC/hooks/pre-commit" >> "$HOOK_FILE"
+        tail -n +2 "$SRC/tickets/integration/hooks/pre-commit" >> "$HOOK_FILE"
         printf '%s end\n' "$MARKER" >> "$HOOK_FILE"
     fi
     chmod +x "$HOOK_FILE"
