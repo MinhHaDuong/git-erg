@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-05-04 — archived closed tickets under `tickets/closed/`; updated load/next-id behavior to scan recursively; distribution design split into 0032/0033/0034._
+_Last updated: 2026-05-04 — archived closed tickets under `tickets/closed/`; corrected next-id to scan non-recursively (spec compliance); distribution design split into 0032/0033/0034._
 
 ## Stats
 
