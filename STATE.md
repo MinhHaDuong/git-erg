@@ -1,20 +1,21 @@
 # State — git-erg
 
-_Last updated: 2026-05-04 — closed 0026/0027/0028/0029/0033/0035 (merged PRs); filed 0036/0037; all open tickets are ready._
+_Last updated: 2026-05-04 — merged PR #46 (ticket 0041: validate/check split); tickets 0037 and 0041 closed; spec-erg-v1.md updated; PRs #48 and #49 open._
 
 ## Stats
 
-- Tickets: 31 total — 26 closed, 5 open (3 ready + fixtures 0001/0002 in archive/)
-- Tests: green
-- Open PRs: none
+- Tickets: 41 total — 27 closed, 14 open (4 ready + fixtures/archived)
+- Tests: green (140 tests)
+- Open PRs: #48 (0038 fix test_ready.sh), #49 (0036 regression doc)
 
 ## Ready to work
 
 | #    | Title                                                              | Notes |
 |------|--------------------------------------------------------------------|-------|
-| 0008 | Add erg pick command: mechanical shortlist for the IDH pick-ticket skill | Body references deprecated Status: workflow — refresh before executing |
-| 0036 | Add standing regression check for shell test binary defaults       | Follow-up from 0035 |
-| 0037 | Make `erg validate` non-recursive by default                       | Spec already states non-recursive; implementation gap |
+| 0036 | Add standing regression check for shell test binary defaults       | PR #49 open — awaiting merge |
+| 0038 | Fix dead grep and missing trap cleanup in test_ready.sh            | PR #48 open — awaiting merge |
+| 0039 | Add `erg log <id> <line>` command                                  | New — append log entries atomically |
+| 0040 | Add `erg new` command — create ticket file atomically              | New — companion to 0039 |
 
 ## Blocked
 
@@ -22,14 +23,15 @@ None.
 
 ## Sequencing
 
-1. **0037** (`erg validate` non-recursive) — self-contained, low risk.
-2. **0036** (regression test for binary defaults) — self-contained.
-3. **0008** (`erg pick` command) — depends on ticket body refresh first; larger scope.
+1. **#48 / 0038** (fix test_ready.sh) — already in PR, merge first.
+2. **#49 / 0036** (regression doc) — already in PR, merge second.
+3. **0039** (`erg log`) and **0040** (`erg new`) — independent, can run in parallel.
+4. **0008** (`erg pick` command) — body references deprecated workflow; needs refresh before executing.
 
 ## Notes
 
+- **`erg validate` is now file-only.** As of PR #46, `erg validate <files>` takes explicit file args; `erg check [dir]` does corpus-level validation (IDs, cycles, refs, folder closure). All callers updated.
 - **`Status:` is no longer part of the format.** Closure is derived from the path component test or a `Closed:` preamble header. `erg validate` rejects any `Status:` line; `erg migrate` is the only command that tolerates it (to convert it).
-- **Closed-in-place tickets**: 0026/0027/0028/0029/0033/0035 live in `tickets/` with `Closed:` headers — not yet moved to `tickets/closed/`. Safe to archive when convenient.
-- **Fixture tickets 0001/0002** live in `tickets/archive/` without `Closed:` headers — `erg ready` surfaces them as open because `archive/` is not a closed path. Leave as-is; they are not actionable work.
+- **Fixture tickets 0001/0002** live in `tickets/archive/` without `Closed:` headers — `erg ready` may surface them. Leave as-is; not actionable work.
 
 Autonomous-run policy is maintained in `AGENTS.md`.
