@@ -2,11 +2,13 @@
 Title: Implement erg validate <files> and erg check [dir] — split validation commands
 Created: 2026-05-04
 Author: claude
+Closed: merged in PR #46 — validate/check split implemented, all 140 tests green
 
 --- log ---
 2026-05-04T22:30Z claude reimagine — blast radius: Makefile:39, integration/settings.json:12, README.md:58, spec-erg-v1.md:265, test_validate.sh (8 dir-arg tests → test_check.sh), tests/README.md, main.go usage, test_migrate.sh:150 (dir arg). Spec decision: validate rejects dir args entirely (files only), superseding 0037 dir support. check runs validateAll (per-file + corpus) plus folder closure. Makefile validate target calls erg check.
 2026-05-04T21:45Z claude created — follow-up to 0037 design work
 2026-05-04T20:56Z claude note blocker 0037 closed — Blocked-by removed
+2026-05-04T21:38Z claude closed — merged in PR #46 — validate/check split implemented, all 140 tests green
 --- body ---
 ## Context
 
