@@ -11,7 +11,7 @@ pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
 mkdir -p "$FIXTURES/ready"
-trap 'rm -rf "$FIXTURES/ready"' EXIT
+trap 'rm -rf "$FIXTURES/ready"; git branch -D test/0098-claim 2>/dev/null || true' EXIT
 
 echo "=== erg ready ==="
 
@@ -376,9 +376,6 @@ git branch test/0098-claim 2>/dev/null || true
 output=$($ERG ready --json "$FIXTURES/ready")
 claimed_ok=false
 ready_ok=false
-if echo "$output" | grep '"id": "0098"' | grep -q '"claimed": true'; then
-    claimed_ok=true
-fi
 # Parse the 0098 entry: find ready field on the same JSON object
 entry=$(echo "$output" | tr '\n' ' ' | grep -o '{[^}]*"id": "0098"[^}]*}')
 if echo "$entry" | grep -q '"claimed": true'; then
