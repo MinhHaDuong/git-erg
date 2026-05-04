@@ -11,7 +11,10 @@
 #   make ready      List ready tickets
 #   make install-erg-binary              Install erg to ~/.local/bin
 
-.PHONY: build test validate ready clean install-erg-binary update-bootstrap-binary
+TEST_SUITES := validate ready update close migrate nextid init main
+TEST_TARGETS := $(TEST_SUITES:%=test-%)
+
+.PHONY: build test _test-lint $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary
 
 ERG_BIN := $(CURDIR)/build/erg
 BOOTSTRAP_BIN := $(CURDIR)/tickets/tools/go/erg
@@ -20,19 +23,16 @@ build:
 	mkdir -p build
 	cd tickets/tools/go && go build -o $(ERG_BIN) .
 
-test: build
+_test-lint:
 	@if grep -R -n 'ERG="$${ERG_BIN:-tickets/tools/go/erg}"' tests/*.sh >/dev/null; then \
 		echo "ERROR: tests must default ERG to build/erg (found legacy tickets/tools/go/erg default)" >&2; \
 		exit 1; \
 	fi
-	@ERG_BIN=$(ERG_BIN) sh tests/test_validate.sh
-	@ERG_BIN=$(ERG_BIN) sh tests/test_ready.sh
-	@ERG_BIN=$(ERG_BIN) sh tests/test_update.sh
-	@ERG_BIN=$(ERG_BIN) sh tests/test_close.sh
-	@ERG_BIN=$(ERG_BIN) sh tests/test_migrate.sh
-	@ERG_BIN=$(ERG_BIN) sh tests/test_nextid.sh
-	@ERG_BIN=$(ERG_BIN) sh tests/test_init.sh
-	@ERG_BIN=$(ERG_BIN) sh tests/test_main.sh
+
+$(TEST_TARGETS): test-%: build _test-lint
+	@ERG_BIN=$(ERG_BIN) sh tests/test_$*.sh
+
+test: $(TEST_TARGETS)
 	@echo "ALL TESTS PASSED"
 
 validate: build

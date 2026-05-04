@@ -57,7 +57,7 @@ If the test checks **what a command does**, use an ephemeral directory.
 
 ## Parallel safety
 
-Each test file is self-contained (private `mktemp -d`, no shared mutable state), so suites are safe to run concurrently. The `make test` recipe runs them sequentially; invoke `sh tests/test_<cmd>.sh` directly if you need to run suites in parallel.
+Each test file is self-contained (private `mktemp -d`, no shared mutable state), so suites are safe to run concurrently. Use `make -j test` to run all suites in parallel, or `make test-<cmd>` to run a single suite.
 
 ## Shell hygiene
 
