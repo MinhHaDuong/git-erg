@@ -343,5 +343,87 @@ else
     fail "unknown blocker: ticket is ready and WARNING on stderr with ID (stdout: $stdout) (stderr: $stderr)"
 fi
 
+# --- Unclaimed ticket has claimed=false in JSON ---
+rm -f "$FIXTURES/ready/"*.erg
+cat > "$FIXTURES/ready/0091-unclaimed.erg" <<'EOF'
+%erg v1
+Title: Unclaimed ticket
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+output=$($ERG ready --json "$FIXTURES/ready")
+if echo "$output" | grep -q '"claimed": false'; then
+    pass "unclaimed ticket has claimed=false in JSON"
+else
+    fail "unclaimed ticket has claimed=false in JSON (output: $output)"
+fi
+
+# --- Claimed ticket (local branch exists) has claimed=true, ready=false ---
+rm -f "$FIXTURES/ready/"*.erg
+cat > "$FIXTURES/ready/0098-claimable.erg" <<'EOF'
+%erg v1
+Title: Claimable ticket
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+git branch test/0098-claim 2>/dev/null || true
+output=$($ERG ready --json "$FIXTURES/ready")
+claimed_ok=false
+ready_ok=false
+if echo "$output" | grep '"id": "0098"' | grep -q '"claimed": true'; then
+    claimed_ok=true
+fi
+# Parse the 0098 entry: find ready field on the same JSON object
+entry=$(echo "$output" | tr '\n' ' ' | grep -o '{[^}]*"id": "0098"[^}]*}')
+if echo "$entry" | grep -q '"claimed": true'; then
+    claimed_ok=true
+fi
+if echo "$entry" | grep -q '"ready": false'; then
+    ready_ok=true
+fi
+if [ "$claimed_ok" = "true" ] && [ "$ready_ok" = "true" ]; then
+    pass "claimed ticket has claimed=true and ready=false"
+else
+    fail "claimed ticket has claimed=true and ready=false (output: $output)"
+fi
+
+# --- Human-readable output shows "Claimed" section ---
+output=$($ERG ready "$FIXTURES/ready")
+if echo "$output" | grep -q "Claimed"; then
+    pass "human-readable output shows Claimed section"
+else
+    fail "human-readable output shows Claimed section (output: $output)"
+fi
+git branch -D test/0098-claim 2>/dev/null || true
+
+# --- Offline-safe: no-remote repo doesn't crash ---
+tmpdir=$(mktemp -d)
+(
+    cd "$tmpdir" && git init -q && mkdir tickets && \
+    cat > tickets/0001-foo.erg <<'EOF'
+%erg v1
+Title: Offline test
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+    $ERG ready --json tickets/
+)
+rc=$?
+rm -rf "$tmpdir"
+if [ "$rc" -eq 0 ]; then
+    pass "offline-safe: no-remote repo doesn't crash"
+else
+    fail "offline-safe: no-remote repo doesn't crash (exit code: $rc)"
+fi
+
 echo "ready: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

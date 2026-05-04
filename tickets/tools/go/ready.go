@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -16,6 +18,7 @@ type readyEntry struct {
 	id, title, file string
 	tags            []string
 	ready           bool
+	claimed         bool
 	blockedBy       []blockedByEntry
 }
 
@@ -24,6 +27,28 @@ var skipReadyTags = map[string]bool{
 	"deferred":        true,
 	"post-talk":       true,
 	"post-conference": true,
+}
+
+// isBranchClaimed reports whether any local or remote git branch name
+// contains the given 4-digit ticket ID. Remote branch check is best-effort:
+// if it fails (no remote, no network), the ticket is treated as unclaimed.
+func isBranchClaimed(id string) bool {
+	pattern := "*" + id + "*"
+	// Local branches
+	cmd := exec.Command("git", "branch", "--list", pattern)
+	cmd.Stderr = io.Discard
+	out, err := cmd.Output()
+	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
+		return true
+	}
+	// Remote branches (best-effort — skip on error)
+	cmd = exec.Command("git", "branch", "-r", "--list", pattern)
+	cmd.Stderr = io.Discard
+	out, err = cmd.Output()
+	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
+		return true
+	}
+	return false
 }
 
 // cmdReady implements `erg ready [dir] [--json]`.
@@ -106,7 +131,15 @@ func cmdReady(args []string) int {
 			}
 		}
 
-		entry := readyEntry{tid, t.Title(), t.Filename(), tags, !blocked, blockedBy}
+		claimed := false
+		if !blocked {
+			claimed = isBranchClaimed(tid)
+			if claimed {
+				blocked = true
+			}
+		}
+
+		entry := readyEntry{tid, t.Title(), t.Filename(), tags, !blocked, claimed, blockedBy}
 		openEntries = append(openEntries, entry)
 		if !blocked {
 			ready = append(ready, entry)
@@ -131,6 +164,11 @@ func cmdReady(args []string) int {
 				readyJSON := "false"
 				if r.ready {
 					readyJSON = "true"
+				}
+
+				claimedJSON := "false"
+				if r.claimed {
+					claimedJSON = "true"
 				}
 
 				tagJSON := "[]"
@@ -161,8 +199,8 @@ func cmdReady(args []string) int {
 					blockedByJSON += "]"
 				}
 
-				fmt.Printf("  {\n    \"id\": \"%s\",\n    \"title\": \"%s\",\n    \"file\": \"%s\",\n    \"ready\": %s,\n    \"tags\": %s,\n    \"blocked_by\": %s\n  }%s\n",
-					jsonEscape(r.id), jsonEscape(r.title), jsonEscape(r.file), readyJSON, tagJSON, blockedByJSON, comma)
+				fmt.Printf("  {\n    \"id\": \"%s\",\n    \"title\": \"%s\",\n    \"file\": \"%s\",\n    \"ready\": %s,\n    \"claimed\": %s,\n    \"tags\": %s,\n    \"blocked_by\": %s\n  }%s\n",
+					jsonEscape(r.id), jsonEscape(r.title), jsonEscape(r.file), readyJSON, claimedJSON, tagJSON, blockedByJSON, comma)
 			}
 			fmt.Println("]")
 		}
@@ -178,6 +216,23 @@ func cmdReady(args []string) int {
 		} else {
 			fmt.Printf("Ready tickets (%d):\n", len(ready))
 			for _, r := range ready {
+				tagsSuffix := ""
+				if len(r.tags) > 0 {
+					tagsSuffix = fmt.Sprintf(" (tags: %s)", strings.Join(r.tags, ", "))
+				}
+				fmt.Printf("  %-8s %-40s %s%s\n", r.id, r.file, r.title, tagsSuffix)
+			}
+		}
+
+		var claimedEntries []readyEntry
+		for _, e := range openEntries {
+			if e.claimed {
+				claimedEntries = append(claimedEntries, e)
+			}
+		}
+		if len(claimedEntries) > 0 {
+			fmt.Printf("\nClaimed tickets (%d):\n", len(claimedEntries))
+			for _, r := range claimedEntries {
 				tagsSuffix := ""
 				if len(r.tags) > 0 {
 					tagsSuffix = fmt.Sprintf(" (tags: %s)", strings.Join(r.tags, ", "))
