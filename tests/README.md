@@ -55,6 +55,14 @@ If the test checks **what a command does**, use an ephemeral directory.
 * Prefer explicit `pass()` / `fail()` labels.
 * Do not mutate files under `tests/fixtures/`.
 
+## Binary defaults
+
+Test scripts must default `ERG` to `build/erg`, not the legacy bootstrap
+path `tickets/tools/go/erg`. Override via the `ERG_BIN` environment variable
+when needed. The Makefile `_test-lint` target enforces this on every
+`make test` run and will fail the build if any test reintroduces the
+forbidden default.
+
 ## Parallel safety
 
 Each test file is self-contained (private `mktemp -d`, no shared mutable state), so suites are safe to run concurrently. Use `make -j test` to run all suites in parallel, or `make test-<cmd>` to run a single suite.

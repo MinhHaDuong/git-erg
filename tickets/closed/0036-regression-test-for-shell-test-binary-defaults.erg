@@ -2,10 +2,13 @@
 Title: add standing regression check for shell test binary defaults
 Created: 2026-05-04
 Author: claude
+Closed: done — lint guard + documentation
 Blocked-by: 0035
 
 --- log ---
 2026-05-04T19:26Z claude created — class-shape follow-up from celebrate sweep: prevent default-binary regression in future test scripts
+2026-05-04T23:00Z claude reimagined — lint guard already exists in _test-lint; only documentation missing
+2026-05-04T23:01Z claude status closed — documentation added, all exit criteria met
 
 --- body ---
 ## Context
