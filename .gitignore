@@ -6,3 +6,8 @@
 
 # Operational logs
 beat-log.jsonl
+
+.claude/settings.local.json
+.claude/worktrees/
+.claude/sweep-state/
+.claude/.cache/
