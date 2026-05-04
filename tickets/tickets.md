@@ -15,8 +15,7 @@ Tickets are committed to git and travel with the repo.
 This file is normative. It defines the %erg v1 format and validator rules.
 The Go `erg` validator is the reference implementation and enforces these rules at commit time.
 Any divergence between this document and the validator must be resolved by aligning the specification with the enforced behavior.
-Rationale and design decisions are documented in `docs/pep-erg-v1.md`.
-An informative grammar is available in `docs/grammar-erg-v1.md`.
+Rationale and design decisions are documented in `pep-erg-v1.md`.
 
 ## File format
 
