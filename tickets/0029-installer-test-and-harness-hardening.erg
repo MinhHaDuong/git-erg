@@ -7,6 +7,7 @@ Author: claude
 2026-05-03T14:16Z claude created — surfaced by test-coverage audit; installer + harness gaps independent of CLI coverage
 2026-05-04T11:50Z copilot retargeted — 0023 resolved bootstrap around erg init/uninstall; obsolete install.sh/.claude expectations replaced with init/uninstall round-trip coverage
 2026-05-04T21:00Z claude note partial coverage — wave 2 (ticket 0032) implemented tests/test_init_uninstall.sh with 15 round-trip tests covering init/uninstall; remaining scope is harness hardening: set -u, per-test fixture dirs, parallel-safety
+2026-05-04T22:30Z claude bump verify-reroll — round 1: CI failed on 26fefaf (FAIL: real tickets pass — Blocked-by: 0032 in ticket 0029 while 0032 is in archive/ not closed/); head commit 36000ea has no CI run; rebase + fix + green CI required
 
 --- body ---
 ## Context
