@@ -27,6 +27,7 @@ test: build
 	@ERG_BIN=$(ERG_BIN) sh tests/test_close.sh
 	@ERG_BIN=$(ERG_BIN) sh tests/test_migrate.sh
 	@ERG_BIN=$(ERG_BIN) sh tests/test_nextid.sh
+	@ERG_BIN=$(ERG_BIN) sh tests/test_init_uninstall.sh
 	@echo "ALL TESTS PASSED"
 
 validate: build

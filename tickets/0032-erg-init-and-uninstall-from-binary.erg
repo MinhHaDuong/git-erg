@@ -3,10 +3,12 @@ Title: implement erg init/uninstall from embedded assets
 Created: 2026-05-04
 Author: copilot
 Blocked-by: 0023
+Closed: implemented: init/uninstall commands with embedded assets, idempotent fragments, and round-trip tests
 
 --- log ---
 2026-05-04T11:35Z copilot created — split from 0023 after design resolution; bootstrap/uninstall is now the primary distribution path
 
+2026-05-04T18:39Z claude closed — implemented: init/uninstall commands with embedded assets, idempotent fragments, and round-trip tests
 --- body ---
 ## Context
 

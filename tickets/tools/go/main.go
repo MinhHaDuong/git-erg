@@ -8,6 +8,8 @@
 //	erg next-id  [dir]
 //	erg close    <id|file> <reason> [dir]
 //	erg migrate  [dir]
+//	erg init     [dir]
+//	erg uninstall [dir]
 //	erg version
 //	erg update
 package main
@@ -26,6 +28,8 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "  next-id [dir]             Print the next available ticket ID")
 	fmt.Fprintln(os.Stderr, "  close <id|file> <reason> [dir]  Close a ticket atomically")
 	fmt.Fprintln(os.Stderr, "  migrate [dir]             Convert legacy Status: headers to Closed: form")
+	fmt.Fprintln(os.Stderr, "  init [dir]                Bootstrap tickets/ support files from embedded assets")
+	fmt.Fprintln(os.Stderr, "  uninstall [dir]           Remove files/fragments managed by `erg init`")
 	fmt.Fprintln(os.Stderr, "  version                   Print sha256 of this binary")
 	fmt.Fprintln(os.Stderr, "  update                    Fetch and replace binary from origin")
 }
@@ -51,6 +55,10 @@ func main() {
 		exitCode = cmdClose(rest)
 	case "migrate":
 		exitCode = cmdMigrate(rest)
+	case "init":
+		exitCode = cmdInit(rest)
+	case "uninstall":
+		exitCode = cmdUninstall(rest)
 	case "version":
 		exitCode = cmdVersion(rest)
 	case "update":
