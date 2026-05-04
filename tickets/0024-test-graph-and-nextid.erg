@@ -2,11 +2,13 @@
 Title: add integration tests for `erg next-id`
 Created: 2026-05-03
 Author: claude
+Closed: already implemented — tests/test_nextid.sh and Makefile wiring already in main
 
 --- log ---
 2026-05-03T14:16Z claude created — surfaced by test-coverage audit; both commands ship in the public CLI with zero tests
 2026-05-03T17:47Z claude rescoped — erg graph removed from binary; ticket now covers next-id only
 
+2026-05-04T16:47Z claude closed — already implemented — tests/test_nextid.sh and Makefile wiring already in main
 --- body ---
 ## Context
 
