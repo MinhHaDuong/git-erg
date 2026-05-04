@@ -1,0 +1,45 @@
+%erg v1
+Title: add integration tests for `erg next-id`
+Created: 2026-05-03
+Author: claude
+Closed: implemented: next-id now non-recursive; integration tests enforce archive subdir ignored
+
+--- log ---
+2026-05-03T14:16Z claude created — surfaced by test-coverage audit; both commands ship in the public CLI with zero tests
+2026-05-03T17:47Z claude rescoped — erg graph removed from binary; ticket now covers next-id only
+
+2026-05-04T18:33Z claude closed — implemented: next-id now non-recursive; integration tests enforce archive subdir ignored
+--- body ---
+## Context
+
+`tickets/tools/go/nextid.go` (40 LOC) — scans the specified directory
+(default `tickets/`), returns `max+1` zero-padded. Per the archiving
+rule (rules/tickets.md), `next-id` reads only the files directly in
+`dir` — it does **not** recurse into subdirectories. Archived tickets
+in `archive/` are intentionally outside scope.
+
+No tests exist for empty dir, gaps in the sequence, subdirectory
+scoping, or non-`.erg` files.
+
+(Originally also covered `erg graph`; that command has since been
+removed from the binary in favor of a `Blocked-by:` grep recipe in
+the README, so its test coverage is no longer needed.)
+
+## Actions
+
+1. Add `tests/test_nextid.sh`. Cover:
+   - Missing dir → `0001`.
+   - Existing empty dir → `0001`.
+   - Single ticket `0042-foo.erg` → `0043`.
+   - Gap in sequence (`0001`, `0005` only) → `0006`.
+   - IDs in `archive/` subdirectory are NOT counted (non-recursive).
+   - Non-`.erg` files ignored (`0099-foo.txt`, `notes.erg`).
+   - Custom dir argument is used (not hardcoded default).
+2. Wire it into `Makefile`'s `test` target.
+
+## Exit criteria
+
+- `make test` runs and passes the new suite.
+- CI green.
+- A deliberate regression in `nextid.go` (e.g. hardcode dir) is
+  caught by the new tests.

@@ -49,7 +49,7 @@ func parseRef(raw string) (Ref, error) {
 	if len(raw) == 4 && allDigits(raw) {
 		return Ref{Raw: raw, Kind: RefLocal, ID: raw}, nil
 	}
-	
+
 	// Reject old gh: and gh# forms.
 	if strings.HasPrefix(raw, "gh:") {
 		return Ref{Raw: raw}, fmt.Errorf(
@@ -73,7 +73,7 @@ func parseRef(raw string) (Ref, error) {
 	if hashIdx > 0 {
 		hostOwnerRepo := raw[:hashIdx]
 		num := raw[hashIdx+1:]
-		
+
 		// Split host / owner / repo.
 		parts := strings.Split(hostOwnerRepo, "/")
 		if len(parts) == 3 {
