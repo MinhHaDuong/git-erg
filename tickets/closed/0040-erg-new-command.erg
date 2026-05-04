@@ -1,0 +1,34 @@
+%erg v1
+Title: Add erg new command — create a ticket file atomically
+Created: 2026-05-04
+Author: claude
+Closed: done — erg new command implemented, flags dropped per YAGNI
+--- log ---
+2026-05-04T22:00Z claude created — needed by IDH/0057: ticket-new skill writes .erg files directly via Edit/Write tools; routing through binary eliminates permission friction
+
+2026-05-04T21:53Z claude closed — done — erg new command implemented, flags dropped per YAGNI
+--- body ---
+## Context
+
+IDH's `ticket-new` skill creates `.erg` files via direct Write tool calls.
+This hits the Claude Code permission layer. A binary command makes creation
+atomic and permission-free.
+
+## Actions
+
+Implement `erg new <title> [dir]`:
+- Call `erg next-id` internally to get the next ID
+- Prompt or accept `--author`, `--created` flags (default: current user, today)
+- Write a minimal valid v1 ticket with Title, Created, Author, log separator,
+  body separator
+- Output: the new filename (e.g., `0042-my-title.erg`)
+
+Slug generation: lowercase the title, replace spaces/special chars with `-`,
+truncate to 40 chars.
+
+## Exit criteria
+
+- `erg new "Add branch-as-claim to erg ready"` creates `NNNN-add-branch-as-claim-to-erg-ready.erg`
+- File passes `erg validate`
+- ID is the correct next sequential ID
+- Test: create in temp dir, validate, check filename and content
