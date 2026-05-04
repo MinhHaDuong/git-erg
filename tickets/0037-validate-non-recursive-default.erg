@@ -2,10 +2,12 @@
 Title: make `erg validate` non-recursive by default
 Created: 2026-05-04
 Author: claude
+Closed: superseded — redesigned as validate/check split (ticket 0041)
 
 --- log ---
 2026-05-04T20:16Z claude created — surfaced during PR #34 review; policy gap causes spurious duplicate-ID errors from archive/ subdirs
 
+2026-05-04T21:23Z claude closed — superseded — redesigned as validate/check split (ticket 0041)
 --- body ---
 ## Context
 
