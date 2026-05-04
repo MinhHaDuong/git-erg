@@ -1,0 +1,53 @@
+%erg v1
+Title: Fix dead grep and missing trap cleanup in test_ready.sh claimed tests
+Created: 2026-05-04
+Author: claude
+
+--- log ---
+2026-05-04T22:30Z claude created — two hygiene findings from PR #43 review
+
+--- body ---
+## Context
+
+PR #43 review identified two minor hygiene issues in the new claimed-ticket
+tests added to `tests/test_ready.sh`:
+
+1. **Dead grep** (line ~379): `echo "$output" | grep '"id": "0098"' | grep -q '"claimed": true'`
+   never fires because `"id"` and `"claimed"` are on separate lines in the
+   multi-line JSON output. The `claimed_ok` flag is always set by the fallback
+   `tr '\n' ' '` block below it. The dead path is confusing to read.
+
+2. **Missing trap cleanup** for `test/0098-claim` branch: the branch is created
+   mid-test but is only cleaned up on the happy path. If the test fails between
+   creation (line ~375) and deletion (line ~403), the branch persists and will
+   cause false `claimed=true` results in future test runs.
+
+## Actions
+
+1. Remove the dead `grep '"id": "0098"'` pipe (lines ~378-381 in test_ready.sh).
+   The fallback logic (`tr '\n' ' '` + `grep -o '{[^}]*"id": "0098"[^}]*}'`)
+   already handles multi-line JSON correctly; keep only that path.
+
+2. Add `test/0098-claim` to the EXIT trap so it is always cleaned up:
+   ```sh
+   trap 'rm -rf "$FIXTURES/ready"; git branch -D test/0098-claim 2>/dev/null || true' EXIT
+   ```
+   Replace the existing trap at the top of the file (line ~14).
+
+## Test
+
+```sh
+# After the fix, introduce a deliberate failure between branch create and delete:
+# The branch must be gone after test exit regardless.
+git branch test/0098-claim 2>/dev/null || true
+sh tests/test_ready.sh || true
+git branch --list test/0098-claim   # must be empty
+```
+
+Also verify the full test suite still passes: `make test`.
+
+## Exit criteria
+
+- Dead grep block removed; `claimed_ok` detection uses only the `tr`-based path
+- `test/0098-claim` branch deleted by the EXIT trap even when tests fail mid-suite
+- `make test` passes (all 129 tests)
