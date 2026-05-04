@@ -253,7 +253,7 @@ fi
 rm -rf "$TDIR"
 TDIR=
 
-# --- gh#N references pass ---
+# --- gh#N references (deprecated) rejected ---
 cat > "$FIXTURES/0012-gh-ref.erg" <<'EOF'
 %erg v1
 Title: GitHub ref
@@ -265,12 +265,12 @@ Blocked-by: gh#435
 --- body ---
 EOF
 if $ERG validate "$FIXTURES/0012-gh-ref.erg" >/dev/null 2>&1; then
-    pass "gh#N reference accepted"
+    fail "gh#N reference (deprecated) rejected"
 else
-    fail "gh#N reference accepted"
+    pass "gh#N reference (deprecated) rejected"
 fi
 
-# --- gh:owner/repo#N cross-repo reference passes ---
+# --- gh:owner/repo#N cross-repo reference (deprecated) rejected ---
 cat > "$FIXTURES/0016-gh-cross.erg" <<'EOF'
 %erg v1
 Title: Cross-repo GitHub ref
@@ -282,9 +282,43 @@ Blocked-by: gh:anthropics/claude-code#1234
 --- body ---
 EOF
 if $ERG validate "$FIXTURES/0016-gh-cross.erg" >/dev/null 2>&1; then
-    pass "gh:owner/repo#N reference accepted"
+    fail "gh:owner/repo#N reference (deprecated) rejected"
 else
-    fail "gh:owner/repo#N reference accepted"
+    pass "gh:owner/repo#N reference (deprecated) rejected"
+fi
+
+# --- Forge-agnostic host/owner/repo#N reference passes ---
+cat > "$FIXTURES/0018-forge-ref.erg" <<'EOF'
+%erg v1
+Title: Forge-agnostic ref
+Created: 2026-01-01
+Author: a
+Blocked-by: github.com/anthropics/claude-code#1234
+
+--- log ---
+--- body ---
+EOF
+if $ERG validate "$FIXTURES/0018-forge-ref.erg" >/dev/null 2>&1; then
+    pass "host/owner/repo#N reference accepted"
+else
+    fail "host/owner/repo#N reference accepted"
+fi
+
+# --- GitLab forge ref passes ---
+cat > "$FIXTURES/0019-gitlab-ref.erg" <<'EOF'
+%erg v1
+Title: GitLab ref
+Created: 2026-01-01
+Author: a
+Blocked-by: gitlab.com/someorg/somerepo#42
+
+--- log ---
+--- body ---
+EOF
+if $ERG validate "$FIXTURES/0019-gitlab-ref.erg" >/dev/null 2>&1; then
+    pass "gitlab.com ref accepted"
+else
+    fail "gitlab.com ref accepted"
 fi
 
 # --- gh: with no owner/repo#N rejected ---
@@ -299,14 +333,14 @@ Blocked-by: gh:
 --- body ---
 EOF
 out=$($ERG validate "$FIXTURES/0017-gh-bare-colon.erg" 2>&1 || true)
-if echo "$out" | grep -q "malformed gh: ref"; then
+if echo "$out" | grep -q "deprecated"; then
     pass "gh: without owner/repo#N rejected"
 else
     fail "gh: without owner/repo#N rejected (got: $out)"
 fi
 
 # --- gh:owner/repo without #number rejected ---
-cat > "$FIXTURES/0018-gh-no-number.erg" <<'EOF'
+cat > "$FIXTURES/0020-gh-no-number.erg" <<'EOF'
 %erg v1
 Title: gh: missing number
 Created: 2026-01-01
@@ -316,15 +350,51 @@ Blocked-by: gh:anthropics/claude-code
 --- log ---
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0018-gh-no-number.erg" 2>&1 || true)
-if echo "$out" | grep -q "missing '#number'"; then
+out=$($ERG validate "$FIXTURES/0020-gh-no-number.erg" 2>&1 || true)
+if echo "$out" | grep -q "deprecated"; then
     pass "gh:owner/repo without #N rejected"
 else
     fail "gh:owner/repo without #N rejected (got: $out)"
 fi
 
-# --- gh: with invalid owner (leading dash) rejected ---
-cat > "$FIXTURES/0019-gh-bad-owner.erg" <<'EOF'
+# --- Malformed forge ref (missing host/owner/repo) rejected ---
+cat > "$FIXTURES/0021-bad-forge.erg" <<'EOF'
+%erg v1
+Title: Bad forge
+Created: 2026-01-01
+Author: a
+Blocked-by: host/repo#1
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0021-bad-forge.erg" 2>&1 || true)
+if echo "$out" | grep -q "malformed ref"; then
+    pass "forge ref missing owner rejected"
+else
+    fail "forge ref missing owner rejected (got: $out)"
+fi
+
+# --- Forge ref with zero issue number rejected ---
+cat > "$FIXTURES/0022-forge-zero-num.erg" <<'EOF'
+%erg v1
+Title: Forge zero number
+Created: 2026-01-01
+Author: a
+Blocked-by: github.com/foo/bar#0
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0022-forge-zero-num.erg" 2>&1 || true)
+if echo "$out" | grep -q "leading zero"; then
+    pass "forge ref with zero issue number rejected"
+else
+    fail "forge ref with zero issue number rejected (got: $out)"
+fi
+
+# --- gh: with invalid owner (leading dash) rejected (deprecated) ---
+cat > "$FIXTURES/0023-gh-bad-owner.erg" <<'EOF'
 %erg v1
 Title: Bad owner
 Created: 2026-01-01
@@ -334,15 +404,15 @@ Blocked-by: gh:-bad/repo#1
 --- log ---
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0019-gh-bad-owner.erg" 2>&1 || true)
-if echo "$out" | grep -q "starts with '-'"; then
-    pass "gh: with invalid owner rejected"
+out=$($ERG validate "$FIXTURES/0023-gh-bad-owner.erg" 2>&1 || true)
+if echo "$out" | grep -q "deprecated"; then
+    pass "gh: with invalid owner rejected (deprecated)"
 else
-    fail "gh: with invalid owner rejected (got: $out)"
+    fail "gh: with invalid owner rejected (deprecated) (got: $out)"
 fi
 
-# --- gh: with invalid repo (..) rejected ---
-cat > "$FIXTURES/0020-gh-bad-repo.erg" <<'EOF'
+# --- gh: with invalid repo (..) rejected (deprecated) ---
+cat > "$FIXTURES/0024-gh-bad-repo.erg" <<'EOF'
 %erg v1
 Title: Bad repo
 Created: 2026-01-01
@@ -352,15 +422,15 @@ Blocked-by: gh:owner/foo..bar#1
 --- log ---
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0020-gh-bad-repo.erg" 2>&1 || true)
-if echo "$out" | grep -q "contains '..'"; then
-    pass "gh: with invalid repo rejected"
+out=$($ERG validate "$FIXTURES/0024-gh-bad-repo.erg" 2>&1 || true)
+if echo "$out" | grep -q "deprecated"; then
+    pass "gh: with invalid repo rejected (deprecated)"
 else
-    fail "gh: with invalid repo rejected (got: $out)"
+    fail "gh: with invalid repo rejected (deprecated) (got: $out)"
 fi
 
-# --- Mixed-case scheme (GH#) rejected ---
-cat > "$FIXTURES/0021-gh-case.erg" <<'EOF'
+# --- Mixed-case scheme (GH#) rejected (case-sensitive) ---
+cat > "$FIXTURES/0025-gh-case.erg" <<'EOF'
 %erg v1
 Title: Wrong case
 Created: 2026-01-01
@@ -370,52 +440,52 @@ Blocked-by: GH#42
 --- log ---
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0021-gh-case.erg" 2>&1 || true)
+out=$($ERG validate "$FIXTURES/0025-gh-case.erg" 2>&1 || true)
 if echo "$out" | grep -q "case-sensitive"; then
     pass "GH# (wrong case) rejected"
 else
     fail "GH# (wrong case) rejected (got: $out)"
 fi
 
-# --- Leading-zero issue number rejected ---
-cat > "$FIXTURES/0022-gh-zero.erg" <<'EOF'
+# --- Leading-zero issue number in forge ref rejected ---
+cat > "$FIXTURES/0026-forge-zero.erg" <<'EOF'
 %erg v1
 Title: Leading-zero number
 Created: 2026-01-01
 Author: a
-Blocked-by: gh#042
+Blocked-by: github.com/foo/bar#042
 
 --- log ---
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0022-gh-zero.erg" 2>&1 || true)
+out=$($ERG validate "$FIXTURES/0026-forge-zero.erg" 2>&1 || true)
 if echo "$out" | grep -q "leading zero"; then
-    pass "gh#N with leading zero rejected"
+    pass "forge ref with leading zero rejected"
 else
-    fail "gh#N with leading zero rejected (got: $out)"
+    fail "forge ref with leading zero rejected (got: $out)"
 fi
 
-# --- Cross-repo cycle is impossible: gh: cannot create local cycle ---
+# --- Forge ref is parsed correctly (no local cycle error) ---
 mkdir -p "$FIXTURES/cross"
 cat > "$FIXTURES/cross/0001-one.erg" <<'EOF'
 %erg v1
 Title: One
 Created: 2026-01-01
 Author: a
-Blocked-by: gh:other/repo#42
+Blocked-by: github.com/other/repo#42
 
 --- log ---
 --- body ---
 EOF
 if $ERG validate "$FIXTURES/cross" >/dev/null 2>&1; then
-    pass "gh: cross-repo ref does not cause local cycle/unknown-id error"
+    pass "forge ref does not cause local cycle/unknown-id error"
 else
-    fail "gh: cross-repo ref does not cause local cycle/unknown-id error"
+    fail "forge ref does not cause local cycle/unknown-id error"
 fi
 rm -rf "$FIXTURES/cross"
 
 # --- Malformed log line fails ---
-cat > "$FIXTURES/0013-bad-log.erg" <<'EOF'
+cat > "$FIXTURES/0027-bad-log.erg" <<'EOF'
 %erg v1
 Title: Bad log
 Created: 2026-01-01
@@ -426,7 +496,7 @@ this is not valid
 
 --- body ---
 EOF
-if $ERG validate "$FIXTURES/0013-bad-log.erg" >/dev/null 2>&1; then
+if $ERG validate "$FIXTURES/0027-bad-log.erg" >/dev/null 2>&1; then
     fail "malformed log line rejected"
 else
     pass "malformed log line rejected"
