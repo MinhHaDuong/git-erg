@@ -2,10 +2,12 @@
 Title: erg close — remove Blocked-by refs from dependent tickets
 Created: 2026-05-03
 Author: claude
+Closed: implemented and tested — erg close now removes Blocked-by refs from dependent tickets
 
 --- log ---
 2026-05-03T00:00Z claude created — extends erg close to clean up dependents on closure
 
+2026-05-04T16:49Z claude closed — implemented and tested — erg close now removes Blocked-by refs from dependent tickets
 --- body ---
 ## Context
 
