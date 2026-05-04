@@ -34,8 +34,8 @@ $(TEST_TARGETS): test-%: build _test-lint
 	@ERG_BIN=$(ERG_BIN) sh tests/test_$*.sh
 
 unit-test: build
-	cd tickets/tools/go && go test -cover -coverprofile=$(CURDIR)/build/coverage.out ./...
-	cd tickets/tools/go && go tool cover -func=$(CURDIR)/build/coverage.out
+	cd tickets/tools/go && go test -cover -coverprofile=$(CURDIR)/build/coverage.out ./... && \
+		go tool cover -func=$(CURDIR)/build/coverage.out
 
 test: unit-test $(TEST_TARGETS)
 	@echo "ALL TESTS PASSED"
