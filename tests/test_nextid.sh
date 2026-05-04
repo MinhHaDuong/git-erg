@@ -41,6 +41,16 @@ else
     fail "single ticket 0042 returns 0043 (got: $out)"
 fi
 
+# --- Bare numeric filename 0042.erg → 0043 ---
+mkdir -p "$TDIR/bare"
+touch "$TDIR/bare/0042.erg"
+out=$($ERG next-id "$TDIR/bare")
+if [ "$out" = "0043" ]; then
+    pass "bare numeric filename 0042.erg returns 0043"
+else
+    fail "bare numeric filename 0042.erg returns 0043 (got: $out)"
+fi
+
 # --- Gap in sequence (0001, 0005) → 0006 ---
 mkdir -p "$TDIR/gap"
 touch "$TDIR/gap/0001-alpha.erg"
