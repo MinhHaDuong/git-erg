@@ -90,5 +90,16 @@ else
     FAIL=$((FAIL+1))
 fi
 
+# Test: erg update with 200 empty body exits 0 and stderr contains "empty body"
+printf '' > "$SRV_DIR/erg-empty"
+OUT=$(ERG_UPDATE_URL=http://127.0.0.1:$PORT/erg-empty "$ERG" update 2>&1 || true)
+if echo "$OUT" | grep -q "empty body"; then
+    echo "PASS: update empty-body 200 exits 0 and emits 'empty body'"
+    PASS=$((PASS+1))
+else
+    echo "FAIL: update empty-body 200: $OUT"
+    FAIL=$((FAIL+1))
+fi
+
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

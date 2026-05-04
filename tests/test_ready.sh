@@ -333,8 +333,10 @@ Blocked-by: 9999
 
 --- body ---
 EOF
-stdout=$($ERG ready "$FIXTURES/ready" 2>/dev/null)
-stderr=$($ERG ready "$FIXTURES/ready" 2>&1 >/dev/null || true)
+tmpout=$(mktemp); tmperr=$(mktemp)
+$ERG ready "$FIXTURES/ready" >"$tmpout" 2>"$tmperr" || true
+stdout=$(cat "$tmpout"); stderr=$(cat "$tmperr")
+rm -f "$tmpout" "$tmperr"
 if echo "$stdout" | grep -q "0050" && echo "$stderr" | grep -q "WARNING" && echo "$stderr" | grep -q "9999"; then
     pass "unknown blocker: ticket is ready and WARNING on stderr with ID"
 else

@@ -15,38 +15,29 @@ branches remain. None individually justify a ticket; bundling.
 
 ## Actions
 
-1. **`cmdValidate` argument plumbing** (`validate.go:232`):
-   - Pass a directory containing `archive/` with a colliding ID;
-     assert the "collides with archived ticket" error fires.
+1. **`cmdValidate` argument plumbing** (`validate.go`):
    - Pass a non-existent path; assert WARNING + non-fatal.
    - Pass a non-`.erg` file; assert WARNING + skip.
 2. **`close` edge cases** (`close.go`):
    - Ambiguous ID (two files match `0042-*.erg`); assert exit 1 +
      "ambiguous ID" message.
-   - Ticket missing the `--- log ---` separator; assert the fallback
-     at `close.go:71` runs and the file is rewritten predictably.
-3. **`main.go`** (`main.go:35`):
+   - Ticket missing the `--- log ---` separator; assert
+     `insertClosedHeader` returns an error and `close` exits 1.
+3. **`main.go`** (`main.go`):
    - No-args invocation prints usage, exit 1.
    - Unknown command prints usage, exit 1.
    - `-h` / `--help` / `help` all exit 0 with usage.
-4. **`selfupdate` error branches** (`selfupdate.go:70-79`):
+4. **`selfupdate` error branches** (`selfupdate.go`):
    - Server returns 404 → exit 0, stderr "server returned 404".
-   - Server returns 200 with empty body → behavior documented +
-     tested (pick: hash mismatch causes replace with empty file? Or
-     should we add a guard? See follow-on.)
-5. **`ready` warning emission** (`ready.go:64`):
+   - Server returns 200 with empty body → exit 0, stderr "empty body";
+     guard added before overwrite to prevent replacing binary with 0 bytes.
+5. **`ready` warning emission** (`ready.go`):
    - Ticket `Blocked-by` an unknown ID; assert the WARNING line
      appears on stderr, ticket still appears in ready output.
 
 Add to existing test files (`test_validate.sh`, `test_close.sh`,
 `test_update.sh`, `test_ready.sh`) plus a new `test_main.sh` for
 the top-level dispatch.
-
-## Follow-on
-
-- If `selfupdate` accepts an empty 200 body and overwrites the
-  binary, file a separate ticket to add a sanity check (min size,
-  ELF magic, etc.) before replace.
 
 ## Exit criteria
 
