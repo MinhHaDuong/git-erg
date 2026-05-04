@@ -3,10 +3,12 @@ Title: fill remaining uncovered branches across CLI commands
 Created: 2026-05-03
 Author: claude
 Blocked-by: 0024
+Closed: all actions covered — guard + test for empty-body 200, test redundancy removed, ticket text corrected; landed in PR #35
 
 --- log ---
 2026-05-03T14:16Z claude created — surfaced by test-coverage audit; bundles low-impact branch-coverage holes
 
+2026-05-04T20:10Z claude closed — all actions covered — guard + test for empty-body 200, test redundancy removed, ticket text corrected; landed in PR #35
 --- body ---
 ## Context
 
