@@ -249,7 +249,6 @@ else
     fail "blocked-by in closed subdir accepted"
 fi
 rm -rf "$TDIR"
-TDIR=
 
 # --- gh#N references (deprecated) rejected ---
 cat > "$FIXTURES/0012-gh-ref.erg" <<'EOF'

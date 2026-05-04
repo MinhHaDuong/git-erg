@@ -50,17 +50,14 @@ If the test checks **what a command does**, use an ephemeral directory.
 ## Constraints
 
 * POSIX `sh` only.
-* One test file per command: `tests/test_<cmd>.sh`.
+* One test file per command: `tests/test_<cmd>.sh`. Tightly coupled inverse commands (`init`/`uninstall`) may share a file.
 * Tests must exit non-zero on failure.
 * Prefer explicit `pass()` / `fail()` labels.
 * Do not mutate files under `tests/fixtures/`.
 
 ## Parallel safety
 
-Each test file is self-contained:
-- `test_validate.sh` uses a private `mktemp -d` for ephemeral fixtures.
-- All other test files already use `mktemp -d` or dedicated subdirectories.
-- Suites may be run in parallel: `make test` with `-j` flag.
+Each test file is self-contained (private `mktemp -d`, no shared mutable state), so suites are safe to run concurrently. The `make test` recipe runs them sequentially; invoke `sh tests/test_<cmd>.sh` directly if you need to run suites in parallel.
 
 ## Shell hygiene
 
