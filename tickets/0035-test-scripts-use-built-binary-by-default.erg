@@ -1,0 +1,38 @@
+%erg v1
+Title: make test scripts default to build/erg to avoid stale vendored binary runs
+Created: 2026-05-04
+Author: claude
+
+--- log ---
+2026-05-04T19:25Z claude created — celebrate sweep found repeated default-binary anti-pattern across shell tests
+
+--- body ---
+## Context
+
+During celebrate sweep after ticket verification hardening, we found the
+same anti-pattern in seven test scripts:
+
+- tests/test_close.sh
+- tests/test_init_uninstall.sh
+- tests/test_migrate.sh
+- tests/test_nextid.sh
+- tests/test_ready.sh
+- tests/test_update.sh
+- tests/test_validate.sh
+
+All default to `tickets/tools/go/erg` when `ERG_BIN` is unset. This can
+run a stale committed bootstrap binary when scripts are executed directly,
+instead of the freshly built `build/erg` used by `make test`.
+
+## Actions
+
+1. Update all shell tests to default `ERG` to `build/erg`.
+2. Keep `ERG_BIN` override support for explicit runners.
+3. Ensure `make test` still passes unchanged.
+4. Verify direct invocation of each script uses the rebuilt binary path.
+
+## Exit criteria
+
+- [ ] No test script defaults to `tickets/tools/go/erg`.
+- [ ] All test scripts default to `build/erg`.
+- [ ] `make test` and direct script runs remain green.

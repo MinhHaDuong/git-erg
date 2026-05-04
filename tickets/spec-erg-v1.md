@@ -220,6 +220,27 @@ A ticket is **ready** when:
   by default (fail-closed). Remove the forge ref from the ticket
   once you have verified the dependency is resolved.
 
+`erg ready --json [dir]` returns open tickets with structured
+readiness fields:
+
+```json
+{
+  "id": "0021",
+  "title": "ship feature X",
+  "file": "0021-ship-feature-x.erg",
+  "ready": false,
+  "tags": ["needs-human"],
+  "blocked_by": [
+    {"kind": "local", "id": "0017"},
+    {"kind": "forge", "ref": "github.com/org/repo#123"}
+  ]
+}
+```
+
+- `ready=true` implies `blocked_by` is empty.
+- `blocked_by` includes only currently blocking refs.
+- `tags` is always present (possibly empty).
+
 ## Closing a ticket
 
 `erg close <id|file> <reason> [dir]` closes a ticket atomically:

@@ -1,0 +1,29 @@
+%erg v1
+Title: add standing regression check for shell test binary defaults
+Created: 2026-05-04
+Author: claude
+Blocked-by: 0035
+
+--- log ---
+2026-05-04T19:26Z claude created — class-shape follow-up from celebrate sweep: prevent default-binary regression in future test scripts
+
+--- body ---
+## Context
+
+The anti-pattern in 0035 has a class shape: future test scripts can
+reintroduce stale-binary execution by defaulting to `tickets/tools/go/erg`.
+We need a standing guard that fails when this pattern reappears.
+
+## Actions
+
+1. Add a lightweight regression check to CI or local test harness that
+   scans `tests/*.sh` for forbidden default path `tickets/tools/go/erg`.
+2. Allow explicit override via `ERG_BIN` but require default path
+   `build/erg` for shell integration tests.
+3. Document the rule near test conventions.
+
+## Exit criteria
+
+- [ ] Regression check exists and runs in `make test` or CI.
+- [ ] Check fails if any test script defaults to `tickets/tools/go/erg`.
+- [ ] Rule documented for contributors/agents.
