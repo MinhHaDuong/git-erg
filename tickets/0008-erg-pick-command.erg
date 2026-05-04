@@ -2,6 +2,7 @@
 Title: Add branch-as-claim check to erg ready (D1 from 0066)
 Created: 2026-04-29
 Author: user
+Closed: done — branch-as-claim check implemented; merged as PR #43
 
 --- log ---
 2026-04-29T11:15Z claude created
@@ -12,6 +13,7 @@ Author: user
 2026-05-04T21:15Z claude note body refreshed — replaced Status: references with Tags:/Closed: per spec-erg-v1.md
 2026-05-04T21:30Z claude note rescoped — erg pick + pick-record design invalidated by IDH/0066 D4 (sweep cache removed); ticket narrowed to D1 gap: branch-as-claim check in erg ready
 2026-05-04T22:00Z claude note body rewritten to match rescope; test corrected to hermetic synthetic-ticket pattern
+2026-05-04T21:04Z claude closed — done — branch-as-claim check implemented; merged as PR #43
 --- body ---
 ## Context
 
