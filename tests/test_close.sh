@@ -222,5 +222,95 @@ else
     pass "non-existent ID exits non-zero"
 fi
 
+# --- Close removes Blocked-by refs from dependent open tickets ---
+cat > "$FIXTURES/8001-target.erg" <<'EOF'
+%erg v1
+Title: Target ticket to close
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+cat > "$FIXTURES/8002-dependent-a.erg" <<'EOF'
+%erg v1
+Title: Dependent A
+Created: 2026-01-01
+Author: claude
+Blocked-by: 8001
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+cat > "$FIXTURES/8003-dependent-b.erg" <<'EOF'
+%erg v1
+Title: Dependent B
+Created: 2026-01-01
+Author: claude
+Blocked-by: 8001
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+$ERG close 8001 "done" "$FIXTURES" > /dev/null
+if grep -q "Blocked-by: 8001" "$FIXTURES/8002-dependent-a.erg"; then
+    fail "close: Blocked-by removed from dependent A"
+else
+    pass "close: Blocked-by removed from dependent A"
+fi
+if grep -q "Blocked-by: 8001" "$FIXTURES/8003-dependent-b.erg"; then
+    fail "close: Blocked-by removed from dependent B"
+else
+    pass "close: Blocked-by removed from dependent B"
+fi
+if grep -q "blocker 8001 closed" "$FIXTURES/8002-dependent-a.erg"; then
+    pass "close: log entry added to dependent A"
+else
+    fail "close: log entry added to dependent A"
+fi
+if grep -q "blocker 8001 closed" "$FIXTURES/8003-dependent-b.erg"; then
+    pass "close: log entry added to dependent B"
+else
+    fail "close: log entry added to dependent B"
+fi
+
+# --- Close ticket with no dependents: other files untouched ---
+cat > "$FIXTURES/8010-solo.erg" <<'EOF'
+%erg v1
+Title: Solo ticket
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+cat > "$FIXTURES/8011-unrelated.erg" <<'EOF'
+%erg v1
+Title: Unrelated ticket
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+before=$(cat "$FIXTURES/8011-unrelated.erg")
+$ERG close 8010 "done" "$FIXTURES" > /dev/null
+after=$(cat "$FIXTURES/8011-unrelated.erg")
+if [ "$before" = "$after" ]; then
+    pass "close: no-dependent close leaves other files untouched"
+else
+    fail "close: no-dependent close leaves other files untouched"
+fi
+
 echo "close: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

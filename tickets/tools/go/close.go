@@ -75,8 +75,74 @@ func cmdClose(args []string) int {
 		return 1
 	}
 
+	// Step 3: remove Blocked-by: <id> lines from dependent open tickets.
+	t2 := parseErg(ticketPath)
+	closedID := t2.FilenameID()
+	if closedID != "" {
+		removeBlockedByRef(ticketDir, closedID, now)
+	}
+
 	fmt.Println("CLOSED")
 	return 0
+}
+
+// removeBlockedByRef scans ticketDir for open tickets that have a
+// Blocked-by header referencing closedID, removes those lines, and
+// appends a log entry recording the removal.
+func removeBlockedByRef(ticketDir, closedID, timestamp string) {
+	entries, err := os.ReadDir(ticketDir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".erg") {
+			continue
+		}
+		path := filepath.Join(ticketDir, entry.Name())
+		t := parseErg(path)
+		if t.Closed() {
+			continue
+		}
+		refs, ok := t.Headers["Blocked-by"]
+		if !ok {
+			continue
+		}
+		found := false
+		for _, r := range refs {
+			if strings.TrimSpace(r) == closedID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			continue
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "close: warning: cannot read %s: %v\n", path, err)
+			continue
+		}
+		updated := removeBlockedByLine(string(data), closedID)
+		logLine := fmt.Sprintf("%s claude note blocker %s closed — Blocked-by removed", timestamp, closedID)
+		updated = appendLogLine(updated, logLine)
+		if err := os.WriteFile(path, []byte(updated), 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "close: warning: cannot write %s: %v\n", path, err)
+		}
+	}
+}
+
+// removeBlockedByLine removes "Blocked-by: <id>" lines matching id from content.
+func removeBlockedByLine(content, id string) string {
+	lines := strings.Split(content, "\n")
+	out := make([]string, 0, len(lines))
+	prefix := "Blocked-by: " + id
+	for _, line := range lines {
+		if strings.TrimRight(line, " \t") == prefix {
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
 }
 
 // insertClosedHeader inserts a `Closed: …` header at the end of the
