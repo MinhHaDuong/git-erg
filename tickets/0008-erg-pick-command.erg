@@ -9,6 +9,7 @@ Blocked-by: 0014
 2026-05-01T17:20Z claude re-pointed Blocked-by 0006 → 0014 — 0006 closed; pick depends on the modularization (so pick.go slots into the new layout), not on the dropped claim/release machinery
 
 2026-05-04T16:50Z claude note blocker 0015 closed — Blocked-by removed
+2026-05-04T21:00Z claude raid-skip — stale Blocked-by: 0014 still in header (0014 is closed); body references deprecated Status: workflow; needs header cleanup and body refresh before safe execution
 --- body ---
 ## Context
 
