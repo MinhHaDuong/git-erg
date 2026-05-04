@@ -2,6 +2,7 @@
 Title: add init/uninstall round-trip test and harden shell test harness
 Created: 2026-05-03
 Author: claude
+Closed: merged in PR #33 — harness hardening complete: fixture isolation, set -u, parallel make, naming convention
 
 --- log ---
 2026-05-03T14:16Z claude created — surfaced by test-coverage audit; installer + harness gaps independent of CLI coverage
@@ -9,6 +10,7 @@ Author: claude
 2026-05-04T21:00Z claude note partial coverage — wave 2 (ticket 0032) implemented tests/test_init_uninstall.sh with 15 round-trip tests covering init/uninstall; remaining scope is harness hardening: set -u, per-test fixture dirs, parallel-safety
 2026-05-04T22:30Z claude bump verify-reroll — round 1: CI failed on 26fefaf (FAIL: real tickets pass — Blocked-by: 0032 in ticket 0029 while 0032 is in archive/ not closed/); head commit 36000ea has no CI run; rebase + fix + green CI required
 
+2026-05-04T20:27Z claude closed — merged in PR #33 — harness hardening complete: fixture isolation, set -u, parallel make, naming convention
 --- body ---
 ## Context
 
