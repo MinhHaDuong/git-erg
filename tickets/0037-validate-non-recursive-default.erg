@@ -1,0 +1,44 @@
+%erg v1
+Title: make `erg validate` non-recursive by default
+Created: 2026-05-04
+Author: claude
+
+--- log ---
+2026-05-04T20:16Z claude created — surfaced during PR #34 review; policy gap causes spurious duplicate-ID errors from archive/ subdirs
+
+--- body ---
+## Context
+
+`erg validate` with no arguments defaults to `tickets/`, and
+`loadErgs` walks that tree recursively. As the `tickets/` directory
+grows subdirs (`closed/`, `archive/`, `integration/`), the recursive
+walk creates problems:
+
+- Duplicate-ID errors when an archived ticket shares an ID with a
+  top-level ticket (observed: `0024` existed in both `tickets/` and
+  `tickets/archive/` — fixed by removing the stray copy, but the
+  validator shouldn't depend on manual hygiene to avoid false alarms).
+- Validating `closed/` and `archive/` on every run is wasteful when
+  only active tickets change.
+
+## Actions
+
+1. Change `cmdValidate` default from `tickets/` to non-recursive
+   (only direct `.erg` children of `tickets/`).
+2. Explicit subdir paths still work: `erg validate tickets/closed/`
+   validates closed tickets on demand.
+3. Update `test_validate.sh`: the `real tickets pass` test should
+   pass with the new default without needing to exclude subdirs.
+4. Document the new default in `README.md` (one line under `validate`).
+
+## Follow-on (separate ticket if warranted)
+
+- `erg validate --changed`: derive the ticket list from
+  `git diff --name-only HEAD` for fast CI incremental runs.
+
+## Exit criteria
+
+- `erg validate` (no args) only scans top-level `tickets/*.erg`.
+- `erg validate tickets/closed/` still works.
+- `make test` passes including `real tickets pass`.
+- `erg validate` help/usage reflects the new default.
