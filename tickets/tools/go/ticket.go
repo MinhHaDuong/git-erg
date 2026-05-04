@@ -10,15 +10,14 @@ import (
 
 const magicLine = "%erg v1"
 
-// RefKind discriminates the three Blocked-by reference forms defined in
+// RefKind discriminates the two Blocked-by reference forms defined in
 // rules/tickets.md.
 type RefKind int
 
 const (
 	RefInvalid RefKind = iota
 	RefLocal           // 0042 — local ticket ID
-	RefGHSame          // gh#N — issue in this repo
-	RefGHCross         // gh:owner/repo#N — issue in a named repo
+	RefForge           // host/owner/repo#N — forge issue
 )
 
 // Ref is a parsed Blocked-by value. Downstream code (validator, ready)
@@ -28,16 +27,15 @@ type Ref struct {
 	Raw    string  // original text as written in the .erg file
 	Kind   RefKind
 	ID     string  // 4-digit ticket ID (RefLocal only)
-	Owner  string  // GitHub login (RefGHCross only)
-	Repo   string  // GitHub repo name (RefGHCross only)
-	Number string  // GitHub issue number (RefGHSame, RefGHCross)
+	Host   string  // hostname (RefForge only)
+	Owner  string  // owner/org (RefForge only)
+	Repo   string  // repo name (RefForge only)
+	Number string  // issue number (RefForge only)
 }
 
-// IsGitHub reports whether the ref targets a GitHub issue (same- or
-// cross-repo). Used by callers that treat all GitHub refs uniformly
-// (e.g., ready offline policy).
-func (r Ref) IsGitHub() bool {
-	return r.Kind == RefGHSame || r.Kind == RefGHCross
+// IsForge reports whether the ref targets a forge issue (offline-unknown).
+func (r Ref) IsForge() bool {
+	return r.Kind == RefForge
 }
 
 // parseRef parses a Blocked-by value into a Ref, or returns a precise
@@ -51,46 +49,47 @@ func parseRef(raw string) (Ref, error) {
 	if len(raw) == 4 && allDigits(raw) {
 		return Ref{Raw: raw, Kind: RefLocal, ID: raw}, nil
 	}
-	// gh-same: literal "gh#" + positive integer.
-	if strings.HasPrefix(raw, "gh#") {
-		num := raw[3:]
-		if err := validateIssueNumber(num); err != nil {
-			return Ref{Raw: raw}, fmt.Errorf("malformed gh#N ref %q: %v", raw, err)
-		}
-		return Ref{Raw: raw, Kind: RefGHSame, Number: num}, nil
-	}
-	// gh-cross: literal "gh:" + owner "/" repo "#" number.
+	
+	// Reject old gh: and gh# forms.
 	if strings.HasPrefix(raw, "gh:") {
-		rest := raw[3:]
-		hash := strings.IndexByte(rest, '#')
-		if hash < 0 {
-			return Ref{Raw: raw}, fmt.Errorf("malformed gh: ref %q: missing '#number'", raw)
-		}
-		ownerRepo, num := rest[:hash], rest[hash+1:]
-		slash := strings.IndexByte(ownerRepo, '/')
-		if slash < 0 {
-			return Ref{Raw: raw}, fmt.Errorf("malformed gh: ref %q: expected gh:owner/repo#N", raw)
-		}
-		owner, repo := ownerRepo[:slash], ownerRepo[slash+1:]
-		if err := validateOwner(owner); err != nil {
-			return Ref{Raw: raw}, fmt.Errorf("malformed gh: ref %q: %v", raw, err)
-		}
-		if err := validateRepo(repo); err != nil {
-			return Ref{Raw: raw}, fmt.Errorf("malformed gh: ref %q: %v", raw, err)
-		}
-		if err := validateIssueNumber(num); err != nil {
-			return Ref{Raw: raw}, fmt.Errorf("malformed gh: ref %q: %v", raw, err)
-		}
-		return Ref{Raw: raw, Kind: RefGHCross, Owner: owner, Repo: repo, Number: num}, nil
+		return Ref{Raw: raw}, fmt.Errorf(
+			"forge ref %q uses deprecated 'gh:' scheme; use 'host/owner/repo#N' instead", raw)
 	}
-	// Catch case-variant schemes early with a targeted message.
+	if strings.HasPrefix(raw, "gh#") {
+		return Ref{Raw: raw}, fmt.Errorf(
+			"forge ref %q uses deprecated 'gh#' scheme; same-repo refs are not supported", raw)
+	}
+	
+	// Forge: host "/" owner "/" repo "#" number.
+	// Parse host, owner, repo from the part before the # sign.
+	hashIdx := strings.LastIndexByte(raw, '#')
+	if hashIdx > 0 {
+		host_owner_repo := raw[:hashIdx]
+		num := raw[hashIdx+1:]
+		
+		// Split host / owner / repo.
+		parts := strings.Split(host_owner_repo, "/")
+		if len(parts) == 3 {
+			host, owner, repo := parts[0], parts[1], parts[2]
+			if host != "" && owner != "" && repo != "" {
+				// Validate the number format.
+				if err := validateIssueNumber(num); err != nil {
+					return Ref{Raw: raw}, fmt.Errorf("malformed ref %q: %v", raw, err)
+				}
+				return Ref{Raw: raw, Kind: RefForge, Host: host, Owner: owner, Repo: repo, Number: num}, nil
+			}
+		}
+	}
+	
+	// Catch case-variant old schemes early.
 	lower := strings.ToLower(raw)
 	if strings.HasPrefix(lower, "gh#") || strings.HasPrefix(lower, "gh:") {
 		return Ref{Raw: raw}, fmt.Errorf(
-			"malformed ref %q: scheme is case-sensitive (use literal 'gh#' or 'gh:')", raw)
+			"forge ref %q: scheme is case-sensitive (use lowercase 'gh' if intentional, or 'host/owner/repo#N')", raw)
 	}
+	
 	return Ref{Raw: raw}, fmt.Errorf(
-		"malformed ref %q: not a 4-digit local ID, gh#N, or gh:owner/repo#N", raw)
+		"malformed ref %q: not a 4-digit local ID or host/owner/repo#N", raw)
 }
 
 func allDigits(s string) bool {
@@ -116,74 +115,6 @@ func validateIssueNumber(num string) error {
 	}
 	if num[0] == '0' {
 		return fmt.Errorf("issue number %q has a leading zero", num)
-	}
-	return nil
-}
-
-// validateOwner mirrors GitHub's login rule:
-//
-//	[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9]))*
-//
-// max 39 chars, no leading/trailing '-', no consecutive '-', no underscores.
-func validateOwner(owner string) error {
-	if owner == "" {
-		return fmt.Errorf("empty owner")
-	}
-	if len(owner) > 39 {
-		return fmt.Errorf("owner %q exceeds 39 characters", owner)
-	}
-	for i := 0; i < len(owner); i++ {
-		c := owner[i]
-		switch {
-		case c >= 'A' && c <= 'Z':
-		case c >= 'a' && c <= 'z':
-		case c >= '0' && c <= '9':
-		case c == '-':
-			if i == 0 {
-				return fmt.Errorf("owner %q starts with '-'", owner)
-			}
-			if i == len(owner)-1 {
-				return fmt.Errorf("owner %q ends with '-'", owner)
-			}
-			if owner[i-1] == '-' {
-				return fmt.Errorf("owner %q contains '--'", owner)
-			}
-		default:
-			return fmt.Errorf("owner %q contains invalid character %q", owner, c)
-		}
-	}
-	return nil
-}
-
-// validateRepo mirrors GitHub's repository name rule: [A-Za-z0-9._-]+,
-// max 100 chars, may not be "." or "..", may not start with "." or "-",
-// may not contain "..".
-func validateRepo(repo string) error {
-	if repo == "" {
-		return fmt.Errorf("empty repo")
-	}
-	if len(repo) > 100 {
-		return fmt.Errorf("repo %q exceeds 100 characters", repo)
-	}
-	if repo == "." || repo == ".." {
-		return fmt.Errorf("repo %q is not a valid name", repo)
-	}
-	if repo[0] == '.' || repo[0] == '-' {
-		return fmt.Errorf("repo %q starts with '%c'", repo, repo[0])
-	}
-	if strings.Contains(repo, "..") {
-		return fmt.Errorf("repo %q contains '..'", repo)
-	}
-	for i := 0; i < len(repo); i++ {
-		c := repo[i]
-		switch {
-		case c >= 'A' && c <= 'Z':
-		case c >= 'a' && c <= 'z':
-		case c >= '0' && c <= '9':
-		case c == '.' || c == '_' || c == '-':
-		default:
-			return fmt.Errorf("repo %q contains invalid character %q", repo, c)
-		}
 	}
 	return nil
 }

@@ -197,6 +197,29 @@ fi
 
 # --- Empty dir ---
 rm -f "$FIXTURES/ready/"*.erg
+# --- Forge-ref blocker is blocking ---
+cat > "$FIXTURES/ready/0030-forge-blocked.erg" <<'EOF'
+%erg v1
+Title: Blocked by forge
+Created: 2026-01-01
+Author: a
+Blocked-by: github.com/anthropics/claude-code#1234
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+EOF
+output=$($ERG ready "$FIXTURES/ready")
+if echo "$output" | grep -q "0030"; then
+    fail "forge-ref blocker excluded from ready"
+else
+    pass "forge-ref blocker excluded from ready"
+fi
+
+# --- Empty dir handled ---
+rm -rf "$FIXTURES/ready"
+mkdir -p "$FIXTURES/ready"
 output=$($ERG ready "$FIXTURES/ready")
 if echo "$output" | grep -qi "no tickets"; then
     pass "empty dir handled"

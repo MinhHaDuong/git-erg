@@ -61,8 +61,10 @@ func cmdReady(args []string) int {
 			if errs[i] != nil {
 				continue // malformed refs are validator territory
 			}
-			if ref.IsGitHub() {
-				continue // GitHub refs treated as satisfied offline
+			if ref.IsForge() {
+				// Forge refs are offline-unknown → blocking.
+				blocked = true
+				break
 			}
 			if !knownID[ref.ID] {
 				warnings = append(warnings, fmt.Sprintf(
