@@ -1,0 +1,40 @@
+%erg v1
+Title: make erg migrate explicit instead of update-time side effect
+Created: 2026-05-04
+Author: copilot
+Blocked-by: 0023
+
+--- log ---
+2026-05-04T11:35Z copilot created — split from 0023; schema migration should remain an explicit reviewed step
+
+--- body ---
+## Context
+
+The current `erg update` implementation auto-runs `erg migrate` when it
+detects legacy `Status:` headers in `tickets/`. That couples binary
+refresh to ticket-data mutation.
+
+0023 resolves that this coupling is too implicit. Ticket-file migration
+is a reviewed content change that should remain explicit and commitable
+on its own.
+
+## Actions
+
+1. Remove the update-time auto-migrate behavior
+2. Replace it with a clear post-update hint when legacy `Status:`
+   headers are detected:
+   - run `erg migrate tickets/`
+   - review `git diff tickets/`
+   - commit the migration separately
+3. Update help text / release notes / docs to describe the explicit
+   workflow
+4. Add tests that lock in the new contract:
+   - `erg update` no longer rewrites ticket files
+   - `erg update` emits the migrate hint when needed
+
+## Exit criteria
+
+- [ ] `erg update` no longer runs `migrate` automatically
+- [ ] legacy repos receive a clear migrate handoff
+- [ ] migration remains available and idempotent via `erg migrate`
+- [ ] tests cover the explicit workflow

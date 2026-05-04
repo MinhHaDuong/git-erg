@@ -2,9 +2,11 @@
 Title: Distribution, installation, update, and uninstallation model — design
 Created: 2026-05-03
 Author: user
+Closed: design resolved — split into 0032 init/uninstall, 0033 update contract, 0034 explicit migrate workflow
 
 --- log ---
 2026-05-03T00:00Z claude created — surfaced during 0022 discussion; no prior ticket; design objectives need statement before implementation decisions
+2026-05-04T11:35Z copilot design-resolved — binary is the only required artifact; repo bootstrap moves to erg init, asset removal to erg uninstall, binary refresh stays in erg update, ticket-data changes stay explicit in erg migrate; split implementation into 0032, 0033, 0034
 
 --- body ---
 ## Problem
@@ -22,10 +24,59 @@ distribution story creates:
 - No mechanism to propagate breaking changes to N installed repos
   without manual intervention per-repo
 
+## Decision
+
+The tooling lifecycle is split into three explicit verbs with distinct
+responsibilities:
+
+1. **`erg init [DIR]`** materializes repo-local integration assets from
+   content embedded in the binary. It creates or refreshes `tickets/`
+   support files (`README`, spec, tools, integration), appends the
+   agent hint to `AGENTS.md`, adds the `.gitignore` line for the local
+   binary, and installs the pre-commit hook fragment. It is idempotent.
+2. **`erg update`** remains a binary self-update command. It updates the
+   executable only. It must not silently mutate repo data or ticket
+   files. If the bundled asset version or repo layout is behind, it
+   should direct the user/agent to run `erg init` again.
+3. **`erg migrate [DIR]`** remains the only command that rewrites ticket
+   data to a new schema. It is explicit, reviewable, and commit-worthy.
+   `erg update` must not auto-migrate ticket files as a side effect.
+
+`erg uninstall [DIR]` is paired with `erg init`: remove the assets and
+fragments managed by `erg`, while leaving user ticket data intact unless
+the user explicitly opts into removing it.
+
+Normal read/write operational commands (`validate`, `ready`, `close`,
+`next-id`) stay non-mutating with respect to repo bootstrap. If the repo
+is not initialized, they fail with a precise message telling the caller
+to run `erg init .` rather than implicitly mutating on first use.
+
+## Rationale
+
+- **Single artifact**: the binary becomes sufficient to bootstrap a repo.
+  No source checkout or helper script is required.
+- **Predictable side effects**: ordinary commands remain safe in offline,
+  unattended, and CI contexts.
+- **Explicit review boundary**: repo asset sync (`init`) and ticket data
+  migration (`migrate`) stay separate, so a user can review each diff on
+  its own merits.
+- **Uninstall becomes tractable**: `erg` can remove only what it knows it
+  created or appended.
+- **Multi-repo operations remain simple**: upgrade the shared binary,
+  then run `erg init` or `erg migrate` per repo only when needed.
+
+## Follow-up implementation split
+
+- **0032** — implement `erg init` / `erg uninstall` with embedded assets,
+  idempotent writes, and managed-file backups/manifest
+- **0033** — redefine `erg update` as binary-only and hand off asset sync
+  to `erg init`
+- **0034** — make migration fully explicit by removing update-time
+  auto-migrate behavior and documenting the `update` → `migrate` flow
+
 ## Design objectives (to establish)
 
-The following are candidate objectives — confirm, reject, or extend
-before designing solutions:
+The following objectives are confirmed:
 
 1. **Portability** — works in isolated environments (web containers,
    CI, offline). No network requirement for day-to-day use.
@@ -33,48 +84,43 @@ before designing solutions:
    manager, no root access required at runtime.
 3. **Offline-first** — `erg validate`, `erg ready`, etc. never fail
    due to network absence.
-4. **Agent-safe** — operations safe to run unattended; no interactive
-   prompts, no silent data loss.
+4. **Agent-safe** — operations safe to run unattended; no implicit repo
+  mutation during ordinary commands, no silent data loss.
 5. **Multi-repo** — same erg version deployed across N repos; upgrade
    path doesn't require N manual steps for non-breaking changes.
-6. **Breakage isolation** — breaking spec changes (like 0022) require
-   explicit per-repo migration, never silent corruption.
+6. **Breakage isolation** — breaking spec changes require explicit
+   per-repo migration, never silent corruption.
 
 ## Questions to answer
 
 ### Install
-- What is the canonical install path? (`make install DEST=` today)
-- Does install require the git-erg source repo to be present, or can
-  it bootstrap from the binary alone?
-- Should `erg install` be a subcommand (self-bootstrapping from the
-  binary) instead of requiring a separate script?
+- Canonical bootstrap is `erg init [DIR]`.
+- It must work from the binary alone via embedded assets.
+- A standalone shell installer becomes optional compatibility glue,
+  not the primary product interface.
 
 ### Update
-- `erg update` today: binary only, manual, per-repo.
-- Should it also update `rules/tickets.md` and skills? If so, from
-  where? (Raw GitHub? Embedded in binary?)
-- Should spec + skills be embedded in the binary (single-file
-  distribution) to eliminate the source-repo dependency on update?
-- How does a project know it's behind? Version/hash comparison for
-  binary is solved; no equivalent for spec or skills.
+- `erg update` stays binary-only.
+- Repo assets are bundled in the binary but refreshed via `erg init`,
+  not by `erg update`.
+- Asset drift should be surfaced as guidance to rerun `erg init`, not a
+  hidden write during update.
 
 ### Breaking changes
-- `erg update` + auto-`erg migrate` (landing in 0022) handles the
-  ticket-file migration. What handles spec + skills staleness?
-- Should `erg update` refuse to run if the spec file hash doesn't
-  match the embedded spec (forcing `erg update --full`)?
+- Ticket-file migration remains `erg migrate`.
+- Repo asset staleness is handled by rerunning `erg init`.
+- `erg update` should not refuse to update the binary just because a
+  repo has not yet been migrated; the handoff is informational.
 
 ### Uninstall
-- No documented uninstall path today.
-- What does a clean uninstall look like? (Remove binary, hook,
-  skills, rules, CLAUDE.md section — tickets stay, they're data.)
-- Should `erg uninstall` be a subcommand?
+- `erg uninstall [DIR]` should be a subcommand.
+- It removes managed repo assets and appended fragments, but preserves
+  user ticket data by default.
 
 ### Multi-repo coordination
-- For N repos, is the expected workflow "run `erg update` in each"
-  or is there a fleet-level operation?
-- Does the housekeeping skill / beat cycle handle this, or is it
-  out of scope for the binary?
+- For N repos: update the shared binary once, then run `erg init` or
+  `erg migrate` per repo when needed.
+- Fleet orchestration remains out of scope for the binary.
 
 ## Out of scope
 
@@ -84,9 +130,9 @@ lifecycle of the tooling itself, not the tickets it manages.
 
 ## Exit criteria
 
-- [ ] Design objectives confirmed (or amended) by user
-- [ ] Install model decided
-- [ ] Update model decided (binary-only vs full; embedding vs fetch)
-- [ ] Breaking-change propagation model decided
-- [ ] Uninstall model decided
-- [ ] Implementation tickets filed for any non-trivial decisions
+- [x] Design objectives confirmed (or amended) by user
+- [x] Install model decided
+- [x] Update model decided (binary-only vs full; embedding vs fetch)
+- [x] Breaking-change propagation model decided
+- [x] Uninstall model decided
+- [x] Implementation tickets filed for any non-trivial decisions

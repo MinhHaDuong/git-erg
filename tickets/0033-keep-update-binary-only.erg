@@ -1,0 +1,37 @@
+%erg v1
+Title: keep erg update binary-only and hand off repo sync to init
+Created: 2026-05-04
+Author: copilot
+Blocked-by: 0023
+
+--- log ---
+2026-05-04T11:35Z copilot created — split from 0023; update contract should stay narrow and predictable
+
+--- body ---
+## Context
+
+`erg update` already replaces the running binary. 0023 resolves that it
+should continue to do only that. Repo asset refresh belongs to
+`erg init`, not `erg update`.
+
+Without this separation, `erg update` becomes a hidden repo mutator:
+downloading a binary could unexpectedly rewrite pre-commit hooks,
+integration files, and agent guidance in whatever repository happens to
+be the current working directory.
+
+## Actions
+
+1. Define the contract in code and help text:
+   - `erg update` updates the executable only
+   - it never rewrites repo files as a side effect
+2. If run inside a repo that looks behind the binary's embedded asset
+   bundle, print a hint to run `erg init .`
+3. Keep offline/unreachable behavior unchanged: notice + exit 0
+4. Add tests for the non-mutating contract
+
+## Exit criteria
+
+- [ ] `erg update` mutates only the executable
+- [ ] asset drift guidance points callers to `erg init .`
+- [ ] help text/documentation match the new contract
+- [ ] tests lock in the non-mutating behavior

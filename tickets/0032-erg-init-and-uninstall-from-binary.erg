@@ -1,0 +1,57 @@
+%erg v1
+Title: implement erg init/uninstall from embedded assets
+Created: 2026-05-04
+Author: copilot
+Blocked-by: 0023
+
+--- log ---
+2026-05-04T11:35Z copilot created — split from 0023 after design resolution; bootstrap/uninstall is now the primary distribution path
+
+--- body ---
+## Context
+
+0023 resolved the distribution model: the binary is the primary
+artifact, and repo-local assets are managed by explicit bootstrap
+commands rather than a separate installer script.
+
+`erg init [DIR]` should materialize the repo support files from assets
+embedded in the binary. `erg uninstall [DIR]` should remove only the
+assets and file fragments managed by `erg`, leaving user ticket data in
+place by default.
+
+## Actions
+
+1. Embed the bootstrap assets in the Go binary:
+   - `tickets/README.md`
+   - `tickets/spec-erg-v1.md`
+   - `tickets/integration/**`
+   - `tickets/tools/go/**` if vendored source remains part of repo init
+2. Add `erg init [DIR]`:
+   - Default `DIR` to `.`
+   - Create/refresh the managed files under `tickets/`
+   - Append the one-line `AGENTS.md` pointer if absent
+   - Append the pre-commit hook block if absent
+   - Add the `.gitignore` line for `tickets/tools/go/erg` if absent
+   - Print a concise plan before mutating, then a summary of applied
+     changes
+3. Make `erg init` idempotent:
+   - no duplicate hook block
+   - no duplicate `AGENTS.md` line
+   - repeat runs refresh managed files without duplicating fragments
+4. Record enough metadata to support uninstall and safe refresh:
+   - managed-file manifest and/or stable markers for appended fragments
+5. Add `erg uninstall [DIR]`:
+   - remove managed fragments from `AGENTS.md`, `.gitignore`, and
+     `.git/hooks/pre-commit`
+   - remove managed integration files and support files written by init
+   - preserve user-created ticket files by default
+6. Add tests covering init, re-init, and uninstall round-trip in a
+   temp git repo
+
+## Exit criteria
+
+- [ ] `erg init .` bootstraps a clean repo from the binary alone
+- [ ] `erg init .` is idempotent
+- [ ] `erg uninstall .` removes only `erg`-managed assets/fragments
+- [ ] User ticket data remains intact after uninstall by default
+- [ ] Round-trip tests pass
