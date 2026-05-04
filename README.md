@@ -27,7 +27,7 @@ creates `tickets/`, appends the pre-commit hook (composing with any existing
 hook), adds the binary to `.gitignore`, and skips sample tickets so you
 start fresh at `0001`.
 
-You can also run the script directly: `./bin/install.sh /path/to/project`
+You can also run the script directly: `./install.sh /path/to/project`
 
 ## Binary policy
 

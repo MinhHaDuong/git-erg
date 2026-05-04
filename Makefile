@@ -55,7 +55,7 @@ install:
 ifndef DEST
 	$(error DEST is required. Usage: make install DEST=/path/to/project)
 endif
-	sh bin/install.sh "$(DEST)"
+	sh install.sh "$(DEST)"
 
 clean:
 	rm -rf build
