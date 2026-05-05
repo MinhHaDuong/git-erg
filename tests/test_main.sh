@@ -12,8 +12,7 @@ fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 echo "=== erg main dispatch ==="
 
 # --- no args: exit 1, output contains usage info ---
-out=$("$ERG" 2>&1 || true)
-if "$ERG" >/dev/null 2>&1; then
+if out=$("$ERG" 2>&1); then
     fail "no args exits 1"
 else
     if echo "$out" | grep -q "Usage:"; then
@@ -24,8 +23,7 @@ else
 fi
 
 # --- unknown command: exit 1, stderr contains "Unknown command" ---
-out=$("$ERG" unknown-cmd 2>&1 || true)
-if "$ERG" unknown-cmd >/dev/null 2>&1; then
+if out=$("$ERG" unknown-cmd 2>&1); then
     fail "unknown command exits 1"
 else
     if echo "$out" | grep -q "Unknown command"; then
@@ -36,8 +34,7 @@ else
 fi
 
 # --- -h: exit 0, output contains usage ---
-out=$("$ERG" -h 2>&1 || true)
-if "$ERG" -h >/dev/null 2>&1; then
+if out=$("$ERG" -h 2>&1); then
     if echo "$out" | grep -q "Usage:"; then
         pass "-h: exit 0 with usage"
     else
@@ -48,8 +45,7 @@ else
 fi
 
 # --- --help: exit 0, output contains usage ---
-out=$("$ERG" --help 2>&1 || true)
-if "$ERG" --help >/dev/null 2>&1; then
+if out=$("$ERG" --help 2>&1); then
     if echo "$out" | grep -q "Usage:"; then
         pass "--help: exit 0 with usage"
     else
@@ -60,8 +56,7 @@ else
 fi
 
 # --- help cmd: exit 0, output contains usage ---
-out=$("$ERG" help 2>&1 || true)
-if "$ERG" help >/dev/null 2>&1; then
+if out=$("$ERG" help 2>&1); then
     if echo "$out" | grep -q "Usage:"; then
         pass "help cmd: exit 0 with usage"
     else
