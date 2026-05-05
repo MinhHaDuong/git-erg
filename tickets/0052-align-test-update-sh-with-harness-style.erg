@@ -1,0 +1,29 @@
+%erg v1
+Title: Align test_update.sh with harness style
+Created: 2026-05-05
+Author: claude
+
+--- log ---
+2026-05-05T00:00Z claude created
+
+--- body ---
+## Context
+
+`tests/test_update.sh` deviates from the standard harness style used by all
+other test files. It uses inline `echo "PASS: ..."` instead of `pass()`/`fail()`
+helpers, has no header banner, and uses a fragile `sleep 0.5` for the HTTP
+server.
+
+## Actions
+
+1. Add `pass()` and `fail()` helpers matching other test files.
+2. Add header banner.
+3. Replace `sleep 0.5` with a poll loop.
+4. Replace all inline echo patterns with `pass`/`fail` calls.
+5. Change summary line prefix to match convention.
+
+## Exit criteria
+
+- `make test-update` passes
+- File uses `pass()`/`fail()` helpers, header banner, and poll loop
+- No inline `echo "PASS:` or `echo "FAIL:` patterns remain

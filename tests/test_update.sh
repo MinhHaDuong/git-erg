@@ -5,23 +5,24 @@ set -eu
 ERG="${ERG_BIN:-build/erg}"
 PASS=0; FAIL=0
 
+pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
+fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
+
+echo "=== erg update/version ==="
+
 # Test: erg version exits 0 and prints 64-char hex
 VER=$("$ERG" version)
 if echo "$VER" | grep -qE '^[0-9a-f]{64}$'; then
-    echo "PASS: version prints hex"
-    PASS=$((PASS+1))
+    pass "version prints hex"
 else
-    echo "FAIL: version output: $VER"
-    FAIL=$((FAIL+1))
+    fail "version output: $VER"
 fi
 
 # Test: erg update with bad URL exits 0
 if ERG_UPDATE_URL=http://127.0.0.1:1 "$ERG" update 2>/dev/null; then
-    echo "PASS: update offline exits 0"
-    PASS=$((PASS+1))
+    pass "update offline exits 0"
 else
-    echo "FAIL: update offline should exit 0"
-    FAIL=$((FAIL+1))
+    fail "update offline should exit 0"
 fi
 
 # Test: erg update with local server serving same binary → already up to date
@@ -32,16 +33,14 @@ cp "$ERG" "$SRV_DIR/erg"
 SERVER_PID=$!
 trap "kill $SERVER_PID 2>/dev/null; rm -rf $SRV_DIR" EXIT
 
-# Give the server a moment to start
-sleep 0.5
+# Wait for server to be ready
+i=0; until curl -s http://127.0.0.1:$PORT/ >/dev/null 2>&1 || [ $i -ge 20 ]; do sleep 0.1; i=$((i+1)); done
 
 OUT=$(ERG_UPDATE_URL=http://127.0.0.1:$PORT/erg "$ERG" update 2>&1)
 if echo "$OUT" | grep -q "already up to date"; then
-    echo "PASS: update same binary is no-op"
-    PASS=$((PASS+1))
+    pass "update same binary is no-op"
 else
-    echo "FAIL: update same binary: $OUT"
-    FAIL=$((FAIL+1))
+    fail "update same binary: $OUT"
 fi
 
 # Test: update with Status: tickets → emits hint, does NOT rewrite files
@@ -65,40 +64,32 @@ printf '\n' >> "$SRV_DIR/erg-new"
 OUT=$(ERG_UPDATE_URL=http://127.0.0.1:$PORT/erg-new ERG_TICKET_DIR="$TICKET_DIR" "$ERG" update 2>&1 || true)
 AFTER=$(cat "$TICKET_DIR/0001-legacy.erg")
 if [ "$BEFORE" = "$AFTER" ]; then
-    echo "PASS: update does not rewrite ticket files"
-    PASS=$((PASS+1))
+    pass "update does not rewrite ticket files"
 else
-    echo "FAIL: update rewrote ticket files"
-    FAIL=$((FAIL+1))
+    fail "update rewrote ticket files"
 fi
 if echo "$OUT" | grep -q "erg migrate"; then
-    echo "PASS: update emits migrate hint"
-    PASS=$((PASS+1))
+    pass "update emits migrate hint"
 else
-    echo "FAIL: update missing migrate hint"
-    FAIL=$((FAIL+1))
+    fail "update missing migrate hint"
 fi
 rm -rf "$TICKET_DIR"
 
 # Test: erg update with 404 response exits 0 and stderr contains "server returned"
 OUT=$(ERG_UPDATE_URL=http://127.0.0.1:$PORT/no-such-file "$ERG" update 2>&1 || true)
 if echo "$OUT" | grep -q "server returned"; then
-    echo "PASS: update 404 exits 0 and emits 'server returned'"
-    PASS=$((PASS+1))
+    pass "update 404 exits 0 and emits 'server returned'"
 else
-    echo "FAIL: update 404: $OUT"
-    FAIL=$((FAIL+1))
+    fail "update 404: $OUT"
 fi
 
 # Test: erg update with 200 empty body exits 0 and stderr contains "empty body"
 printf '' > "$SRV_DIR/erg-empty"
 OUT=$(ERG_UPDATE_URL=http://127.0.0.1:$PORT/erg-empty "$ERG" update 2>&1 || true)
 if echo "$OUT" | grep -q "empty body"; then
-    echo "PASS: update empty-body 200 exits 0 and emits 'empty body'"
-    PASS=$((PASS+1))
+    pass "update empty-body 200 exits 0 and emits 'empty body'"
 else
-    echo "FAIL: update empty-body 200: $OUT"
-    FAIL=$((FAIL+1))
+    fail "update empty-body 200: $OUT"
 fi
 
 # Test: update with stale managed assets → emits `erg init` hint
@@ -110,23 +101,19 @@ cp "$ERG_ABS" "$SRV_DIR/erg-new2"
 printf '\x00' >> "$SRV_DIR/erg-new2"
 OUT=$(cd "$WORKSPACE" && ERG_UPDATE_URL=http://127.0.0.1:$PORT/erg-new2 "$ERG_ABS" update 2>&1 || true)
 if echo "$OUT" | grep -q "erg init"; then
-    echo "PASS: update with stale assets emits erg init hint"
-    PASS=$((PASS+1))
+    pass "update with stale assets emits erg init hint"
 else
-    echo "FAIL: update with stale assets missing erg init hint: $OUT"
-    FAIL=$((FAIL+1))
+    fail "update with stale assets missing erg init hint: $OUT"
 fi
 
 # Test: update does NOT rewrite managed assets (binary-only contract)
 STALE_CONTENT=$(cat "$WORKSPACE/tickets/README.md")
 if [ "$STALE_CONTENT" = "stale content" ]; then
-    echo "PASS: update does not rewrite managed assets"
-    PASS=$((PASS+1))
+    pass "update does not rewrite managed assets"
 else
-    echo "FAIL: update rewrote managed asset (README.md content changed)"
-    FAIL=$((FAIL+1))
+    fail "update rewrote managed asset (README.md content changed)"
 fi
 rm -rf "$WORKSPACE"
 
-echo "Results: $PASS passed, $FAIL failed"
+echo "update: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
