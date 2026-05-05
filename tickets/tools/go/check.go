@@ -26,11 +26,11 @@ func folderClosure(tickets []Erg) []string {
 
 		if inClosedDir && !hasClosed {
 			warnings = append(warnings, fmt.Sprintf(
-				"WARNING %s: open ticket in closed/ directory", t.Filename()))
+				"WARN %s: open ticket in closed/ directory", t.Filename()))
 		}
 		if !inClosedDir && hasClosed {
 			warnings = append(warnings, fmt.Sprintf(
-				"WARNING %s: closed ticket not in closed/ directory", t.Filename()))
+				"WARN %s: closed ticket not in closed/ directory", t.Filename()))
 		}
 	}
 	return warnings
@@ -106,7 +106,11 @@ func cmdCheck(args []string) int {
 
 	fmt.Printf("ERG CHECK: PASS (%d tickets", len(tickets))
 	if len(warnings) > 0 {
-		fmt.Printf(", %d warning(s)", len(warnings))
+		warnWord := "warnings"
+		if len(warnings) == 1 {
+			warnWord = "warning"
+		}
+		fmt.Printf(", %d %s", len(warnings), warnWord)
 	}
 	fmt.Println(")")
 	return 0

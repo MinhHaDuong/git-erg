@@ -158,7 +158,7 @@ Author: a
 --- body ---
 EOF
 rc=0; out=$($ERG check "$FIXTURES/closure" 2>&1) || rc=$?
-if echo "$out" | grep -q "WARNING.*open ticket in closed"; then
+if echo "$out" | grep -q "WARN.*open ticket in closed"; then
     pass "open ticket in closed/ warns"
 else
     fail "open ticket in closed/ warns (got: $out)"
@@ -182,7 +182,7 @@ Closed: done
 --- body ---
 EOF
 out=$($ERG check "$FIXTURES/closure2" 2>&1)
-if echo "$out" | grep -q "WARNING.*closed ticket not in closed"; then
+if echo "$out" | grep -q "WARN.*closed ticket not in closed"; then
     pass "closed ticket at top level warns"
 else
     fail "closed ticket at top level warns (got: $out)"
@@ -255,6 +255,57 @@ if [ $rc -eq 0 ]; then
     pass "git-erg exception exits 0"
 else
     fail "git-erg exception exits 0"
+fi
+
+# --- Plural: 1 warning singular form ---
+mkdir -p "$FIXTURES/warn1/closed"
+cat > "$FIXTURES/warn1/closed/0001-open-in-closed-sing.erg" <<'EOF'
+%erg v1
+Title: Open but in closed dir
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG check "$FIXTURES/warn1" 2>&1) || true
+if echo "$out" | grep -qF ", 1 warning)"; then
+    pass "check: 1 warning uses singular"
+else
+    fail "check: 1 warning uses singular (got: $out)"
+fi
+if echo "$out" | grep -qF "warning(s)"; then
+    fail "check: no (s) fake plural for 1 warning"
+else
+    pass "check: no (s) fake plural for 1 warning"
+fi
+
+# --- Plural: 2 warnings plural form ---
+mkdir -p "$FIXTURES/warn2/closed"
+cat > "$FIXTURES/warn2/closed/0001-open-in-closed-pl.erg" <<'EOF'
+%erg v1
+Title: Open but in closed dir A
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+cat > "$FIXTURES/warn2/0002-closed-top-pl.erg" <<'EOF'
+%erg v1
+Title: Closed at top level B
+Created: 2026-01-01
+Author: a
+Closed: done
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG check "$FIXTURES/warn2" 2>&1) || true
+if echo "$out" | grep -qF ", 2 warnings)"; then
+    pass "check: 2 warnings uses plural"
+else
+    fail "check: 2 warnings uses plural (got: $out)"
 fi
 
 # live-corpus check moved to: make validate

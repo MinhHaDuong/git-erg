@@ -1,0 +1,27 @@
+%erg v1
+Title: UX P3 polish sweep — WARN prefix, pluralization, init output, jargon
+Created: 2026-05-05
+Author: claude
+
+--- log ---
+2026-05-05T00:00Z claude created
+
+--- body ---
+Cosmetic Go changes to improve consistency of user-facing output:
+
+- check.go: WARNING → WARN prefix (align with stray-source warning style)
+- close.go: ALREADY_CLOSED → CLOSED (already) (matches status verb pattern)
+- check.go: inline plural — "1 warning" / "2 warnings" (no more (s) fake plural)
+- validate.go: inline plural — "1 file" / "2 files"
+- init.go: %t → yes/no booleans in Applied: section output
+- init.go: "AGENTS.md pointer" → "AGENTS.md entry" in plan and output lines
+- init.go: "manifest:" → "manifest written:" for clarity
+- validate.go: "preamble" → "header section" in error messages
+
+Exit criteria:
+- No WARNING in check.go
+- No ALREADY_CLOSED in source
+- No (s) fake-plural in format strings
+- No preamble in validate.go error messages
+- No %t in init.go Printf calls
+EOF

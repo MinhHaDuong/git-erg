@@ -67,10 +67,10 @@ Test body.
 EOF
 
 OUT=$($ERG close 9002 "closing again" "$FIXTURES")
-if [ "$OUT" = "ALREADY_CLOSED" ]; then
-    pass "already-closed ticket returns ALREADY_CLOSED"
+if [ "$OUT" = "CLOSED (already)" ]; then
+    pass "already-closed ticket returns CLOSED (already)"
 else
-    fail "already-closed ticket returns ALREADY_CLOSED (output: $OUT)"
+    fail "already-closed ticket returns CLOSED (already) (output: $OUT)"
 fi
 
 # --- Close-by-path ticket lacking a Closed: header gets one ---
@@ -173,7 +173,7 @@ Author: claude
 --- body ---
 EOF
 OUT=$($ERG close "$FIXTURES/9006-suffix-closed.erg" "another close" 2>/dev/null || true)
-if [ "$OUT" = "ALREADY_CLOSED" ]; then
+if [ "$OUT" = "CLOSED (already)" ]; then
     pass "path-closed ticket recognized as already-closed"
 else
     fail "path-closed ticket recognized (rc=$rc, output: $OUT)"

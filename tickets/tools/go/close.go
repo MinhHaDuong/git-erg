@@ -55,7 +55,7 @@ func cmdClose(args []string) int {
 
 	// Idempotent: already closed (Closed: header present or path test fires).
 	if ticket.Closed() {
-		fmt.Println("ALREADY_CLOSED")
+		fmt.Println("CLOSED (already)")
 		return 0
 	}
 
