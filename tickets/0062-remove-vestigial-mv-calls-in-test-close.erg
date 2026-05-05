@@ -2,12 +2,10 @@
 Title: Remove vestigial mv calls in test_close.sh suffix-closed fixtures
 Created: 2026-05-05
 Author: claude
-Closed: done
 
 --- log ---
 2026-05-05T08:34Z claude created
 
-2026-05-05T09:20Z claude closed — done
 --- body ---
 `tests/test_close.sh` has two fixture-rename operations that obscure intent:
 

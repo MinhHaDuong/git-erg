@@ -2,11 +2,13 @@
 Title: Fix test_archive.sh vacuous test, fixture guard, and test_check.sh live-corpus coupling
 Created: 2026-05-05
 Author: claude
+Closed: done
 
 --- log ---
 2026-05-05T08:34Z claude created
 2026-05-05T00:00Z claude merged ticket 0010 in
 
+2026-05-05T09:19Z claude closed — done
 --- body ---
 Three related hygiene issues across two test files.
 
