@@ -1,0 +1,36 @@
+%erg v1
+Title: Fix angle brackets in Go doc-comments for close, log, and new commands
+Created: 2026-05-05
+Author: haduong
+
+--- log ---
+2026-05-05T00:00Z haduong created
+
+--- body ---
+## Context
+
+PR #81 fixed per-command usage strings (user-visible stderr) but the Go
+doc-comments above cmdClose, cmdLog, and cmdNew still use `<arg>` angle
+brackets. These are not user-visible but are inconsistent with the UPPER_CASE
+convention adopted for user-facing strings (PRs #78, #81). Found during /verify
+of PR #81.
+
+## Actions
+
+1. `close.go`: update the comment block above `cmdClose` — replace `<id|file>`,
+   `<reason>`, `[dir]` with `ID|FILE`, `REASON`, `[DIR]`.
+2. `log.go`: update the comment block above `cmdLog` — replace `<id>`, `<line>`,
+   `[dir]` with `ID`, `LINE`, `[DIR]`.
+3. `new.go`: update the comment block above `cmdNew` — replace `<title>`, `[dir]`
+   with `TITLE`, `[DIR]`.
+
+## Test
+
+No test needed — doc-comments are not user-visible and not grep-ratcheted.
+Verify manually: `grep -n '[<>]' tickets/tools/go/close.go tickets/tools/go/log.go tickets/tools/go/new.go`
+should return no matches after the fix.
+
+## Exit criteria
+
+- `grep -n '[<>]' tickets/tools/go/close.go tickets/tools/go/log.go tickets/tools/go/new.go` returns no matches.
+- `make build` passes.
