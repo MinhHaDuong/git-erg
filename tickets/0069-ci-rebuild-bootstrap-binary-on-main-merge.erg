@@ -1,0 +1,49 @@
+%erg v1
+Title: CI: rebuild and commit bootstrap binary when Go source changes merge to main
+Created: 2026-05-05
+Author: haduong
+
+--- log ---
+2026-05-05T00:00Z haduong created
+
+--- body ---
+`tickets/tools/go/erg` is the pre-built binary that `erg update` fetches
+from GitHub raw and that `erg init` ships to new projects. It must stay
+in sync with the source in `tickets/tools/go/*.go`.
+
+Today there is no automated gate. After 11 PRs across two raids added
+`check`, `new`, `log`, `archive`, and other improvements, the committed
+binary remained at the PR #37 state. Users running `erg update` got
+the same stale binary back — the update path was silently broken.
+
+**Desired behaviour:**
+
+A CI workflow (`.github/workflows/rebuild-binary.yml`) triggers on
+push to `main` when any of these paths change:
+
+```
+tickets/tools/go/*.go
+tickets/tools/go/go.mod
+tickets/tools/go/go.sum
+```
+
+The workflow:
+1. Runs `go build -ldflags "-X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o tickets/tools/go/erg .` inside `tickets/tools/go/`
+2. Checks whether the binary changed (`git diff --exit-code tickets/tools/go/erg`).
+3. If changed: commits it directly to main with message
+   `chore: rebuild bootstrap binary [skip ci]` and pushes.
+4. If unchanged: exits 0 silently.
+
+The `[skip ci]` tag prevents the commit from re-triggering the workflow.
+
+**Alternative considered:** require a human to run `make rebuild-binary`
+and include the binary in every code PR. Rejected — it will be forgotten
+(as demonstrated twice already).
+
+**Implementation notes:**
+
+- Use `actions/checkout` with `persist-credentials: true` so the push step works.
+- The workflow needs write permission to `contents`.
+- Build target: `linux/amd64` (GitHub-hosted `ubuntu-latest`).
+- If cross-platform binaries are needed in the future, extend this ticket.
+- No new Makefile targets needed — the workflow calls `go build` directly.
