@@ -1,0 +1,24 @@
+%erg v1
+Title: Add Go unit tests for slugify and appendLogLine
+Created: 2026-05-05
+Author: claude
+Closed: done
+
+--- log ---
+2026-05-05T00:00Z claude created
+
+2026-05-05T07:59Z claude closed — done
+--- body ---
+## Context
+
+`slugify` in `tickets/tools/go/new.go` and `appendLogLine` in
+`tickets/tools/go/close.go` are pure functions with no unit tests.
+
+## Actions
+
+Add table-driven unit tests in `new_test.go` and `close_test.go`.
+
+## Exit criteria
+
+- `go test ./...` passes in `tickets/tools/go/`
+- Tests are non-tautological (each case fails if the function returns wrong value)
