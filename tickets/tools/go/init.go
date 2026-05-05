@@ -47,6 +47,7 @@ func cmdInit(args []string) int {
 	fmt.Printf("- refresh %d managed files under tickets/\n", len(managedAssetPaths))
 	fmt.Println("- append AGENTS.md entry, .gitignore entry, and pre-commit hook block when absent")
 
+	prior, _, _ := readManifest(root)
 	manifest := bootstrapManifest{
 		Version:      1,
 		ManagedFiles: append([]string(nil), managedAssetPaths...),
@@ -90,7 +91,7 @@ func cmdInit(args []string) int {
 		fmt.Fprintf(os.Stderr, "init: cannot update AGENTS.md: %v\n", err)
 		return 1
 	}
-	manifest.AddedAgentsPointer = hasLine(agentsPath, agentsPointerLine)
+	manifest.AddedAgentsPointer = prior.AddedAgentsPointer || addedAgents
 
 	gitignorePath := filepath.Join(root, ".gitignore")
 	addedGitignore, err := ensureLine(gitignorePath, gitignoreLine)
@@ -98,7 +99,7 @@ func cmdInit(args []string) int {
 		fmt.Fprintf(os.Stderr, "init: cannot update .gitignore: %v\n", err)
 		return 1
 	}
-	manifest.AddedGitignoreLine = hasLine(gitignorePath, gitignoreLine)
+	manifest.AddedGitignoreLine = prior.AddedGitignoreLine || addedGitignore
 
 	hookPath := filepath.Join(root, ".git", "hooks", "pre-commit")
 	hookAsset, ok := bootstrapAsset("tickets/integration/hooks/pre-commit")
@@ -111,7 +112,7 @@ func cmdInit(args []string) int {
 		fmt.Fprintf(os.Stderr, "init: cannot update pre-commit hook: %v\n", err)
 		return 1
 	}
-	manifest.AddedHookBlock = hasManagedBlock(hookPath, hookStartMarker, hookEndMarker)
+	manifest.AddedHookBlock = prior.AddedHookBlock || addedHook
 
 	if err := writeManifest(root, manifest); err != nil {
 		fmt.Fprintf(os.Stderr, "init: cannot write manifest: %v\n", err)
@@ -218,6 +219,10 @@ func cmdUninstall(args []string) int {
 	return 0
 }
 
+func splitLines(text string) []string {
+	return strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
+}
+
 func ensureLine(path, line string) (bool, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -227,7 +232,7 @@ func ensureLine(path, line string) (bool, error) {
 		return false, err
 	}
 	text := string(data)
-	for _, existing := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
+	for _, existing := range splitLines(text) {
 		if existing == line {
 			return false, nil
 		}
@@ -247,7 +252,7 @@ func removeLine(path, line string) (bool, error) {
 		}
 		return false, err
 	}
-	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
+	lines := splitLines(string(data))
 	out := make([]string, 0, len(lines))
 	removed := false
 	for _, l := range lines {
@@ -375,31 +380,4 @@ func readManifest(root string) (bootstrapManifest, bool, error) {
 
 func cleanupIfEmpty(path string) {
 	_ = os.Remove(path)
-}
-
-func hasLine(path, line string) bool {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return false
-	}
-	for _, existing := range strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n") {
-		if existing == line {
-			return true
-		}
-	}
-	return false
-}
-
-func hasManagedBlock(path, startMarker, endMarker string) bool {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return false
-	}
-	text := string(data)
-	start := strings.Index(text, startMarker)
-	if start == -1 {
-		return false
-	}
-	end := strings.Index(text[start:], endMarker)
-	return end != -1
 }

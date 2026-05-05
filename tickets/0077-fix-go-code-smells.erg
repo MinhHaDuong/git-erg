@@ -1,0 +1,35 @@
+%erg v1
+Title: Fix Go code smells in tickets/tools/go
+Created: 2026-05-05
+Author: claude
+Closed: autoclosed — PR #87
+
+--- log ---
+2026-05-05T00:00Z claude created
+
+2026-05-05T19:13Z claude closed — autoclosed — PR #87
+--- body ---
+## Context
+Static audit of tickets/tools/go revealed six concrete smells: redundant disk
+re-reads after ensure calls (init.go:93,101,114), hand-rolled JSON via string
+concatenation instead of encoding/json (ready.go:153-206), CRLF normalization
+duplicated 4× (init.go:230,250,279,307), manual bool-to-string (ready.go:164-172),
+silently swallowed EvalSymlinks error (selfupdate.go:66), and a 190-line god
+function (ready.go:55-244).
+
+## Actions
+1. init.go: replace hasLine/hasManagedBlock re-reads with direct true assignment
+2. init.go: extract splitLines helper, replace 4 duplicated CRLF-normalize patterns
+3. ready.go: replace hand-rolled JSON with encoding/json marshalling
+4. ready.go: extract printReadyJSON and printReadyText helpers from cmdReady
+5. selfupdate.go: log EvalSymlinks error instead of silencing with _
+
+## Test
+Run `make test` — all existing tests must pass. The JSON output of
+`erg ready --json` must be valid JSON (pipe through `jq .` to verify).
+
+## Exit criteria
+- All six smells addressed
+- `go vet ./...` passes
+- `make test` green
+- `erg ready --json` output parses as valid JSON
