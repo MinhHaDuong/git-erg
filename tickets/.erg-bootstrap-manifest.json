@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "managed_files": [
+    "tickets/README.md",
+    "tickets/spec-erg-v1.md",
+    "tickets/integration/manifest.json",
+    "tickets/integration/settings.json",
+    "tickets/integration/hooks/pre-commit",
+    "tickets/integration/skills/ticket-close/SKILL.md",
+    "tickets/integration/skills/ticket-new/SKILL.md",
+    "tickets/integration/skills/ticket-ready/SKILL.md"
+  ],
+  "added_agents_pointer": true,
+  "added_gitignore_line": true,
+  "added_hook_block": true
+}

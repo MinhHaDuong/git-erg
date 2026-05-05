@@ -72,7 +72,7 @@ No other headers are valid in v1. No `X-` extensions. If v2 needs new
 headers, it declares `%erg v2` and extends the set.
 
 **`Closed:` header:**
-- Optional, non-repeatable, header section only.
+- Optional, non-repeatable, preamble only.
 - Value is required and non-empty — it carries the reason for closure
   (PR reference, supersession note, "abandoned — out of scope", …).
 - Forbidden in the log and body sections (header-key match at line
@@ -118,7 +118,7 @@ A ticket is **closed** if at least one of these holds:
    or `closed.`, or ends with `-closed`. Covers `tickets/closed/`,
    `0001-foo-closed.erg`. Rules out `disclosed`,
    `enclosed`.
-2. **Header test.** A header section line begins with `Closed:`
+2. **Header test.** A preamble line begins with `Closed:`
    (header-key match at line start; value required, non-empty).
 
 Otherwise the ticket is **not-closed** (open).
@@ -245,7 +245,7 @@ readiness fields:
 
 `erg close <id|file> <reason> [dir]` closes a ticket atomically:
 
-1. Inserts a `Closed: <reason>` header in the header section.
+1. Inserts a `Closed: <reason>` header in the preamble.
 2. Appends a log line: `{timestamp} claude closed — <reason>`.
 3. Scans every open ticket in `[dir]` for `Blocked-by: <id>` and
    removes that line, appending a log entry to each modified ticket:
@@ -257,16 +257,15 @@ runs). The removal is recorded in the log of each dependent ticket so
 the history of why it was blocked is not lost.
 
 `erg close` is idempotent: running it twice on the same ticket prints
-`CLOSED (already)` and exits 0.
+`ALREADY_CLOSED` and exits 0.
 
 ## Archiving
 
 Move a closed ticket to `tickets/archive/` (or any subdirectory of
-`tickets/`) once no open ticket references it. `erg check [dir]`
+`tickets/`) once no open ticket references it. `erg validate [dir]`
 recurses into subdirectories and validates every `.erg` file it finds.
-Archived tickets remain inside check scope when checking the
-top-level `tickets/` directory. `erg validate <files>` checks
-individual files without directory recursion.
+Archived tickets remain inside validation scope when validating the
+top-level `tickets/` directory.
 
 Do not archive a ticket that is still named in a `Blocked-by:` header
 of an open ticket — the validator would then report a missing reference.
@@ -299,7 +298,7 @@ Existing tickets carrying `Status:` headers are converted by
 `erg migrate [dir]`:
 
 - `Status: closed` → `Status:` line removed; `Closed: migrated from
-  Status: closed` appended to the header section.
+  Status: closed` appended to the preamble.
 - `Status: open|doing|pending` → `Status:` line removed (ticket
   becomes not-closed).
 - No `Status:` line → no-op.
