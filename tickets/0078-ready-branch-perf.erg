@@ -2,10 +2,12 @@
 Title: Reduce erg ready git spawns from O(N) to O(1)
 Created: 2026-05-05
 Author: claude
+Closed: autoclosed — PR #88
 
 --- log ---
 2026-05-05T00:00Z claude created
 
+2026-05-05T19:35Z claude closed — autoclosed — PR #88
 --- body ---
 ## Context
 `isBranchClaimed` ran `git branch --list *ID*` and `git branch -r --list *ID*`
