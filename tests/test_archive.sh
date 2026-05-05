@@ -114,6 +114,21 @@ else
     pass "default: open ticket silently ignored"
 fi
 
+# --- ID mode: closed ticket still blocking open ticket is skipped ---
+OUT_7003=$($ERG archive 7003 "$FIXTURES" 2>&1)
+if echo "$OUT_7003" | grep -q "SKIPPED 7003-closed-blocked.erg"; then
+    pass "id mode: closed-blocking ticket emits SKIPPED"
+else
+    fail "id mode: closed-blocking ticket emits SKIPPED (got: $OUT_7003)"
+fi
+
+# --- ID mode: source file unchanged after blocker skip ---
+if [ -f "$FIXTURES/7003-closed-blocked.erg" ] && [ ! -f "$FIXTURES/closed/7003-closed-blocked.erg" ]; then
+    pass "id mode: source file unchanged after blocker skip"
+else
+    fail "id mode: source file unchanged after blocker skip"
+fi
+
 # --- ID mode: archive a specific ticket by ID ---
 write_closed "$FIXTURES/7010-specific.erg" "Specific Ticket"
 

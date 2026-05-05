@@ -46,6 +46,11 @@ func cmdLog(args []string) int {
 		return 1
 	}
 
+	if !strings.Contains(string(data), "\n--- body ---") {
+		fmt.Fprintf(os.Stderr, "log: %s has no --- body --- separator — refusing to write\n", ticketPath)
+		return 1
+	}
+
 	now := time.Now().UTC().Format("2006-01-02T15:04Z")
 	logLine := now + " " + line
 
