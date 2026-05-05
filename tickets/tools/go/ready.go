@@ -180,7 +180,8 @@ func cmdReady(args []string) int {
 		}
 	}
 
-	branches := loadBranchNames()
+	var branches []string
+	branchesLoaded := false
 
 	var warnings []string
 	var openEntries []readyEntry
@@ -230,6 +231,10 @@ func cmdReady(args []string) int {
 
 		claimed := false
 		if !blocked {
+			if !branchesLoaded {
+				branches = loadBranchNames()
+				branchesLoaded = true
+			}
 			claimed = isBranchClaimed(tid, branches)
 			if claimed {
 				blocked = true
