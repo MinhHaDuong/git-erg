@@ -2,10 +2,12 @@
 Title: UX audit: erg user-facing messages, commands, and output semantics
 Created: 2026-05-05
 Author: haduong
+Closed: done — all items merged (PRs #81-#83) or ticketed (#0075, #0076)
 
 --- log ---
 2026-05-05T00:00Z haduong created
 
+2026-05-05T15:54Z claude closed — done — all items merged (PRs #81-#83) or ticketed (#0075, #0076)
 --- body ---
 Systematic review of every user interaction point in the erg CLI.
 Findings are grouped by severity. "Design audit, not a licence to kill" —
