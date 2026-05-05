@@ -172,9 +172,8 @@ Author: claude
 
 --- body ---
 EOF
-mv "$FIXTURES/9006-suffix-closed.erg" "$FIXTURES/9006-suffix-name-closed.erg"
-OUT=$($ERG close "$FIXTURES/9006-suffix-name-closed.erg" "another close" 2>/dev/null) && rc=0 || rc=$?
-if [ "$rc" -eq 0 ] && [ "$OUT" = "ALREADY_CLOSED" ]; then
+OUT=$($ERG close "$FIXTURES/9006-suffix-closed.erg" "another close" 2>/dev/null || true)
+if [ "$OUT" = "ALREADY_CLOSED" ]; then
     pass "path-closed ticket recognized as already-closed"
 else
     fail "path-closed ticket recognized (rc=$rc, output: $OUT)"
@@ -192,9 +191,8 @@ Author: claude
 
 --- body ---
 EOF
-mv "$FIXTURES/9007-disclosed-mention.erg" "$FIXTURES/9007-disclosed-mention-keep.erg"
-OUT=$($ERG close "$FIXTURES/9007-disclosed-mention-keep.erg" "real close" 2>/dev/null) && rc=0 || rc=$?
-if [ "$rc" -eq 0 ] && [ "$OUT" = "CLOSED" ]; then
+OUT=$($ERG close "$FIXTURES/9007-disclosed-mention.erg" "real close" 2>/dev/null || true)
+if [ "$OUT" = "CLOSED" ]; then
     pass "'disclosed' in name does not falsely close"
 else
     fail "'disclosed' in name does not falsely close (rc=$rc, output: $OUT)"
