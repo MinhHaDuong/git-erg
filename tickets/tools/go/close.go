@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// cmdClose implements `erg close <id|file> <reason> [dir]`.
+// cmdClose implements `erg close ID|FILE REASON [DIR]`.
 func cmdClose(args []string) int {
 	if len(args) < 2 {
 		fmt.Fprintln(os.Stderr, "Usage: erg close ID|FILE REASON [DIR]")

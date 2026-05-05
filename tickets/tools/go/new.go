@@ -29,7 +29,7 @@ func slugify(title string) string {
 	return s
 }
 
-// cmdNew implements `erg new <title> [dir]`.
+// cmdNew implements `erg new TITLE [DIR]`.
 func cmdNew(args []string) int {
 	if len(args) < 1 || strings.TrimSpace(args[0]) == "" {
 		fmt.Fprintln(os.Stderr, "Usage: erg new TITLE [DIR]")
