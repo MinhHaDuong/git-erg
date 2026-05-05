@@ -1,0 +1,28 @@
+%erg v1
+Title: Fix double-run anti-pattern in test_main.sh and test_check.sh
+Created: 2026-05-05
+Author: claude
+
+--- log ---
+2026-05-05T08:34Z claude created
+
+--- body ---
+Two test files retained the double-run anti-pattern after the raid.
+
+**`tests/test_main.sh` — all 5 cases (e.g., lines 15-16):**
+
+```sh
+out=$("$ERG" 2>&1 || true)          # run 1: capture output
+if "$ERG" >/dev/null 2>&1; then     # run 2: check exit code
+```
+
+The exit code from run 1 is discarded; the output from run 2 is discarded.
+On a non-deterministic binary (file read between calls, env differences)
+the two runs can disagree. Replace with the single-run pattern.
+
+**`tests/test_check.sh:160-166`** — the folder-closure warning test uses the
+same structure: `out=$(cmd || true)` followed by `if cmd; then`.
+
+**Fix:** `out=$(cmd 2>&1) && rc=0 || rc=$?`, then assert on both `$rc` and
+`$out`. The fix is identical to what was applied in ticket 0044 to
+`test_validate.sh`.
