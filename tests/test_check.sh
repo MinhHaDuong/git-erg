@@ -308,6 +308,48 @@ else
     fail "check: 2 warnings uses plural (got: $out)"
 fi
 
+# --- Plural: 1 error singular form ---
+mkdir -p "$FIXTURES/err1"
+cat > "$FIXTURES/err1/0001-bad-date.erg" <<'EOF'
+%erg v1
+Title: Bad date
+Created: not-a-date
+Author: a
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG check "$FIXTURES/err1" 2>&1) || true
+if echo "$out" | grep -qF "FAILED (1 error)"; then
+    pass "check: 1 error uses singular"
+else
+    fail "check: 1 error uses singular (got: $out)"
+fi
+if echo "$out" | grep -qF "error(s)"; then
+    fail "check: no (s) fake plural for 1 error"
+else
+    pass "check: no (s) fake plural for 1 error"
+fi
+
+# --- Plural: 2 errors plural form ---
+mkdir -p "$FIXTURES/err2"
+cat > "$FIXTURES/err2/0001-bad-date2.erg" <<'EOF'
+%erg v1
+Title: Bad date
+Created: not-a-date
+Author: a
+Tags: bogus-tag
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG check "$FIXTURES/err2" 2>&1) || true
+if echo "$out" | grep -qF "FAILED (2 errors)"; then
+    pass "check: 2 errors uses plural"
+else
+    fail "check: 2 errors uses plural (got: $out)"
+fi
+
 # live-corpus check moved to: make validate
 
 echo "check: $PASS passed, $FAIL failed"
