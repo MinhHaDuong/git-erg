@@ -2,10 +2,12 @@
 Title: Fix Go code smells in tickets/tools/go
 Created: 2026-05-05
 Author: claude
+Closed: autoclosed — PR #87
 
 --- log ---
 2026-05-05T00:00Z claude created
 
+2026-05-05T19:13Z claude closed — autoclosed — PR #87
 --- body ---
 ## Context
 Static audit of tickets/tools/go revealed six concrete smells: redundant disk
