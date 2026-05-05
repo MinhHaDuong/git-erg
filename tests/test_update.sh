@@ -10,10 +10,10 @@ fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
 echo "=== erg update/version ==="
 
-# Test: erg version exits 0 and prints 64-char hex
+# Test: erg version exits 0 and prints structured output with hash and arch
 VER=$("$ERG" version)
-if echo "$VER" | grep -qE '^[0-9a-f]{64}$'; then
-    pass "version prints hex"
+if echo "$VER" | grep -qE '^[[:space:]]+hash:[[:space:]]+[0-9a-f]{12}$' && echo "$VER" | grep -q 'arch:'; then
+    pass "version prints structured info"
 else
     fail "version output: $VER"
 fi

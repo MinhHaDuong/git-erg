@@ -2,10 +2,12 @@
 Title: erg version: binary self-report with obsolescence detection
 Created: 2026-05-05
 Author: haduong
+Closed: done
 
 --- log ---
 2026-05-05T00:00Z haduong created
 
+2026-05-05T09:05Z claude closed — done
 --- body ---
 `erg version` currently prints only a raw SHA-256 hash with no context.
 Extend it to be a full self-diagnostic command.
