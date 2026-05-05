@@ -2,12 +2,14 @@
 Title: UX P1: fix usage angle-brackets, add CREATED verb, clarify SKIPPED message
 Created: 2026-05-05
 Author: haduong
+Closed: done
 
 --- log ---
 2026-05-05T00:00Z haduong created
 2026-05-05T00:01Z claude imagine — all 6 strings confirmed at exact line numbers; 2 gaps found: (1) Action 5 breaks 4 existing test_new.sh assertions (lines 24, 47, 55, 64) that anchor on bare filename — must update not just add; (2) CREATED should use bare filename (t.Filename()), not full path, to match ARCHIVED/SKIPPED convention
 2026-05-05T00:02Z claude plan — PASS: 6 exact Go edits confirmed; use filename (bare) not path for CREATED; strip prefix in 4 test_new.sh captures via sed; add needed-by assertions to test_archive.sh; add per-command angle-bracket loop to test_help.sh
 
+2026-05-05T15:47Z claude closed — done
 --- body ---
 ## Context
 

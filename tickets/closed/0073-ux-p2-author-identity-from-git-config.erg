@@ -2,12 +2,14 @@
 Title: UX P2: resolve author identity from git config instead of hardcoded claude
 Created: 2026-05-05
 Author: haduong
+Closed: done
 
 --- log ---
 2026-05-05T00:00Z haduong created
 2026-05-05T00:01Z claude imagine — strings confirmed (new.go:60 one site covers actions 2+3; close.go:64 and close.go:126 for action 4); fallback order corrected (ERG_AUTHOR must be first or it is dead code); resolveAuthor() placed in new author.go; test_close.sh:34 asserts "claude closed" literally and must be updated
 2026-05-05T00:02Z claude plan — PASS: create author.go + author_test.go; gitConfigUserName injectable var enables unit tests; close.go removeBlockedByRef needs signature change to accept author; test_close.sh line 31 needs ERG_AUTHOR=testuser prefix
 
+2026-05-05T15:47Z claude closed — done
 --- body ---
 ## Context
 

@@ -2,6 +2,7 @@
 Title: UX P3: polish sweep — warning prefix, pluralization, init output, jargon
 Created: 2026-05-05
 Author: haduong
+Closed: done
 
 --- log ---
 2026-05-05T00:00Z haduong created
@@ -9,6 +10,7 @@ Author: haduong
 2026-05-05T00:03Z claude bump circuit-breaker — agent timeout on verify PR #83
 2026-05-05T00:02Z claude plan — PASS: 7 Go edits confirmed; inline ternary (no util.go); use grep -qF for exact plural substring match; two ALREADY_CLOSED assertions in test_close.sh (lines ~70 and ~177); init.go line 48 plan-description also has "pointer"
 
+2026-05-05T15:47Z claude closed — done
 --- body ---
 ## Context
 
