@@ -20,14 +20,20 @@ var gitConfigUserName = func() string {
 //  2. git config user.name
 //  3. $USER
 //  4. "unknown"
+//
+// All values are stripped of newlines and carriage returns so that a
+// multi-line env var cannot inject extra header lines into the ticket file.
 func resolveAuthor() string {
-	if v := os.Getenv("ERG_AUTHOR"); v != "" {
+	sanitize := func(s string) string {
+		return strings.NewReplacer("\n", "", "\r", "").Replace(s)
+	}
+	if v := sanitize(os.Getenv("ERG_AUTHOR")); v != "" {
 		return v
 	}
-	if v := gitConfigUserName(); v != "" {
+	if v := sanitize(gitConfigUserName()); v != "" {
 		return v
 	}
-	if v := os.Getenv("USER"); v != "" {
+	if v := sanitize(os.Getenv("USER")); v != "" {
 		return v
 	}
 	return "unknown"
