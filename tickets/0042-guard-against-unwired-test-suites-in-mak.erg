@@ -1,0 +1,40 @@
+%erg v1
+Title: guard against unwired test suites in Makefile
+Created: 2026-05-05
+Author: claude
+
+--- log ---
+2026-05-05T06:47Z claude created
+
+--- body ---
+## Context
+
+During the raid that added `erg log`, `erg new`, and `erg archive`, the
+`test_new.sh` file was delivered without wiring `new` into `TEST_SUITES` in
+the Makefile. `make test` passed (the suite was silently skipped) but 16 tests
+were never exercised. Caught at verify-gate; fixed in the reroll commit.
+
+The anti-pattern: add `tests/test_foo.sh` → forget to add `foo` to
+`TEST_SUITES` → CI passes with zero coverage of the new suite.
+
+## Actions
+
+Add a check to `_test-lint` that cross-references `tests/test_*.sh` against
+`TEST_SUITES` and exits non-zero if any test file has no matching suite entry.
+
+Something like:
+```make
+@for f in tests/test_*.sh; do \
+    suite=$$(basename $$f .sh | sed 's/^test_//'); \
+    echo " $(TEST_SUITES) " | grep -q " $$suite " || \
+        { echo "ERROR: $$f not in TEST_SUITES" >&2; exit 1; }; \
+done
+```
+
+## Exit criteria
+
+- `_test-lint` fails if any `tests/test_X.sh` file lacks a matching `X` in
+  `TEST_SUITES`
+- `make test` still passes on main
+- Adding a new `tests/test_foo.sh` without updating `TEST_SUITES` causes
+  `make test` to fail visibly
