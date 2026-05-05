@@ -157,13 +157,13 @@ Author: a
 --- log ---
 --- body ---
 EOF
-out=$($ERG check "$FIXTURES/closure" 2>&1)
+rc=0; out=$($ERG check "$FIXTURES/closure" 2>&1) || rc=$?
 if echo "$out" | grep -q "WARNING.*open ticket in closed"; then
     pass "open ticket in closed/ warns"
 else
     fail "open ticket in closed/ warns (got: $out)"
 fi
-if $ERG check "$FIXTURES/closure" >/dev/null 2>&1; then
+if [ $rc -eq 0 ]; then
     pass "folder closure warning exits 0"
 else
     fail "folder closure warning exits 0"
