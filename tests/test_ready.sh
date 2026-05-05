@@ -11,7 +11,13 @@ pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
 mkdir -p "$FIXTURES/ready"
-trap 'rm -rf "$FIXTURES"; git branch -D test/0098-claim 2>/dev/null || true' EXIT
+tmpdir=
+cleanup() {
+    rm -rf "$FIXTURES"
+    git branch -D test/0098-claim 2>/dev/null || true
+    [ -n "$tmpdir" ] && rm -rf "$tmpdir"
+}
+trap cleanup EXIT
 
 echo "=== erg ready ==="
 

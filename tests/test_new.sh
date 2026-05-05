@@ -10,7 +10,12 @@ pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
 TDIR=$(mktemp -d)
-trap 'find "$TDIR" -mindepth 1 -delete' EXIT
+WDIR=
+cleanup() {
+    find "$TDIR" -mindepth 1 -delete 2>/dev/null || true
+    [ -n "$WDIR" ] && rm -rf "$WDIR"
+}
+trap cleanup EXIT
 
 echo "=== erg new ==="
 
