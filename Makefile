@@ -29,6 +29,11 @@ _test-lint:
 		echo "ERROR: tests must default ERG to build/erg (found legacy tickets/tools/go/erg default)" >&2; \
 		exit 1; \
 	fi
+	@for f in tests/test_*.sh; do \
+		suite=$$(basename $$f .sh | sed 's/^test_//'); \
+		echo " $(TEST_SUITES) " | grep -q " $$suite " || \
+			{ echo "ERROR: $$f not in TEST_SUITES" >&2; exit 1; }; \
+	done
 
 $(TEST_TARGETS): test-%: build _test-lint
 	@ERG_BIN=$(ERG_BIN) sh tests/test_$*.sh
