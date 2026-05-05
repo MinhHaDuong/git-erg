@@ -57,6 +57,7 @@ fi
 
 # --- Two calls produce two entries (append-only) ---
 $ERG log 0042 "claude bump test — second" "$FIXTURES" > /dev/null
+# || true: grep -c exits 1 when count is 0; the assertion below catches that case.
 count=$(grep -c "claude bump test" "$FIXTURES/0042-smoke.erg" || true)
 if [ "$count" -eq 2 ]; then
     pass "log is append-only (two calls produce two entries)"
@@ -126,11 +127,11 @@ Author: claude
 
 --- body ---
 EOF
-err=$($ERG log 0044 "some line" "$FIXTURES" 2>&1 || true)
-if echo "$err" | grep -q "ambiguous"; then
+err=$($ERG log 0044 "some line" "$FIXTURES" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$err" | grep -q "ambiguous"; then
     pass "ambiguous ID exits non-zero with 'ambiguous'"
 else
-    fail "ambiguous ID exits non-zero with 'ambiguous' (got: $err)"
+    fail "ambiguous ID exits non-zero with 'ambiguous' (rc=$rc, got: $err)"
 fi
 rm -f "$FIXTURES/0044-alpha.erg" "$FIXTURES/0044-beta.erg"
 

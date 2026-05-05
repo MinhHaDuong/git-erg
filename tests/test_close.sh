@@ -173,11 +173,11 @@ Author: claude
 --- body ---
 EOF
 mv "$FIXTURES/9006-suffix-closed.erg" "$FIXTURES/9006-suffix-name-closed.erg"
-OUT=$($ERG close "$FIXTURES/9006-suffix-name-closed.erg" "another close" 2>/dev/null || true)
-if [ "$OUT" = "ALREADY_CLOSED" ]; then
+OUT=$($ERG close "$FIXTURES/9006-suffix-name-closed.erg" "another close" 2>/dev/null) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] && [ "$OUT" = "ALREADY_CLOSED" ]; then
     pass "path-closed ticket recognized as already-closed"
 else
-    fail "path-closed ticket recognized (output: $OUT)"
+    fail "path-closed ticket recognized (rc=$rc, output: $OUT)"
 fi
 
 # --- "disclosed" path component must NOT trigger closed ---
@@ -193,11 +193,11 @@ Author: claude
 --- body ---
 EOF
 mv "$FIXTURES/9007-disclosed-mention.erg" "$FIXTURES/9007-disclosed-mention-keep.erg"
-OUT=$($ERG close "$FIXTURES/9007-disclosed-mention-keep.erg" "real close" 2>/dev/null || true)
-if [ "$OUT" = "CLOSED" ]; then
+OUT=$($ERG close "$FIXTURES/9007-disclosed-mention-keep.erg" "real close" 2>/dev/null) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] && [ "$OUT" = "CLOSED" ]; then
     pass "'disclosed' in name does not falsely close"
 else
-    fail "'disclosed' in name does not falsely close (output: $OUT)"
+    fail "'disclosed' in name does not falsely close (rc=$rc, output: $OUT)"
 fi
 
 # --- Missing args (no ID) ---
@@ -336,17 +336,17 @@ Blocked-by: 8020
 --- body ---
 EOF
 chmod 444 "$FIXTURES/8021-dependent-unwritable.erg"
-OUT=$($ERG close 8020 "done" "$FIXTURES" 2>&1 || true)
+OUT=$($ERG close 8020 "done" "$FIXTURES" 2>&1) && rc=0 || rc=$?
 chmod 644 "$FIXTURES/8021-dependent-unwritable.erg"
-if echo "$OUT" | grep -q "CLOSED"; then
+if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q "CLOSED"; then
     pass "close: dependent write failure keeps close success"
 else
-    fail "close: dependent write failure keeps close success"
+    fail "close: dependent write failure keeps close success (rc=$rc, got: $OUT)"
 fi
 if echo "$OUT" | grep -q "warning: cannot write"; then
     pass "close: dependent write failure emits warning"
 else
-    fail "close: dependent write failure emits warning"
+    fail "close: dependent write failure emits warning (got: $OUT)"
 fi
 
 # --- Ambiguous ID (two files match) exits 1 with "ambiguous" ---
@@ -372,11 +372,11 @@ Author: claude
 
 --- body ---
 EOF
-err=$($ERG close 0042 "reason" "$FIXTURES" 2>&1 || true)
-if echo "$err" | grep -q "ambiguous"; then
+err=$($ERG close 0042 "reason" "$FIXTURES" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$err" | grep -q "ambiguous"; then
     pass "ambiguous ID exits 1 with 'ambiguous'"
 else
-    fail "ambiguous ID exits 1 with 'ambiguous' (got: $err)"
+    fail "ambiguous ID exits 1 with 'ambiguous' (rc=$rc, got: $err)"
 fi
 rm -f "$FIXTURES/0042-alpha.erg" "$FIXTURES/0042-beta.erg"
 
@@ -389,11 +389,11 @@ Author: claude
 
 This file lacks the log separator entirely.
 EOF
-err=$($ERG close "$FIXTURES/0043-no-sep.erg" "reason" 2>&1 || true)
-if echo "$err" | grep -q "missing '--- log ---'"; then
+err=$($ERG close "$FIXTURES/0043-no-sep.erg" "reason" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$err" | grep -q "missing '--- log ---'"; then
     pass "missing log separator exits 1 with error"
 else
-    fail "missing log separator exits 1 with error (got: $err)"
+    fail "missing log separator exits 1 with error (rc=$rc, got: $err)"
 fi
 rm -f "$FIXTURES/0043-no-sep.erg"
 
