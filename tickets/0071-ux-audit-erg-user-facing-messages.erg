@@ -1,0 +1,159 @@
+%erg v1
+Title: UX audit: erg user-facing messages, commands, and output semantics
+Created: 2026-05-05
+Author: haduong
+
+--- log ---
+2026-05-05T00:00Z haduong created
+
+--- body ---
+Systematic review of every user interaction point in the erg CLI.
+Findings are grouped by severity. "Design audit, not a licence to kill" —
+each item is a specific, scoped improvement, not a rewrite.
+
+---
+
+## A. Escaped scope from PR #78 (angle brackets in per-command usage strings)
+
+PR #78 fixed `printUsage()` in `main.go` but missed the per-command usage
+strings printed when a command receives wrong arguments. These still use
+`<arg>` angle brackets:
+
+- `close.go`: `"Usage: erg close <id|file> <reason> [dir]"`
+- `validate.go`: `"Usage: erg validate <file ...>"`
+- `new.go`: `"Usage: erg new <title> [dir]"`
+- `log.go`: `"Usage: erg log <id> <line> [dir]"`
+
+Fix: apply the same UPPER_CASE convention. Scope: 4 one-line string changes.
+
+---
+
+## B. Hardcoded `Author: claude` in generated ticket template
+
+`new.go` writes `Author: claude` into every generated ticket file.
+`close.go` writes `claude closed —` and `claude note blocker` into log lines.
+
+These are wrong for any non-Claude author. The field should reflect the
+actual actor. Options in priority order:
+1. `$(git config user.name)` — available via `os/exec`, matches repo identity
+2. `$ERG_AUTHOR` env var — opt-in override
+3. Fallback: `haduong` (last resort, still wrong for other users)
+
+Scope: `new.go` template, `close.go` two log-line format strings.
+
+---
+
+## C. Inconsistent warning prefix: `WARNING` vs `WARN:`
+
+`check.go` uses two different prefixes in the same file:
+- `"WARNING %s: open ticket in closed/ directory"` (folder-closure)
+- `"WARN: Go source files found in tickets/tools/go/ ..."` (stray source)
+
+Standardize to `WARN:` throughout (shorter, matches the stray-source message
+added in PR #79, and avoids confusion with the `WARNING:` prefix in
+`validate.go` and `ready.go`).
+
+Scope: 2 string changes in `check.go`.
+
+---
+
+## D. `ALREADY_CLOSED` uses underscore; all other status verbs use spaces or none
+
+Status output verbs: `CLOSED`, `ARCHIVED`, `SKIPPED`, `LOGGED` — no underscores.
+`ALREADY_CLOSED` breaks the pattern. Options:
+- `ALREADY CLOSED` (two words, space) — consistent style
+- `CLOSED (already)` — explicit qualifier
+- Exit 0 silently (the ticket is already closed; no action needed)
+
+Preferred: `CLOSED (already)` — matches `PASS (3 tickets, 2 warnings)` style.
+
+---
+
+## E. `(s)` pluralization is inelegant
+
+Several messages append `(s)` to fake pluralization:
+- `"ERG CHECK: PASS (%d tickets%s)"` where `%s` = `", %d warning(s)"`
+- `"ERG VALIDATION: PASS (%d file(s))"`
+
+Use proper pluralization: `1 file` vs `2 files`; `1 warning` vs `2 warnings`.
+Small helper: `func plural(n int, word string) string` — returns `"1 file"` or
+`"N files"`.
+
+Scope: ~5 format strings + 1 helper function.
+
+---
+
+## F. `erg new` prints filename but no status verb
+
+`new` exits 0 and prints just the filename (e.g., `tickets/0071-foo.erg`).
+Every other mutating command prints a status verb first:
+`CLOSED`, `ARCHIVED`, `LOGGED`, `SKIPPED`.
+
+`new` should print: `CREATED tickets/0071-foo.erg`
+
+Scope: 1 format string change in `new.go`.
+
+---
+
+## G. `SKIPPED %s (blocking %s)` — ambiguous direction
+
+"SKIPPED 0042-foo.erg (blocking 0039-bar)" means "0042 was skipped because
+it is still blocking 0039". But "blocking" is ambiguous: does 0042 block 0039,
+or does 0039 block 0042?
+
+Clearer: `SKIPPED %s (still blocks %s — archive %s first)` or
+`SKIPPED %s (blocked by open ticket %s)`.
+
+Actually the semantic is: the ticket being archived cannot move because
+ANOTHER open ticket has a `Blocked-by:` pointing to it. So:
+`SKIPPED %s (needed by %s)` — unambiguous.
+
+Scope: 1 string change in `archive.go`.
+
+---
+
+## H. `version` prints `[unknown — no build metadata]` — too technical
+
+When `buildDate` is empty (binary not built with ldflags):
+```
+  built:   [unknown — no build metadata]
+```
+"Build metadata" is internal jargon. Clearer: `[not set — rebuild with make build]`
+or simply omit the `built:` line when unknown (the `revision:` line from #0070
+will provide context).
+
+---
+
+## I. `init` output uses boolean `%t` for flags and "pointer" as noun
+
+```
+- AGENTS.md pointer added: true
+- .gitignore entry added: false
+```
+"Pointer" is a programming term; "entry" is correct. And `true`/`false` in CLI
+output is unusual — prefer `yes`/`no` or `added`/`skipped`.
+
+Also: `"- manifest: %s\n"` prints just the path — unclear what the user should
+do with it. Suggest: `"- manifest written: %s\n"`.
+
+---
+
+## J. `validate.go` uses "preamble" — undefined jargon
+
+Error messages reference "preamble":
+```
+'Closed:' header found in log section — only allowed in preamble
+```
+Users don't know what "preamble" means in this context. Use "header section"
+(the part before `--- log ---`).
+
+---
+
+## Implementation order
+
+Handle A (escaped scope) as a standalone fix immediately.
+Handle B (author) — needs design decision on how to resolve actor identity.
+Handle C, D, E, F, G, H, I, J together as a UX sweep PR.
+
+Each is a targeted string change; no logic changes except E (plural helper)
+and B (actor identity lookup).
