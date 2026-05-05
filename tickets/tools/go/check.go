@@ -36,6 +36,32 @@ func folderClosure(tickets []Erg) []string {
 	return warnings
 }
 
+// strayGoSource warns when Go source files (*.go, go.mod, go.sum) are found
+// under dir/tools/go/, unless the go.mod declares the git-erg module itself.
+func strayGoSource(dir string) []string {
+	goDir := filepath.Join(dir, "tools", "go")
+	entries, err := os.ReadDir(goDir)
+	if err != nil {
+		return nil
+	}
+	found := false
+	for _, e := range entries {
+		n := e.Name()
+		if strings.HasSuffix(n, ".go") || n == "go.mod" || n == "go.sum" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil
+	}
+	data, err := os.ReadFile(filepath.Join(goDir, "go.mod"))
+	if err == nil && strings.Contains(string(data), "module github.com/MinhHaDuong/git-erg") {
+		return nil
+	}
+	return []string{"WARN: Go source files found in tickets/tools/go/ — only the binary is needed; remove *.go, go.mod, go.sum"}
+}
+
 // cmdCheck implements `erg check [dir]` — corpus-level validation.
 func cmdCheck(args []string) int {
 	dir := "tickets/"
@@ -61,6 +87,7 @@ func cmdCheck(args []string) int {
 
 	errors := validateAll(tickets)
 	warnings := folderClosure(tickets)
+	warnings = append(warnings, strayGoSource(dir)...)
 
 	hasErrors := len(errors) > 0
 	if hasErrors {

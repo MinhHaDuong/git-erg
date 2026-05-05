@@ -203,6 +203,60 @@ else
     fail "empty dir exits 0"
 fi
 
+# --- Stray Go source warns ---
+mkdir -p "$FIXTURES/stray/tools/go"
+cat > "$FIXTURES/stray/0001-x.erg" <<'EOF'
+%erg v1
+Title: x
+Created: 2026-01-01
+Author: x
+
+--- log ---
+
+--- body ---
+EOF
+touch "$FIXTURES/stray/tools/go/fake.go"
+rc=0; out=$($ERG check "$FIXTURES/stray" 2>&1) || rc=$?
+if echo "$out" | grep -qF "WARN: Go source files found in tickets/tools/go/ — only the binary is needed; remove *.go, go.mod, go.sum"; then
+    pass "stray Go source warns"
+else
+    fail "stray Go source warns (got: $out)"
+fi
+if [ $rc -eq 0 ]; then
+    pass "stray Go source warning exits 0"
+else
+    fail "stray Go source warning exits 0"
+fi
+
+# --- git-erg exception: go.mod with git-erg module path suppresses warn ---
+mkdir -p "$FIXTURES/giterg/tools/go"
+cat > "$FIXTURES/giterg/0001-x.erg" <<'EOF'
+%erg v1
+Title: x
+Created: 2026-01-01
+Author: x
+
+--- log ---
+
+--- body ---
+EOF
+cat > "$FIXTURES/giterg/tools/go/go.mod" <<'EOF'
+module github.com/MinhHaDuong/git-erg
+
+go 1.22
+EOF
+rc=0; out=$($ERG check "$FIXTURES/giterg" 2>&1) || rc=$?
+if echo "$out" | grep -qF "WARN: Go source files found"; then
+    fail "git-erg exception suppresses warn"
+else
+    pass "git-erg exception suppresses warn"
+fi
+if [ $rc -eq 0 ]; then
+    pass "git-erg exception exits 0"
+else
+    fail "git-erg exception exits 0"
+fi
+
 # live-corpus check moved to: make validate
 
 echo "check: $PASS passed, $FAIL failed"
