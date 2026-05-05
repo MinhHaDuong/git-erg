@@ -1,0 +1,44 @@
+%erg v1
+Title: Fix nextID to scan closed/ and archive/ subdirectories
+Created: 2026-05-05
+Author: haduong
+
+--- log ---
+2026-05-05T00:00Z haduong created
+
+--- body ---
+`tickets/tools/go/nextid.go` implements `nextID(dir string) string` which
+scans `dir` for `NNNN-*.erg` filenames to determine the next sequential ID.
+It only scans the top-level directory and ignores `dir/closed/` and
+`dir/archive/` subdirectories.
+
+When all active tickets have been closed and moved into `closed/`, the
+top-level is empty and `nextID` restarts from `0001`, reusing IDs that
+already exist in the archive. This happened in practice: tickets 0001–0011
+were assigned IDs already present in `tickets/closed/` (0003–0012).
+
+**Fix:** Walk all subdirectories of `dir` (or at minimum `closed/` and
+`archive/`) when computing the maximum existing ID. The simplest approach:
+
+```go
+func nextID(dir string) string {
+    max := 0
+    _ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+        if err != nil || d.IsDir() {
+            return nil
+        }
+        if n := parseIDFromFilename(filepath.Base(path)); n > max {
+            max = n
+        }
+        return nil
+    })
+    return fmt.Sprintf("%04d", max+1)
+}
+```
+
+Extract `parseIDFromFilename` as a helper (integer parse of the leading
+4-digit prefix, return 0 on non-match) so it can be unit-tested separately.
+
+**Update `TestNextID` (ticket 0066):** add cases for
+tickets in `closed/` and `archive/` subdirectories being respected by the
+max-ID scan.
