@@ -1,0 +1,54 @@
+%erg v1
+Title: Fix test_archive.sh vacuous test, fixture guard, and test_check.sh live-corpus coupling
+Created: 2026-05-05
+Author: claude
+
+--- log ---
+2026-05-05T08:34Z claude created
+2026-05-05T00:00Z claude merged ticket 0010 in
+
+--- body ---
+Three related hygiene issues across two test files.
+
+**1. Vacuous already-archived test in `test_archive.sh` lines ~156-162:**
+```sh
+OUT4=$($ERG archive "$FIXTURES" 2>&1)
+if echo "$OUT4" | grep -q "already exists"; then
+    fail "default: already-archived ticket triggers collision (got: $OUT4)"
+else
+    pass "default: already-archived ticket not re-processed"
+```
+This passes vacuously: `erg archive` only scans the top-level directory, so
+`7001-closed-unblocked.erg` (already in `closed/`) is never examined on the
+second pass and never triggers the collision path. The test cannot distinguish
+"correctly skipped because already archived" from "silently ignored because the
+scanner doesn't look there."
+
+The actual collision-handling path is tested at lines ~165-178 (destination
+already exists). Fix: remove the vacuous re-run case and replace it with a
+comment explaining why double-archiving is a no-op by design (scanner scope),
+or test the property directly — create a ticket, archive it, attempt to archive
+by ID a second time, verify nothing changes.
+
+**2. Shared fixture mutation risk in `test_archive.sh`:**
+`$FIXTURES/0001-valid.erg` is written once (line ~33) and reused by "multiple
+file args pass" and "blocked-by sibling" tests later in the file. Any future
+test inserted between creation and reuse that mutates or removes the file will
+silently break downstream assertions.
+
+Fix: add an existence assertion immediately before each reuse site:
+```sh
+[ -f "$FIXTURES/0001-valid.erg" ] || fail "fixture 0001 unexpectedly missing"
+```
+
+**3. Live-corpus test in `test_check.sh` at line ~207:**
+```sh
+$ERG check tickets/   # sanity: live repo must pass erg check
+```
+This couples CI outcome to editorial decisions in `tickets/`. A legitimately
+malformed ticket committed during development would fail CI without any clear
+indication that the test suite itself is fine.
+
+Fix: move this assertion to a separate `make validate` target that is
+explicitly a lint step, not part of the unit test suite. Add a comment at the
+former location explaining where it went.

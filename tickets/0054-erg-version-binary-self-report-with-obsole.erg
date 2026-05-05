@@ -1,0 +1,53 @@
+%erg v1
+Title: erg version: binary self-report with obsolescence detection
+Created: 2026-05-05
+Author: haduong
+
+--- log ---
+2026-05-05T00:00Z haduong created
+
+--- body ---
+`erg version` currently prints only a raw SHA-256 hash with no context.
+Extend it to be a full self-diagnostic command.
+
+**Output for the running binary:**
+- Absolute path to the binary (`os.Executable()`)
+- SHA-256 hash (already computed at build time via `go generate` or ldflags)
+- Compilation timestamp (embedded via ldflags: `-X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)`)
+- Target OS/arch (`runtime.GOOS`, `runtime.GOARCH`)
+
+**Binary discovery — search in order:**
+1. Project-local: `./build/erg` (the just-built copy)
+2. User install: `~/.local/bin/erg`
+3. System PATH: all `erg` entries from `which -a erg` or equivalent
+
+For each discovered binary (excluding the running one), print its path,
+hash, and build date if embedded.
+
+**Obsolescence marking:**
+A discovered binary is **obsolete** if its hash differs from the running
+binary. Mark it with `[outdated]` and print the update command:
+- `./build/erg` out of sync → `make build`
+- `~/.local/bin/erg` out of sync → `make install` (or `cp build/erg ~/.local/bin/erg`)
+- PATH entry → show the copy command to the relevant location
+
+A binary with no embedded build date is marked `[unknown — no build metadata]`.
+
+**Example output:**
+```
+erg version
+  path:    /home/alice/.local/bin/erg
+  hash:    79681df...
+  built:   2026-05-01T14:32:00Z
+  arch:    linux/amd64
+
+other erg binaries:
+  ./build/erg   hash=a3c91bf  built=2026-05-05T09:00:00Z  [outdated: run: make install]
+  /usr/local/bin/erg  [not found]
+```
+
+**Implementation notes:**
+- Build metadata must be injected at compile time via `-ldflags`; do not
+  read the binary at runtime to hash itself (too slow, breaks on symlinks).
+- Discovery failures (binary not found, not executable) are silently skipped.
+- Exit code 0 always; this is informational only.

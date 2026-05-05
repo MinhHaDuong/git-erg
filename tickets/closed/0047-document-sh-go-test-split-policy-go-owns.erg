@@ -1,0 +1,28 @@
+%erg v1
+Title: Document sh/go test split policy: Go owns logic, sh owns CLI contracts
+Created: 2026-05-05
+Author: claude
+Closed: done
+
+--- log ---
+2026-05-05T07:26Z claude created
+
+2026-05-05T08:17Z claude closed — done
+--- body ---
+The project has two test layers but no written policy on what belongs in each. This leads
+to significant duplication: `test_validate.sh` (36 cases) and `validate_test.go` (18 cases)
+cover many of the same broken-header and bad-separator inputs.
+
+Add a "Testing policy" section to `tests/README.md` stating:
+
+  **Go unit tests** (`tickets/tools/go/*_test.go`): pure-function correctness. If the
+  test can be written as `f(input) → output` without spawning a process or touching the
+  filesystem, it belongs here. Examples: `parseErg`, `validateErg`, `detectCycles`,
+  `slugify`, `appendLogLine`.
+
+  **Shell integration tests** (`tests/test_*.sh`): CLI black-box behavior. Exit codes,
+  error messages on stderr, file-system effects, argument parsing, cross-command
+  interactions. Do NOT re-test logic that is already covered by Go unit tests.
+
+The doc alone is the deliverable for this ticket. Implementation cleanup (removing
+duplicated shell cases, adding missing Go unit tests) is tracked in sibling tickets.

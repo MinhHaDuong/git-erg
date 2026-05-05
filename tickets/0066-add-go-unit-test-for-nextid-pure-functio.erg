@@ -1,0 +1,30 @@
+%erg v1
+Title: Add Go unit test for nextID pure function
+Created: 2026-05-05
+Author: claude
+
+--- log ---
+2026-05-05T08:34Z claude created
+
+--- body ---
+`tickets/tools/go/nextid.go` implements `nextID(dir string) string` — a pure
+function that scans a directory for `NNNN-*.erg` filenames and returns the next
+sequential 4-digit ID. It is covered by 9 shell integration cases in
+`test_nextid.sh` but has no Go unit test.
+
+`nextID` has clear boundary cases suited for a table test:
+- Empty directory → "0001"
+- One ticket `0001-foo.erg` → "0002"
+- Gap: `0001`, `0003` present → "0004" (takes max+1, not first gap)
+- Max existing `0099` → "0100"
+- Non-`.erg` files ignored
+- Files with non-numeric prefix ignored
+- Mix of `.erg` and non-`.erg`, padded IDs
+
+Create `tickets/tools/go/nextid_test.go` with `TestNextID` table test using
+`t.TempDir()` to create fixture directories.
+
+This follows the project's stated direction (ticket 0047): pure functions
+belong in Go unit tests. `nextID` is pure (reads filesystem but output is
+deterministic given inputs) and the shell tests are slow compared to what a
+table test in Go can cover.

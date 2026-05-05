@@ -2,10 +2,12 @@
 Title: guard against unwired test suites in Makefile
 Created: 2026-05-05
 Author: claude
+Closed: done
 
 --- log ---
 2026-05-05T06:47Z claude created
 
+2026-05-05T08:17Z claude closed — done
 --- body ---
 ## Context
 

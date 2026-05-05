@@ -28,10 +28,18 @@ fi
 # Test: erg update with local server serving same binary → already up to date
 PORT=$(python3 -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()")
 SRV_DIR=$(mktemp -d)
+TICKET_DIR=
+WORKSPACE=
 cp "$ERG" "$SRV_DIR/erg"
 ( cd "$SRV_DIR" && exec python3 -m http.server $PORT >/dev/null 2>&1 ) &
 SERVER_PID=$!
-trap "kill $SERVER_PID 2>/dev/null; rm -rf $SRV_DIR" EXIT
+cleanup() {
+    kill $SERVER_PID 2>/dev/null || true
+    rm -rf "$SRV_DIR"
+    [ -n "$TICKET_DIR" ] && rm -rf "$TICKET_DIR"
+    [ -n "$WORKSPACE" ] && rm -rf "$WORKSPACE"
+}
+trap cleanup EXIT
 
 # Wait for server to be ready
 i=0; until curl -s http://127.0.0.1:$PORT/ >/dev/null 2>&1 || [ $i -ge 20 ]; do sleep 0.1; i=$((i+1)); done
