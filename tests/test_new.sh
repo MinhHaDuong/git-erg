@@ -29,53 +29,12 @@ else
     fail "file exists at expected path"
 fi
 
+# Subsumes: magic line, log/body separators, Title/Author/Created headers.
 # --- File passes erg validate ---
 if $ERG validate "$TDIR/basic/$OUT" > /dev/null 2>&1; then
     pass "generated file passes erg validate"
 else
     fail "generated file passes erg validate"
-fi
-
-# --- Title header is correct ---
-if grep -q "^Title: Add branch-as-claim to erg ready$" "$TDIR/basic/$OUT"; then
-    pass "Title header is correct"
-else
-    fail "Title header is correct"
-fi
-
-# --- Author header is correct ---
-if grep -q "^Author: claude$" "$TDIR/basic/$OUT"; then
-    pass "Author header is correct"
-else
-    fail "Author header is correct"
-fi
-
-# --- Created header has YYYY-MM-DD format ---
-if grep -qE "^Created: [0-9]{4}-[0-9]{2}-[0-9]{2}$" "$TDIR/basic/$OUT"; then
-    pass "Created header has YYYY-MM-DD format"
-else
-    fail "Created header has YYYY-MM-DD format"
-fi
-
-# --- Magic first line is present ---
-if head -n 1 "$TDIR/basic/$OUT" | grep -q "^%erg v1$"; then
-    pass "magic first line present"
-else
-    fail "magic first line present"
-fi
-
-# --- Log separator is present ---
-if grep -q "^--- log ---$" "$TDIR/basic/$OUT"; then
-    pass "log separator present"
-else
-    fail "log separator present"
-fi
-
-# --- Body separator is present ---
-if grep -q "^--- body ---$" "$TDIR/basic/$OUT"; then
-    pass "body separator present"
-else
-    fail "body separator present"
 fi
 
 # --- Sequential IDs: second ticket gets ID 0002 ---
