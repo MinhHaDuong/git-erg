@@ -12,7 +12,7 @@ echo "=== erg update/version ==="
 
 # Test: erg version exits 0 and prints structured output with hash and arch
 VER=$("$ERG" version)
-if echo "$VER" | grep -qE '^\s+hash:\s+[0-9a-f]{12}$' && echo "$VER" | grep -q 'arch:'; then
+if echo "$VER" | grep -qE '^[[:space:]]+hash:[[:space:]]+[0-9a-f]{12}$' && echo "$VER" | grep -q 'arch:'; then
     pass "version prints structured info"
 else
     fail "version output: $VER"
