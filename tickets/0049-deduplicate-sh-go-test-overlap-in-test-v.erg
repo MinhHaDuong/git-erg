@@ -1,0 +1,30 @@
+%erg v1
+Title: Deduplicate sh/go test overlap in test_validate.sh
+Created: 2026-05-05
+Author: claude
+Closed: done
+
+--- log ---
+2026-05-05T00:00Z claude created
+
+2026-05-05T08:01Z claude closed — done
+--- body ---
+## Context
+
+`tests/test_validate.sh` has 36 test cases. `validate_test.go` covers many of
+the same broken-header/bad-separator inputs. Per the project's testing policy
+(documented in PR #56): Go unit tests own pure-function correctness; shell
+tests own CLI black-box behavior.
+
+## Actions
+
+Remove 15 cases from `test_validate.sh` that have direct Go equivalents in
+`validate_test.go`. Keep cases that test CLI contracts not covered by Go:
+argument parsing, multi-file handling, message text, file-resolution, error
+handling, and all forge-ref grammar cases.
+
+## Exit criteria
+
+- `make test-validate` passes with reduced test count
+- `make unit-test` still passes (no Go changes)
+- Removed cases are all covered by `validate_test.go`
