@@ -1,0 +1,13 @@
+%erg v1
+Title: add pipeline integration test new to log to close to archive
+Created: 2026-05-05
+Author: claude
+Closed: done
+
+--- log ---
+2026-05-05T07:00Z claude created
+
+2026-05-05T08:00Z claude closed — done
+--- body ---
+Add tests/test_pipeline.sh and wire into Makefile TEST_SUITES.
+Chain: new → log → close → archive → check.
