@@ -5,6 +5,7 @@ Author: haduong
 
 --- log ---
 2026-05-05T00:00Z haduong created
+2026-05-05T00:01Z claude imagine — all 6 strings confirmed at exact line numbers; 2 gaps found: (1) Action 5 breaks 4 existing test_new.sh assertions (lines 24, 47, 55, 64) that anchor on bare filename — must update not just add; (2) CREATED should use bare filename (t.Filename()), not full path, to match ARCHIVED/SKIPPED convention
 
 --- body ---
 ## Context

@@ -5,6 +5,7 @@ Author: haduong
 
 --- log ---
 2026-05-05T00:00Z haduong created
+2026-05-05T00:01Z claude imagine — strings confirmed (new.go:60 one site covers actions 2+3; close.go:64 and close.go:126 for action 4); fallback order corrected (ERG_AUTHOR must be first or it is dead code); resolveAuthor() placed in new author.go; test_close.sh:34 asserts "claude closed" literally and must be updated
 
 --- body ---
 ## Context
@@ -14,15 +15,16 @@ generated ticket file. `erg close` writes `claude closed —` and
 `claude note blocker` into log lines. These are wrong for any non-Claude actor.
 
 Resolution order (first non-empty wins):
-1. `git config user.name` — via `os/exec`, matches repo identity
-2. `$ERG_AUTHOR` env var — opt-in override
+1. `$ERG_AUTHOR` env var — explicit override (checked first so it is not dead code)
+2. `git config user.name` — via `os/exec`, matches repo identity
 3. `$USER` env var — OS fallback
 4. `"unknown"` — last resort
 
 ## Actions
 
-1. Add a `resolveAuthor() string` helper in a shared file (e.g. `util.go` or
-   inline in `new.go`). Implement the four-step fallback chain above.
+1. Create `author.go` with `resolveAuthor() string`. Implement the four-step
+   fallback chain above (ERG_AUTHOR first). Both new.go and close.go need it,
+   so inlining in either is wrong; author.go gives the function a discoverable home.
 2. In `new.go` template: replace `"Author: claude"` with `"Author: " + resolveAuthor()`.
 3. In `new.go` log line: replace `"claude created"` with `resolveAuthor() + " created"`.
 4. In `close.go`: replace `"claude closed —"` and `"claude note blocker"` with
