@@ -1,0 +1,32 @@
+%erg v1
+Title: Fix weak JSON assertion in test_ready.sh
+Created: 2026-05-05
+Author: claude
+Closed: done
+
+--- log ---
+2026-05-05T00:00Z claude created — JSON assertions in test_ready.sh are too broad
+
+2026-05-05T07:59Z claude closed — done
+--- body ---
+## Context
+
+`tests/test_ready.sh` has two weak JSON assertions:
+
+1. Line 192: `grep -q '"id"'` passes on any JSON containing the string `id`.
+   At that point the only ready ticket is `0002-blocked.erg`, so the correct
+   assertion is `'"id": "0002"'`.
+
+2. Line 233: `grep -q '"tags": \['` is slightly fragile — tighten to
+   `'"tags": \[\]'` since the ticket (`0041-untagged.erg`) has no Tags header
+   and the JSON output should be `"tags": []`.
+
+## Actions
+
+1. Line 192: Change `grep -q '"id"'` to `grep -q '"id": "0002"'`
+2. Line 233: Change `grep -q '"tags": \['` to `grep -q '"tags": \[\]'`
+
+## Exit criteria
+
+- `make test-ready` passes (21/21)
+- Both assertions are tightened to specific expected values

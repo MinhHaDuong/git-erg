@@ -189,7 +189,7 @@ rm -rf "$FIXTURES/ready/closed"
 
 # --- JSON output ---
 output=$($ERG ready --json "$FIXTURES/ready")
-if echo "$output" | grep -q '"id"'; then
+if echo "$output" | grep -q '"id": "0002"'; then
     pass "JSON output works"
 else
     fail "JSON output works"
@@ -230,7 +230,7 @@ Author: a
 --- body ---
 EOF
 output=$($ERG ready --json "$FIXTURES/ready")
-if echo "$output" | grep -q '"tags": \['; then
+if echo "$output" | grep -q '"tags": \[\]'; then
     pass "ready JSON includes tags array"
 else
     fail "ready JSON includes tags array"
