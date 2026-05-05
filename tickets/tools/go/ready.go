@@ -30,24 +30,20 @@ var skipReadyTags = map[string]bool{
 	"post-conference": true,
 }
 
-// loadBranchNames returns all local and remote branch names in a single
-// pair of git invocations. Remote fetch is best-effort: failure is ignored.
+// loadBranchNames returns all local and remote branch names in one git
+// invocation. Remote names carry a "remotes/" prefix which is harmless
+// for substring matching. Failure (no repo, no remote) returns nil.
 func loadBranchNames() []string {
+	cmd := exec.Command("git", "branch", "-a")
+	cmd.Stderr = io.Discard
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
 	var names []string
-	for _, args := range [][]string{
-		{"branch", "--list"},
-		{"branch", "-r", "--list"},
-	} {
-		cmd := exec.Command("git", args...)
-		cmd.Stderr = io.Discard
-		out, err := cmd.Output()
-		if err != nil {
-			continue
-		}
-		for _, line := range strings.Split(string(out), "\n") {
-			if t := strings.TrimSpace(line); t != "" {
-				names = append(names, t)
-			}
+	for _, line := range strings.Split(string(out), "\n") {
+		if t := strings.TrimSpace(strings.TrimPrefix(line, "* ")); t != "" {
+			names = append(names, t)
 		}
 	}
 	return names
