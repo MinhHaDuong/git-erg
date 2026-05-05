@@ -47,6 +47,7 @@ func cmdInit(args []string) int {
 	fmt.Printf("- refresh %d managed files under tickets/\n", len(managedAssetPaths))
 	fmt.Println("- append AGENTS.md entry, .gitignore entry, and pre-commit hook block when absent")
 
+	prior, _, _ := readManifest(root)
 	manifest := bootstrapManifest{
 		Version:      1,
 		ManagedFiles: append([]string(nil), managedAssetPaths...),
@@ -90,7 +91,7 @@ func cmdInit(args []string) int {
 		fmt.Fprintf(os.Stderr, "init: cannot update AGENTS.md: %v\n", err)
 		return 1
 	}
-	manifest.AddedAgentsPointer = addedAgents
+	manifest.AddedAgentsPointer = prior.AddedAgentsPointer || addedAgents
 
 	gitignorePath := filepath.Join(root, ".gitignore")
 	addedGitignore, err := ensureLine(gitignorePath, gitignoreLine)
@@ -98,7 +99,7 @@ func cmdInit(args []string) int {
 		fmt.Fprintf(os.Stderr, "init: cannot update .gitignore: %v\n", err)
 		return 1
 	}
-	manifest.AddedGitignoreLine = addedGitignore
+	manifest.AddedGitignoreLine = prior.AddedGitignoreLine || addedGitignore
 
 	hookPath := filepath.Join(root, ".git", "hooks", "pre-commit")
 	hookAsset, ok := bootstrapAsset("tickets/integration/hooks/pre-commit")
@@ -111,7 +112,7 @@ func cmdInit(args []string) int {
 		fmt.Fprintf(os.Stderr, "init: cannot update pre-commit hook: %v\n", err)
 		return 1
 	}
-	manifest.AddedHookBlock = addedHook
+	manifest.AddedHookBlock = prior.AddedHookBlock || addedHook
 
 	if err := writeManifest(root, manifest); err != nil {
 		fmt.Fprintf(os.Stderr, "init: cannot write manifest: %v\n", err)
