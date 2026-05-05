@@ -1,0 +1,43 @@
+%erg v1
+Title: erg check: warn if Go source files found in tickets/tools/go/ outside git-erg
+Created: 2026-05-05
+Author: haduong
+
+--- log ---
+2026-05-05T00:00Z haduong created
+
+--- body ---
+`erg init` embeds only managed assets (README, spec, integration files, skills)
+plus the pre-built bootstrap binary `tickets/tools/go/erg`. It never copies
+Go source files (`*.go`, `go.mod`, `go.sum`) into target projects.
+
+However, `erg check` has no guard against source files appearing there — e.g.
+from a manual `cp -r` that included source, or a stale install attempt. A
+project accumulating Go source in `tickets/tools/go/` is confusing and
+unnecessary; only the binary matters at runtime.
+
+**Desired behaviour:**
+- `erg check` warns (non-fatal, printed to stdout) when it finds any `*.go`,
+  `go.mod`, or `go.sum` files under `tickets/tools/go/`.
+- Warning text: `WARN: Go source files found in tickets/tools/go/ — only the
+  binary is needed; remove *.go, go.mod, go.sum`
+- `erg check` does NOT remove them — auto-cleanup is out of scope.
+- Exit code remains 0 (warning only, not a corpus error).
+
+**Exception — git-erg project itself:**
+If the project is the git-erg source repo, Go source files are expected and
+the warning must be suppressed. Detection heuristic: read `tickets/tools/go/go.mod`
+and check for `module github.com/MinhHaDuong/git-erg`. If that module path is
+present, suppress the warning entirely.
+
+**Implementation notes:**
+- Add the check to `cmdCheck` in `check.go` (or wherever `erg check` lives).
+- Use `os.ReadDir("tickets/tools/go")` and filter for Go file extensions.
+- Read `go.mod` with `os.ReadFile`; `strings.Contains(content, "module github.com/MinhHaDuong/git-erg")` is sufficient.
+- No new dependencies; no network calls.
+
+**Tests:**
+- Shell integration test in `tests/test_check.sh`: create a temp project dir
+  with `tickets/tools/go/fake.go` present → verify warning appears in stdout.
+- Same fixture but with a `go.mod` containing the git-erg module path → verify
+  no warning.
