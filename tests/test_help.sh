@@ -51,5 +51,14 @@ else
     pass "help output: no angle brackets"
 fi
 
+for cmd in close validate new log; do
+    stderr=$($ERG $cmd 2>&1 || true)
+    if echo "$stderr" | grep -q '[<>]'; then
+        fail "per-command usage: '$cmd' contains angle brackets (got: $stderr)"
+    else
+        pass "per-command usage: '$cmd' has no angle brackets"
+    fi
+done
+
 echo "help: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

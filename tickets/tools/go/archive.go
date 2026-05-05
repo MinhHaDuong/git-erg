@@ -120,7 +120,7 @@ func cmdArchive(args []string) int {
 
 		// Skip if any open ticket is blocking on this one.
 		if blockers := blockedBy[tid]; len(blockers) > 0 {
-			fmt.Printf("SKIPPED %s (blocking %s)\n", t.Filename(), strings.Join(blockers, ", "))
+			fmt.Printf("SKIPPED %s (needed by %s)\n", t.Filename(), strings.Join(blockers, ", "))
 			continue
 		}
 

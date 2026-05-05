@@ -11,7 +11,7 @@ import (
 // cmdClose implements `erg close <id|file> <reason> [dir]`.
 func cmdClose(args []string) int {
 	if len(args) < 2 {
-		fmt.Fprintln(os.Stderr, "Usage: erg close <id|file> <reason> [dir]")
+		fmt.Fprintln(os.Stderr, "Usage: erg close ID|FILE REASON [DIR]")
 		return 1
 	}
 

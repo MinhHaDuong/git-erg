@@ -287,7 +287,7 @@ func globLocalIDs(dir string) map[string]bool {
 // cmdValidate implements `erg validate <file ...>` — per-file format checks.
 func cmdValidate(args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "Usage: erg validate <file ...>")
+		fmt.Fprintln(os.Stderr, "Usage: erg validate FILE...")
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, "Validate individual .erg ticket files (format, headers, refs).")
 		fmt.Fprintln(os.Stderr, "For corpus-level checks (duplicate IDs, cycles), use: erg check [dir]")
