@@ -2,12 +2,10 @@
 Title: Cover EXIT trap gaps in test_new test_update test_ready
 Created: 2026-05-05
 Author: claude
-Closed: done
 
 --- log ---
 2026-05-05T08:34Z claude created
 
-2026-05-05T09:11Z claude closed — done
 --- body ---
 Three test scripts allocate `mktemp -d` directories that are not covered by
 their `EXIT` trap. If `set -eu` causes early exit after allocation but before

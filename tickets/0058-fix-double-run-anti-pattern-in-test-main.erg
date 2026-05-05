@@ -1,33 +1,28 @@
 %erg v1
-Title: fix double-run anti-pattern in test_main.sh and test_check.sh
+Title: Fix double-run anti-pattern in test_main.sh and test_check.sh
 Created: 2026-05-05
 Author: claude
-Closed: done
 
 --- log ---
-2026-05-05T00:00Z claude created
+2026-05-05T08:34Z claude created
 
-2026-05-05T09:12Z claude closed — done
 --- body ---
-## Context
+Two test files retained the double-run anti-pattern after the raid.
 
-`tests/test_main.sh` had 5 cases using the double-run anti-pattern: capture
-output with `|| true`, then re-run to check exit code. `tests/test_check.sh`
-had 1 case (lines 160-166) that ran `erg check` twice: once to capture output
-for a WARNING grep, then again to check exit 0.
+**`tests/test_main.sh` — all 5 cases (e.g., lines 15-16):**
 
-Double-run is wasteful (extra subprocess) and fragile (second run may behave
-differently, e.g. due to side effects).
+```sh
+out=$("$ERG" 2>&1 || true)          # run 1: capture output
+if "$ERG" >/dev/null 2>&1; then     # run 2: check exit code
+```
 
-## Actions
+The exit code from run 1 is discarded; the output from run 2 is discarded.
+On a non-deterministic binary (file read between calls, env differences)
+the two runs can disagree. Replace with the single-run pattern.
 
-- `test_main.sh`: replace all 5 double-runs with `if out=$(...); then` pattern,
-  which captures both output and exit code in a single invocation.
-- `test_check.sh`: replace double-run at lines 160-170 with
-  `rc=0; out=$(...) || rc=$?` to capture output and exit code once, then make
-  two separate pass/fail decisions.
+**`tests/test_check.sh:160-166`** — the folder-closure warning test uses the
+same structure: `out=$(cmd || true)` followed by `if cmd; then`.
 
-## Exit criteria
-
-- No `$ERG` command appears twice within the same test case block
-- `make test` passes (all suites)
+**Fix:** `out=$(cmd 2>&1) && rc=0 || rc=$?`, then assert on both `$rc` and
+`$out`. The fix is identical to what was applied in ticket 0044 to
+`test_validate.sh`.

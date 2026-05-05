@@ -2,12 +2,10 @@
 Title: Fill validate_test.go gaps: Created Author gh-hash positive-Closed
 Created: 2026-05-05
 Author: claude
-Closed: done
 
 --- log ---
 2026-05-05T08:34Z claude created
 
-2026-05-05T09:01Z claude closed — done
 --- body ---
 `tickets/tools/go/validate_test.go` has gaps in its coverage of the
 preamble-header validation rules:

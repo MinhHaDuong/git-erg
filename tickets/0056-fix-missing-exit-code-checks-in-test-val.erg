@@ -2,12 +2,10 @@
 Title: Fix missing exit-code checks in test_validate test_archive test_log test_close
 Created: 2026-05-05
 Author: claude
-Closed: done
 
 --- log ---
 2026-05-05T08:34Z claude created
 
-2026-05-05T09:16Z claude closed — done
 --- body ---
 `|| true` is used in ~14 test cases across 4 files to capture output from
 commands expected to fail, but it also discards the exit code. A command that
