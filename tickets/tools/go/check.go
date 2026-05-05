@@ -91,7 +91,11 @@ func cmdCheck(args []string) int {
 
 	hasErrors := len(errors) > 0
 	if hasErrors {
-		fmt.Printf("ERG CHECK FAILED (%d error(s)):\n", len(errors))
+		errWord := "errors"
+		if len(errors) == 1 {
+			errWord = "error"
+		}
+		fmt.Printf("ERG CHECK FAILED (%d %s):\n", len(errors), errWord)
 		for _, e := range errors {
 			fmt.Printf("  VIOLATION %s\n", e)
 		}

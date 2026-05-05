@@ -381,5 +381,44 @@ else
     fail "validate: 2 files uses plural (got: $out)"
 fi
 
+# --- Plural: 1 error singular ---
+cat > "$FIXTURES/0090-bad-date.erg" <<'EOF'
+%erg v1
+Title: Bad date
+Created: not-a-date
+Author: a
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0090-bad-date.erg" 2>&1) || true
+if echo "$out" | grep -qF "FAILED (1 error)"; then
+    pass "validate: 1 error uses singular"
+else
+    fail "validate: 1 error uses singular (got: $out)"
+fi
+if echo "$out" | grep -qF "error(s)"; then
+    fail "validate: no (s) fake plural for 1 error"
+else
+    pass "validate: no (s) fake plural for 1 error"
+fi
+
+# --- Plural: 2 errors plural ---
+cat > "$FIXTURES/0091-bad-date2.erg" <<'EOF'
+%erg v1
+Title: Bad date two
+Created: also-not-a-date
+Author: a
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0090-bad-date.erg" "$FIXTURES/0091-bad-date2.erg" 2>&1) || true
+if echo "$out" | grep -qF "FAILED (2 errors)"; then
+    pass "validate: 2 errors uses plural"
+else
+    fail "validate: 2 errors uses plural (got: $out)"
+fi
+
 echo "validate: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
