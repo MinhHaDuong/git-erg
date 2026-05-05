@@ -3,13 +3,13 @@
 //
 // Usage:
 //
-//	erg validate <file ...>
+//	erg validate FILE...
 //	erg check    [dir]
 //	erg ready    [dir] [--json]
 //	erg next-id  [dir]
-//	erg new      <title> [dir]
-//	erg close    <id|file> <reason> [dir]
-//	erg log      <id> <line> [dir]
+//	erg new      TITLE [DIR]
+//	erg close    ID|FILE REASON [DIR]
+//	erg log      ID LINE [DIR]
 //	erg archive  [id...] [dir]
 //	erg migrate  [dir]
 //	erg init     [dir]
