@@ -8,8 +8,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 )
+
+// buildDate is set at compile time via -ldflags "-X main.buildDate=..."
+var buildDate string
 
 const updateURL = "https://raw.githubusercontent.com/MinhHaDuong/git-erg/main/tickets/tools/go/erg"
 
@@ -23,19 +27,112 @@ func selfHash(path string) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-// cmdVersion implements `erg version`: print the sha256 of this binary.
+// cmdVersion implements `erg version`: print self-diagnostic info and
+// discover other erg binaries, marking outdated ones.
 func cmdVersion(_ []string) int {
 	self, err := os.Executable()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "version: cannot resolve executable: %v\n", err)
 		return 1
 	}
+	self, _ = filepath.EvalSymlinks(self)
+
+	selfInfo, err := os.Stat(self)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "version: cannot stat executable: %v\n", err)
+		return 1
+	}
+
 	h, err := selfHash(self)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "version: cannot hash self: %v\n", err)
 		return 1
 	}
-	fmt.Println(h)
+
+	// Print running binary info
+	fmt.Println("erg version")
+	fmt.Printf("  path:    %s\n", self)
+	fmt.Printf("  hash:    %s\n", h[:12])
+	if buildDate != "" {
+		fmt.Printf("  built:   %s\n", buildDate)
+	} else {
+		fmt.Printf("  built:   [unknown — no build metadata]\n")
+	}
+	fmt.Printf("  arch:    %s/%s\n", runtime.GOOS, runtime.GOARCH)
+
+	// Discover other binaries
+	type candidate struct {
+		path string
+		hint string
+	}
+
+	home, _ := os.UserHomeDir()
+	candidates := []candidate{
+		{"./build/erg", "make build"},
+	}
+	if home != "" {
+		candidates = append(candidates, candidate{
+			filepath.Join(home, ".local", "bin", "erg"),
+			"make install-erg-binary",
+		})
+	}
+
+	// Walk PATH for additional erg entries
+	pathDirs := filepath.SplitList(os.Getenv("PATH"))
+	for _, dir := range pathDirs {
+		p := filepath.Join(dir, "erg")
+		candidates = append(candidates, candidate{p, "cp build/erg " + p})
+	}
+
+	// Deduplicate and print
+	seen := make(map[string]bool)
+	var others []string
+
+	for _, c := range candidates {
+		abs, err := filepath.Abs(c.path)
+		if err != nil {
+			continue
+		}
+		resolved, err := filepath.EvalSymlinks(abs)
+		if err != nil {
+			// File doesn't exist or can't be resolved — skip silently
+			continue
+		}
+
+		if seen[resolved] {
+			continue
+		}
+		seen[resolved] = true
+
+		// Skip if this is the running binary
+		info, err := os.Stat(resolved)
+		if err != nil {
+			continue
+		}
+		if os.SameFile(selfInfo, info) {
+			continue
+		}
+
+		ch, err := selfHash(resolved)
+		if err != nil {
+			continue
+		}
+
+		line := fmt.Sprintf("  %s  hash=%s", resolved, ch[:12])
+		if ch != h {
+			line += fmt.Sprintf("  [outdated: run: %s]", c.hint)
+		}
+		others = append(others, line)
+	}
+
+	if len(others) > 0 {
+		fmt.Println()
+		fmt.Println("other erg binaries:")
+		for _, l := range others {
+			fmt.Println(l)
+		}
+	}
+
 	return 0
 }
 

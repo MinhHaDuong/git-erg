@@ -22,7 +22,7 @@ BOOTSTRAP_BIN := $(CURDIR)/tickets/tools/go/erg
 
 build:
 	mkdir -p build
-	cd tickets/tools/go && go build -o $(ERG_BIN) .
+	cd tickets/tools/go && go build -ldflags "-X main.buildDate=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o $(ERG_BIN) .
 
 _test-lint:
 	@if grep -R -n 'ERG="$${ERG_BIN:-tickets/tools/go/erg}"' tests/*.sh >/dev/null; then \
