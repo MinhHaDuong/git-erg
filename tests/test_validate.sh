@@ -598,24 +598,20 @@ else
 fi
 
 # --- Nonexistent path emits WARNING and exits 0 ---
-out=$($ERG validate /no/such/path 2>&1 || true)
-if echo "$out" | grep -qi "warning\|skipping" && $ERG validate /no/such/path >/dev/null 2>&1; then
+out=$($ERG validate /no/such/path 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -qi "warning\|skipping"; then
     pass "nonexistent path: exit 0 with WARNING"
 else
-    fail "nonexistent path: exit 0 with WARNING (got: $out)"
+    fail "nonexistent path: exit 0 with WARNING (rc=$rc, got: $out)"
 fi
 
 # --- Non-.erg file emits WARNING and exits 0 ---
 touch "$FIXTURES/junk.txt"
-out=$($ERG validate "$FIXTURES/junk.txt" 2>&1 || true)
-if $ERG validate "$FIXTURES/junk.txt" >/dev/null 2>&1; then
-    if echo "$out" | grep -qi "warning\|not a .erg file"; then
-        pass "non-.erg file: exit 0 with WARNING"
-    else
-        fail "non-.erg file: exit 0 with WARNING (got: $out)"
-    fi
+out=$($ERG validate "$FIXTURES/junk.txt" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -qi "warning\|not a .erg file"; then
+    pass "non-.erg file: exit 0 with WARNING"
 else
-    fail "non-.erg file: expected exit 0"
+    fail "non-.erg file: exit 0 with WARNING (rc=$rc, got: $out)"
 fi
 
 echo "validate: $PASS passed, $FAIL failed"

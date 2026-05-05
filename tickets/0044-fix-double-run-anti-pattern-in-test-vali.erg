@@ -1,0 +1,28 @@
+%erg v1
+Title: fix double-run anti-pattern in test_validate.sh WARNING tests
+Created: 2026-05-05
+Author: claude
+Closed: done
+
+--- log ---
+2026-05-05T07:00Z claude created
+
+2026-05-05T07:53Z claude closed — done
+--- body ---
+## Context
+
+`tests/test_validate.sh` lines 600-619 had a double-run anti-pattern: the
+WARNING tests ran `erg validate` twice — once with `|| true` to capture output,
+then again to check exit code. This is redundant and wasteful. The non-.erg
+variant also had inverted nesting (exit-code check wrapping the grep instead of
+the other way round).
+
+## Actions
+
+Replace with single-run pattern: `out=$(...) && rc=0 || rc=$?` which captures
+output AND preserves the real exit code under `set -e`.
+
+## Exit criteria
+
+- Each WARNING test invokes `erg validate` exactly once
+- `make test-validate` passes (36/36)
