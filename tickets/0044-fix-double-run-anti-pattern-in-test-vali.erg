@@ -2,10 +2,12 @@
 Title: fix double-run anti-pattern in test_validate.sh WARNING tests
 Created: 2026-05-05
 Author: claude
+Closed: done
 
 --- log ---
 2026-05-05T07:00Z claude created
 
+2026-05-05T07:53Z claude closed — done
 --- body ---
 ## Context
 
