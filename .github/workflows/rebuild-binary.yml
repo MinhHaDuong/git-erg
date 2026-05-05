@@ -1,0 +1,43 @@
+name: Rebuild bootstrap binary
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tickets/tools/go/*.go'
+      - 'tickets/tools/go/go.mod'
+      - 'tickets/tools/go/go.sum'
+
+concurrency:
+  group: rebuild-binary-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Rebuild bootstrap binary
+        run: make update-bootstrap-binary
+
+      - name: Commit if binary changed
+        run: |
+          if git diff --exit-code tickets/tools/go/erg; then
+            echo "Binary unchanged — no commit needed"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add tickets/tools/go/erg
+            git commit -m "chore: rebuild bootstrap binary [skip ci]"
+            git push
+          fi

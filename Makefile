@@ -52,7 +52,9 @@ ready: build
 	$(ERG_BIN) ready tickets/
 
 update-bootstrap-binary:
-	cd tickets/tools/go && go build -o erg .
+	cd tickets/tools/go && go build \
+		-ldflags "-X main.buildDate=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		-o $(BOOTSTRAP_BIN) .
 
 install-erg-binary:
 	@mkdir -p $(HOME)/.local/bin
