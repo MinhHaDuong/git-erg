@@ -42,9 +42,16 @@ func loadBranchNames() []string {
 	}
 	var names []string
 	for _, line := range strings.Split(string(out), "\n") {
-		if t := strings.TrimSpace(strings.TrimPrefix(line, "* ")); t != "" {
-			names = append(names, t)
+		// Strip leading marker characters (* current branch, + worktree-active branch)
+		t := strings.TrimSpace(line)
+		if len(t) >= 2 && (t[0] == '*' || t[0] == '+') && t[1] == ' ' {
+			t = t[2:]
 		}
+		// Skip symref lines (e.g. "remotes/origin/HEAD -> origin/main")
+		if t == "" || strings.Contains(t, " -> ") {
+			continue
+		}
+		names = append(names, t)
 	}
 	return names
 }
