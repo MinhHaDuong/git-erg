@@ -1,0 +1,31 @@
+%erg v1
+Title: Fix error(s) fake pluralization in check and validate output
+Created: 2026-05-05
+Author: haduong
+
+--- log ---
+2026-05-05T00:00Z haduong created
+
+--- body ---
+## Context
+
+Ticket 0074 (PR #83) fixed `warning(s)` and `file(s)` pluralization but
+the exit criterion was overbroad — `check.go:94` and `validate.go:326`
+still emit `FAILED (%d error(s))`. Pre-existing, not introduced by #83.
+Surfaced during verify-gate round 2 as follow-up material.
+
+## Actions
+
+1. `check.go` line ~94: replace `"FAILED (%d error(s))"` with inline plural
+   (`"error"` / `"errors"`).
+2. `validate.go` line ~326: same treatment for the FAILED line.
+
+## Test
+
+Extend `tests/test_check.sh`: 1 error → `"1 error"`; 2 errors → `"2 errors"`.
+Use `grep -qF "FAILED (1 error)"` and `grep -qF "FAILED (2 errors)"`.
+
+## Exit criteria
+
+- `grep -n 'error(s)' tickets/tools/go/check.go tickets/tools/go/validate.go` returns no matches.
+- `make test` passes.
