@@ -1,5 +1,16 @@
 # Test policy
 
+## Testing layers
+
+**Go unit tests** (`tickets/tools/go/*_test.go`): pure-function correctness. If the
+test can be written as `f(input) → output` without spawning a process or touching the
+filesystem, it belongs here. Examples: `parseErg`, `validateErg`, `detectCycles`,
+`slugify`, `appendLogLine`.
+
+**Shell integration tests** (`tests/test_*.sh`): CLI black-box behavior. Exit codes,
+error messages on stderr, file-system effects, argument parsing, cross-command
+interactions. Do NOT re-test logic that is already covered by Go unit tests.
+
 ## Fixture strategy
 
 Use two patterns, depending on what the test is asserting.
