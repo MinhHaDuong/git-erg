@@ -2,10 +2,12 @@
 Title: CI: rebuild and commit bootstrap binary when Go source changes merge to main
 Created: 2026-05-05
 Author: haduong
+Closed: done
 
 --- log ---
 2026-05-05T00:00Z haduong created
 
+2026-05-05T14:19Z claude closed — done
 --- body ---
 `tickets/tools/go/erg` is the pre-built binary that `erg update` fetches
 from GitHub raw and that `erg init` ships to new projects. It must stay

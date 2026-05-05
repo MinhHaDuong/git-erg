@@ -2,10 +2,12 @@
 Title: Fix erg help: replace <arg> with UPPER_CASE and add completeness regression test
 Created: 2026-05-05
 Author: haduong
+Closed: done
 
 --- log ---
 2026-05-05T00:00Z haduong created
 
+2026-05-05T14:19Z claude closed — done
 --- body ---
 `erg -h` / `erg --help` / `erg help` currently uses `<arg>` angle-bracket
 notation for required arguments (e.g. `close <id|file> <reason> [dir]`).

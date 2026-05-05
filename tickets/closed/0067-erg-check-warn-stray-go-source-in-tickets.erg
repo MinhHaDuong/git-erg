@@ -2,10 +2,12 @@
 Title: erg check: warn if Go source files found in tickets/tools/go/ outside git-erg
 Created: 2026-05-05
 Author: haduong
+Closed: done
 
 --- log ---
 2026-05-05T00:00Z haduong created
 
+2026-05-05T14:19Z claude closed — done
 --- body ---
 `erg init` embeds only managed assets (README, spec, integration files, skills)
 plus the pre-built bootstrap binary `tickets/tools/go/erg`. It never copies
