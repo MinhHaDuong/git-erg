@@ -30,24 +30,39 @@ var skipReadyTags = map[string]bool{
 	"post-conference": true,
 }
 
-// isBranchClaimed reports whether any local or remote git branch name
-// contains the given 4-digit ticket ID. Remote branch check is best-effort:
-// if it fails (no remote, no network), the ticket is treated as unclaimed.
-func isBranchClaimed(id string) bool {
-	pattern := "*" + id + "*"
-	// Local branches
-	cmd := exec.Command("git", "branch", "--list", pattern)
+// loadBranchNames returns all local and remote branch names in one git
+// invocation. Remote names carry a "remotes/" prefix which is harmless
+// for substring matching. Failure (no repo, no remote) returns nil.
+func loadBranchNames() []string {
+	cmd := exec.Command("git", "branch", "-a")
 	cmd.Stderr = io.Discard
 	out, err := cmd.Output()
-	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
-		return true
+	if err != nil {
+		return nil
 	}
-	// Remote branches (best-effort — skip on error)
-	cmd = exec.Command("git", "branch", "-r", "--list", pattern)
-	cmd.Stderr = io.Discard
-	out, err = cmd.Output()
-	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
-		return true
+	var names []string
+	for _, line := range strings.Split(string(out), "\n") {
+		// Strip leading marker characters (* current branch, + worktree-active branch)
+		t := strings.TrimSpace(line)
+		if len(t) >= 2 && (t[0] == '*' || t[0] == '+') && t[1] == ' ' {
+			t = t[2:]
+		}
+		// Skip symref lines (e.g. "remotes/origin/HEAD -> origin/main")
+		if t == "" || strings.Contains(t, " -> ") {
+			continue
+		}
+		names = append(names, t)
+	}
+	return names
+}
+
+// isBranchClaimed reports whether any branch name in the pre-loaded list
+// contains the given ticket ID.
+func isBranchClaimed(id string, branches []string) bool {
+	for _, b := range branches {
+		if strings.Contains(b, id) {
+			return true
+		}
 	}
 	return false
 }
@@ -165,6 +180,8 @@ func cmdReady(args []string) int {
 		}
 	}
 
+	branches := loadBranchNames()
+
 	var warnings []string
 	var openEntries []readyEntry
 	var ready []readyEntry
@@ -213,7 +230,7 @@ func cmdReady(args []string) int {
 
 		claimed := false
 		if !blocked {
-			claimed = isBranchClaimed(tid)
+			claimed = isBranchClaimed(tid, branches)
 			if claimed {
 				blocked = true
 			}
