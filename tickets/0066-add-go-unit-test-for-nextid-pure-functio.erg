@@ -2,10 +2,12 @@
 Title: Add Go unit test for nextID pure function
 Created: 2026-05-05
 Author: claude
+Closed: done
 
 --- log ---
 2026-05-05T08:34Z claude created
 
+2026-05-05T09:03Z claude closed — done
 --- body ---
 `tickets/tools/go/nextid.go` implements `nextID(dir string) string` — a pure
 function that scans a directory for `NNNN-*.erg` filenames and returns the next

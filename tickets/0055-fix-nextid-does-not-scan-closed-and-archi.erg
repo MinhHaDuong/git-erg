@@ -2,10 +2,12 @@
 Title: Fix nextID to scan closed/ and archive/ subdirectories
 Created: 2026-05-05
 Author: haduong
+Closed: done
 
 --- log ---
 2026-05-05T00:00Z haduong created
 
+2026-05-05T09:03Z claude closed — done
 --- body ---
 `tickets/tools/go/nextid.go` implements `nextID(dir string) string` which
 scans `dir` for `NNNN-*.erg` filenames to determine the next sequential ID.
