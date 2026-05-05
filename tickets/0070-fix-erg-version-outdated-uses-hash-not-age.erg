@@ -1,0 +1,66 @@
+%erg v1
+Title: Fix erg version: [outdated] uses binary hash not build age
+Created: 2026-05-05
+Author: haduong
+
+--- log ---
+2026-05-05T00:00Z haduong created
+
+--- body ---
+`cmdVersion` marks a discovered binary as `[outdated]` whenever its
+sha256 hash differs from the running binary's hash (selfupdate.go:122).
+
+Because every `make build` embeds a fresh timestamp via
+`-ldflags "-X main.buildDate=..."`, same-source builds always produce
+unique binaries with different hashes. So after `erg update` installs a
+CI-built binary and the user runs `make build`, `erg version` immediately
+shows `build/erg` as `[outdated]` even though both binaries are compiled
+from the same source commit.
+
+**Root cause:** "different hash" ≠ "older version".
+
+**Fix:**
+
+Add a VCS revision stamp to the build, embed it alongside `buildDate`,
+and use it for the outdated comparison.
+
+1. Add `var vcsRevision string` to `selfupdate.go`.
+
+2. Extend the ldflags in Makefile and in the CI rebuild workflow to
+   also inject the current git short SHA:
+   ```
+   -X main.vcsRevision=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
+   ```
+
+3. In `cmdVersion`, print `vcsRevision` in the running binary's info block:
+   ```
+     revision: abc1234
+   ```
+
+4. For each discovered binary, **execute it** with `erg version 2>/dev/null`
+   and parse the `revision:` line to extract its `vcsRevision`. Compare:
+   - Same vcsRevision → not outdated (omit the label entirely)
+   - Different vcsRevision, running binary's buildDate > other's buildDate
+     → `[outdated: ...]`
+   - Different vcsRevision, cannot determine order → `[different version]`
+   - Other binary does not support `version` output parsing (old binary)
+     → `[unknown: run erg version to compare]`
+
+**Simplification allowed:** if parsing the other binary is too fragile,
+an acceptable fallback is: suppress `[outdated]` entirely when the
+running binary's `vcsRevision` is non-empty and the other binary has the
+same vcsRevision. For all other cases show `[hash differs]` without
+claiming "outdated".
+
+**Tests:**
+
+Add to `tests/test_update.sh` or a new `tests/test_version.sh`:
+- Build two binaries from the same source (same git HEAD) → `erg version`
+  must NOT show `[outdated]` for the second binary.
+- Simulate a binary from an older vcsRevision (stub with a fake path
+  that prints `revision: oldsha` on `erg version`) → `erg version` shows
+  `[outdated]`.
+
+**Note:** executing discovered binaries adds latency proportional to the
+number of candidates. This is acceptable — the version command is
+diagnostic, not hot-path.
