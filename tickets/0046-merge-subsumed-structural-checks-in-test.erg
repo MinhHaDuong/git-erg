@@ -1,0 +1,27 @@
+%erg v1
+Title: Merge subsumed structural checks in test_new.sh
+Created: 2026-05-05
+Author: claude
+
+--- log ---
+2026-05-05T07:26Z claude created
+
+--- body ---
+`tests/test_new.sh` has individual tests for magic line, log separator, body separator,
+Title, Author, and Created headers (lines 39–79). These are all subsumed by the
+"generated file passes erg validate" test at line 33: if `erg validate` passes, all format
+invariants are satisfied by definition.
+
+The individual checks add line count and maintenance burden without adding diagnostic value
+— a failure in "log separator present" means exactly the same thing as a failure in
+"generated file passes erg validate".
+
+Two options (choose one):
+A) Drop the 6 redundant field-check tests, keep only the validate test. Rely on validate's
+   error message for diagnosis.
+B) Drop the validate test, keep the field checks. Gives precise per-field failure messages
+   at the cost of not testing the format holistically.
+
+Recommendation: option A. The validate test is the single source of truth; if validation
+logic changes, only one place needs updating. Add a comment above the validate test
+explaining it subsumes all structural checks.
