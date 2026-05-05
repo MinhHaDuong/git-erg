@@ -1,0 +1,26 @@
+%erg v1
+Title: Fill validate_test.go gaps: Created Author gh-hash positive-Closed
+Created: 2026-05-05
+Author: claude
+
+--- log ---
+2026-05-05T08:34Z claude created
+
+--- body ---
+`tickets/tools/go/validate_test.go` has gaps in its coverage of the
+preamble-header validation rules:
+
+**Missing-Created and missing-Author** — The table tests missing-Title (line 47)
+but not the other two required headers. All three share the same code path
+(`requiredSingletonHeaders`). Adding cases for missing-Created and missing-Author
+would confirm the list is complete and catch any future refactoring that drops
+one entry.
+
+**`gh#N` deprecated scheme** — The table tests the `gh:owner/repo#N` deprecated
+scheme (line 159) but not the bare `gh#N` form. The shell tests cover it
+(test_validate.sh forge-ref cases) but there is no Go case.
+
+**`Closed:` with non-empty reason accepted** — The table tests
+`Closed:` with empty value (rejected, line 110) but has no case for
+`Closed: done` (accepted). Without the positive case, the test cannot
+distinguish "Closed: accepted when non-empty" from "Closed: always rejected."
