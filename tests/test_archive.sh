@@ -3,14 +3,13 @@
 set -eu
 
 ERG="${ERG_BIN:-build/erg}"
-FIXTURES="tests/fixtures/archive"
+FIXTURES=$(mktemp -d)
 PASS=0
 FAIL=0
 
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
-mkdir -p "$FIXTURES"
 trap 'rm -rf "$FIXTURES"' EXIT
 
 echo "=== erg archive ==="

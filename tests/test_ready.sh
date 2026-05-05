@@ -3,7 +3,7 @@
 set -eu
 
 ERG="${ERG_BIN:-build/erg}"
-FIXTURES="tests/fixtures"
+FIXTURES=$(mktemp -d)
 PASS=0
 FAIL=0
 
@@ -11,7 +11,7 @@ pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
 mkdir -p "$FIXTURES/ready"
-trap 'rm -rf "$FIXTURES/ready"; git branch -D test/0098-claim 2>/dev/null || true' EXIT
+trap 'rm -rf "$FIXTURES"; git branch -D test/0098-claim 2>/dev/null || true' EXIT
 
 echo "=== erg ready ==="
 

@@ -1,0 +1,27 @@
+%erg v1
+Title: Convert relative fixture paths to mktemp -d in 5 shell test files
+Created: 2026-05-05
+Author: claude
+Closed: done
+
+--- log ---
+2026-05-05T12:00Z claude created
+2026-05-05T12:00Z claude closed — done
+
+--- body ---
+## Context
+
+Five test files use hardcoded relative paths like `FIXTURES="tests/fixtures/close"`.
+They work only when run from repo root. Using `mktemp -d` makes them cwd-independent.
+
+## Actions
+
+- Replace `FIXTURES="tests/fixtures/<name>"` with `FIXTURES=$(mktemp -d)` in
+  test_close.sh, test_log.sh, test_archive.sh, test_migrate.sh, test_ready.sh
+- Remove redundant `mkdir -p "$FIXTURES"` (mktemp already creates the dir)
+- Fix test_ready.sh trap to rm the whole mktemp dir
+
+## Exit criteria
+
+- All five test suites pass: `make test-close test-log test-archive test-migrate test-ready`
+- No hardcoded `tests/fixtures/` path remains in those files
