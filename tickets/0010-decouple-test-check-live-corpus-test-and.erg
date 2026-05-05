@@ -2,10 +2,12 @@
 Title: Decouple test_check live-corpus test and guard shared fixture mutation
 Created: 2026-05-05
 Author: claude
+Closed: merged into 0002
 
 --- log ---
 2026-05-05T08:34Z claude created
 
+2026-05-05T08:45Z claude closed — merged into 0002
 --- body ---
 Two related hygiene issues:
 
