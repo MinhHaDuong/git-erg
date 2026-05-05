@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -49,6 +50,85 @@ func isBranchClaimed(id string) bool {
 		return true
 	}
 	return false
+}
+
+func printReadyJSON(entries []readyEntry) {
+	type blockedByJSON struct {
+		Kind string `json:"kind"`
+		ID   string `json:"id,omitempty"`
+		Ref  string `json:"ref,omitempty"`
+	}
+	type entryJSON struct {
+		ID        string          `json:"id"`
+		Title     string          `json:"title"`
+		File      string          `json:"file"`
+		Ready     bool            `json:"ready"`
+		Claimed   bool            `json:"claimed"`
+		Tags      []string        `json:"tags"`
+		BlockedBy []blockedByJSON `json:"blocked_by"`
+	}
+
+	result := make([]entryJSON, len(entries))
+	for i, r := range entries {
+		bb := make([]blockedByJSON, len(r.blockedBy))
+		for j, b := range r.blockedBy {
+			bb[j] = blockedByJSON{Kind: b.kind, ID: b.id, Ref: b.ref}
+		}
+		tags := r.tags
+		if tags == nil {
+			tags = []string{}
+		}
+		result[i] = entryJSON{
+			ID: r.id, Title: r.title, File: r.file,
+			Ready: r.ready, Claimed: r.claimed,
+			Tags: tags, BlockedBy: bb,
+		}
+	}
+
+	data, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ready: JSON marshal error: %v\n", err)
+		return
+	}
+	fmt.Println(string(data))
+}
+
+func printReadyText(totalCount, openCount int, openEntries, ready []readyEntry) {
+	if len(ready) == 0 {
+		if totalCount == 0 {
+			fmt.Println("No tickets found.")
+		} else if openCount == 0 {
+			fmt.Printf("All %d tickets are closed.\n", totalCount)
+		} else {
+			fmt.Printf("%d open tickets, all blocked.\n", openCount)
+		}
+	} else {
+		fmt.Printf("Ready tickets (%d):\n", len(ready))
+		for _, r := range ready {
+			tagsSuffix := ""
+			if len(r.tags) > 0 {
+				tagsSuffix = fmt.Sprintf(" (tags: %s)", strings.Join(r.tags, ", "))
+			}
+			fmt.Printf("  %-8s %-40s %s%s\n", r.id, r.file, r.title, tagsSuffix)
+		}
+	}
+
+	var claimedEntries []readyEntry
+	for _, e := range openEntries {
+		if e.claimed {
+			claimedEntries = append(claimedEntries, e)
+		}
+	}
+	if len(claimedEntries) > 0 {
+		fmt.Printf("\nClaimed tickets (%d):\n", len(claimedEntries))
+		for _, r := range claimedEntries {
+			tagsSuffix := ""
+			if len(r.tags) > 0 {
+				tagsSuffix = fmt.Sprintf(" (tags: %s)", strings.Join(r.tags, ", "))
+			}
+			fmt.Printf("  %-8s %-40s %s%s\n", r.id, r.file, r.title, tagsSuffix)
+		}
+	}
 }
 
 // cmdReady implements `erg ready [dir] [--json]`.
@@ -151,95 +231,9 @@ func cmdReady(args []string) int {
 	}
 
 	if useJSON {
-		if len(openEntries) == 0 {
-			fmt.Println("[]")
-		} else {
-			fmt.Println("[")
-			for i, r := range openEntries {
-				comma := ","
-				if i == len(openEntries)-1 {
-					comma = ""
-				}
-
-				readyJSON := "false"
-				if r.ready {
-					readyJSON = "true"
-				}
-
-				claimedJSON := "false"
-				if r.claimed {
-					claimedJSON = "true"
-				}
-
-				tagJSON := "[]"
-				if len(r.tags) > 0 {
-					tagJSON = "["
-					for j, tag := range r.tags {
-						if j > 0 {
-							tagJSON += ", "
-						}
-						tagJSON += fmt.Sprintf("\"%s\"", jsonEscape(tag))
-					}
-					tagJSON += "]"
-				}
-
-				blockedByJSON := "[]"
-				if len(r.blockedBy) > 0 {
-					blockedByJSON = "["
-					for j, b := range r.blockedBy {
-						if j > 0 {
-							blockedByJSON += ", "
-						}
-						if b.kind == "forge" {
-							blockedByJSON += fmt.Sprintf("{\"kind\": \"forge\", \"ref\": \"%s\"}", jsonEscape(b.ref))
-						} else {
-							blockedByJSON += fmt.Sprintf("{\"kind\": \"local\", \"id\": \"%s\"}", jsonEscape(b.id))
-						}
-					}
-					blockedByJSON += "]"
-				}
-
-				fmt.Printf("  {\n    \"id\": \"%s\",\n    \"title\": \"%s\",\n    \"file\": \"%s\",\n    \"ready\": %s,\n    \"claimed\": %s,\n    \"tags\": %s,\n    \"blocked_by\": %s\n  }%s\n",
-					jsonEscape(r.id), jsonEscape(r.title), jsonEscape(r.file), readyJSON, claimedJSON, tagJSON, blockedByJSON, comma)
-			}
-			fmt.Println("]")
-		}
+		printReadyJSON(openEntries)
 	} else {
-		if len(ready) == 0 {
-			if len(tickets) == 0 {
-				fmt.Println("No tickets found.")
-			} else if openCount == 0 {
-				fmt.Printf("All %d tickets are closed.\n", len(tickets))
-			} else {
-				fmt.Printf("%d open tickets, all blocked.\n", openCount)
-			}
-		} else {
-			fmt.Printf("Ready tickets (%d):\n", len(ready))
-			for _, r := range ready {
-				tagsSuffix := ""
-				if len(r.tags) > 0 {
-					tagsSuffix = fmt.Sprintf(" (tags: %s)", strings.Join(r.tags, ", "))
-				}
-				fmt.Printf("  %-8s %-40s %s%s\n", r.id, r.file, r.title, tagsSuffix)
-			}
-		}
-
-		var claimedEntries []readyEntry
-		for _, e := range openEntries {
-			if e.claimed {
-				claimedEntries = append(claimedEntries, e)
-			}
-		}
-		if len(claimedEntries) > 0 {
-			fmt.Printf("\nClaimed tickets (%d):\n", len(claimedEntries))
-			for _, r := range claimedEntries {
-				tagsSuffix := ""
-				if len(r.tags) > 0 {
-					tagsSuffix = fmt.Sprintf(" (tags: %s)", strings.Join(r.tags, ", "))
-				}
-				fmt.Printf("  %-8s %-40s %s%s\n", r.id, r.file, r.title, tagsSuffix)
-			}
-		}
+		printReadyText(len(tickets), openCount, openEntries, ready)
 	}
 	return 0
 }
