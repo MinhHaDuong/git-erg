@@ -149,11 +149,35 @@ Users don't know what "preamble" means in this context. Use "header section"
 
 ---
 
-## Implementation order
+## Triage
 
-Handle A (escaped scope) as a standalone fix immediately.
-Handle B (author) — needs design decision on how to resolve actor identity.
-Handle C, D, E, F, G, H, I, J together as a UX sweep PR.
+**P1 — Fix now (escaped scope or actively wrong):**
 
-Each is a targeted string change; no logic changes except E (plural helper)
-and B (actor identity lookup).
+| Item | Files | Changes |
+|------|-------|---------|
+| A | close.go, validate.go, new.go, log.go | 4 strings — per-command usage angle brackets |
+| F | new.go | 1 string — add `CREATED` verb |
+| G | archive.go | 1 string — `SKIPPED X (needed by Y)` |
+
+→ One PR, ~6 string changes, no logic.
+
+**P2 — Needs design decision:**
+
+| Item | Files | Changes |
+|------|-------|---------|
+| B | new.go, close.go | Author identity: `git config user.name` → `$ERG_AUTHOR` → `$USER` → `"unknown"` |
+
+→ Separate PR; requires `os/exec` call or `os.Getenv`. Decision: prefer `git config user.name` since erg is always used inside a git repo.
+
+**P3 — Polish sweep (one PR):**
+
+| Item | Files | Changes |
+|------|-------|---------|
+| C | check.go | `WARNING %s:` → `WARN %s:` |
+| D | close.go | `ALREADY_CLOSED` → `CLOSED (already)` |
+| E | check.go, validate.go | `plural()` helper + 5 format strings |
+| H | selfupdate.go | Omit `built:` line when empty (resolved by #0070) |
+| I | init.go | `%t` → `yes`/`no`; "pointer" → "entry"; "manifest:" → "manifest written:" |
+| J | validate.go | "preamble" → "header section" (2 strings) |
+
+→ All cosmetic; no logic changes except E (one helper function).
