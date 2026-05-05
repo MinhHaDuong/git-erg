@@ -2,10 +2,12 @@
 Title: Fix error(s) fake pluralization in check and validate output
 Created: 2026-05-05
 Author: haduong
+Closed: done
 
 --- log ---
 2026-05-05T00:00Z haduong created
 
+2026-05-05T17:27Z claude closed — done
 --- body ---
 ## Context
 
