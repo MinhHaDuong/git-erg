@@ -2,10 +2,12 @@
 Title: Add TestParseRef Go unit test for forge-ref parsing
 Created: 2026-05-05
 Author: claude
+Closed: done
 
 --- log ---
 2026-05-05T08:34Z claude created
 
+2026-05-05T11:52Z claude closed — done
 --- body ---
 The forge-ref parser (`parseRef` / `BlockedByRefs` in `ticket.go`) is the
 trickiest logic in the codebase: it must accept valid forge refs, reject the
