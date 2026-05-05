@@ -118,38 +118,31 @@ else
     pass "empty title exits non-zero"
 fi
 
-# --- Atomic: O_EXCL prevents overwrite of an existing file ---
-# Simulate a naming collision by pre-seeding the exact filename erg would
-# create (only possible if nextID happens to match).  We do so by setting up
-# an empty dir, pre-creating the file erg would choose (0001-excl-test.erg),
-# then making it non-writable — a write attempt would fail, confirming O_EXCL
-# semantics are in play.  The reliable signal is: exit non-zero when the file
-# already exists at that path.
+# --- File creation error handling ---
+# O_EXCL guards against concurrent races (untestable sequentially).
+# Test the adjacent error path: erg new exits non-zero when the target
+# directory is not writable.
 mkdir -p "$TDIR/dupe"
-# nextID will return 0001 for this fresh dir.  Pre-place that exact filename.
-touch "$TDIR/dupe/0001-excl-test.erg"
-# Remove it from nextID's count by hiding it under a different name temporarily.
-# Instead: directly verify erg errors out when asked to create a file it
-# cannot atomically claim.  We use chmod 000 on the dir itself so the open
-# will fail with a permission error, exercising the O_EXCL error path.
 chmod 000 "$TDIR/dupe"
-if $ERG new "excl test" "$TDIR/dupe" 2>/dev/null; then
+if $ERG new "dupe test" "$TDIR/dupe" 2>/dev/null; then
     chmod 755 "$TDIR/dupe"
-    fail "creation into unwritable dir exits non-zero (O_EXCL path)"
+    fail "file creation error: erg new exits non-zero on unwritable dir"
 else
     chmod 755 "$TDIR/dupe"
-    pass "creation into unwritable dir exits non-zero (O_EXCL path)"
+    pass "file creation error: erg new exits non-zero on unwritable dir"
 fi
 
 # --- Default dir is 'tickets' (relative) ---
-# Smoke test: run from a temp dir with a 'tickets' subdirectory.
+# Run from a temp dir with a 'tickets' subdirectory; assert erg creates a
+# .erg file there (not just that the dir exists, which mkdir already ensured).
+ERG_ABS=$(cd "$(dirname "$ERG")" && pwd)/$(basename "$ERG")
 WDIR=$(mktemp -d)
 mkdir "$WDIR/tickets"
-(cd "$WDIR" && ERG_BIN="$(pwd)" "$OLDPWD/$ERG" new "Default dir test" > /dev/null 2>&1) || true
-if [ -d "$WDIR/tickets" ]; then
-    pass "default dir smoke test ran without error"
+(cd "$WDIR" && "$ERG_ABS" new "Default dir test" > /dev/null 2>&1)
+if ls "$WDIR/tickets/"*.erg 2>/dev/null | grep -q .; then
+    pass "default dir: ticket file created in tickets/ subdirectory"
 else
-    fail "default dir smoke test ran without error"
+    fail "default dir: no ticket file found in tickets/ subdirectory"
 fi
 find "$WDIR" -type f -delete
 rmdir "$WDIR/tickets" "$WDIR"
