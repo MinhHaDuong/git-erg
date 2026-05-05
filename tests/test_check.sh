@@ -203,12 +203,7 @@ else
     fail "empty dir exits 0"
 fi
 
-# --- Real tickets pass ---
-if $ERG check tickets/ >/dev/null 2>&1; then
-    pass "real tickets pass"
-else
-    fail "real tickets pass"
-fi
+# live-corpus check moved to: make validate
 
 echo "check: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

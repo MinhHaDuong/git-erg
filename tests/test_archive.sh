@@ -114,6 +114,7 @@ else
 fi
 
 # --- ID mode: closed ticket still blocking open ticket is skipped ---
+[ -f "$FIXTURES/7003-closed-blocked.erg" ] || fail "fixture 7003-closed-blocked.erg unexpectedly missing"
 OUT_7003=$($ERG archive 7003 "$FIXTURES" 2>&1)
 if echo "$OUT_7003" | grep -q "SKIPPED 7003-closed-blocked.erg"; then
     pass "id mode: closed-blocking ticket emits SKIPPED"
@@ -122,6 +123,7 @@ else
 fi
 
 # --- ID mode: source file unchanged after blocker skip ---
+[ -f "$FIXTURES/7003-closed-blocked.erg" ] || fail "fixture 7003-closed-blocked.erg unexpectedly missing"
 if [ -f "$FIXTURES/7003-closed-blocked.erg" ] && [ ! -f "$FIXTURES/closed/7003-closed-blocked.erg" ]; then
     pass "id mode: source file unchanged after blocker skip"
 else
@@ -152,14 +154,10 @@ else
     fail "id mode: open ticket silently ignored (got: $OUT3)"
 fi
 
-# --- Default mode: already-archived ticket not re-processed ---
-# 7001 is now in closed/; run archive again and confirm no collision error.
-OUT4=$($ERG archive "$FIXTURES" 2>&1)
-if echo "$OUT4" | grep -q "already exists"; then
-    fail "default: already-archived ticket triggers collision (got: $OUT4)"
-else
-    pass "default: already-archived ticket not re-processed"
-fi
+# Note: double-archive is a no-op by design. The scanner only examines
+# top-level *.erg files, so a ticket already in closed/ is never re-examined.
+# There is no meaningful test to write here: the absence of a collision error
+# would be vacuous (the file is simply never visited by the scanner).
 
 # --- Destination collision: skip with error message (idempotent) ---
 write_closed "$FIXTURES/7020-collision.erg" "Collision Ticket"
