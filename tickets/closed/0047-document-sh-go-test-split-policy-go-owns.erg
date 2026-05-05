@@ -2,10 +2,12 @@
 Title: Document sh/go test split policy: Go owns logic, sh owns CLI contracts
 Created: 2026-05-05
 Author: claude
+Closed: done
 
 --- log ---
 2026-05-05T07:26Z claude created
 
+2026-05-05T08:17Z claude closed — done
 --- body ---
 The project has two test layers but no written policy on what belongs in each. This leads
 to significant duplication: `test_validate.sh` (36 cases) and `validate_test.go` (18 cases)

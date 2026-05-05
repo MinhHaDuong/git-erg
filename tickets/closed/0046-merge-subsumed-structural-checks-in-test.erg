@@ -2,10 +2,12 @@
 Title: Merge subsumed structural checks in test_new.sh
 Created: 2026-05-05
 Author: claude
+Closed: done
 
 --- log ---
 2026-05-05T07:26Z claude created
 
+2026-05-05T08:17Z claude closed — done
 --- body ---
 `tests/test_new.sh` has individual tests for magic line, log separator, body separator,
 Title, Author, and Created headers (lines 39–79). These are all subsumed by the
