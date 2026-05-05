@@ -1,0 +1,48 @@
+%erg v1
+Title: UX P1: fix usage angle-brackets, add CREATED verb, clarify SKIPPED message
+Created: 2026-05-05
+Author: haduong
+
+--- log ---
+2026-05-05T00:00Z haduong created
+
+--- body ---
+## Context
+
+Escaped scope from ticket 0071 triage. Three string-only fixes with no logic
+changes, grouped as P1 because they are actively wrong or were missed by PR #78.
+
+Items from 0071:
+- A: per-command usage strings still use `<arg>` angle brackets after PR #78
+  fixed printUsage(). Files: close.go, validate.go, new.go, log.go.
+- F: `erg new` prints only the filename on success; every other mutating command
+  prints a status verb first (CLOSED, LOGGED, ARCHIVED). Should print `CREATED`.
+- G: `SKIPPED %s (blocking %s)` is ambiguous — "blocking" does not say which
+  ticket is waiting on which. The ticket being archived is needed by another open
+  ticket. Should read `SKIPPED %s (needed by %s)`.
+
+## Actions
+
+1. In `close.go`: `"Usage: erg close <id|file> <reason> [dir]"` → `"Usage: erg close ID|FILE REASON [DIR]"`
+2. In `validate.go`: `"Usage: erg validate <file ...>"` → `"Usage: erg validate FILE..."`
+3. In `new.go`: `"Usage: erg new <title> [dir]"` → `"Usage: erg new TITLE [DIR]"`
+4. In `log.go`: `"Usage: erg log <id> <line> [dir]"` → `"Usage: erg log ID LINE [DIR]"`
+5. In `new.go`: change filename-only print to `fmt.Printf("CREATED %s\n", path)`
+6. In `archive.go`: `"SKIPPED %s (blocking %s)"` → `"SKIPPED %s (needed by %s)"`
+
+## Test
+
+Extend `tests/test_help.sh`: assert no `<` or `>` in per-command error output
+(run each command with wrong args, check stderr).
+
+Add to `tests/test_new.sh`: `erg new "foo"` output matches `^CREATED `.
+
+Add to `tests/test_archive.sh`: assert "needed by" appears when a blocker
+prevents archiving.
+
+## Exit criteria
+
+- `make test` passes.
+- `grep -r '<\|>' tickets/tools/go/*.go` returns no matches inside usage strings.
+- `erg new TITLE` output starts with `CREATED`.
+- `erg archive` blocked output contains "needed by", not "blocking".

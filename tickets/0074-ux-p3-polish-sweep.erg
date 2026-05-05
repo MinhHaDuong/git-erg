@@ -1,27 +1,58 @@
 %erg v1
-Title: UX P3 polish sweep — WARN prefix, pluralization, init output, jargon
+Title: UX P3: polish sweep — warning prefix, pluralization, init output, jargon
 Created: 2026-05-05
-Author: claude
+Author: haduong
 
 --- log ---
-2026-05-05T00:00Z claude created
+2026-05-05T00:00Z haduong created
 
 --- body ---
-Cosmetic Go changes to improve consistency of user-facing output:
+## Context
 
-- check.go: WARNING → WARN prefix (align with stray-source warning style)
-- close.go: ALREADY_CLOSED → CLOSED (already) (matches status verb pattern)
-- check.go: inline plural — "1 warning" / "2 warnings" (no more (s) fake plural)
-- validate.go: inline plural — "1 file" / "2 files"
-- init.go: %t → yes/no booleans in Applied: section output
-- init.go: "AGENTS.md pointer" → "AGENTS.md entry" in plan and output lines
-- init.go: "manifest:" → "manifest written:" for clarity
-- validate.go: "preamble" → "header section" in error messages
+Items C, D, E, I, J from ticket 0071 triage. All cosmetic except E (one helper
+function). No logic changes. Item H (built: line) is already resolved by PR #80
+(vcsRevision present → built: line shown; absent → omitted).
 
-Exit criteria:
-- No WARNING in check.go
-- No ALREADY_CLOSED in source
-- No (s) fake-plural in format strings
-- No preamble in validate.go error messages
-- No %t in init.go Printf calls
-EOF
+- C (`check.go`): `WARNING %s:` → `WARN %s:` — standardize to shorter prefix
+  used by the stray-source warning added in PR #79.
+- D (`close.go`): `ALREADY_CLOSED` → `CLOSED (already)` — matches
+  `PASS (3 tickets, 2 warnings)` style; no underscores in status verbs.
+- E (`check.go`, `validate.go`): `(s)` fake pluralization →
+  `plural(n int, word string) string` helper; `"1 file"` vs `"2 files"`.
+- I (`init.go`): `%t` boolean → `yes`/`no`; "pointer" → "entry";
+  `"manifest: %s"` → `"manifest written: %s"`.
+- J (`validate.go`): `"preamble"` → `"header section"` in error messages
+  (2 occurrences).
+
+## Actions
+
+1. `check.go`: change `"WARNING %s:"` format verb to `"WARN %s:"` (2 strings).
+2. `close.go`: change `"ALREADY_CLOSED"` to `"CLOSED (already)"`.
+3. Add `func plural(n int, word string) string` — returns `"1 word"` or `"N words"`.
+   Place in `util.go` (create if absent) or inline in `check.go`.
+4. `check.go`: replace `"%d warning(s)"` format with `plural(n, "warning")`.
+5. `validate.go`: replace `"PASS (%d file(s))"` with `plural(n, "file")` variant.
+6. `init.go`: replace `%t` with `yes`/`no` ternary; `"AGENTS.md pointer"` →
+   `"AGENTS.md entry"`; `"manifest: %s"` → `"manifest written: %s"`.
+7. `validate.go`: replace both occurrences of `"preamble"` with `"header section"`.
+
+## Test
+
+Extend `tests/test_check.sh`: 1 warning → `"1 warning"` (not `"1 warning(s)"`);
+2 warnings → `"2 warnings"`.
+
+Extend `tests/test_validate.sh`: 1 file → `"1 file"`; 2 files → `"2 files"`.
+
+Extend `tests/test_close.sh`: already-closed ticket outputs `CLOSED (already)`.
+
+Extend `tests/test_init.sh`: output contains `yes` or `no`, not `true`/`false`;
+contains `manifest written:`; contains `AGENTS.md entry`.
+
+## Exit criteria
+
+- `make test` passes.
+- No `WARNING ` (with trailing space) in `check.go`.
+- No `ALREADY_CLOSED` anywhere in source.
+- No `(s)` pluralization in format strings.
+- No `preamble` in `validate.go` error messages.
+- No `%t` in `init.go` output format strings.

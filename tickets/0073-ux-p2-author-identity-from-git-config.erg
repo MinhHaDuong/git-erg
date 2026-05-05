@@ -1,0 +1,47 @@
+%erg v1
+Title: UX P2: resolve author identity from git config instead of hardcoded claude
+Created: 2026-05-05
+Author: haduong
+
+--- log ---
+2026-05-05T00:00Z haduong created
+
+--- body ---
+## Context
+
+Item B from ticket 0071 triage. `erg new` writes `Author: claude` into every
+generated ticket file. `erg close` writes `claude closed —` and
+`claude note blocker` into log lines. These are wrong for any non-Claude actor.
+
+Resolution order (first non-empty wins):
+1. `git config user.name` — via `os/exec`, matches repo identity
+2. `$ERG_AUTHOR` env var — opt-in override
+3. `$USER` env var — OS fallback
+4. `"unknown"` — last resort
+
+## Actions
+
+1. Add a `resolveAuthor() string` helper in a shared file (e.g. `util.go` or
+   inline in `new.go`). Implement the four-step fallback chain above.
+2. In `new.go` template: replace `"Author: claude"` with `"Author: " + resolveAuthor()`.
+3. In `new.go` log line: replace `"claude created"` with `resolveAuthor() + " created"`.
+4. In `close.go`: replace `"claude closed —"` and `"claude note blocker"` with
+   `resolveAuthor() + " closed —"` and `resolveAuthor() + " note blocker"`.
+
+## Test
+
+In `tests/test_new.sh`: `ERG_AUTHOR=testuser erg new "foo"` → ticket contains
+`Author: testuser` and log line contains `testuser created`.
+
+In `tests/test_close.sh`: `ERG_AUTHOR=testuser erg close ID done` → log line
+contains `testuser closed`.
+
+Unit test for `resolveAuthor()`: mock env vars, verify fallback chain.
+
+## Exit criteria
+
+- `make test` passes.
+- `grep -r '"claude"' tickets/tools/go/*.go` returns no matches inside
+  author-identity strings.
+- `ERG_AUTHOR=alice erg new TITLE` produces `Author: alice`.
+- Running without `ERG_AUTHOR` in a git repo produces the git user name.
