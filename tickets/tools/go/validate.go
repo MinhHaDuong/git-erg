@@ -91,11 +91,11 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 	}
 	if t.ClosedInLog {
 		errors = append(errors, fmt.Sprintf(
-			"%s: 'Closed:' header found in log section — only allowed in preamble", name))
+			"%s: 'Closed:' header found in log section — only allowed in header section", name))
 	}
 	if t.ClosedInBody {
 		errors = append(errors, fmt.Sprintf(
-			"%s: 'Closed:' header found in body section — only allowed in preamble", name))
+			"%s: 'Closed:' header found in body section — only allowed in header section", name))
 	}
 
 	// Rule 5: Created is ISO date
@@ -330,6 +330,10 @@ func cmdValidate(args []string) int {
 		return 1
 	}
 
-	fmt.Printf("ERG VALIDATION: PASS (%d file(s))\n", count)
+	fileWord := "files"
+	if count == 1 {
+		fileWord = "file"
+	}
+	fmt.Printf("ERG VALIDATION: PASS (%d %s)\n", count, fileWord)
 	return 0
 }

@@ -366,5 +366,20 @@ else
     fail "non-.erg file: exit 0 with WARNING (rc=$rc, got: $out)"
 fi
 
+# --- Plural: 1 file singular ---
+out=$($ERG validate "$FIXTURES/0001-valid.erg" 2>&1)
+if echo "$out" | grep -qF "PASS (1 file)"; then
+    pass "validate: 1 file uses singular"
+else
+    fail "validate: 1 file uses singular (got: $out)"
+fi
+# --- Plural: 2 files plural ---
+out=$($ERG validate "$FIXTURES/0001-valid.erg" "$FIXTURES/0002-second.erg" 2>&1)
+if echo "$out" | grep -qF "PASS (2 files)"; then
+    pass "validate: 2 files uses plural"
+else
+    fail "validate: 2 files uses plural (got: $out)"
+fi
+
 echo "validate: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

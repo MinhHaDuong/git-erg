@@ -135,5 +135,27 @@ else
     fail "init and uninstall print plan"
 fi
 
+# Output uses yes/no not true/false
+if echo "$OUT" | grep -qE "true|false"; then
+    fail "init output must not contain true/false"
+else
+    pass "init output: no true/false booleans"
+fi
+if echo "$OUT" | grep -qF "manifest written:"; then
+    pass "init output: 'manifest written:'"
+else
+    fail "init output: 'manifest written:' (got: $OUT)"
+fi
+if echo "$OUT" | grep -qF "AGENTS.md entry"; then
+    pass "init output: 'AGENTS.md entry'"
+else
+    fail "init output: 'AGENTS.md entry' (got: $OUT)"
+fi
+if echo "$OUT" | grep -qF "AGENTS.md pointer"; then
+    fail "init output: must not say 'AGENTS.md pointer'"
+else
+    pass "init output: no 'AGENTS.md pointer' jargon"
+fi
+
 echo "init/uninstall: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

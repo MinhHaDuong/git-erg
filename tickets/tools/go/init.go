@@ -45,7 +45,7 @@ func cmdInit(args []string) int {
 
 	fmt.Printf("Plan: initialize git-erg support in %s\n", root)
 	fmt.Printf("- refresh %d managed files under tickets/\n", len(managedAssetPaths))
-	fmt.Println("- append AGENTS.md pointer, .gitignore entry, and pre-commit hook block when absent")
+	fmt.Println("- append AGENTS.md entry, .gitignore entry, and pre-commit hook block when absent")
 
 	manifest := bootstrapManifest{
 		Version:      1,
@@ -122,10 +122,22 @@ func cmdInit(args []string) int {
 	fmt.Printf("- files created: %d\n", created)
 	fmt.Printf("- files refreshed: %d\n", refreshed)
 	fmt.Printf("- files unchanged: %d\n", unchanged)
-	fmt.Printf("- AGENTS.md pointer added: %t\n", addedAgents)
-	fmt.Printf("- .gitignore entry added: %t\n", addedGitignore)
-	fmt.Printf("- pre-commit block added: %t\n", addedHook)
-	fmt.Printf("- manifest: %s\n", manifestRelPath)
+	agentsWord := "no"
+	if addedAgents {
+		agentsWord = "yes"
+	}
+	gitignoreWord := "no"
+	if addedGitignore {
+		gitignoreWord = "yes"
+	}
+	hookWord := "no"
+	if addedHook {
+		hookWord = "yes"
+	}
+	fmt.Printf("- AGENTS.md entry added: %s\n", agentsWord)
+	fmt.Printf("- .gitignore entry added: %s\n", gitignoreWord)
+	fmt.Printf("- pre-commit block added: %s\n", hookWord)
+	fmt.Printf("- manifest written: %s\n", manifestRelPath)
 	return 0
 }
 
@@ -185,12 +197,24 @@ func cmdUninstall(args []string) int {
 	cleanupIfEmpty(filepath.Join(root, "tickets", "integration"))
 	cleanupIfEmpty(filepath.Join(root, "tickets"))
 
+	agentsRemovedWord := "no"
+	if removedAgents {
+		agentsRemovedWord = "yes"
+	}
+	gitignoreRemovedWord := "no"
+	if removedGitignore {
+		gitignoreRemovedWord = "yes"
+	}
+	hookRemovedWord := "no"
+	if removedHook {
+		hookRemovedWord = "yes"
+	}
 	fmt.Println("Applied:")
 	fmt.Printf("- managed files removed: %d\n", removedFiles)
-	fmt.Printf("- AGENTS.md pointer removed: %t\n", removedAgents)
-	fmt.Printf("- .gitignore entry removed: %t\n", removedGitignore)
-	fmt.Printf("- pre-commit block removed: %t\n", removedHook)
-	fmt.Printf("- user ticket data preserved under tickets/: %t\n", true)
+	fmt.Printf("- AGENTS.md entry removed: %s\n", agentsRemovedWord)
+	fmt.Printf("- .gitignore entry removed: %s\n", gitignoreRemovedWord)
+	fmt.Printf("- pre-commit block removed: %s\n", hookRemovedWord)
+	fmt.Println("- user ticket data preserved under tickets/: yes")
 	return 0
 }
 
