@@ -57,7 +57,8 @@ func cmdNew(args []string) int {
 	today := now.Format("2006-01-02")
 	timestamp := now.Format("2006-01-02T15:04Z")
 
-	content := fmt.Sprintf("%%erg v1\nTitle: %s\nCreated: %s\nAuthor: claude\n\n--- log ---\n%s claude created\n\n--- body ---\n", title, today, timestamp)
+	author := resolveAuthor()
+	content := fmt.Sprintf("%%erg v1\nTitle: %s\nCreated: %s\nAuthor: %s\n\n--- log ---\n%s %s created\n\n--- body ---\n", title, today, author, timestamp, author)
 
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {

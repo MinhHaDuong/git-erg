@@ -61,7 +61,8 @@ func cmdClose(args []string) int {
 
 	now := time.Now().UTC().Format("2006-01-02T15:04Z")
 	closedHeader := "Closed: " + reason
-	logLine := fmt.Sprintf("%s claude closed — %s", now, reason)
+	author := resolveAuthor()
+	logLine := fmt.Sprintf("%s %s closed — %s", now, author, reason)
 
 	content, err := insertClosedHeader(string(data), closedHeader)
 	if err != nil {
@@ -79,7 +80,7 @@ func cmdClose(args []string) int {
 	t2 := parseErg(ticketPath)
 	closedID := t2.FilenameID()
 	if closedID != "" {
-		removeBlockedByRef(ticketDir, closedID, now)
+		removeBlockedByRef(ticketDir, closedID, now, author)
 	}
 
 	fmt.Println("CLOSED")
@@ -89,7 +90,7 @@ func cmdClose(args []string) int {
 // removeBlockedByRef scans ticketDir for open tickets that have a
 // Blocked-by header referencing closedID, removes those lines, and
 // appends a log entry recording the removal.
-func removeBlockedByRef(ticketDir, closedID, timestamp string) {
+func removeBlockedByRef(ticketDir, closedID, timestamp, author string) {
 	entries, err := os.ReadDir(ticketDir)
 	if err != nil {
 		return
@@ -123,7 +124,7 @@ func removeBlockedByRef(ticketDir, closedID, timestamp string) {
 			continue
 		}
 		updated := removeBlockedByLine(string(data), closedID)
-		logLine := fmt.Sprintf("%s claude note blocker %s closed — Blocked-by removed", timestamp, closedID)
+		logLine := fmt.Sprintf("%s %s note blocker %s closed — Blocked-by removed", timestamp, author, closedID)
 		updated = appendLogLine(updated, logLine)
 		if err := os.WriteFile(path, []byte(updated), 0644); err != nil {
 			fmt.Fprintf(os.Stderr, "close: warning: cannot write %s: %v\n", path, err)

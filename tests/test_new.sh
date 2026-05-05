@@ -111,5 +111,16 @@ fi
 find "$WDIR" -type f -delete
 rmdir "$WDIR/tickets" "$WDIR"
 
+# ERG_AUTHOR: Author header and log line use the override
+mkdir -p "$TDIR/authtest"
+RAW_A=$(ERG_AUTHOR=testuser $ERG new "author override test" "$TDIR/authtest")
+FNAME_A=$(echo "$RAW_A" | sed 's/^CREATED //')
+FILE_A="$TDIR/authtest/$FNAME_A"
+if grep -q "^Author: testuser$" "$FILE_A" && grep -q "testuser created" "$FILE_A"; then
+    pass "ERG_AUTHOR: Author header and log line use override"
+else
+    fail "ERG_AUTHOR: Author header and log line use override"
+fi
+
 echo "new: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

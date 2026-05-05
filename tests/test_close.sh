@@ -28,10 +28,10 @@ Author: claude
 Test body.
 EOF
 
-OUT=$($ERG close 9001 "done with this" "$FIXTURES")
+OUT=$(ERG_AUTHOR=testuser $ERG close 9001 "done with this" "$FIXTURES")
 if [ "$OUT" = "CLOSED" ]; then
     if grep -q "^Closed: done with this$" "$FIXTURES/9001-closable.erg"; then
-        if grep -q "claude closed — done with this" "$FIXTURES/9001-closable.erg"; then
+        if grep -q "testuser closed — done with this" "$FIXTURES/9001-closable.erg"; then
             pass "close open ticket by ID"
         else
             fail "close open ticket by ID (missing log line)"
@@ -394,6 +394,25 @@ else
     fail "missing log separator exits 1 with error (rc=$rc, got: $err)"
 fi
 rm -f "$FIXTURES/0043-no-sep.erg"
+
+# ERG_AUTHOR: close log line uses the override
+cat > "$FIXTURES/9100-author-override.erg" <<'EOF'
+%erg v1
+Title: Author override test
+Created: 2026-01-01
+Author: haduong
+
+--- log ---
+2026-01-01T10:00Z haduong created
+
+--- body ---
+EOF
+OUT=$(ERG_AUTHOR=testuser $ERG close 9100 "override check" "$FIXTURES")
+if [ "$OUT" = "CLOSED" ] && grep -q "testuser closed — override check" "$FIXTURES/9100-author-override.erg"; then
+    pass "ERG_AUTHOR: close log line uses override"
+else
+    fail "ERG_AUTHOR: close log line uses override (output: $OUT)"
+fi
 
 echo "close: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
