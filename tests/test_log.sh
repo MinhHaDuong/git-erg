@@ -134,5 +134,22 @@ else
 fi
 rm -f "$FIXTURES/0044-alpha.erg" "$FIXTURES/0044-beta.erg"
 
+# --- Missing body separator: exits non-zero with error ---
+cat > "$FIXTURES/0045-no-body-sep.erg" <<'EOF'
+%erg v1
+Title: No body separator
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T10:00Z claude created
+EOF
+err=$($ERG log 0045 "should fail" "$FIXTURES" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$err" | grep -q "body"; then
+    pass "missing body separator: exits non-zero with error"
+else
+    fail "missing body separator: exits non-zero with error (rc=$rc, got: $err)"
+fi
+
 echo "log: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

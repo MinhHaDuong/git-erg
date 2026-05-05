@@ -1,0 +1,35 @@
+%erg v1
+Title: Add ID-mode blocker-guard test to test_archive.sh and missing-separator test to test_log.sh
+Created: 2026-05-05
+Author: claude
+Closed: done
+
+--- log ---
+2026-05-05T00:00Z claude created
+
+2026-05-05T08:00Z claude closed — done
+--- body ---
+## Context
+
+Two test gaps identified after reviewing the archive and log commands:
+
+1. `erg archive` in ID mode applies the same blocker-guard as default mode
+   (SKIPPED when a closed ticket is still referenced by an open Blocked-by),
+   but no test covered the ID-mode path.
+
+2. `cmdLog` in `log.go` calls `appendLogLine` even when the ticket file has no
+   `--- body ---` separator, silently corrupting the file structure.
+
+## Actions
+
+- Add ID-mode blocker-guard test to `tests/test_archive.sh`
+- Fix `cmdLog` in `tickets/tools/go/log.go` to refuse writes when the separator
+  is missing
+- Add missing-separator test to `tests/test_log.sh`
+
+## Exit criteria
+
+- `make test-archive` passes with new ID-mode blocker tests green
+- `make test-log` passes with new missing-separator test green
+- `erg log` exits non-zero with a "body" error message when the ticket has no
+  `--- body ---` separator
