@@ -2,38 +2,45 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"io/fs"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
 
-// nextID scans dir for the highest numeric .erg filename prefix and returns
-// the next ID as a zero-padded 4-digit string.  Returns "0001" when dir does
-// not exist or contains no numbered tickets.
+// parseIDFromFilename extracts the leading numeric prefix from an .erg
+// filename (e.g. "0042-some-title.erg" → 42). Returns 0 if the file does not
+// end in .erg or the prefix is not numeric.
+func parseIDFromFilename(name string) int {
+	if !strings.HasSuffix(name, ".erg") {
+		return 0
+	}
+	stem := strings.TrimSuffix(name, ".erg")
+	if idx := strings.Index(stem, "-"); idx > 0 {
+		stem = stem[:idx]
+	}
+	n, err := strconv.Atoi(stem)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// nextID scans dir and all its subdirectories for the highest numeric .erg
+// filename prefix and returns the next ID as a zero-padded 4-digit string.
+// Returns "0001" when dir does not exist or contains no numbered tickets.
 func nextID(dir string) string {
 	maxID := 0
 
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return "0001"
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
+	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
 		}
-		name := entry.Name()
-		if !strings.HasSuffix(name, ".erg") {
-			continue
-		}
-		stem := strings.TrimSuffix(name, ".erg")
-		if idx := strings.Index(stem, "-"); idx > 0 {
-			stem = stem[:idx]
-		}
-		if n, err := strconv.Atoi(stem); err == nil && n > maxID {
+		if n := parseIDFromFilename(d.Name()); n > maxID {
 			maxID = n
 		}
-	}
+		return nil
+	})
 
 	return fmt.Sprintf("%04d", maxID+1)
 }

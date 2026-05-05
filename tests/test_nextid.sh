@@ -62,15 +62,15 @@ else
     fail "gap sequence returns 0006 (got: $out)"
 fi
 
-# --- Closed/archive subdirectory IDs are NOT counted (non-recursive) ---
+# --- Closed/archive subdirectory IDs ARE counted (recursive scan) ---
 mkdir -p "$TDIR/scoped/archive"
 touch "$TDIR/scoped/0003-low.erg"
 touch "$TDIR/scoped/archive/0099-high.erg"
 out=$($ERG next-id "$TDIR/scoped")
-if [ "$out" = "0004" ]; then
-    pass "archive subdir ignored"
+if [ "$out" = "0100" ]; then
+    pass "archive subdir counted"
 else
-    fail "archive subdir ignored (got: $out)"
+    fail "archive subdir counted (got: $out)"
 fi
 
 # --- Non-.erg files ignored ---
