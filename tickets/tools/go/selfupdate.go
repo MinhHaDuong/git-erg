@@ -63,7 +63,11 @@ func cmdVersion(_ []string) int {
 		fmt.Fprintf(os.Stderr, "version: cannot resolve executable: %v\n", err)
 		return 1
 	}
-	self, _ = filepath.EvalSymlinks(self)
+	if resolved, err := filepath.EvalSymlinks(self); err == nil {
+		self = resolved
+	} else {
+		fmt.Fprintf(os.Stderr, "version: symlink resolution failed, using raw path: %v\n", err)
+	}
 
 	selfInfo, err := os.Stat(self)
 	if err != nil {
