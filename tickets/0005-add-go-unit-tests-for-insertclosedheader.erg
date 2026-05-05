@@ -1,0 +1,30 @@
+%erg v1
+Title: Add Go unit tests for insertClosedHeader and removeBlockedByLine
+Created: 2026-05-05
+Author: claude
+
+--- log ---
+2026-05-05T08:34Z claude created
+
+--- body ---
+`tickets/tools/go/close.go` has three pure functions: `appendLogLine`
+(tested in `close_test.go` after the raid), `insertClosedHeader` (lines
+152-178), and `removeBlockedByLine` (lines 135-150). The latter two have
+zero Go unit tests and are covered only by shell integration tests.
+
+**`insertClosedHeader(content, reason string) string`** — inserts
+`Closed: <reason>` into the preamble and a timestamped close entry before
+`--- body ---`. It is the most complex of the three: it must handle trailing
+blank lines before `--- log ---`, the presence/absence of existing `Closed:`
+headers, and content with no body separator (error path).
+
+**`removeBlockedByLine(content, id string) string`** — removes the
+`Blocked-by: <id>` line from the preamble when the blocker is closed. Edge
+cases: multiple `Blocked-by:` lines, `Blocked-by:` as the last preamble line,
+ID that does not appear (no-op).
+
+Add cases to `tickets/tools/go/close_test.go` covering:
+- `insertClosedHeader`: basic insertion, blank-line handling around `--- log ---`,
+  missing `--- body ---` fallback
+- `removeBlockedByLine`: removes the correct line, leaves other `Blocked-by:`
+  lines intact, no-op when ID absent

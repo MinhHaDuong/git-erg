@@ -1,0 +1,34 @@
+%erg v1
+Title: Fix test_ready.sh hygiene: stale comment and fragile JSON extraction
+Created: 2026-05-05
+Author: claude
+
+--- log ---
+2026-05-05T08:34Z claude created
+
+--- body ---
+Two hygiene issues in `tests/test_ready.sh`:
+
+**1. Stale comment at line 290:**
+```sh
+# --- Empty dir ---
+```
+This comment precedes the forge-ref blocker test, not the empty-dir test. The
+actual empty-dir test begins at line 312 with its own `# --- Empty dir handled ---`
+comment. Delete the stale label at line 290.
+
+**2. Fragile JSON extraction at line ~380:**
+```sh
+entry=$(echo "$output" | tr '\n' ' ' | grep -o '{[^}]*"id": "0098"[^}]*}')
+```
+The `[^}]` character class breaks if the 0098 entry has a nested object (e.g.,
+a `blocked_by` array like `[{"kind": "local", "id": "0042"}]`). The current
+0098 fixture has no blockers so it works, but any future blocker addition
+silently breaks the match.
+
+**Fix:** Replace with grep for individual fields on the collapsed JSON:
+```sh
+if echo "$output" | tr -d '\n' | grep -q '"id": "0098"'; then ...
+if echo "$output" | tr -d '\n' | grep -q '"claimed": true'; then ...
+```
+Do not rely on `{[^}]*}` matching a nested JSON structure.
