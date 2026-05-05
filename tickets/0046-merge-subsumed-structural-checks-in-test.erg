@@ -16,12 +16,10 @@ The individual checks add line count and maintenance burden without adding diagn
 — a failure in "log separator present" means exactly the same thing as a failure in
 "generated file passes erg validate".
 
-Two options (choose one):
-A) Drop the 6 redundant field-check tests, keep only the validate test. Rely on validate's
-   error message for diagnosis.
-B) Drop the validate test, keep the field checks. Gives precise per-field failure messages
-   at the cost of not testing the format holistically.
+Action: remove the 6 redundant field-check tests (lines 39–79) and add a comment above
+the `erg validate` test at line 33 explaining it subsumes all structural checks:
 
-Recommendation: option A. The validate test is the single source of truth; if validation
-logic changes, only one place needs updating. Add a comment above the validate test
-explaining it subsumes all structural checks.
+  # Subsumes: magic line, log/body separators, Title/Author/Created headers.
+  # If validate passes, all format invariants are satisfied.
+
+Leave the `erg validate` test itself unchanged.
