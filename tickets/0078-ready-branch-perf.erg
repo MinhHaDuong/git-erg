@@ -1,0 +1,25 @@
+%erg v1
+Title: Reduce erg ready git spawns from O(N) to O(1)
+Created: 2026-05-05
+Author: claude
+
+--- log ---
+2026-05-05T00:00Z claude created
+
+--- body ---
+## Context
+`isBranchClaimed` ran `git branch --list *ID*` and `git branch -r --list *ID*`
+for every open ticket — O(N) subprocess spawns each costing ~10ms in git
+startup time.  Discovered while profiling `erg ready` slowness.
+
+## Actions
+1. Replace per-ticket git calls with a single `git branch -a` in `loadBranchNames`
+2. Check IDs with `strings.Contains` in memory
+3. Strip `* ` and `+ ` markers; skip symref lines
+
+## Test
+`make test-ready` green — existing claimed/unclaimed tests cover the behaviour.
+
+## Exit criteria
+- `strace` shows exactly one git spawn for `erg ready`
+- All 21 ready tests pass
