@@ -162,6 +162,33 @@ func TestValidateErg(t *testing.T) {
 			wantErrors: true,
 			wantSubstr: "deprecated",
 		},
+		{
+			name:       "missing required Created header",
+			filename:   "0001-test.erg",
+			content:    "%erg v1\nTitle: X\nAuthor: test\n\n--- log ---\n--- body ---\n",
+			wantErrors: true,
+			wantSubstr: "Created",
+		},
+		{
+			name:       "missing required Author header",
+			filename:   "0001-test.erg",
+			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\n\n--- log ---\n--- body ---\n",
+			wantErrors: true,
+			wantSubstr: "Author",
+		},
+		{
+			name:       "invalid Blocked-by ref (deprecated bare gh# scheme)",
+			filename:   "0001-test.erg",
+			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: gh#42\n\n--- log ---\n--- body ---\n",
+			wantErrors: true,
+			wantSubstr: "deprecated",
+		},
+		{
+			name:       "Closed header with non-empty value accepted",
+			filename:   "0001-test.erg",
+			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n",
+			wantErrors: false,
+		},
 	}
 
 	for _, tc := range cases {
