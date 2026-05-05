@@ -123,5 +123,67 @@ else
 fi
 rm -rf "$WORKSPACE"
 
+# --- vcsRevision-based outdated detection tests ---
+
+# Test: erg version output includes revision: line when vcsRevision is embedded.
+VER2=$("$ERG" version 2>&1)
+if echo "$VER2" | grep -qE '^\s+revision:'; then
+    pass "version: revision: line present in output"
+else
+    fail "version: revision: line missing from output: $VER2"
+fi
+
+# Test: a binary claiming the same vcsRevision is NOT marked [outdated].
+# We create a shell stub that prints erg version output with the same revision
+# as the running binary, but a different hash. Place it in a temp PATH dir so
+# erg discovers it, then assert no [outdated] label appears.
+SELF_REVISION=$(echo "$VER2" | grep -E '^\s+revision:' | sed 's/.*revision:[[:space:]]*//')
+VERSION_TMPDIR=$(mktemp -d)
+STUB="$VERSION_TMPDIR/erg"
+cat > "$STUB" <<STUBEOF
+#!/bin/sh
+if [ "\$1" = "version" ]; then
+    echo "erg version"
+    echo "  path:    $VERSION_TMPDIR/erg"
+    echo "  hash:    aabbccddeeff"
+    echo "  built:   2020-01-01T00:00:00Z"
+    echo "  revision: $SELF_REVISION"
+    echo "  arch:    linux/amd64"
+fi
+STUBEOF
+chmod +x "$STUB"
+
+OUT=$(PATH="$VERSION_TMPDIR:$PATH" "$ERG" version 2>&1)
+if echo "$OUT" | grep -q "\[outdated"; then
+    fail "version: same-revision stub incorrectly marked [outdated]: $OUT"
+else
+    pass "version: same-revision binary not marked [outdated]"
+fi
+rm -rf "$VERSION_TMPDIR"
+
+# Test: a binary with a different (older) vcsRevision IS marked [outdated].
+VERSION_TMPDIR2=$(mktemp -d)
+STUB2="$VERSION_TMPDIR2/erg"
+cat > "$STUB2" <<STUBEOF2
+#!/bin/sh
+if [ "\$1" = "version" ]; then
+    echo "erg version"
+    echo "  path:    $VERSION_TMPDIR2/erg"
+    echo "  hash:    deadbeefcafe"
+    echo "  built:   2020-01-01T00:00:00Z"
+    echo "  revision: olddeadbeef"
+    echo "  arch:    linux/amd64"
+fi
+STUBEOF2
+chmod +x "$STUB2"
+
+OUT2=$(PATH="$VERSION_TMPDIR2:$PATH" "$ERG" version 2>&1)
+if echo "$OUT2" | grep -q "\[outdated"; then
+    pass "version: older-revision binary marked [outdated]"
+else
+    fail "version: older-revision binary not marked [outdated]: $OUT2"
+fi
+rm -rf "$VERSION_TMPDIR2"
+
 echo "update: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -1,21 +1,49 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
 // buildDate is set at compile time via -ldflags "-X main.buildDate=..."
 var buildDate string
 
+// vcsRevision is set at compile time via -ldflags "-X main.vcsRevision=..."
+var vcsRevision string
+
 const updateURL = "https://raw.githubusercontent.com/MinhHaDuong/git-erg/main/tickets/tools/go/erg"
+
+// readVersionInfo executes binaryPath version with a 2-second timeout and
+// parses the revision: and built: lines from its stdout.
+// Returns empty strings on any failure.
+func readVersionInfo(binaryPath string) (revision, date string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, binaryPath, "version")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", ""
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "revision:") {
+			revision = strings.TrimSpace(strings.TrimPrefix(trimmed, "revision:"))
+		} else if strings.HasPrefix(trimmed, "built:") {
+			date = strings.TrimSpace(strings.TrimPrefix(trimmed, "built:"))
+		}
+	}
+	return revision, date
+}
 
 // selfHash returns the hex-encoded sha256 of the file at path.
 func selfHash(path string) (string, error) {
@@ -57,6 +85,9 @@ func cmdVersion(_ []string) int {
 		fmt.Printf("  built:   %s\n", buildDate)
 	} else {
 		fmt.Printf("  built:   [unknown — no build metadata]\n")
+	}
+	if vcsRevision != "" {
+		fmt.Printf("  revision: %s\n", vcsRevision)
 	}
 	fmt.Printf("  arch:    %s/%s\n", runtime.GOOS, runtime.GOARCH)
 
@@ -119,9 +150,22 @@ func cmdVersion(_ []string) int {
 		}
 
 		line := fmt.Sprintf("  %s  hash=%s", resolved, ch[:12])
-		if ch != h {
-			line += fmt.Sprintf("  [outdated: run: %s]", c.hint)
+
+		// Determine outdated label using VCS revision when available.
+		otherRevision, otherDate := readVersionInfo(resolved)
+		if vcsRevision != "" && otherRevision == vcsRevision {
+			// Same source commit — not outdated regardless of hash difference.
+		} else if vcsRevision != "" && otherRevision != "" {
+			// Both have revisions but they differ — compare build dates.
+			if buildDate != "" && otherDate != "" && buildDate > otherDate {
+				line += fmt.Sprintf("  [outdated: run: %s]", c.hint)
+			} else {
+				line += "  [different version]"
+			}
+		} else {
+			// Cannot determine — fall back to showing hash only, no label.
 		}
+
 		others = append(others, line)
 	}
 
