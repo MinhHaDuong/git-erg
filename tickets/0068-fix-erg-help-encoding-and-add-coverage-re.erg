@@ -1,0 +1,63 @@
+%erg v1
+Title: Fix erg help: replace <arg> with UPPER_CASE and add completeness regression test
+Created: 2026-05-05
+Author: haduong
+
+--- log ---
+2026-05-05T00:00Z haduong created
+
+--- body ---
+`erg -h` / `erg --help` / `erg help` currently uses `<arg>` angle-bracket
+notation for required arguments (e.g. `close <id|file> <reason> [dir]`).
+These render as HTML entities (`&lt;`, `&gt;`) when captured and displayed
+in web/conversation contexts, making the output hard to read.
+
+There is also no regression test: when a new command was added to the
+`switch` in `main.go` without being added to `printUsage()`, the omission
+went undetected until a user ran the command and got "Unknown command".
+
+**Desired behaviour:**
+
+Replace angle-bracket notation with UPPER_CASE for required positional
+arguments in `printUsage()`:
+
+```
+  validate FILES...         Validate individual .erg files (format, headers, refs)
+  check [DIR]               Corpus-level checks (duplicate IDs, cycles, refs)
+  ready [DIR] [--json]      Show tickets ready for work
+  next-id [DIR]             Print the next available ticket ID
+  new TITLE [DIR]           Create a new ticket file atomically
+  close ID REASON [DIR]     Close a ticket atomically
+  log ID LINE [DIR]         Append a timestamped log entry to a ticket
+  archive [ID...] [DIR]     Move closed tickets to tickets/closed/
+  migrate [DIR]             Convert legacy Status: headers to Closed: form
+  init [DIR]                Bootstrap tickets/ support files from embedded assets
+  uninstall [DIR]           Remove files/fragments managed by `erg init`
+  version                   Print version, path, build date, and obsolescence info
+  update                    Fetch and replace binary from origin
+```
+
+Optional args stay in `[brackets]`. Required args become UPPER_CASE.
+
+**Tests (TDD first):**
+
+Add `tests/test_help.sh`:
+
+- `erg -h` exits 0 and prints to stderr — PASS/FAIL
+- `erg --help` exits 0 — PASS/FAIL
+- `erg help` exits 0 — PASS/FAIL
+- For each command name in the canonical list (validate check ready next-id
+  new close log archive migrate init uninstall version update): assert the
+  name appears in `erg -h` output — one PASS/FAIL per command
+- No `<` or `>` characters appear in the output — PASS/FAIL
+
+Wire `test_help` into `TEST_SUITES` in the Makefile.
+
+**Implementation notes:**
+
+- Edit `printUsage()` in `tickets/tools/go/main.go` only.
+- The package-level doc comment (lines 4–18) uses the Go `godoc` convention
+  with angle brackets; leave it unchanged — it is not user-facing output.
+- The `version` description should be updated to reflect the new
+  structured output added in PR #68: path, hash, build date, OS/arch.
+- No other files need changing.
