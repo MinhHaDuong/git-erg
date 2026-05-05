@@ -1,0 +1,31 @@
+%erg v1
+Title: Fix missing exit-code checks in test_validate test_archive test_log test_close
+Created: 2026-05-05
+Author: claude
+
+--- log ---
+2026-05-05T08:34Z claude created
+
+--- body ---
+`|| true` is used in ~14 test cases across 4 files to capture output from
+commands expected to fail, but it also discards the exit code. A command that
+prints the expected string and exits 0 (invalid ticket silently accepted) would
+still PASS the test. This defeats the primary purpose of rejection tests.
+
+**Affected locations:**
+
+`tests/test_validate.sh` — lines 75, 181, 199, 217, 235, 253, 271, 289, 307, 325:
+ten forge-ref and header-rejection tests, all using `out=$(... || true)`.
+
+`tests/test_archive.sh:181` — "non-existent ID prints warning" comment says
+"exit 0" but never verifies it.
+
+`tests/test_log.sh:129` — "ambiguous ID exits non-zero" — the name says
+non-zero but exit code is not checked.
+
+`tests/test_close.sh:339, 375, 392` — dependent-write-failure, ambiguous-ID,
+missing-log-sep cases check output but not exit code.
+
+**Fix:** Replace `out=$(cmd 2>&1 || true)` with `out=$(cmd 2>&1) && rc=0 || rc=$?`
+and add `[ "$rc" -ne 0 ]` (or `[ "$rc" -eq 0 ]` for expected-success cases) to
+the assertion. The pattern is already established at `test_validate.sh:353/362`.

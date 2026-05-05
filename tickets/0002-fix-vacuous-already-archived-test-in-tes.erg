@@ -1,0 +1,30 @@
+%erg v1
+Title: Fix vacuous already-archived test in test_archive.sh
+Created: 2026-05-05
+Author: claude
+
+--- log ---
+2026-05-05T08:34Z claude created
+
+--- body ---
+`tests/test_archive.sh` lines 156-162:
+
+```sh
+OUT4=$($ERG archive "$FIXTURES" 2>&1)
+if echo "$OUT4" | grep -q "already exists"; then
+    fail "default: already-archived ticket triggers collision (got: $OUT4)"
+else
+    pass "default: already-archived ticket not re-processed"
+```
+
+This passes vacuously: `erg archive` only scans the top-level directory, so
+`7001-closed-unblocked.erg` (already in `closed/`) is never examined on the
+second pass and never triggers the collision path. The test cannot distinguish
+"correctly skipped because already archived" from "silently ignored because the
+scanner doesn't look there."
+
+The actual collision-handling path is tested at lines 165-178 (destination
+already exists). The fix is to remove the vacuous re-run case and replace it
+with a comment explaining why double-archiving is a no-op by design (scanner
+scope), or to test the property directly: create a ticket, archive it, then
+attempt to archive it by ID a second time and verify nothing changes.
