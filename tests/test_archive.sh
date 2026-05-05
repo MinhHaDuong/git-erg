@@ -100,6 +100,12 @@ else
     fail "default: SKIPPED message emitted for blocking ticket (got: $OUT)"
 fi
 
+if echo "$OUT" | grep -q "needed by 7004"; then
+    pass "default: SKIPPED message says 'needed by'"
+else
+    fail "default: SKIPPED message says 'needed by' (got: $OUT)"
+fi
+
 if echo "$OUT" | grep -q "ARCHIVED 7001-closed-unblocked.erg"; then
     pass "default: ARCHIVED message emitted for moved ticket"
 else
@@ -120,6 +126,12 @@ if echo "$OUT_7003" | grep -q "SKIPPED 7003-closed-blocked.erg"; then
     pass "id mode: closed-blocking ticket emits SKIPPED"
 else
     fail "id mode: closed-blocking ticket emits SKIPPED (got: $OUT_7003)"
+fi
+
+if echo "$OUT_7003" | grep -q "needed by 7004"; then
+    pass "id mode: SKIPPED message says 'needed by'"
+else
+    fail "id mode: SKIPPED message says 'needed by' (got: $OUT_7003)"
 fi
 
 # --- ID mode: source file unchanged after blocker skip ---

@@ -11,7 +11,7 @@ import (
 // cmdLog implements `erg log <id> <line> [dir]`.
 func cmdLog(args []string) int {
 	if len(args) < 2 {
-		fmt.Fprintln(os.Stderr, "Usage: erg log <id> <line> [dir]")
+		fmt.Fprintln(os.Stderr, "Usage: erg log ID LINE [DIR]")
 		return 1
 	}
 

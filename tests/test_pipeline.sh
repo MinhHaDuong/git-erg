@@ -15,7 +15,7 @@ trap 'rm -rf "$TDIR"' EXIT
 echo "=== pipeline: new → log → close → archive ==="
 
 # 1. Create a ticket
-FILE=$($ERG new "Pipeline smoke test" "$TDIR")
+FILE=$($ERG new "Pipeline smoke test" "$TDIR" | sed 's/^CREATED //')
 ID=$(echo "$FILE" | cut -c1-4)
 if [ -f "$TDIR/$FILE" ]; then
     pass "new: ticket file created"

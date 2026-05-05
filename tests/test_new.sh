@@ -20,7 +20,9 @@ trap cleanup EXIT
 echo "=== erg new ==="
 
 # --- Basic creation: correct filename emitted ---
-OUT=$($ERG new "Add branch-as-claim to erg ready" "$TDIR/basic")
+RAW=$($ERG new "Add branch-as-claim to erg ready" "$TDIR/basic")
+if echo "$RAW" | grep -q "^CREATED "; then pass "erg new output starts with CREATED"; else fail "erg new output starts with CREATED (got: $RAW)"; fi
+OUT=$(echo "$RAW" | sed 's/^CREATED //')
 if [ "$OUT" = "0001-add-branch-as-claim-to-erg-ready.erg" ]; then
     pass "correct filename emitted"
 else
@@ -43,7 +45,7 @@ else
 fi
 
 # --- Sequential IDs: second ticket gets ID 0002 ---
-OUT2=$($ERG new "Second ticket" "$TDIR/basic")
+OUT2=$($ERG new "Second ticket" "$TDIR/basic" | sed 's/^CREATED //')
 if echo "$OUT2" | grep -q "^0002-"; then
     pass "sequential ID assigned for second ticket"
 else
@@ -51,7 +53,7 @@ else
 fi
 
 # --- Slug: special chars and uppercase collapsed to kebab ---
-OUT3=$($ERG new "My TICKET: with special—chars & more!" "$TDIR/slug")
+OUT3=$($ERG new "My TICKET: with special—chars & more!" "$TDIR/slug" | sed 's/^CREATED //')
 if echo "$OUT3" | grep -q "^0001-my-ticket-with-special-chars-more\.erg$"; then
     pass "slug: special chars collapsed to kebab"
 else
@@ -60,7 +62,7 @@ fi
 
 # --- Slug: long title truncated to 40 chars ---
 LONG="this is a very long title that exceeds forty characters definitely"
-OUT4=$($ERG new "$LONG" "$TDIR/truncate")
+OUT4=$($ERG new "$LONG" "$TDIR/truncate" | sed 's/^CREATED //')
 SLUG=$(echo "$OUT4" | sed 's/^0001-//' | sed 's/\.erg$//')
 if [ "${#SLUG}" -le 40 ]; then
     pass "slug truncated to 40 chars"
