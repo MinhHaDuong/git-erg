@@ -2,10 +2,12 @@
 Title: Make loadBranchNames lazy — only call when unblocked ticket exists
 Created: 2026-05-05
 Author: claude
+Closed: autoclosed — PR #89
 
 --- log ---
 2026-05-05T00:00Z claude created
 
+2026-05-05T19:56Z MinhHaDuong closed — autoclosed — PR #89
 --- body ---
 ## Context
 PR #88 moved `loadBranchNames()` (one `git branch -a` spawn) before the
