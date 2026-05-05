@@ -7,6 +7,7 @@
 //	erg check    [dir]
 //	erg ready    [dir] [--json]
 //	erg next-id  [dir]
+//	erg new      <title> [dir]
 //	erg close    <id|file> <reason> [dir]
 //	erg log      <id> <line> [dir]
 //	erg archive  [id...] [dir]
@@ -30,6 +31,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "  check [dir]               Corpus-level checks (duplicate IDs, cycles, refs)")
 	fmt.Fprintln(os.Stderr, "  ready [dir] [--json]      Show tickets ready for work")
 	fmt.Fprintln(os.Stderr, "  next-id [dir]             Print the next available ticket ID")
+	fmt.Fprintln(os.Stderr, "  new <title> [dir]         Create a new ticket file atomically")
 	fmt.Fprintln(os.Stderr, "  close <id|file> <reason> [dir]  Close a ticket atomically")
 	fmt.Fprintln(os.Stderr, "  log <id> <line> [dir]     Append a timestamped log entry to a ticket")
 	fmt.Fprintln(os.Stderr, "  archive [id...] [dir]     Move closed tickets to tickets/closed/")
@@ -59,6 +61,8 @@ func main() {
 		exitCode = cmdReady(rest)
 	case "next-id":
 		exitCode = cmdNextID(rest)
+	case "new":
+		exitCode = cmdNew(rest)
 	case "close":
 		exitCode = cmdClose(rest)
 	case "log":

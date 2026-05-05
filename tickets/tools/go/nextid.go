@@ -7,19 +7,15 @@ import (
 	"strings"
 )
 
-// cmdNextID implements `erg next-id [dir]`.
-func cmdNextID(args []string) int {
-	ticketDir := "tickets"
-	if len(args) > 0 {
-		ticketDir = args[0]
-	}
-
+// nextID scans dir for the highest numeric .erg filename prefix and returns
+// the next ID as a zero-padded 4-digit string.  Returns "0001" when dir does
+// not exist or contains no numbered tickets.
+func nextID(dir string) string {
 	maxID := 0
 
-	entries, err := os.ReadDir(ticketDir)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		fmt.Printf("%04d\n", 1)
-		return 0
+		return "0001"
 	}
 
 	for _, entry := range entries {
@@ -39,6 +35,15 @@ func cmdNextID(args []string) int {
 		}
 	}
 
-	fmt.Printf("%04d\n", maxID+1)
+	return fmt.Sprintf("%04d", maxID+1)
+}
+
+// cmdNextID implements `erg next-id [dir]`.
+func cmdNextID(args []string) int {
+	ticketDir := "tickets"
+	if len(args) > 0 {
+		ticketDir = args[0]
+	}
+	fmt.Println(nextID(ticketDir))
 	return 0
 }
