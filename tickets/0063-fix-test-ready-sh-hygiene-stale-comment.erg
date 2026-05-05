@@ -2,10 +2,12 @@
 Title: Fix test_ready.sh hygiene: stale comment and fragile JSON extraction
 Created: 2026-05-05
 Author: claude
+Closed: done
 
 --- log ---
 2026-05-05T08:34Z claude created
 
+2026-05-05T09:22Z claude closed — done
 --- body ---
 Two hygiene issues in `tests/test_ready.sh`:
 

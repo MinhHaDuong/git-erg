@@ -293,7 +293,6 @@ else
     fail "ready JSON includes local blocked_by"
 fi
 
-# --- Empty dir ---
 rm -f "$FIXTURES/ready/"*.erg
 # --- Forge-ref blocker is blocking ---
 cat > "$FIXTURES/ready/0030-forge-blocked.erg" <<'EOF'
@@ -380,15 +379,16 @@ Author: a
 EOF
 git branch test/0098-claim 2>/dev/null || true
 output=$($ERG ready --json "$FIXTURES/ready")
+collapsed=$(echo "$output" | tr -d '\n')
 claimed_ok=false
 ready_ok=false
-# Parse the 0098 entry: find ready field on the same JSON object
-entry=$(echo "$output" | tr '\n' ' ' | grep -o '{[^}]*"id": "0098"[^}]*}')
-if echo "$entry" | grep -q '"claimed": true'; then
-    claimed_ok=true
-fi
-if echo "$entry" | grep -q '"ready": false'; then
-    ready_ok=true
+if echo "$collapsed" | grep -q '"id": "0098"'; then
+    if echo "$collapsed" | grep -q '"claimed": true'; then
+        claimed_ok=true
+    fi
+    if echo "$collapsed" | grep -q '"ready": false'; then
+        ready_ok=true
+    fi
 fi
 if [ "$claimed_ok" = "true" ] && [ "$ready_ok" = "true" ]; then
     pass "claimed ticket has claimed=true and ready=false"
