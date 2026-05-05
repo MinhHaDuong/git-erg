@@ -1,0 +1,48 @@
+%erg v1
+Title: Make loadBranchNames lazy — only call when unblocked ticket exists
+Created: 2026-05-05
+Author: claude
+Closed: autoclosed — PR #89
+
+--- log ---
+2026-05-05T00:00Z claude created
+
+2026-05-05T19:56Z MinhHaDuong closed — autoclosed — PR #89
+--- body ---
+## Context
+PR #88 moved `loadBranchNames()` (one `git branch -a` spawn) before the
+ticket loop — unconditional even when all tickets are blocked or tagged.
+On some machines `git branch -a` takes ~2s (credential helper, SSH timeout,
+fsmonitor daemon).  This produces a fixed ~2s regression independent of
+ticket count, reported against .claude (87 tickets, +1.95s) and aedist
+(28 tickets, +1.84s).
+
+The old per-ticket code only spawned git when a ticket was open AND unblocked.
+Repos where everything is tagged/blocked got 0 git spawns.  The new code
+always spawns once.
+
+## Actions
+1. Replace `branches := loadBranchNames()` (unconditional) with lazy
+   initialization inside the loop — only load on first unblocked ticket:
+   ```go
+   var branches []string
+   branchesLoaded := false
+   ...
+   if !blocked {
+       if !branchesLoaded {
+           branches = loadBranchNames()
+           branchesLoaded = true
+       }
+       claimed = isBranchClaimed(tid, branches)
+   }
+   ```
+
+## Test
+- `make test-ready` green
+- Repo where all tickets are blocked: `strace` shows 0 git spawns
+- Repo with at least one unblocked ticket: `strace` shows exactly 1 git spawn
+
+## Exit criteria
+- 0 git spawns when every ticket is blocked/tagged
+- 1 git spawn (max) when any ticket is unblocked
+- All 21 ready tests pass
