@@ -178,11 +178,11 @@ else
 fi
 
 # --- Non-existent ID: warning printed, exit 0 ---
-OUT6=$($ERG archive 9999 "$FIXTURES" 2>&1 || true)
-if echo "$OUT6" | grep -q "no ticket found"; then
+OUT6=$($ERG archive 9999 "$FIXTURES" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] && echo "$OUT6" | grep -q "no ticket found"; then
     pass "id mode: non-existent ID prints warning"
 else
-    fail "id mode: non-existent ID prints warning (got: $OUT6)"
+    fail "id mode: non-existent ID prints warning (rc=$rc, got: $OUT6)"
 fi
 
 echo "archive: $PASS passed, $FAIL failed"

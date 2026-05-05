@@ -22,11 +22,11 @@ else
 fi
 
 # --- Directory arg rejected ---
-out=$($ERG validate "$FIXTURES" 2>&1 || true)
-if echo "$out" | grep -q "is a directory"; then
+out=$($ERG validate "$FIXTURES" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "is a directory"; then
     pass "directory arg rejected"
 else
-    fail "directory arg rejected (got: $out)"
+    fail "directory arg rejected (rc=$rc, got: $out)"
 fi
 
 # Fixture reused by "multiple file args pass" and "blocked-by sibling" cases
@@ -72,11 +72,11 @@ Author: a
 --- log ---
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0005-status-header.erg" 2>&1 || true)
-if echo "$out" | grep -q "no longer part of"; then
+out=$($ERG validate "$FIXTURES/0005-status-header.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "no longer part of"; then
     pass "Status: header rejected with migrate hint"
 else
-    fail "Status: header rejected with migrate hint (got: $out)"
+    fail "Status: header rejected with migrate hint (rc=$rc, got: $out)"
 fi
 
 # --- Closed: with non-empty value passes ---
@@ -178,11 +178,11 @@ Blocked-by: gh:
 --- log ---
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0018-gh-bare-colon.erg" 2>&1 || true)
-if echo "$out" | grep -q "deprecated"; then
+out=$($ERG validate "$FIXTURES/0018-gh-bare-colon.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "deprecated"; then
     pass "gh: without owner/repo#N rejected"
 else
-    fail "gh: without owner/repo#N rejected (got: $out)"
+    fail "gh: without owner/repo#N rejected (rc=$rc, got: $out)"
 fi
 
 # --- gh:owner/repo without #number rejected ---
@@ -196,11 +196,11 @@ Blocked-by: gh:anthropics/claude-code
 --- log ---
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0019-gh-no-number.erg" 2>&1 || true)
-if echo "$out" | grep -q "deprecated"; then
+out=$($ERG validate "$FIXTURES/0019-gh-no-number.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "deprecated"; then
     pass "gh:owner/repo without #N rejected"
 else
-    fail "gh:owner/repo without #N rejected (got: $out)"
+    fail "gh:owner/repo without #N rejected (rc=$rc, got: $out)"
 fi
 
 # --- Malformed forge ref (missing host/owner/repo) rejected ---
@@ -214,11 +214,11 @@ Blocked-by: host/repo#1
 --- log ---
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0020-bad-forge.erg" 2>&1 || true)
-if echo "$out" | grep -q "malformed ref"; then
+out=$($ERG validate "$FIXTURES/0020-bad-forge.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "malformed ref"; then
     pass "forge ref missing owner rejected"
 else
-    fail "forge ref missing owner rejected (got: $out)"
+    fail "forge ref missing owner rejected (rc=$rc, got: $out)"
 fi
 
 # --- Forge ref with zero issue number rejected ---
@@ -232,11 +232,11 @@ Blocked-by: github.com/foo/bar#0
 --- log ---
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0021-forge-zero-num.erg" 2>&1 || true)
-if echo "$out" | grep -q "leading zero"; then
+out=$($ERG validate "$FIXTURES/0021-forge-zero-num.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "leading zero"; then
     pass "forge ref with zero issue number rejected"
 else
-    fail "forge ref with zero issue number rejected (got: $out)"
+    fail "forge ref with zero issue number rejected (rc=$rc, got: $out)"
 fi
 
 # --- gh: with invalid owner (leading dash) rejected (deprecated) ---
@@ -250,11 +250,11 @@ Blocked-by: gh:-bad/repo#1
 --- log ---
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0022-gh-bad-owner.erg" 2>&1 || true)
-if echo "$out" | grep -q "deprecated"; then
+out=$($ERG validate "$FIXTURES/0022-gh-bad-owner.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "deprecated"; then
     pass "gh: with invalid owner rejected (deprecated)"
 else
-    fail "gh: with invalid owner rejected (deprecated) (got: $out)"
+    fail "gh: with invalid owner rejected (deprecated) (rc=$rc, got: $out)"
 fi
 
 # --- gh: with invalid repo (..) rejected (deprecated) ---
@@ -268,11 +268,11 @@ Blocked-by: gh:owner/foo..bar#1
 --- log ---
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0023-gh-bad-repo.erg" 2>&1 || true)
-if echo "$out" | grep -q "deprecated"; then
+out=$($ERG validate "$FIXTURES/0023-gh-bad-repo.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "deprecated"; then
     pass "gh: with invalid repo rejected (deprecated)"
 else
-    fail "gh: with invalid repo rejected (deprecated) (got: $out)"
+    fail "gh: with invalid repo rejected (deprecated) (rc=$rc, got: $out)"
 fi
 
 # --- Mixed-case scheme (GH#) rejected (case-sensitive) ---
@@ -286,11 +286,11 @@ Blocked-by: GH#42
 --- log ---
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0024-gh-case.erg" 2>&1 || true)
-if echo "$out" | grep -q "case-sensitive"; then
+out=$($ERG validate "$FIXTURES/0024-gh-case.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "case-sensitive"; then
     pass "GH# (wrong case) rejected"
 else
-    fail "GH# (wrong case) rejected (got: $out)"
+    fail "GH# (wrong case) rejected (rc=$rc, got: $out)"
 fi
 
 # --- Mixed-case gh: variant with extra path rejected (case-sensitive) ---
@@ -304,11 +304,11 @@ Blocked-by: GH:owner/repo/extra#1
 --- log ---
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0025-gh-case-colon-extra.erg" 2>&1 || true)
-if echo "$out" | grep -q "case-sensitive"; then
+out=$($ERG validate "$FIXTURES/0025-gh-case-colon-extra.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "case-sensitive"; then
     pass "GH:owner/repo/extra#1 rejected (case-sensitive)"
 else
-    fail "GH:owner/repo/extra#1 rejected (got: $out)"
+    fail "GH:owner/repo/extra#1 rejected (rc=$rc, got: $out)"
 fi
 
 # --- Leading-zero issue number in forge ref rejected ---
@@ -322,11 +322,11 @@ Blocked-by: github.com/foo/bar#042
 --- log ---
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0026-forge-zero.erg" 2>&1 || true)
-if echo "$out" | grep -q "leading zero"; then
+out=$($ERG validate "$FIXTURES/0026-forge-zero.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "leading zero"; then
     pass "forge ref with leading zero rejected"
 else
-    fail "forge ref with leading zero rejected (got: $out)"
+    fail "forge ref with leading zero rejected (rc=$rc, got: $out)"
 fi
 
 # --- Tags: valid value accepted ---
