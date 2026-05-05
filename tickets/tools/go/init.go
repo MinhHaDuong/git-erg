@@ -380,30 +380,3 @@ func readManifest(root string) (bootstrapManifest, bool, error) {
 func cleanupIfEmpty(path string) {
 	_ = os.Remove(path)
 }
-
-func hasLine(path, line string) bool {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return false
-	}
-	for _, existing := range splitLines(string(data)) {
-		if existing == line {
-			return true
-		}
-	}
-	return false
-}
-
-func hasManagedBlock(path, startMarker, endMarker string) bool {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return false
-	}
-	text := string(data)
-	start := strings.Index(text, startMarker)
-	if start == -1 {
-		return false
-	}
-	end := strings.Index(text[start:], endMarker)
-	return end != -1
-}

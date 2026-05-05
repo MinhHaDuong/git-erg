@@ -256,7 +256,7 @@ Blocked-by: github.com/anthropics/claude-code#1234
 --- body ---
 EOF
 output=$($ERG ready --json "$FIXTURES/ready")
-if echo "$output" | grep -q '"blocked_by": \[{"kind": "forge", "ref": "github.com/anthropics/claude-code#1234"}'; then
+if echo "$output" | jq -e '[.[] | select(.id == "0042")] | .[0].blocked_by | .[0] | .kind == "forge" and .ref == "github.com/anthropics/claude-code#1234"' > /dev/null 2>&1; then
     pass "ready JSON includes forge blocked_by"
 else
     fail "ready JSON includes forge blocked_by"
@@ -287,7 +287,7 @@ Blocked-by: 0043
 --- body ---
 EOF
 output=$($ERG ready --json "$FIXTURES/ready")
-if echo "$output" | grep -q '"blocked_by": \[{"kind": "local", "id": "0043"}'; then
+if echo "$output" | jq -e '[.[] | select(.id == "0044")] | .[0].blocked_by | .[0] | .kind == "local" and .id == "0043"' > /dev/null 2>&1; then
     pass "ready JSON includes local blocked_by"
 else
     fail "ready JSON includes local blocked_by"
