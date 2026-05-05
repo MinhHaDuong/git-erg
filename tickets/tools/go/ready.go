@@ -30,24 +30,36 @@ var skipReadyTags = map[string]bool{
 	"post-conference": true,
 }
 
-// isBranchClaimed reports whether any local or remote git branch name
-// contains the given 4-digit ticket ID. Remote branch check is best-effort:
-// if it fails (no remote, no network), the ticket is treated as unclaimed.
-func isBranchClaimed(id string) bool {
-	pattern := "*" + id + "*"
-	// Local branches
-	cmd := exec.Command("git", "branch", "--list", pattern)
-	cmd.Stderr = io.Discard
-	out, err := cmd.Output()
-	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
-		return true
+// loadBranchNames returns all local and remote branch names in a single
+// pair of git invocations. Remote fetch is best-effort: failure is ignored.
+func loadBranchNames() []string {
+	var names []string
+	for _, args := range [][]string{
+		{"branch", "--list"},
+		{"branch", "-r", "--list"},
+	} {
+		cmd := exec.Command("git", args...)
+		cmd.Stderr = io.Discard
+		out, err := cmd.Output()
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(out), "\n") {
+			if t := strings.TrimSpace(line); t != "" {
+				names = append(names, t)
+			}
+		}
 	}
-	// Remote branches (best-effort — skip on error)
-	cmd = exec.Command("git", "branch", "-r", "--list", pattern)
-	cmd.Stderr = io.Discard
-	out, err = cmd.Output()
-	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
-		return true
+	return names
+}
+
+// isBranchClaimed reports whether any branch name in the pre-loaded list
+// contains the given ticket ID.
+func isBranchClaimed(id string, branches []string) bool {
+	for _, b := range branches {
+		if strings.Contains(b, id) {
+			return true
+		}
 	}
 	return false
 }
@@ -165,6 +177,8 @@ func cmdReady(args []string) int {
 		}
 	}
 
+	branches := loadBranchNames()
+
 	var warnings []string
 	var openEntries []readyEntry
 	var ready []readyEntry
@@ -213,7 +227,7 @@ func cmdReady(args []string) int {
 
 		claimed := false
 		if !blocked {
-			claimed = isBranchClaimed(tid)
+			claimed = isBranchClaimed(tid, branches)
 			if claimed {
 				blocked = true
 			}
