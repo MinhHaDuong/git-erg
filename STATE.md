@@ -1,10 +1,10 @@
 # State — git-erg
 
-_Last updated: 2026-05-05 — Code smell sweep (0077) + ready perf fix (0078); PRs #87/#88 merged; all green._
+_Last updated: 2026-05-05 — Lazy branch-load fix (0079) + hook fix; PRs #89 merged; all green._
 
 ## Stats
 
-- Tickets: 79 total — 70 closed (tickets/closed/), 8 archived (tickets/archive/), 1 open
+- Tickets: 79 total — 71 closed (tickets/closed/), 8 archived (tickets/archive/), 0 open
 - Tests: green — ALL TESTS PASSED (validate:26, check:22, ready:21, update:12, close:21, migrate:11, next-id:9, log:10, new:12, init/uninstall:19, main:5, archive:17, pipeline:6, help:21) + unit tests (coverage: 22.2%)
 - Open PRs: none
 
@@ -18,7 +18,8 @@ None.
 
 ## Notes
 
-- **`erg ready` perf**: branch-claim check now uses one `git branch -a` spawn (was 2×N). O(1) regardless of ticket count.
+- **`erg ready` perf**: branch-claim check lazy-loads once on first unblocked ticket (0 spawns when all blocked). O(1) regardless of ticket count.
+- **Pre-commit hook**: now validates staged `.erg` files individually — fixed directory-path regression introduced when `erg validate` stopped accepting directory args (PR #87).
 - **`init` manifest fix**: re-running `erg init` no longer clobbers ownership flags — uninstall correctly removes only entries that init added.
 - **`erg ready --json`**: output uses `encoding/json` (MarshalIndent); inner arrays are expanded. Downstream scripts should use `jq` rather than grepping raw format.
 - **`erg archive`** is live — moves closed tickets from `tickets/` to `tickets/closed/`, skipping any that are still blocking open tickets. Run after closing tickets.
