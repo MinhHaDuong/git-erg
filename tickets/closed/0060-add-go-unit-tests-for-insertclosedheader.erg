@@ -2,10 +2,12 @@
 Title: Add Go unit tests for insertClosedHeader and removeBlockedByLine
 Created: 2026-05-05
 Author: claude
+Closed: done
 
 --- log ---
 2026-05-05T08:34Z claude created
 
+2026-05-05T11:52Z claude closed — done
 --- body ---
 `tickets/tools/go/close.go` has three pure functions: `appendLogLine`
 (tested in `close_test.go` after the raid), `insertClosedHeader` (lines
