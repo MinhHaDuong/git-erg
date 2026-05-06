@@ -1,0 +1,103 @@
+%erg v1
+Title: spec-as-code foundation: ergspecv1.go, struct cleanup, golden fixtures
+Created: 2026-05-06
+Author: claude
+Blocked-by: 0088
+
+--- log ---
+2026-05-06T14:30Z claude created
+
+--- body ---
+## Context
+
+Tickets 0089–0092 move command docs into Go source and cull spec-erg-v1.md to
+format-only. Before that content migration, the format rules need a single
+source of truth in Go. Today they are split:
+
+- `magicLine` lives in ticket.go
+- `requiredHeaders`, `singletonHeaders`, `validHeaders`, `validTagValues`,
+  `isoDateRE`, `filenameRE`, `logLineRE` live in validate.go
+- The parser (ticket.go) and validator (validate.go) reference nothing common —
+  a rename or addition in one won't propagate to the other
+
+There are also no golden fixture files; all validation tests use inline strings,
+which obscures what a canonical valid/invalid ticket looks like.
+
+## Actions
+
+### 1. New file: `src/go/ergspecv1.go`
+
+Extract all format constants into one file. Both ticket.go and validate.go
+import from it. This is the single source of truth for what constitutes a valid
+%erg v1 ticket.
+
+Constants to define (each with its ABNF production as a doc comment):
+- `MagicLine = "%erg v1"`
+- `RequiredHeaders`, `SingletonHeaders`, `ValidHeaders`, `ValidTagValues`
+- `IsoDateRE`, `FilenameRE`, `LogLineRE`
+- `hostRE`, `ownerRE`, `repoRE` — new regexes closing the gap between the
+  spec ABNF and the hand-written `parseRef` (currently host/owner/repo are only
+  checked to be non-empty and colon-free, not against their ABNF productions)
+
+After this: ticket.go deletes `const magicLine` and uses `MagicLine`;
+validate.go deletes its `var (...)` block and uses the exported names.
+
+### 2. Struct cleanup: remove redundant boolean flags from `Erg`
+
+`HasLog` and `HasBody` are always equal to `LogSepCount > 0` and
+`BodySepCount > 0`. Remove the booleans; update validate.go rule 11 to test
+`t.LogSepCount == 0` and `t.BodySepCount == 0`.
+
+`ClosedInLog` and `ClosedInBody` stay — they carry information not derivable
+from counts alone.
+
+### 3. Tighten `parseRef` using component regexes from ergspecv1.go
+
+Add host/owner/repo format validation. Test fixture:
+`invalid/0001-bad-forge-host.erg` with `Blocked-by: g_h.com/a/b#1`
+(underscore not allowed in host per ABNF) must be rejected.
+
+### 4. Golden test fixtures in `src/go/testdata/`
+
+**Valid fixtures** (all pass `validateErg` with `allIDs = {"0001": true}`):
+
+| File | What it exercises |
+|------|-------------------|
+| `testdata/valid/0001-minimal.erg` | Bare minimum: 3 required headers, empty log, empty body |
+| `testdata/valid/0002-with-blockers.erg` | Local ref (0001) + forge ref |
+| `testdata/valid/0003-pending.erg` | Tags: deferred; open ticket (no Closed:) |
+| `testdata/valid/0004-body-markdown.erg` | Rich body: headings, lists, code fences, table |
+
+**Invalid fixtures** (each triggers at least one specific error):
+
+| File | Rule | Expected error substring |
+|------|------|--------------------------|
+| `testdata/invalid/0001-wrong-magic.erg` | 1 | `magic` |
+| `testdata/invalid/0001-unknown-header.erg` | 3 | `unknown header` |
+| `testdata/invalid/0001-duplicate-title.erg` | 3 | `non-repeatable` |
+| `testdata/invalid/0001-missing-required.erg` | 2 | `missing required` |
+| `testdata/invalid/0001-bad-created-date.erg` | 5 | `ISO date` |
+| `testdata/invalid/0001-bad-status.erg` | 3 | `Status` (migration hint) |
+| `testdata/invalid/0001-missing-log.erg` | 11 | `--- log ---` |
+| `testdata/invalid/0001-missing-body.erg` | 11 | `--- body ---` |
+| `testdata/invalid/0001-bad-log-timestamp.erg` | 10 | `malformed log line` |
+| `testdata/invalid/0001-bad-log-verb.erg` | 10 | `malformed log line` (two tokens, no verb) |
+| `testdata/invalid/bad-filename.erg` | 6 | `NNNN-slug` |
+| `testdata/invalid-duplicate/dir-a/0042-alpha.erg` + `dir-b/0042-beta.erg` | 7 | `duplicate ID` (validateAll test) |
+
+Add `TestValidateErg_GoldenValid` and `TestValidateErg_GoldenInvalid` that
+glob testdata/ and run parseErg + validateErg on each fixture. The existing
+table-driven `TestValidateErg` stays for edge-case coverage.
+
+## Exit criteria
+
+- [ ] `src/go/ergspecv1.go` exists; every format constant has an ABNF doc comment
+- [ ] `ticket.go` uses `MagicLine`; no local `magicLine` constant
+- [ ] `validate.go` uses exported names from ergspecv1.go; no local regex/header vars
+- [ ] `grep -r 'magicLine\b\|isoDateRE\|filenameRE\|logLineRE' src/go/ | grep -v ergspecv1.go` returns nothing
+- [ ] `Erg` struct has no `HasLog` or `HasBody` fields
+- [ ] `parseRef` validates host/owner/repo against their ABNF regexes
+- [ ] All 4 valid golden fixtures exist and pass `go test`
+- [ ] All 11+ invalid golden fixtures exist and each triggers the expected error
+- [ ] `go test ./src/go/...` passes
+- [ ] `erg validate tickets/` passes
