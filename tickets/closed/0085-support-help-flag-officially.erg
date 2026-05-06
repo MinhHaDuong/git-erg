@@ -2,6 +2,7 @@
 Title: Officially support --help as a documented option for all commands
 Created: 2026-05-06
 Author: claude
+Closed: autoclosed — PR #96
 
 --- log ---
 2026-05-06T12:00Z claude created
@@ -10,6 +11,7 @@ Author: claude
 2026-05-06T12:23Z claude planned — printUsage() stderr→stdout (14 lines); add [--help] to header; test stdout capture; depends on 0084
 2026-05-06T12:24Z claude feasibility PASS/WARN — audit test_help.sh for 2>&1 stderr captures before merging
 2026-05-06T13:08Z claude executed
+2026-05-06T13:42Z MinhHaDuong closed — autoclosed — PR #96
 --- body ---
 ## Context
 Ticket 0084 fixes the crash/dir-creation bug when --help is passed to a

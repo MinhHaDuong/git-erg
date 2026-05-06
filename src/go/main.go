@@ -65,21 +65,21 @@ func findTicketsDir() (string, error) {
 }
 
 func printUsage() {
-	fmt.Fprintln(os.Stderr, "Usage: erg COMMAND [args...]")
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "Commands:")
-	fmt.Fprintln(os.Stderr, "  validate FILES...         Validate individual .erg files (format, headers, refs)")
-	fmt.Fprintln(os.Stderr, "  check [DIR]               Corpus-level checks (duplicate IDs, cycles, refs)")
-	fmt.Fprintln(os.Stderr, "  ready [DIR] [--json]      Show tickets ready for work")
-	fmt.Fprintln(os.Stderr, "  next-id [DIR]             Print the next available ticket ID")
-	fmt.Fprintln(os.Stderr, "  new TITLE [DIR]           Create a new ticket file atomically")
-	fmt.Fprintln(os.Stderr, "  close ID REASON [DIR]     Close a ticket atomically")
-	fmt.Fprintln(os.Stderr, "  log ID LINE [DIR]         Append a timestamped log entry to a ticket")
-	fmt.Fprintln(os.Stderr, "  archive [ID...] [DIR]     Move closed tickets to tickets/closed/")
-	fmt.Fprintln(os.Stderr, "  migrate [DIR]             Convert legacy Status: headers to Closed: form")
-	fmt.Fprintln(os.Stderr, "  init [DIR]                Unpack AGENTS.md, spec-erg-v1.md, integration.md into tickets/")
-	fmt.Fprintln(os.Stderr, "  version                   Print version, path, build date, and obsolescence info")
-	fmt.Fprintln(os.Stderr, "  update                    Fetch and replace binary from origin")
+	fmt.Fprintln(os.Stdout, "Usage: erg COMMAND [--help] [args...]")
+	fmt.Fprintln(os.Stdout)
+	fmt.Fprintln(os.Stdout, "Commands:")
+	fmt.Fprintln(os.Stdout, "  validate FILES...         Validate individual .erg files (format, headers, refs)")
+	fmt.Fprintln(os.Stdout, "  check [DIR]               Corpus-level checks (duplicate IDs, cycles, refs)")
+	fmt.Fprintln(os.Stdout, "  ready [DIR] [--json]      Show tickets ready for work")
+	fmt.Fprintln(os.Stdout, "  next-id [DIR]             Print the next available ticket ID")
+	fmt.Fprintln(os.Stdout, "  new TITLE [DIR]           Create a new ticket file atomically")
+	fmt.Fprintln(os.Stdout, "  close ID REASON [DIR]     Close a ticket atomically")
+	fmt.Fprintln(os.Stdout, "  log ID LINE [DIR]         Append a timestamped log entry to a ticket")
+	fmt.Fprintln(os.Stdout, "  archive [ID...] [DIR]     Move closed tickets to tickets/closed/")
+	fmt.Fprintln(os.Stdout, "  migrate [DIR]             Convert legacy Status: headers to Closed: form")
+	fmt.Fprintln(os.Stdout, "  init [DIR]                Unpack AGENTS.md, spec-erg-v1.md, integration.md into tickets/")
+	fmt.Fprintln(os.Stdout, "  version                   Print version, path, build date, and obsolescence info")
+	fmt.Fprintln(os.Stdout, "  update                    Fetch and replace binary from origin")
 }
 
 func main() {
