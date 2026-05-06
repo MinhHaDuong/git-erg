@@ -7,7 +7,7 @@ var commandOrder = []string{
 }
 
 // helpText contains the full help text for each command, printed by `erg COMMAND --help`.
-// Each entry begins with a `# erg COMMAND ARGS` header line (required by erg --help --all).
+// Each entry begins with a `## erg COMMAND ARGS` header line (required by erg --help --all).
 var helpText = map[string]string{
 	"validate": `## erg validate FILE...
 
@@ -117,7 +117,7 @@ Closing a ticket is a three-step atomic operation:
   2. Appends a timestamped log line: ` + "`TIMESTAMP AUTHOR closed — REASON`" + `.
   3. Scans every open ticket in DIR for Blocked-by: ID and removes those lines,
      appending a log entry to each modified ticket:
-     TIMESTAMP AUTHOR note blocker ID closed — Blocked-by removed.
+     ` + "`TIMESTAMP AUTHOR note blocker ID closed — Blocked-by removed.`" + `
 
 ID may be a 4-digit ticket ID or a full filename (e.g. 0042-some-title.erg).
 REASON must be non-empty. The operation is idempotent: closing an already-closed

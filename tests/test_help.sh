@@ -118,5 +118,21 @@ else
     fail "--help --all: expected 12 sections, got $count"
 fi
 
+# --help --all: first line must be the H1 document title
+first_line=$("$ERG" --help --all 2>/dev/null | head -1)
+if [ "$first_line" = "# erg manual" ]; then
+    pass "--help --all: first line is '# erg manual'"
+else
+    fail "--help --all: expected first line '# erg manual', got '$first_line'"
+fi
+
+# standalone COMMAND --help: must start with ## heading (not # H1)
+first_cmd_line=$("$ERG" validate --help 2>/dev/null | head -1)
+if echo "$first_cmd_line" | grep -q "^## erg validate"; then
+    pass "validate --help: first line starts with '## erg validate'"
+else
+    fail "validate --help: expected '## erg validate...', got '$first_cmd_line'"
+fi
+
 echo "help: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
