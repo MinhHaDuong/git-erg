@@ -1,0 +1,43 @@
+%erg v1
+Title: erg migrate: upgrade full project install to current layout
+Created: 2026-05-06
+Author: claude
+
+--- log ---
+2026-05-06T12:00Z claude created
+
+--- body ---
+## Context
+`erg migrate` currently only converts legacy `Status:` headers to `Closed:`
+form inside ticket files. Old projects may also have stale layout artifacts
+from earlier erg versions: a `tickets/tools/` directory with the Go source
+tree, a `tickets/FORMAT.md` (superseded by spec-erg-v1.md), an `archive/`
+folder that was renamed to `closed/`, and missing AGENTS.md / spec files that
+`erg init` now unpacks. There is no single command to bring an old install
+fully up to date.
+
+`erg migrate` should grow into that command: idempotent, safe (dry-run first),
+covering both file-content migration and directory-layout migration.
+
+## Actions
+1. Add layout migration steps to `cmdMigrate` (run after the existing
+   Status-header rewrite):
+   a. If `tickets/tools/` exists, remove it with a confirmation message.
+   b. If `tickets/FORMAT.md` exists, remove it (content is in spec-erg-v1.md).
+   c. If `tickets/archive/` exists and `tickets/closed/` does not, rename it.
+   d. Run the equivalent of `erg init` to unpack current AGENTS.md,
+      spec-erg-v1.md, integration.md (refreshing stale copies).
+2. Add `--dry-run` flag: print what would change without touching the filesystem.
+3. Print a per-step summary: "removed tools/", "refreshed AGENTS.md", etc.
+
+## Test
+Create a temp dir with the old layout (tools/, FORMAT.md, archive/).
+Run `erg migrate --dry-run` — must list all planned changes, touch nothing.
+Run `erg migrate` — must apply all changes; re-run must be a no-op.
+
+## Exit criteria
+- [ ] `erg migrate --dry-run` lists planned changes without modifying anything
+- [ ] `erg migrate` removes tools/, FORMAT.md; renames archive/→closed/; refreshes init assets
+- [ ] Re-running `erg migrate` on an already-migrated project is a no-op
+- [ ] Existing Status-header migration still works
+- [ ] `make test` passes
