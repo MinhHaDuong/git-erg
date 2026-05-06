@@ -2,10 +2,12 @@
 Title: Umbrella: generate erg manual from Go doc comments
 Created: 2026-05-06
 Author: claude
+Closed: all child tickets closed (0089–0092); erg --help --all, make docs, spec-erg-v1.md ≤150 lines all done
 
 --- log ---
 2026-05-06T14:00Z claude created
 
+2026-05-06T19:55Z MinhHaDuong closed — all child tickets closed (0089–0092); erg --help --all, make docs, spec-erg-v1.md ≤150 lines all done
 --- body ---
 ## Context
 The current spec-erg-v1.md conflates two concerns: the file format (stable,
