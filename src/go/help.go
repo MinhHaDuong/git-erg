@@ -9,7 +9,7 @@ var commandOrder = []string{
 // helpText contains the full help text for each command, printed by `erg COMMAND --help`.
 // Each entry begins with a `# erg COMMAND ARGS` header line (required by erg --help --all).
 var helpText = map[string]string{
-	"validate": `# erg validate FILE...
+	"validate": `## erg validate FILE...
 
 Validate individual .erg ticket files (format, headers, refs).
 
@@ -26,7 +26,7 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
   9. Blocked-by values parse as local-ref (NNNN) or forge-ref (host/owner/repo#N).
   10. Local Blocked-by refs point to existing ticket IDs in the same directory.
   11. Log lines match 'YYYY-MM-DDThh:mmZ actor verb [detail]' format.
-  12. Each separator (--- log ---, --- body ---) appears exactly once.
+  12. Each separator (` + "`--- log ---`" + `, ` + "`--- body ---`" + `) appears exactly once.
   13. No dependency cycles among local Blocked-by refs.
 
 For corpus-level checks (duplicate IDs, cycles), use: erg check [dir]
@@ -34,7 +34,7 @@ For corpus-level checks (duplicate IDs, cycles), use: erg check [dir]
 Exit codes: 0 on pass, 1 on any violation. Directories are rejected — use erg check.
 `,
 
-	"check": `# erg check [DIR]
+	"check": `## erg check [DIR]
 
 Corpus-level integrity checks across the full ticket store.
 
@@ -54,7 +54,7 @@ Additionally emits warnings (non-fatal) for:
 Exit codes: 0 on pass (warnings are printed but do not affect exit code), 1 on any violation.
 `,
 
-	"ready": `# erg ready [DIR] [--json]
+	"ready": `## erg ready [DIR] [--json]
 
 List tickets ready for work.
 
@@ -75,7 +75,7 @@ The JSON output covers all open tickets (not just ready ones), so callers can
 filter and sort by any field. ready=true implies blocked_by is empty.
 `,
 
-	"next-id": `# erg next-id [DIR]
+	"next-id": `## erg next-id [DIR]
 
 Print the next available ticket ID.
 
@@ -90,7 +90,7 @@ return the same ID. The pre-commit hook rejects duplicate IDs; the losing agent
 renames its ticket with a new ID from a fresh invocation.
 `,
 
-	"new": `# erg new TITLE [DIR]
+	"new": `## erg new TITLE [DIR]
 
 Create a new %erg v1 ticket file atomically.
 
@@ -107,14 +107,14 @@ or the system username — whichever is available first.
 Prints 'CREATED NNNN-slug.erg' on success. Exits non-zero on I/O errors.
 `,
 
-	"close": `# erg close ID|FILE REASON [DIR]
+	"close": `## erg close ID|FILE REASON [DIR]
 
 Atomically close a ticket.
 
 Closing a ticket is a three-step atomic operation:
 
-  1. Inserts a Closed: REASON header at the end of the preamble (before --- log ---).
-  2. Appends a timestamped log line: TIMESTAMP AUTHOR closed — REASON.
+  1. Inserts a Closed: REASON header at the end of the preamble (before ` + "`--- log ---`" + `).
+  2. Appends a timestamped log line: ` + "`TIMESTAMP AUTHOR closed — REASON`" + `.
   3. Scans every open ticket in DIR for Blocked-by: ID and removes those lines,
      appending a log entry to each modified ticket:
      TIMESTAMP AUTHOR note blocker ID closed — Blocked-by removed.
@@ -124,27 +124,27 @@ REASON must be non-empty. The operation is idempotent: closing an already-closed
 ticket prints 'CLOSED (already)' and exits 0.
 `,
 
-	"log": `# erg log ID LINE [DIR]
+	"log": `## erg log ID LINE [DIR]
 
 Append a timestamped entry to a ticket's log section.
 
 Resolves the ticket by 4-digit ID in DIR (default: auto-discovered tickets/), then
 prepends the current UTC timestamp (YYYY-MM-DDThh:mmZ) to LINE and inserts the
-resulting line at the end of the log section, just before the --- body --- separator.
+resulting line at the end of the log section, just before the ` + "`--- body ---`" + ` separator.
 
 The resulting log entry format is:
 
-  YYYY-MM-DDThh:mmZ LINE
+  ` + "`YYYY-MM-DDThh:mmZ LINE`" + `
 
 LINE must be non-empty. It should follow the log-line convention of
 'actor verb [detail]' (e.g. "claude note retried with narrower scope"), but this
 is not enforced — only format is validated on read by erg validate.
 
 Prints "LOGGED" on success. Exits non-zero if the ticket is not found or has no
---- body --- separator (which would indicate a malformed file).
+` + "`--- body ---`" + ` separator (which would indicate a malformed file).
 `,
 
-	"archive": `# erg archive [ID...] [DIR]
+	"archive": `## erg archive [ID...] [DIR]
 
 Move closed tickets to DIR/closed/.
 
@@ -162,7 +162,7 @@ The command creates DIR/closed/ if it does not exist. It will not overwrite
 an existing file at the destination.
 `,
 
-	"migrate": `# erg migrate [DIR]
+	"migrate": `## erg migrate [DIR]
 
 Convert legacy Status: headers to %erg v1 format.
 
@@ -186,7 +186,7 @@ Does NOT commit. Always exits 0. Review the diff with 'git diff tickets/' and
 commit manually.
 `,
 
-	"init": `# erg init [DIR]
+	"init": `## erg init [DIR]
 
 Unpack embedded bootstrap assets into the project.
 
@@ -204,7 +204,7 @@ Each asset is compared byte-for-byte with the embedded version; unchanged files
 are skipped and counted separately from newly created or refreshed files.
 `,
 
-	"version": `# erg version
+	"version": `## erg version
 
 Print self-diagnostic info and discover other erg binaries.
 
@@ -225,7 +225,7 @@ Set ERG_VERSION_NO_DISCOVER=1 to suppress discovery (used internally by version
 comparison to avoid recursion).
 `,
 
-	"update": `# erg update
+	"update": `## erg update
 
 Fetch the upstream binary and replace this executable atomically.
 

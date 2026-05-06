@@ -2,10 +2,12 @@
 Title: Fix erg --help --all formatting: heading levels, blank lines, literal backticks
 Created: 2026-05-06
 Author: claude
+Closed: heading levels fixed, blank lines added, bare literals backtick-wrapped
 
 --- log ---
 2026-05-06T00:00Z claude created
 
+2026-05-06T19:02Z MinhHaDuong closed — heading levels fixed, blank lines added, bare literals backtick-wrapped
 --- body ---
 ## Context
 

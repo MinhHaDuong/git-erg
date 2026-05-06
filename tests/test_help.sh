@@ -111,7 +111,7 @@ else
 fi
 
 # --help --all: must list all 12 command sections
-count=$($ERG --help --all 2>/dev/null | grep -c "^# " || true)
+count=$($ERG --help --all 2>/dev/null | grep -c "^## erg " || true)
 if [ "$count" -eq 12 ]; then
     pass "--help --all: 12 sections"
 else
