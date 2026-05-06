@@ -38,7 +38,11 @@ func cmdNew(args []string) int {
 	}
 
 	title := args[0]
-	ticketDir := "tickets"
+	ticketDir, err := findTicketsDir()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 	if len(args) >= 2 {
 		ticketDir = args[1]
 	}

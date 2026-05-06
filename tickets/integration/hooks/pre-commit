@@ -7,7 +7,7 @@
 # Validate .erg files (if any are staged)
 erg_files=$(git diff --cached --name-only | grep '\.erg$' || true)
 if [ -n "$erg_files" ]; then
-    erg_bin="tickets/tools/go/erg"
+    erg_bin="tickets/erg"
     if [ -x "$erg_bin" ]; then
         # shellcheck disable=SC2086
         if ! $erg_bin validate $erg_files; then

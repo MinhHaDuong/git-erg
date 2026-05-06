@@ -158,7 +158,11 @@ func cmdReady(args []string) int {
 		}
 	}
 
-	ticketDir := "tickets"
+	ticketDir, err := findTicketsDir()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 	if len(rest) > 0 {
 		ticketDir = rest[0]
 	}

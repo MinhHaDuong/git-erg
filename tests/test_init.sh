@@ -38,7 +38,7 @@ else
     fail "init appends AGENTS pointer"
 fi
 
-if grep -q '^tickets/tools/go/erg$' "$REPO/.gitignore"; then
+if grep -q '^tickets/erg$' "$REPO/.gitignore"; then
     pass "init appends .gitignore entry"
 else
     fail "init appends .gitignore entry"
@@ -65,7 +65,7 @@ else
     fail "re-init does not duplicate AGENTS pointer"
 fi
 
-if [ "$(grep -c '^tickets/tools/go/erg$' "$REPO/.gitignore")" -eq 1 ]; then
+if [ "$(grep -c '^tickets/erg$' "$REPO/.gitignore")" -eq 1 ]; then
     pass "re-init does not duplicate .gitignore entry"
 else
     fail "re-init does not duplicate .gitignore entry"
@@ -117,7 +117,7 @@ else
     fail "uninstall removes AGENTS pointer"
 fi
 
-if ! grep -q '^tickets/tools/go/erg$' "$REPO/.gitignore"; then
+if ! grep -q '^tickets/erg$' "$REPO/.gitignore"; then
     pass "uninstall removes .gitignore entry"
 else
     fail "uninstall removes .gitignore entry"

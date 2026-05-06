@@ -31,6 +31,6 @@ None.
 - **`resolveAuthor()`**: fallback chain `$ERG_AUTHOR → git config user.name → $USER → "unknown"`; sanitized against newline injection.
 - **UX convention**: all usage strings use UPPER_CASE for required args, `[LOWER]` for optional.
 - **Testing policy**: Go unit tests own pure-function correctness; shell integration tests own CLI black-box behavior. See `tests/README.md`.
-- **CI**: bootstrap binary (`tickets/tools/go/erg`) is rebuilt automatically on every push to main that changes Go source — no manual step needed.
+- **CI**: bootstrap binary (`tickets/erg`) is rebuilt automatically on every push to main that changes Go source (`src/go/`) — no manual step needed.
 
 Autonomous-run policy is maintained in `AGENTS.md`.

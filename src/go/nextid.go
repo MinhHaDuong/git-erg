@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -47,7 +48,11 @@ func nextID(dir string) string {
 
 // cmdNextID implements `erg next-id [dir]`.
 func cmdNextID(args []string) int {
-	ticketDir := "tickets"
+	ticketDir, err := findTicketsDir()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 	if len(args) > 0 {
 		ticketDir = args[0]
 	}

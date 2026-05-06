@@ -39,7 +39,7 @@ Unattended edits are allowed only in these paths:
 
 - `tickets/*.erg`
 - `tickets/**/*.erg`
-- `tickets/tools/go/*.go`
+- `src/go/*.go`
 - `tests/*.sh`
 - `README.md`
 - `Makefile`
@@ -82,7 +82,7 @@ Shell integration tests under `tests/*.sh` must default:
 
 - `ERG="${ERG_BIN:-build/erg}"`
 
-Never default to `tickets/tools/go/erg` in test scripts. The committed
+Never default to `tickets/erg` in test scripts. The committed
 bootstrap binary can be stale when scripts are invoked directly.
 
 `make test` must enforce this with a grep check and fail fast if any

@@ -18,17 +18,17 @@ TEST_TARGETS := $(TEST_SUITES:%=test-%)
 .PHONY: build test unit-test _test-lint $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary
 
 ERG_BIN := $(CURDIR)/build/erg
-BOOTSTRAP_BIN := $(CURDIR)/tickets/tools/go/erg
+BOOTSTRAP_BIN := $(CURDIR)/tickets/erg
 
 build:
 	mkdir -p build
-	cd tickets/tools/go && go build \
+	cd src/go && go build \
 		-ldflags "-X main.buildDate=$$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.vcsRevision=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown)" \
 		-o $(ERG_BIN) .
 
 _test-lint:
-	@if grep -R -n 'ERG="$${ERG_BIN:-tickets/tools/go/erg}"' tests/*.sh >/dev/null; then \
-		echo "ERROR: tests must default ERG to build/erg (found legacy tickets/tools/go/erg default)" >&2; \
+	@if grep -R -n 'ERG="$${ERG_BIN:-tickets/' tests/*.sh >/dev/null; then \
+		echo "ERROR: tests must default ERG to build/erg (found committed-binary default)" >&2; \
 		exit 1; \
 	fi
 	@for f in tests/test_*.sh; do \
@@ -41,7 +41,7 @@ $(TEST_TARGETS): test-%: build _test-lint
 	@ERG_BIN=$(ERG_BIN) sh tests/test_$*.sh
 
 unit-test: build
-	cd tickets/tools/go && go test -cover -coverprofile=$(CURDIR)/build/coverage.out ./... && \
+	cd src/go && go test -cover -coverprofile=$(CURDIR)/build/coverage.out ./... && \
 		go tool cover -func=$(CURDIR)/build/coverage.out
 
 test: unit-test $(TEST_TARGETS)
@@ -54,17 +54,17 @@ ready: build
 	$(ERG_BIN) ready tickets/
 
 update-bootstrap-binary:
-	cd tickets/tools/go && go build \
+	cd src/go && go build \
 		-ldflags "-X main.buildDate=$$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.vcsRevision=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown)" \
 		-o $(BOOTSTRAP_BIN) .
 
 install-erg-binary:
 	@mkdir -p $(HOME)/.local/bin
 	@if [ "$$(uname -s)" = "Linux" ] && [ "$$(uname -m)" = "x86_64" ] && [ -f "$(BOOTSTRAP_BIN)" ] \
-		&& [ -z "$$(find tickets/tools/go -name '*.go' -newer "$(BOOTSTRAP_BIN)" -print -quit)" ]; then \
+		&& [ -z "$$(find src/go -name '*.go' -newer "$(BOOTSTRAP_BIN)" -print -quit)" ]; then \
 		install -m755 "$(BOOTSTRAP_BIN)" "$(HOME)/.local/bin/erg"; \
 	elif command -v go >/dev/null 2>&1; then \
-		cd tickets/tools/go && go build -o "$(HOME)/.local/bin/erg" .; \
+		cd src/go && go build -o "$(HOME)/.local/bin/erg" .; \
 	else \
 		echo "ERROR: bootstrap binary not usable and Go not found — cannot install erg" >&2; exit 1; \
 	fi

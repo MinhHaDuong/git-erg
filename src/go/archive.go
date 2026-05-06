@@ -16,7 +16,11 @@ import (
 // A closed ticket is skipped if any open ticket in dir has a Blocked-by
 // pointing to its ID, because archiving it would silently break that ref.
 func cmdArchive(args []string) int {
-	ticketDir := "tickets"
+	ticketDir, err := findTicketsDir()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 	var ids []string
 
 	for _, a := range args {

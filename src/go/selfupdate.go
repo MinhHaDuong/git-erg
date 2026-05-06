@@ -21,7 +21,7 @@ var buildDate string
 // vcsRevision is set at compile time via -ldflags "-X main.vcsRevision=..."
 var vcsRevision string
 
-const updateURL = "https://raw.githubusercontent.com/MinhHaDuong/git-erg/main/tickets/tools/go/erg"
+const updateURL = "https://raw.githubusercontent.com/MinhHaDuong/git-erg/main/tickets/erg"
 
 // readVersionInfo executes binaryPath version with a 2-second timeout and
 // parses the revision: and built: lines from its stdout.
@@ -259,7 +259,11 @@ func cmdUpdate(_ []string) int {
 	// and commits separately. erg update never mutates ticket files.
 	ticketDir := os.Getenv("ERG_TICKET_DIR")
 	if ticketDir == "" {
-		ticketDir = "tickets"
+		if d, findErr := findTicketsDir(); findErr == nil {
+			ticketDir = d
+		} else {
+			ticketDir = "."
+		}
 	}
 	if info, err := os.Stat(ticketDir); err == nil && info.IsDir() && hasStatusHeader(ticketDir) {
 		fmt.Printf("erg: detected Status: headers in %s — run:\n", ticketDir)
