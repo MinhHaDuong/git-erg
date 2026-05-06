@@ -77,7 +77,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "  log ID LINE [DIR]         Append a timestamped log entry to a ticket")
 	fmt.Fprintln(os.Stderr, "  archive [ID...] [DIR]     Move closed tickets to tickets/closed/")
 	fmt.Fprintln(os.Stderr, "  migrate [DIR]             Convert legacy Status: headers to Closed: form")
-	fmt.Fprintln(os.Stderr, "  init [DIR]                Unpack README.md, spec-erg-v1.md, integration.md into tickets/")
+	fmt.Fprintln(os.Stderr, "  init [DIR]                Unpack AGENTS.md, spec-erg-v1.md, integration.md into tickets/")
 	fmt.Fprintln(os.Stderr, "  version                   Print version, path, build date, and obsolescence info")
 	fmt.Fprintln(os.Stderr, "  update                    Fetch and replace binary from origin")
 }

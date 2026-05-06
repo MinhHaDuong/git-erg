@@ -20,8 +20,8 @@ Status: Working draft
 
 1. Create a `tickets/` dir at project's root
 2. Install the `erg` binary into it (download is amd64 only, other arch need to rebuild from source)
-3. Run `tickets/erg init` to unpack the files `README.md`, `spec-erg-v1.md` and `integration.md` in there.
-4. Follow `tickets/integration.md` to a/ install the pre-commit validation hook and b/ tell your agent that tickets management instructions are in `tickets/README.md`.
+3. Run `tickets/erg init` to unpack the files `AGENTS.md`, `spec-erg-v1.md` and `integration.md` in there.
+4. Follow `tickets/integration.md` to a/ install the pre-commit validation hook and b/ tell your agent that tickets management instructions are in `tickets/AGENTS.md`.
 
 ## Quick start
 

@@ -37,10 +37,10 @@ touch "$REPO/tickets/erg"
 
 OUT=$($ERG init "$REPO" 2>&1)
 
-if [ -f "$REPO/tickets/README.md" ]; then
-    pass "init creates README.md"
+if [ -f "$REPO/tickets/AGENTS.md" ]; then
+    pass "init creates AGENTS.md"
 else
-    fail "init creates README.md"
+    fail "init creates AGENTS.md"
 fi
 
 if [ -f "$REPO/tickets/spec-erg-v1.md" ]; then

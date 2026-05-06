@@ -219,7 +219,7 @@ The other levels raise efficiency and file referencing issues -- the idea is to 
 is separate from portable artifacts (`tickets/`). This mirrors how
 `hooks/` (git infra) is separate from `.claude/rules/git.md` (agent
 instructions about git). A non-Claude agent ignores `.claude/` and reads
-`tickets/README.md` for the spec pointer.
+`tickets/AGENTS.md` for the spec pointer.
 
 
 ### 10. Go binary as a single implementation

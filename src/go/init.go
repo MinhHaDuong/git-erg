@@ -7,7 +7,7 @@ import (
 )
 
 var initAssetPaths = []string{
-	"tickets/README.md",
+	"tickets/AGENTS.md",
 	"tickets/spec-erg-v1.md",
 	"tickets/integration.md",
 }

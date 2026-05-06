@@ -18,7 +18,7 @@ None.
 
 ## Notes
 
-- **`erg init` simplified (PR #92)**: now unpacks exactly 3 files (README.md, spec-erg-v1.md, integration.md) and exits. Requires `tickets/erg` binary to be present first. No more hook installation, AGENTS.md automation, .gitignore editing, or manifest tracking. `erg uninstall` removed — replaced by `rm tickets/README.md tickets/spec-erg-v1.md tickets/integration.md`.
+- **`erg init` simplified (PR #92)**: now unpacks exactly 3 files (README.md, spec-erg-v1.md, integration.md) and exits. Requires `tickets/erg` binary to be present first. No more hook installation, AGENTS.md automation, .gitignore editing, or manifest tracking. `erg uninstall` removed — replaced by `rm tickets/AGENTS.md tickets/spec-erg-v1.md tickets/integration.md`.
 - **`erg ready` perf**: branch-claim check lazy-loads once on first unblocked ticket (0 spawns when all blocked). O(1) regardless of ticket count.
 - **Pre-commit hook**: now validates staged `.erg` files individually — fixed directory-path regression introduced when `erg validate` stopped accepting directory args (PR #87).
 - **`init` manifest fix**: re-running `erg init` no longer clobbers ownership flags — uninstall correctly removes only entries that init added.

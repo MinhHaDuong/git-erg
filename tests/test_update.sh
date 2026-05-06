@@ -104,15 +104,15 @@ fi
 WORKSPACE=$(mktemp -d)
 ERG_ABS=$(readlink -f "$ERG")
 mkdir -p "$WORKSPACE/tickets"
-echo "stale content" > "$WORKSPACE/tickets/README.md"
+echo "stale content" > "$WORKSPACE/tickets/AGENTS.md"
 cp "$ERG_ABS" "$SRV_DIR/erg-new2"
 printf '\x00' >> "$SRV_DIR/erg-new2"
 OUT=$(cd "$WORKSPACE" && ERG_UPDATE_URL=http://127.0.0.1:$PORT/erg-new2 "$ERG_ABS" update 2>&1 || true)
-STALE_CONTENT=$(cat "$WORKSPACE/tickets/README.md")
+STALE_CONTENT=$(cat "$WORKSPACE/tickets/AGENTS.md")
 if [ "$STALE_CONTENT" = "stale content" ]; then
     pass "update does not rewrite managed assets"
 else
-    fail "update rewrote managed asset (README.md content changed)"
+    fail "update rewrote managed asset (AGENTS.md content changed)"
 fi
 rm -rf "$WORKSPACE"
 
