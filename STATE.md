@@ -1,16 +1,16 @@
 # State — git-erg
 
-_Last updated: 2026-05-05 — Lazy branch-load fix (0079) + hook fix; PRs #89 merged; all green._
+_Last updated: 2026-05-06 — Housekeeping: beat-skip cleaned (6 expired), ticket 0080 opened (erg check false positives); all green._
 
 ## Stats
 
-- Tickets: 79 total — 71 closed (tickets/closed/), 8 archived (tickets/archive/), 0 open
+- Tickets: 80 total — 71 closed (tickets/closed/), 8 archived (tickets/archive/), 1 open
 - Tests: green — ALL TESTS PASSED (validate:26, check:22, ready:21, update:12, close:21, migrate:11, next-id:9, log:10, new:12, init/uninstall:19, main:5, archive:17, pipeline:6, help:21) + unit tests (coverage: 22.2%)
 - Open PRs: none
 
 ## Ready to work
 
-No actionable tickets open (0001 is a fixture).
+- **0080** Fix erg check false positives — archive/ dir and module name mismatch
 
 ## Blocked
 

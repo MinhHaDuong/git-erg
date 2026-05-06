@@ -1,0 +1,40 @@
+%erg v1
+Title: Fix erg check false positives — archive/ dir and module name mismatch
+Created: 2026-05-06
+Author: claude
+
+--- log ---
+2026-05-06T00:00Z claude created — two false positives in erg check surfaced during housekeeping
+
+--- body ---
+## Problem
+
+`erg check` emits two classes of spurious warnings in this repo:
+
+1. **archive/ not recognized as closed**: `pathIsClosed()` in `ticket.go` only
+   matches path components equal to "closed" (or prefixed/suffixed variants).
+   Tickets in `tickets/archive/` have `Closed:` headers but `pathIsClosed`
+   returns false, so `folderClosure()` warns "closed ticket not in closed/ directory"
+   for all 8 archived tickets.
+
+2. **strayGoSource module name mismatch**: `strayGoSource()` in `check.go`
+   suppresses the warning when `go.mod` contains
+   `module github.com/MinhHaDuong/git-erg`, but the actual module name is
+   `module git-erg`. The string match fails, so the warning fires in the
+   development repo itself — a self-referential false positive.
+
+## Fix
+
+1. Extend `pathIsClosed()` to also match path components equal to `"archive"`
+   (case-insensitive), or with `"archive-"`/`"archive."` prefix or `"-archive"`
+   suffix — consistent with the existing pattern.
+
+2. Fix `strayGoSource()` to also accept `module git-erg` (or use a
+   less fragile check, e.g. split on whitespace and match the module name
+   without the host prefix).
+
+## Acceptance
+
+- `erg check tickets/` in this repo emits 0 warnings (after fix).
+- Existing tests pass; add regression cases for both checks.
+- Binary rebuilt: `make build` succeeds, `make test` green.
