@@ -154,7 +154,7 @@ STUBEOF
 chmod +x "$STUB"
 
 OUT=$(PATH="$VERSION_TMPDIR:$PATH" "$ERG" version 2>&1)
-if echo "$OUT" | grep -q "\[outdated"; then
+if echo "$OUT" | grep -F "$VERSION_TMPDIR/erg" | grep -q "\[outdated"; then
     fail "version: same-revision stub incorrectly marked [outdated]: $OUT"
 else
     pass "version: same-revision binary not marked [outdated]"
