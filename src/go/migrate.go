@@ -71,6 +71,45 @@ func cmdMigrate(args []string) int {
 	fmt.Printf("migrated: %d tickets (%d closed, %d open/doing/pending stripped)\n",
 		total, migratedClosed, migratedOther)
 	fmt.Printf("already clean: %d tickets\n", alreadyClean)
+
+	// Layout migration: only run when dir is named "tickets" (canonical layout).
+	if filepath.Base(dir) == "tickets" {
+		root := filepath.Dir(dir)
+		toolsDir := filepath.Join(dir, "tools")
+		formatMD := filepath.Join(dir, "FORMAT.md")
+		archiveDir := filepath.Join(root, "archive")
+		closedDir := filepath.Join(root, "closed")
+
+		if _, err := os.Stat(toolsDir); err == nil {
+			if err := os.RemoveAll(toolsDir); err != nil {
+				fmt.Fprintf(os.Stderr, "migrate: remove tools/: %v\n", err)
+			} else {
+				fmt.Println("migrate: removed tickets/tools/")
+			}
+		}
+		if _, err := os.Stat(formatMD); err == nil {
+			if err := os.Remove(formatMD); err != nil {
+				fmt.Fprintf(os.Stderr, "migrate: remove FORMAT.md: %v\n", err)
+			} else {
+				fmt.Println("migrate: removed tickets/FORMAT.md")
+			}
+		}
+		_, archiveErr := os.Stat(archiveDir)
+		_, closedErr := os.Stat(closedDir)
+		if archiveErr == nil && closedErr != nil {
+			if err := os.Rename(archiveDir, closedDir); err != nil {
+				fmt.Fprintf(os.Stderr, "migrate: rename archive/→closed/: %v\n", err)
+			} else {
+				fmt.Println("migrate: renamed archive/ → closed/")
+			}
+		} else if archiveErr == nil && closedErr == nil {
+			fmt.Fprintln(os.Stderr, "migrate: both archive/ and closed/ exist — resolve manually")
+		}
+		if code := cmdInit([]string{root}); code != 0 {
+			fmt.Fprintln(os.Stderr, "migrate: init assets refresh failed")
+		}
+	}
+
 	return 0
 }
 
