@@ -7,6 +7,7 @@ Author: claude
 2026-05-06T12:00Z claude created
 
 2026-05-06T12:21Z claude reimagined — 3-line guard in main() before switch; printUsage() to stderr (stdout note for 0085); covers all subcommands uniformly
+2026-05-06T12:23Z claude planned — guard after main.go:92, 4 lines; behavioral test in test_help.sh checks no --help/ dir created + exit 0
 --- body ---
 ## Context
 `erg init --help` treats `--help` as a directory argument, calls
