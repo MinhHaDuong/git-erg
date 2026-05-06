@@ -18,15 +18,14 @@ Status: Working draft
 
 ## Install into a project
 
-Project bootstrap is moving into the `erg` CLI itself (`erg init` /
-`erg uninstall`) so the binary is the only required artifact.
+1. Create a `tickets/` dir at project's root
+2. Install the `erg` binary into it (download is amd64 only, other arch need to rebuild from source)
+3. Run `tickets/erg init` to unpack the files `README.md`, `spec-erg-v1.md` and `integration.md` in there.
+4. Follow `tickets/integration.md` to a/ install the pre-commit validation hook and b/ tell your agent that tickets management instructions are in `tickets/README.md`.
 
 ## Quick start
 
 ```bash
-# Build the validator
-make build
-
 # Create a ticket (or just write the file — agents do)
 cat > tickets/0001-add-auth.erg <<'EOF'
 %erg v1
@@ -35,45 +34,32 @@ Created: 2026-03-27
 Author: claude
 
 --- log ---
-2026-03-27T10:00Z claude created
+2026-03-27T10:00Z user created
 
 --- body ---
 ## Context
 Need auth before shipping the API.
 EOF
 
-# Validate a single ticket
-erg validate tickets/0001-add-auth.erg
+# List tickets
+ls tickets
 
-# Check entire corpus (duplicate IDs, cycles, refs)
-erg check tickets/
+# Validate a single ticket
+tickets/erg validate 01
 
 # List ready tickets
-erg ready tickets/
+tickets/erg ready
 ```
 
-## Inspect the dependency DAG
+## Managing dependencies
 
-Edges live directly in `Blocked-by:` headers, so any tool that reads
-text can render the graph. Headers are preamble-only, so awk through
-the first `--- log ---` to skip body matches. The recipes below match
-local refs (4-digit IDs) only; drop the `[0-9]{4}$` anchor to also
-include forge refs like `github.com/owner/repo#N`.
+Add `Blocked-by:` lines in the ticket header to encode dependencies.
 
-```bash
-# Adjacency list: blocker → blocked
-find tickets -type f -name '*.erg' -print0 \
-  | xargs -0 awk '/^--- log ---/{nextfile} /^Blocked-by:[[:space:]]+[0-9]{4}$/{print FILENAME, $2}' \
-  | sed -E 's|.*/([0-9]{4})[^ ]*|\1|' \
-  | awk '{print $2" -> "$1}'
+Dependencies on ticket ID will be automatically cleared by `tickets/erg close ID REASON`, otherwise you have to find them and remove the line by editing the text file.
 
-# Topological order (requires GNU coreutils `tsort`)
-find tickets -type f -name '*.erg' -print0 \
-  | xargs -0 awk '/^--- log ---/{nextfile} /^Blocked-by:[[:space:]]+[0-9]{4}$/{print FILENAME, $2}' \
-  | sed -E 's|.*/([0-9]{4})[^ ]*|\1|' \
-  | awk '{print $2, $1}' | tsort
+## Updating
 
-```
+`tickets/erg update` will lookup for a more recent build and replace the existing binary in-place.
 
 ## Binary policy
 

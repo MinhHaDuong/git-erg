@@ -250,7 +250,7 @@ A pre-commit hook to ensure `.erg` files validity is provided under `integration
 
 ### Graph Integrity verification
 
-`erg check [DIR]` verifies there are no duplicate IDs, no cycles, and Blocked-by references
+`erg check [DIR]` verifies that all tickets are valid, and there are no duplicate IDs, no cycles, and Blocked-by references
 
 ### Ready query
 

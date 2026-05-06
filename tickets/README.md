@@ -1,9 +1,8 @@
 # tickets/
 
-Local file-based tickets store for the project.
+Local textfile-based tickets store for the project.
 
-Agents should ensure the `erg` binary helper is available to manipulate tickets.
-To get it: check `tickets/erg` (committed bootstrap binary, Linux x86-64 only).
+Use the `tickets/erg` binary to manipulate tickets.
 
 As a fallback, agents can read/write directly using the example template:
 
@@ -13,10 +12,10 @@ Title: Add retry logic for failed API requests
 Created: 2026-05-04
 Author: alice
 Blocked-by: 0007
+Tag: Exemple
 
 --- log ---
 2026-05-04T09:00Z alice created
-2026-05-04T14:22Z bob status open Was blocked, 0007 now merged
 
 --- body ---
 ## Context
@@ -30,10 +29,5 @@ We need exponential backoff with jitter, capped at 3 retries.
 - [ ] `make check` passes
 ```
 
-Rules agents must know:
-- No `Status:` header in %erg v1 (use `erg migrate` for legacy files)
-- Closed/not-closed is inferred from path conventions or a non-empty `Closed:` header
-- `Tags:` is optional and repeatable; accepted values are `needs-human`, `deferred`, `post-talk`, `post-conference`
-- Log entries are append-only: `YYYY-MM-DDTHH:MMZ author verb detail`
-
-In doubt, read the specification `spec-erg-v1.md`
+More information: `erg --help`.
+Detailed specifications: `spec-erg-v1.md`
