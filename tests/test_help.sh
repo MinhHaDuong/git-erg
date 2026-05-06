@@ -60,5 +60,17 @@ for cmd in close validate new log; do
     fi
 done
 
+# subcommand --help/-h must exit 0 and not create a --help/ directory
+for sub in init check ready next-id archive migrate; do
+    tmp=$(mktemp -d)
+    (cd "$tmp" && "$ERG" "$sub" --help >/dev/null 2>&1) && pass "$sub --help: exits 0" || fail "$sub --help: exits 0"
+    if [ -d "$tmp/--help" ]; then
+        fail "$sub --help: spurious --help/ directory created"
+    else
+        pass "$sub --help: no spurious directory"
+    fi
+    rm -rf "$tmp"
+done
+
 echo "help: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
