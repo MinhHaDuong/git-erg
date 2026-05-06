@@ -1,0 +1,35 @@
+%erg v1
+Title: Rename tickets/README.md to AGENTS.md and reorder binary-first
+Created: 2026-05-06
+Author: claude
+Closed: renamed to AGENTS.md, all references updated, tests green
+
+--- log ---
+2026-05-06T00:00Z claude created
+
+2026-05-06T11:52Z claude reimagined — scope: rename README.md→AGENTS.md in tickets/, init.go, bootstrap_assets.go, main.go help string, AGENTS.md top-level, README.md, STATE.md uninstall cmd
+2026-05-06T12:01Z implementation complete — committed 1f68c4a on main; all 156 tests pass
+2026-05-06T12:02Z MinhHaDuong closed — renamed to AGENTS.md, all references updated, tests green
+--- body ---
+## Context
+`tickets/README.md` is already written for agents — it explains the ticket
+format, provides a template, and points to the spec. Renaming it `AGENTS.md`
+makes that intent formal: agent frameworks auto-ingest files by that name in
+subdirectories. The content is sound; the binary commands just need to come
+before the raw template so the priority is obvious.
+
+## Actions
+1. Rename `tickets/README.md` to `tickets/AGENTS.md`.
+2. Reorder content: binary commands (`erg new`, `erg log`, `erg close`,
+   `erg validate`) first, raw format template second (clearly marked as
+   fallback for when the binary is unavailable).
+
+## Test
+Open `tickets/AGENTS.md` and confirm the binary-command block appears before
+the format template block.
+
+## Exit criteria
+- [ ] `tickets/README.md` no longer exists
+- [ ] `tickets/AGENTS.md` exists with binary commands section before the template
+- [ ] Any references to `tickets/README.md` in other files are updated
+- [ ] `make check` passes
