@@ -36,7 +36,7 @@ fi
 help_out=$("$ERG" -h 2>&1)
 
 # --- each canonical command name appears in help output ---
-for cmd in validate check ready next-id new close log archive migrate init uninstall version update; do
+for cmd in validate check ready next-id new close log archive migrate init version update; do
     if echo "$help_out" | grep -q "$cmd"; then
         pass "help mentions command: $cmd"
     else

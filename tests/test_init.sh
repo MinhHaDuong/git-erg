@@ -1,5 +1,5 @@
 #!/bin/sh
-# Integration tests for: erg init, erg uninstall
+# Integration tests for: erg init
 set -eu
 
 ERG="${ERG_BIN:-build/erg}"
@@ -9,153 +9,105 @@ FAIL=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
-echo "=== erg init/uninstall ==="
+echo "=== erg init ==="
 
 TDIR=$(mktemp -d)
 trap 'rm -rf "$TDIR"' EXIT
 
 REPO="$TDIR/repo"
-mkdir -p "$REPO/.git/hooks"
-cat > "$REPO/.git/hooks/pre-commit" <<'EOFHOOK'
-#!/bin/sh
-echo "custom pre-commit"
-EOFHOOK
-chmod +x "$REPO/.git/hooks/pre-commit"
+mkdir -p "$REPO/tickets"
+
+# --- init without binary exits 1 ---
+
+if OUT=$($ERG init "$REPO" 2>&1); then
+    fail "init without binary should exit 1"
+else
+    if echo "$OUT" | grep -q "binary not found"; then
+        pass "init without binary: exits 1 with 'binary not found'"
+    else
+        fail "init without binary: expected 'binary not found' in output (got: $OUT)"
+    fi
+fi
+
+# --- place a fake binary ---
+
+touch "$REPO/tickets/erg"
+
+# --- init unpacks exactly 3 files ---
 
 OUT=$($ERG init "$REPO" 2>&1)
 
-# Managed files materialized
-if [ -f "$REPO/tickets/README.md" ] && [ -f "$REPO/tickets/spec-erg-v1.md" ] && [ -f "$REPO/tickets/integration/manifest.json" ]; then
-    pass "init materializes managed files"
+if [ -f "$REPO/tickets/README.md" ]; then
+    pass "init creates README.md"
 else
-    fail "init materializes managed files"
+    fail "init creates README.md"
 fi
 
-# Fragment appends
-if grep -q '^git-erg local tickets: see tickets/README.md$' "$REPO/AGENTS.md"; then
-    pass "init appends AGENTS pointer"
+if [ -f "$REPO/tickets/spec-erg-v1.md" ]; then
+    pass "init creates spec-erg-v1.md"
 else
-    fail "init appends AGENTS pointer"
+    fail "init creates spec-erg-v1.md"
 fi
 
-if grep -q '^tickets/erg$' "$REPO/.gitignore"; then
-    pass "init appends .gitignore entry"
+if [ -f "$REPO/tickets/integration.md" ]; then
+    pass "init creates integration.md"
 else
-    fail "init appends .gitignore entry"
+    fail "init creates integration.md"
 fi
 
-if grep -q '^# --- git-erg: begin managed block ---$' "$REPO/.git/hooks/pre-commit" && grep -q '^# --- git-erg: end managed block ---$' "$REPO/.git/hooks/pre-commit"; then
-    pass "init appends managed pre-commit block"
+# --- no integration/ directory created ---
+
+if [ -d "$REPO/tickets/integration" ]; then
+    fail "init must not create tickets/integration/ directory"
 else
-    fail "init appends managed pre-commit block"
+    pass "init does not create tickets/integration/ directory"
 fi
+
+# --- no manifest, no AGENTS.md, no .gitignore, no hook ---
 
 if [ -f "$REPO/tickets/.erg-bootstrap-manifest.json" ]; then
-    pass "init writes manifest"
+    fail "init must not write manifest"
 else
-    fail "init writes manifest"
+    pass "init does not write manifest"
 fi
 
-# Re-init is idempotent (no duplicate fragments)
-$ERG init "$REPO" >/dev/null
-
-if [ "$(grep -c '^git-erg local tickets: see tickets/README.md$' "$REPO/AGENTS.md")" -eq 1 ]; then
-    pass "re-init does not duplicate AGENTS pointer"
+if [ -f "$REPO/AGENTS.md" ]; then
+    fail "init must not touch AGENTS.md"
 else
-    fail "re-init does not duplicate AGENTS pointer"
+    pass "init does not touch AGENTS.md"
 fi
 
-if [ "$(grep -c '^tickets/erg$' "$REPO/.gitignore")" -eq 1 ]; then
-    pass "re-init does not duplicate .gitignore entry"
+if [ -f "$REPO/.gitignore" ]; then
+    fail "init must not touch .gitignore"
 else
-    fail "re-init does not duplicate .gitignore entry"
+    pass "init does not touch .gitignore"
 fi
 
-if [ "$(grep -c '^# --- git-erg: begin managed block ---$' "$REPO/.git/hooks/pre-commit")" -eq 1 ]; then
-    pass "re-init does not duplicate pre-commit block"
+# --- re-init is idempotent ---
+
+OUT2=$($ERG init "$REPO" 2>&1)
+
+if echo "$OUT2" | grep -q "0 created, 0 refreshed, 3 unchanged"; then
+    pass "re-init is idempotent (3 unchanged)"
 else
-    fail "re-init does not duplicate pre-commit block"
+    fail "re-init is idempotent (expected '0 created, 0 refreshed, 3 unchanged', got: $OUT2)"
 fi
 
-# Preserve user ticket on uninstall
-cat > "$REPO/tickets/0999-user-ticket.erg" <<'EOFTICKET'
-%erg v1
-Title: User ticket
-Created: 2026-05-04
-Author: user
+# --- output mentions integration.md ---
 
---- log ---
-2026-05-04T12:00Z user created
-
---- body ---
-User-managed ticket data.
-EOFTICKET
-
-UOUT=$($ERG uninstall "$REPO" 2>&1)
-
-if [ -f "$REPO/tickets/0999-user-ticket.erg" ]; then
-    pass "uninstall preserves user ticket files"
+if echo "$OUT" | grep -q "integration.md"; then
+    pass "init output mentions integration.md"
 else
-    fail "uninstall preserves user ticket files"
+    fail "init output mentions integration.md (got: $OUT)"
 fi
 
-if [ ! -f "$REPO/tickets/spec-erg-v1.md" ] && [ ! -f "$REPO/tickets/integration/manifest.json" ]; then
-    pass "uninstall removes managed support files"
+# --- uninstall subcommand is removed ---
+
+if $ERG uninstall "$REPO" >/dev/null 2>&1; then
+    fail "uninstall subcommand should not exist"
 else
-    fail "uninstall removes managed support files"
+    pass "uninstall subcommand removed"
 fi
 
-if [ ! -f "$REPO/tickets/.erg-bootstrap-manifest.json" ]; then
-    pass "uninstall removes manifest"
-else
-    fail "uninstall removes manifest"
-fi
-
-if ! grep -q '^git-erg local tickets: see tickets/README.md$' "$REPO/AGENTS.md"; then
-    pass "uninstall removes AGENTS pointer"
-else
-    fail "uninstall removes AGENTS pointer"
-fi
-
-if ! grep -q '^tickets/erg$' "$REPO/.gitignore"; then
-    pass "uninstall removes .gitignore entry"
-else
-    fail "uninstall removes .gitignore entry"
-fi
-
-if ! grep -q '^# --- git-erg: begin managed block ---$' "$REPO/.git/hooks/pre-commit" && grep -q 'custom pre-commit' "$REPO/.git/hooks/pre-commit"; then
-    pass "uninstall removes managed hook block and keeps existing hook content"
-else
-    fail "uninstall removes managed hook block and keeps existing hook content"
-fi
-
-if echo "$OUT" | grep -q '^Plan:' && echo "$UOUT" | grep -q '^Plan:'; then
-    pass "init and uninstall print plan"
-else
-    fail "init and uninstall print plan"
-fi
-
-# Output uses yes/no not true/false
-if echo "$OUT" | grep -qE "true|false"; then
-    fail "init output must not contain true/false"
-else
-    pass "init output: no true/false booleans"
-fi
-if echo "$OUT" | grep -qF "manifest written:"; then
-    pass "init output: 'manifest written:'"
-else
-    fail "init output: 'manifest written:' (got: $OUT)"
-fi
-if echo "$OUT" | grep -qF "AGENTS.md entry"; then
-    pass "init output: 'AGENTS.md entry'"
-else
-    fail "init output: 'AGENTS.md entry' (got: $OUT)"
-fi
-if echo "$OUT" | grep -qF "AGENTS.md pointer"; then
-    fail "init output: must not say 'AGENTS.md pointer'"
-else
-    pass "init output: no 'AGENTS.md pointer' jargon"
-fi
-
-echo "init/uninstall: $PASS passed, $FAIL failed"
+echo "init: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

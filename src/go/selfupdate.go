@@ -266,11 +266,6 @@ func cmdUpdate(_ []string) int {
 
 	fmt.Printf("erg: updated (%s → %s)\n", localHash[:12], remoteHash[:12])
 
-	if hasStaleAssets(".") {
-		fmt.Println("erg: repo assets may be behind this binary — run:")
-		fmt.Println("  erg init .")
-	}
-
 	// Detect tickets still carrying `Status:` headers and emit a hint.
 	// Migration is explicit: the user runs `erg migrate`, reviews the diff,
 	// and commits separately. erg update never mutates ticket files.
@@ -291,22 +286,3 @@ func cmdUpdate(_ []string) int {
 	return 0
 }
 
-// hasStaleAssets reports whether any managed bootstrap asset on disk
-// differs from the copy embedded in this binary.
-func hasStaleAssets(root string) bool {
-	for _, rel := range managedAssetPaths {
-		expected, ok := bootstrapAsset(rel)
-		if !ok {
-			continue
-		}
-		target := filepath.Join(root, filepath.FromSlash(rel))
-		data, err := os.ReadFile(target)
-		if err != nil {
-			return true // file missing or unreadable
-		}
-		if string(data) != expected {
-			return true // content differs
-		}
-	}
-	return false
-}

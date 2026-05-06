@@ -100,7 +100,7 @@ else
     fail "update empty-body 200: $OUT"
 fi
 
-# Test: update with stale managed assets → emits `erg init` hint
+# Test: update does NOT rewrite managed assets (binary-only contract)
 WORKSPACE=$(mktemp -d)
 ERG_ABS=$(readlink -f "$ERG")
 mkdir -p "$WORKSPACE/tickets"
@@ -108,13 +108,6 @@ echo "stale content" > "$WORKSPACE/tickets/README.md"
 cp "$ERG_ABS" "$SRV_DIR/erg-new2"
 printf '\x00' >> "$SRV_DIR/erg-new2"
 OUT=$(cd "$WORKSPACE" && ERG_UPDATE_URL=http://127.0.0.1:$PORT/erg-new2 "$ERG_ABS" update 2>&1 || true)
-if echo "$OUT" | grep -q "erg init"; then
-    pass "update with stale assets emits erg init hint"
-else
-    fail "update with stale assets missing erg init hint: $OUT"
-fi
-
-# Test: update does NOT rewrite managed assets (binary-only contract)
 STALE_CONTENT=$(cat "$WORKSPACE/tickets/README.md")
 if [ "$STALE_CONTENT" = "stale content" ]; then
     pass "update does not rewrite managed assets"
