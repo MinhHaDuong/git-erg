@@ -1,0 +1,35 @@
+%erg v1
+Title: Fix erg subcommands treating --help/-h as a directory path
+Created: 2026-05-06
+Author: claude
+
+--- log ---
+2026-05-06T12:00Z claude created
+
+--- body ---
+## Context
+`erg init --help` treats `--help` as a directory argument, calls
+`os.MkdirAll("--help/tickets/", 0755)`, and creates a directory on disk.
+The same mis-handling affects any subcommand that accepts an optional DIR
+arg: `check`, `ready`, `next-id`, `archive`, `migrate`, `init`.
+
+The `main()` switch handles `-h`/`--help`/`help` only when they appear as
+the *command* (position 1), not as a subcommand flag (position 2+).
+
+## Actions
+1. In `main()`, after splitting `cmd` / `rest`, check if `rest` contains
+   `--help` or `-h` and call `printUsage()` + exit 0 before dispatching.
+   One guard covers all subcommands uniformly.
+
+## Test
+```
+erg init --help   # must print usage and exit 0, not create --help/ dir
+erg check --help  # same
+erg new --help    # same
+```
+Red: currently creates `--help/tickets/` on disk (or prints confusing error).
+
+## Exit criteria
+- [ ] `erg init --help` prints usage and exits 0; no directory created
+- [ ] Same for `erg check --help`, `erg ready --help`, `erg next-id --help`
+- [ ] `make test` passes
