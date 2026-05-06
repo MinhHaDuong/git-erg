@@ -1,0 +1,56 @@
+%erg v1
+Title: erg init: simplify to unpack-only, drop integration/ directory
+Created: 2026-05-06
+Author: MinhHaDuong
+
+--- log ---
+2026-05-06T09:55Z MinhHaDuong created
+
+--- body ---
+## Context
+
+`erg init <repo>` currently creates `tickets/`, installs a pre-commit hook,
+appends to `.gitignore` and `AGENTS.md`, writes a manifest, and materialises
+the `integration/` directory (hooks, settings.json, skills). This is too
+presumptuous — the directory should exist before `erg init` runs, and the
+hook/AGENTS.md steps should be explicit user actions, not silent automation.
+
+Design decision from session 2026-05-06:
+- `tickets/` is created by hand; the binary is dropped in manually.
+- `erg init` unpacks exactly 3 files: `README.md`, `spec-erg-v1.md`,
+  `integration.md` — then exits.
+- `integration.md` replaces the `integration/` directory: it contains the
+  pre-commit hook fragment as copy-paste text and the AGENTS.md line to add.
+- No manifest, no settings.json, no skills/, no .gitignore editing, no hook
+  installation. `erg uninstall` disappears or becomes `rm tickets/README.md
+  tickets/spec-erg-v1.md tickets/integration.md`.
+- `erg init` fails with a clear error if `tickets/erg` does not already exist
+  in the target directory (i.e. the user hasn't placed the binary yet).
+
+## Actions
+
+1. Author `tickets/integration.md` — pre-commit hook fragment + AGENTS.md line.
+2. Rewrite `src/go/init.go`: unpack only README.md, spec-erg-v1.md,
+   integration.md; remove all hook/gitignore/AGENTS.md/manifest logic; fail if
+   binary not present in dir.
+3. Remove `integration/hooks/`, `integration/settings.json`,
+   `integration/skills/`, `integration/manifest.json` from bootstrap assets.
+4. Update `src/go/bootstrap_assets.go` accordingly.
+5. Update `erg uninstall` (simplify or remove).
+6. Update README.md install instructions: fix "amd86" → "amd64", use
+   `tickets/erg init`.
+7. Update `tests/test_init.sh` to match new behaviour.
+8. Remove `hasStaleAssets` / manifest drift checks no longer needed.
+
+## Test
+
+`erg init` on a dir that lacks the binary exits non-zero with a message
+containing "binary not found".
+
+## Exit criteria
+
+- `tickets/erg init` (run from project root) unpacks exactly 3 files and exits 0.
+- Running it twice is idempotent (files overwritten, no error).
+- `erg init` on a dir without `tickets/erg` exits 1 with a clear message.
+- `make test` green.
+- `integration/` directory removed from the repo.
