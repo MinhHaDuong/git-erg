@@ -2,6 +2,7 @@
 Title: Fix erg subcommands treating --help/-h as a directory path
 Created: 2026-05-06
 Author: claude
+Closed: autoclosed — PR #93
 
 --- log ---
 2026-05-06T12:00Z claude created
@@ -10,6 +11,7 @@ Author: claude
 2026-05-06T12:23Z claude planned — guard after main.go:92, 4 lines; behavioral test in test_help.sh checks no --help/ dir created + exit 0
 2026-05-06T12:24Z claude feasibility PASS — insertion point confirmed clean
 2026-05-06T12:26Z claude executed
+2026-05-06T13:04Z MinhHaDuong closed — autoclosed — PR #93
 --- body ---
 ## Context
 `erg init --help` treats `--help` as a directory argument, calls
