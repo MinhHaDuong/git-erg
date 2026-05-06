@@ -2,13 +2,15 @@
 Title: Sample blocked ticket
 Created: 2026-03-27
 Author: claude
-Blocked-by: 0001
+Closed: Served its purpose now noise
 
 --- log ---
 2026-03-27T10:00Z claude created
 2026-04-29T22:07Z claude sweep-pick: not-picked scope:"none" risk:"none" reason:"sample demo ticket with no actionable work"
 2026-04-30T02:38Z claude sweep-pick: not-picked scope:"none" risk:"none" reason:"blocked-by 0001, no actionable work"
 
+2026-05-06T06:21Z MinhHaDuong note blocker 0001 closed — Blocked-by removed
+2026-05-06T06:21Z MinhHaDuong closed — Served its purpose now noise
 --- body ---
 ## Context
 Demonstrates Blocked-by dependency. Not ready until 0001 is closed.
