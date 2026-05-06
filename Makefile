@@ -8,14 +8,15 @@
 #   make build      Build the erg binary
 #   make test       Run Go unit tests and shell integration tests
 #   make unit-test  Run Go unit tests with coverage report
+#   make docs       Generate docs/erg-manual.md from erg --help --all
 #   make validate   Validate tickets in tickets/
 #   make ready      List ready tickets
 #   make install-erg-binary              Install erg to ~/.local/bin
 
-TEST_SUITES := validate check ready update close migrate nextid log new init main archive pipeline help version hook godoc
+TEST_SUITES := validate check ready update close migrate nextid log new init main archive pipeline help version hook godoc docs
 TEST_TARGETS := $(TEST_SUITES:%=test-%)
 
-.PHONY: build test unit-test _test-lint $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary
+.PHONY: build test unit-test _test-lint docs $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary
 
 ERG_BIN := $(CURDIR)/build/erg
 BOOTSTRAP_BIN := $(CURDIR)/tickets/erg
@@ -69,6 +70,10 @@ install-erg-binary:
 		echo "ERROR: bootstrap binary not usable and Go not found — cannot install erg" >&2; exit 1; \
 	fi
 	@echo "erg installed to $(HOME)/.local/bin/erg"
+
+docs: build
+	mkdir -p docs
+	$(ERG_BIN) --help --all > docs/erg-manual.md
 
 clean:
 	rm -rf build

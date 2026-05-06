@@ -110,5 +110,13 @@ else
     fail "close --help: unexpected stderr output: $stderr_out"
 fi
 
+# --help --all: must list all 12 command sections
+count=$($ERG --help --all 2>/dev/null | grep -c "^# " || true)
+if [ "$count" -eq 12 ]; then
+    pass "--help --all: 12 sections"
+else
+    fail "--help --all: expected 12 sections, got $count"
+fi
+
 echo "help: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

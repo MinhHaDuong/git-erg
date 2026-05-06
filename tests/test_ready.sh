@@ -350,7 +350,7 @@ fi
 
 # --- Unclaimed ticket has claimed=false in JSON ---
 rm -f "$FIXTURES/ready/"*.erg
-cat > "$FIXTURES/ready/0091-unclaimed.erg" <<'EOF'
+cat > "$FIXTURES/ready/9991-unclaimed.erg" <<'EOF'
 %erg v1
 Title: Unclaimed ticket
 Created: 2026-01-01
