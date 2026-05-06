@@ -2,6 +2,7 @@
 # Integration tests for: make docs target
 set -eu
 
+ERG="${ERG_BIN:-build/erg}"
 PASS=0
 FAIL=0
 
@@ -11,7 +12,7 @@ fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 echo "=== erg docs ==="
 
 # --help --all: each command has a section header
-count=$("${ERG_BIN:-build/erg}" --help --all 2>/dev/null | grep -c "^# " || true)
+count=$("$ERG" --help --all 2>/dev/null | grep -c "^# " || true)
 if [ "$count" -eq 12 ]; then
     pass "--help --all: 12 section headers found"
 else
@@ -19,7 +20,7 @@ else
 fi
 
 # --help=all: alternate form also prints 12 section headers
-count=$("${ERG_BIN:-build/erg}" --help=all 2>/dev/null | grep -c "^# " || true)
+count=$("$ERG" --help=all 2>/dev/null | grep -c "^# " || true)
 if [ "$count" -eq 12 ]; then
     pass "--help=all: 12 section headers found"
 else
@@ -27,7 +28,7 @@ else
 fi
 
 # --help --all: output goes to stdout (stderr should be empty)
-stderr_out=$("${ERG_BIN:-build/erg}" --help --all 2>&1 >/dev/null || true)
+stderr_out=$("$ERG" --help --all 2>&1 >/dev/null || true)
 if [ -z "$stderr_out" ]; then
     pass "--help --all: no output on stderr"
 else
