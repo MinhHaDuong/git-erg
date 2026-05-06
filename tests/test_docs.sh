@@ -12,7 +12,7 @@ fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 echo "=== erg docs ==="
 
 # --help --all: each command has a section header
-count=$("$ERG" --help --all 2>/dev/null | grep -c "^# " || true)
+count=$("$ERG" --help --all 2>/dev/null | grep -c "^## erg " || true)
 if [ "$count" -eq 12 ]; then
     pass "--help --all: 12 section headers found"
 else
@@ -20,7 +20,7 @@ else
 fi
 
 # --help=all: alternate form also prints 12 section headers
-count=$("$ERG" --help=all 2>/dev/null | grep -c "^# " || true)
+count=$("$ERG" --help=all 2>/dev/null | grep -c "^## erg " || true)
 if [ "$count" -eq 12 ]; then
     pass "--help=all: 12 section headers found"
 else
