@@ -17,7 +17,11 @@ func cmdClose(args []string) int {
 
 	idOrFile := args[0]
 	reason := args[1]
-	ticketDir := "tickets"
+	ticketDir, err := findTicketsDir()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 	if len(args) >= 3 {
 		ticketDir = args[2]
 	}

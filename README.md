@@ -13,7 +13,7 @@ Status: Working draft
 ## Specification
 
 - Normative specification:  `tickets/spec-erg-v1.md`.
-- Reference implementation: `tickets/tools/go/erg`.
+- Reference implementation: `src/go/` (source), `tickets/erg` (bootstrap binary).
 - Design rationale: `pep-erg-v1.md`.
 
 ## Install into a project
@@ -77,9 +77,9 @@ find tickets -type f -name '*.erg' -print0 \
 
 ## Binary policy
 
-`tickets/tools/go/erg` is a committed Linux x86-64 bootstrap binary for environments where Go may be unavailable (CI runners, agents). I look forward to working with macOS, ARM or Windows early adopters.
+`tickets/erg` is a committed Linux x86-64 bootstrap binary for environments where Go may be unavailable (CI runners, agents). I look forward to working with macOS, ARM or Windows early adopters.
 
-Source is authoritative. CI builds always compile from source and do not rely on the committed binary: all tests and development builds must use `build/erg`, rebuilt from source via `make build`.
+Source lives in `src/go/`. CI builds always compile from source and do not rely on the committed binary: all tests and development builds must use `build/erg`, rebuilt from source via `make build`.
 
 The bootstrap binary is updated explicitly via `make update-bootstrap-binary`
 (typically after changes to the Go code or when releasing) and must never be

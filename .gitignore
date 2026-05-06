@@ -16,5 +16,5 @@ build/erg
 build/coverage.out
 
 # Go coverage profiles
-tickets/tools/go/*.out
-tickets/tools/go/erg
+src/go/*.out
+tickets/erg

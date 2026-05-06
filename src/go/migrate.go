@@ -18,9 +18,16 @@ import (
 //
 // Does NOT commit. Always exits 0; running twice is safe.
 func cmdMigrate(args []string) int {
-	dir := "tickets"
+	var dir string
 	if len(args) > 0 {
 		dir = args[0]
+	} else {
+		var err error
+		dir, err = findTicketsDir()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
 	}
 
 	info, err := os.Stat(dir)

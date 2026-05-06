@@ -21,7 +21,52 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 )
+
+// looksLikeTicketStore reports whether dir is a managed ticket store.
+func looksLikeTicketStore(dir string) bool {
+	if _, err := os.Stat(dir); err != nil {
+		return false
+	}
+	if filepath.Base(dir) == "tickets" {
+		return true
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".erg-bootstrap-manifest.json")); err == nil {
+		return true
+	}
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".erg") {
+			return true
+		}
+	}
+	return false
+}
+
+// findTicketsDir returns the ticket store directory by trying candidates in order:
+// (1) directory containing the binary, (2) "tickets" under cwd, (3) cwd itself.
+// Each candidate must satisfy looksLikeTicketStore. Returns an error if none qualify.
+func findTicketsDir() (string, error) {
+	var candidates []string
+	if exe, err := os.Executable(); err == nil {
+		candidates = append(candidates, filepath.Dir(exe))
+	}
+	candidates = append(candidates, "tickets", ".")
+
+	for _, c := range candidates {
+		if looksLikeTicketStore(c) {
+			return c, nil
+		}
+	}
+
+	cwd, _ := os.Getwd()
+	tried := strings.Join(candidates, ", ")
+	return "", fmt.Errorf(
+		"did not find the tickets store. I looked at: %s\nTo confirm that directory %q is an intended tickets store, I need to see at least one .erg file in it.",
+		tried, cwd)
+}
 
 func printUsage() {
 	fmt.Fprintln(os.Stderr, "Usage: erg COMMAND [args...]")

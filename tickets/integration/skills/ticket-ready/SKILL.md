@@ -23,10 +23,10 @@ argument-hint:
 ## Alternative: use the CLI
 
 ```bash
-tickets/tools/go/erg ready tickets/
+tickets/erg ready tickets/
 ```
 
 With JSON output:
 ```bash
-tickets/tools/go/erg ready tickets/ --json
+tickets/erg ready tickets/ --json
 ```

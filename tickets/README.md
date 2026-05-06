@@ -3,8 +3,7 @@
 Local file-based tickets store for the project.
 
 Agents should ensure the `erg` binary helper is available to manipulate tickets.
-To get it: check `tickets/tools/go/erg` (committed bootstrap binary, Linux x86-64 only),
-or build from source: `cd tickets/tools/go && go build -o erg .`
+To get it: check `tickets/erg` (committed bootstrap binary, Linux x86-64 only).
 
 As a fallback, agents can read/write directly using the example template:
 

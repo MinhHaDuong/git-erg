@@ -4,9 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'tickets/tools/go/*.go'
-      - 'tickets/tools/go/go.mod'
-      - 'tickets/tools/go/go.sum'
+      - 'src/go/*.go'
+      - 'src/go/go.mod'
 
 concurrency:
   group: rebuild-binary-${{ github.ref }}
@@ -32,12 +31,12 @@ jobs:
 
       - name: Commit if binary changed
         run: |
-          if git diff --exit-code tickets/tools/go/erg; then
+          if git diff --exit-code tickets/erg; then
             echo "Binary unchanged — no commit needed"
           else
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add tickets/tools/go/erg
+            git add tickets/erg
             git commit -m "chore: rebuild bootstrap binary [skip ci]"
             git push
           fi

@@ -10,7 +10,7 @@ import (
 
 const (
 	agentsPointerLine = "git-erg local tickets: see tickets/README.md"
-	gitignoreLine     = "tickets/tools/go/erg"
+	gitignoreLine     = "tickets/erg"
 
 	hookStartMarker = "# --- git-erg: begin managed block ---"
 	hookEndMarker   = "# --- git-erg: end managed block ---"

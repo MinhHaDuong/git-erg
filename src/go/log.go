@@ -17,7 +17,11 @@ func cmdLog(args []string) int {
 
 	id := args[0]
 	line := args[1]
-	ticketDir := "tickets"
+	ticketDir, err := findTicketsDir()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 	if len(args) >= 3 {
 		ticketDir = args[2]
 	}

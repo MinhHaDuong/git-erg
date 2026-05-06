@@ -7,11 +7,16 @@
 # Validate .erg files (if any are staged)
 erg_files=$(git diff --cached --name-only | grep '\.erg$' || true)
 if [ -n "$erg_files" ]; then
-    erg_bin="tickets/tools/go/erg"
+    erg_bin="tickets/erg"
     if [ -x "$erg_bin" ]; then
         # shellcheck disable=SC2086
         if ! $erg_bin validate $erg_files; then
             echo "ERROR: Ticket validation failed. Fix errors above." >&2
+            exit 1
+        fi
+        # Corpus-level checks: duplicate IDs, broken Blocked-by refs, dependency cycles
+        if ! $erg_bin check tickets/; then
+            echo "ERROR: Ticket corpus check failed. Fix errors above." >&2
             exit 1
         fi
     else

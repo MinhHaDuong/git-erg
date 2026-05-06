@@ -2,7 +2,7 @@
 
 ## Testing layers
 
-**Go unit tests** (`tickets/tools/go/*_test.go`): pure-function correctness. If the
+**Go unit tests** (`src/go/*_test.go`): pure-function correctness. If the
 test can be written as `f(input) → output` without spawning a process or touching the
 filesystem, it belongs here. Examples: `parseErg`, `validateErg`, `detectCycles`,
 `slugify`, `appendLogLine`.
@@ -68,8 +68,8 @@ If the test checks **what a command does**, use an ephemeral directory.
 
 ## Binary defaults
 
-Test scripts must default `ERG` to `build/erg`, not the legacy bootstrap
-path `tickets/tools/go/erg`. Override via the `ERG_BIN` environment variable
+Test scripts must default `ERG` to `build/erg`, not the bootstrap
+path `tickets/erg`. Override via the `ERG_BIN` environment variable
 when needed. The Makefile `_test-lint` target enforces this on every
 `make test` run and will fail the build if any test reintroduces the
 forbidden default.

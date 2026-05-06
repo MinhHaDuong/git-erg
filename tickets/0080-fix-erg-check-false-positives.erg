@@ -1,30 +1,36 @@
 %erg v1
-Title: Fix erg check false positives — archive/ dir and module name mismatch
+Title: Restructure: move source to src/go/, binary to tickets/erg, smart dir discovery
 Created: 2026-05-06
 Author: claude
 
 --- log ---
-2026-05-06T00:00Z claude created — two false positives in erg check surfaced during housekeeping
+2026-05-06T00:00Z claude created — false positive in erg check: strayGoSource self-exception broken
+2026-05-06T00:00Z claude reimagined — structural fix: move source to src/go/, binary to tickets/erg, smart dir discovery
 
 --- body ---
 ## Problem
 
-`erg check` emits spurious warnings in this repo:
+`erg check` emits a spurious warning in the source repo: `strayGoSource()` has a
+self-exception checking for `module github.com/MinhHaDuong/git-erg` in go.mod,
+but the actual module is `module git-erg`. The exception never fires → false positive.
 
-1. **strayGoSource module name mismatch**: `strayGoSource()` in `check.go`
-   suppresses the warning when `go.mod` contains
-   `module github.com/MinhHaDuong/git-erg`, but the actual module name is
-   `module git-erg`. The string match fails, so the warning fires in the
-   development repo itself — a self-referential false positive.
+Deeper issue: source code lived in `tickets/tools/go/` alongside the binary,
+forcing a self-exception in the first place.
 
-## Fix
+## Solution (structural)
 
-1. Fix `strayGoSource()` to also accept `module git-erg` (or use a
-   less fragile check, e.g. split on whitespace and match the module name
-   without the host prefix).
+Move Go source to `src/go/` and bootstrap binary to `tickets/erg`:
+- `tickets/` holds only ticket files, support assets, and the binary
+- `strayGoSource()` warns on any `.go`/`go.mod`/`go.sum` in the tickets dir,
+  no exception needed — the source repo no longer has any there
+- Legacy scan of `dir/tools/go/` kept for users who haven't migrated
+
+Add `findTicketsDir()` for smart discovery: tries (1) directory containing the
+binary (via manifest check), (2) `tickets/` under cwd, (3) cwd. Error with
+informative message if none qualifies.
 
 ## Acceptance
 
-- `erg check tickets/` in this repo emits 0 warnings (after fix).
-- Existing tests pass; add regression cases for both checks.
-- Binary rebuilt: `make build` succeeds, `make test` green.
+- `erg check tickets/` in source repo emits 0 warnings.
+- `./tickets/erg check` (no arg) discovers `tickets/` and passes.
+- `make build` and `make test` green.
