@@ -1,37 +1,37 @@
 # State — git-erg
 
-_Last updated: 2026-05-06 — Raid: ticket 0082 merged (PR #92), erg init simplified to unpack-only. All 82 tickets closed._
+_Last updated: 2026-05-06 — Raid: PRs #93–#98 merged (tickets 0083–0094). 8 open tickets in spec-as-code wave._
 
 ## Stats
 
-- Tickets: 82 total — 73 closed (tickets/closed/), 9 archived (tickets/archive/), 0 open
-- Tests: green — ALL TESTS PASSED (validate:26, check:24, ready:21, update:11, close:21, migrate:11, next-id:9, log:10, new:12, init:11, main:5, archive:17, pipeline:6, help:20) + unit tests (coverage: 25.2%)
+- Tickets: 94 total — 86 closed/archived, 8 open (0088–0093 spec-as-code wave)
+- Tests: green — ALL TESTS PASSED (validate, check, ready, update, close, migrate, nextid, log, new, init, main, archive, pipeline, help, version, hook) + unit tests
 - Open PRs: none
 
 ## Ready to work
 
-None — all tickets closed.
+- 0088 spec-as-code umbrella (no blockers)
+- 0089 enrich Go doc comments (no blockers)
+- 0092 cull spec to format-only (no blockers)
 
 ## Blocked
 
-None.
+- 0090 per-command --help (blocked by 0089)
+- 0091 erg --help --all + make docs (blocked by 0090)
+- 0093 spec-as-code foundation: ergspecv1.go (blocked by 0088)
 
 ## Notes
 
-- **`erg init` simplified (PR #92)**: now unpacks exactly 3 files (README.md, spec-erg-v1.md, integration.md) and exits. Requires `tickets/erg` binary to be present first. No more hook installation, AGENTS.md automation, .gitignore editing, or manifest tracking. `erg uninstall` removed — replaced by `rm tickets/AGENTS.md tickets/spec-erg-v1.md tickets/integration.md`.
-- **`erg ready` perf**: branch-claim check lazy-loads once on first unblocked ticket (0 spawns when all blocked). O(1) regardless of ticket count.
-- **Pre-commit hook**: now validates staged `.erg` files individually — fixed directory-path regression introduced when `erg validate` stopped accepting directory args (PR #87).
-- **`init` manifest fix**: re-running `erg init` no longer clobbers ownership flags — uninstall correctly removes only entries that init added.
-- **`erg ready --json`**: output uses `encoding/json` (MarshalIndent); inner arrays are expanded. Downstream scripts should use `jq` rather than grepping raw format.
-- **`erg archive`** is live — moves closed tickets from `tickets/` to `tickets/closed/`, skipping any that are still blocking open tickets. Run after closing tickets.
-- **`erg new`** is live — creates a ticket atomically with the next sequential ID.
-- **`erg log`** is live — appends a timestamped log entry to any ticket by ID.
+- **Pre-commit hook** (PR #98): now also rejects `tickets/erg` commits on non-main branches. CI rebuilds the binary after merge; feature PRs must use `make build` and test with `build/erg`. Error message names `--no-verify` override. `tests/test_hook.sh` covers the guard.
+- **`erg migrate`** (PR #94): upgrades full project layout — removes `tickets/tools/`, `tickets/FORMAT.md`; renames `archive/` → `closed/`; refreshes init assets via `cmdInit`. Runs only when dir is named `tickets`. Idempotent.
+- **`erg version`** (PR #95): now discovers `./tickets/erg` as a candidate when run from the project root.
+- **`erg --help`** (PR #96): usage text goes to stdout; header shows `[--help]`; `erg COMMAND --help` exits 0. Per-command detail deferred to ticket 0090.
+- **`erg init` simplified (PR #92)**: unpacks 3 files (AGENTS.md, spec-erg-v1.md, integration.md); requires `tickets/erg` present first.
+- **Spec-as-code plan**: spec-erg-v1.md shrinks to format-only; command docs move to Go doc comments; `erg COMMAND --help` serves per-command help; `erg --help --all` assembles full manual; `make docs` generates static erg-manual.md. Tickets 0088–0093.
 - **`erg validate` vs `erg check`**: validate is per-file (format/headers/refs), check is corpus-level (duplicate IDs, cycles, folder closure).
-- **`erg next-id`** scans `tickets/closed/` and `tickets/archive/` recursively — ID collision bug fixed in #67.
+- **`erg next-id`** scans `tickets/closed/` and `tickets/archive/` recursively.
 - **`erg version`** reports path, hash, build date, OS/arch, and detects obsolete copies.
-- **`resolveAuthor()`**: fallback chain `$ERG_AUTHOR → git config user.name → $USER → "unknown"`; sanitized against newline injection.
-- **UX convention**: all usage strings use UPPER_CASE for required args, `[LOWER]` for optional.
-- **Testing policy**: Go unit tests own pure-function correctness; shell integration tests own CLI black-box behavior. See `tests/README.md`.
+- **Testing policy**: Go unit tests own pure-function correctness; shell integration tests own CLI black-box behavior.
 - **CI**: bootstrap binary (`tickets/erg`) is rebuilt automatically on every push to main that changes Go source (`src/go/`) — no manual step needed.
 
 Autonomous-run policy is maintained in `AGENTS.md`.
