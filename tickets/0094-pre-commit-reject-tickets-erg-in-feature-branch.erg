@@ -1,0 +1,38 @@
+%erg v1
+Title: Pre-commit hook: reject staged tickets/erg binary on feature branches
+Created: 2026-05-06
+Author: claude
+
+--- log ---
+2026-05-06T15:00Z claude created
+
+--- body ---
+## Context
+Execute agents routinely commit tickets/erg (the bootstrap binary) in feature
+branches. Every subsequent CI rebuild on main then creates a binary conflict
+on every rebase. The convention is: feature PRs touch only src/go/ and tests/;
+CI's rebuild-binary.yml updates tickets/erg after merge in a dedicated commit.
+
+A mechanical pre-commit hook enforces this more reliably than instructions.
+
+## Actions
+1. In the existing pre-commit hook (integration/hooks/pre-commit), add a check:
+   if tickets/erg is in the staged files AND the current branch is not main,
+   print an error and exit 1.
+2. Error message:
+   "pre-commit: do not commit tickets/erg in feature branches.
+    CI rebuilds the binary after merge. Use 'make build' and test
+    with build/erg. To override: git commit --no-verify"
+3. Update integration.md to document the new check.
+
+## Test
+Stage tickets/erg on a non-main branch → commit must be rejected.
+Stage tickets/erg on main → commit must succeed (CI rebuild commits).
+Stage only .erg ticket files → commit must succeed (unrelated).
+
+## Exit criteria
+- [ ] Pre-commit rejects `git add tickets/erg && git commit` on any non-main branch
+- [ ] Pre-commit allows it on main (for CI rebuild commits)
+- [ ] Error message names the correct remedy (make build, build/erg)
+- [ ] integration.md documents the check
+- [ ] make test passes
