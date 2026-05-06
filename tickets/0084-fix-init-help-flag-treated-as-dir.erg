@@ -6,6 +6,7 @@ Author: claude
 --- log ---
 2026-05-06T12:00Z claude created
 
+2026-05-06T12:21Z claude reimagined — 3-line guard in main() before switch; printUsage() to stderr (stdout note for 0085); covers all subcommands uniformly
 --- body ---
 ## Context
 `erg init --help` treats `--help` as a directory argument, calls

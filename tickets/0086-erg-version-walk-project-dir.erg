@@ -6,6 +6,7 @@ Author: claude
 --- log ---
 2026-05-06T12:00Z claude created
 
+2026-05-06T12:21Z claude reimagined — YAGNI walk; real gap is tickets/erg missing from hardcoded candidates in version.go; add one line, skip filepath.WalkDir
 --- body ---
 ## Context
 `erg version` currently spot-checks a few known paths for other erg binaries

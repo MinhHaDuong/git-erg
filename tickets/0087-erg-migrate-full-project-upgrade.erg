@@ -6,6 +6,7 @@ Author: claude
 --- log ---
 2026-05-06T12:00Z claude created
 
+2026-05-06T12:21Z claude reimagined — drop --dry-run (YAGNI, git-reversible); ~20 lines in migrate.go; reuse cmdInit() for asset refresh; bridge ticketsDir→root via filepath.Dir
 --- body ---
 ## Context
 `erg migrate` currently only converts legacy `Status:` headers to `Closed:`
