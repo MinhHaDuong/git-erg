@@ -1,0 +1,33 @@
+%erg v1
+Title: erg version: show full details for other discovered binaries
+Created: 2026-05-06
+Author: claude
+
+--- log ---
+2026-05-06T09:25Z claude created
+
+--- body ---
+## Context
+
+`erg version` discovers other erg binaries on disk but only shows a hash
+and an outdated label. The running binary's own block shows built, revision,
+and arch — the same fields should appear for each discovered binary so the
+user can compare at a glance without running each one manually.
+
+A secondary bug: `readVersionInfo` was silently timing out because calling
+`erg version` on a discovered binary would recursively trigger further
+discovery, causing a chain that exceeded the 2-second timeout.
+
+## Actions
+
+1. Extend `readVersionInfo` to also parse `arch:` from version output.
+2. Add `ERG_VERSION_NO_DISCOVER=1` env var; honour it at the top of the
+   discovery loop so recursive invocations skip scanning.
+3. Set that env var when spawning subprocesses in `readVersionInfo`.
+4. Reformat other-binary output: one path line + indented fields.
+5. Fix the test that assumed no `[outdated]` anywhere — scope it to the stub path.
+
+## Exit criteria
+
+- `erg version` shows `built`, `revision`, and `arch` for each discovered binary.
+- `make test` green.
