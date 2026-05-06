@@ -38,13 +38,16 @@ func cmdNew(args []string) int {
 	}
 
 	title := args[0]
-	ticketDir, err := findTicketsDir()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
+	var ticketDir string
 	if len(args) >= 2 {
 		ticketDir = args[1]
+	} else {
+		var err error
+		ticketDir, err = findTicketsDir()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
 	}
 
 	if err := os.MkdirAll(ticketDir, 0755); err != nil {

@@ -57,13 +57,16 @@ func strayGoSource(dir string) []string {
 
 // cmdCheck implements `erg check [dir]` — corpus-level validation.
 func cmdCheck(args []string) int {
-	dir, err := findTicketsDir()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
+	var dir string
 	if len(args) > 0 {
 		dir = args[0]
+	} else {
+		var err error
+		dir, err = findTicketsDir()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
 	}
 
 	info, err := os.Stat(dir)

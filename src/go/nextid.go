@@ -48,13 +48,16 @@ func nextID(dir string) string {
 
 // cmdNextID implements `erg next-id [dir]`.
 func cmdNextID(args []string) int {
-	ticketDir, err := findTicketsDir()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
+	var ticketDir string
 	if len(args) > 0 {
 		ticketDir = args[0]
+	} else {
+		var err error
+		ticketDir, err = findTicketsDir()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
 	}
 	fmt.Println(nextID(ticketDir))
 	return 0
