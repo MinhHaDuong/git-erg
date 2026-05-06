@@ -8,6 +8,7 @@ Author: claude
 
 2026-05-06T12:21Z claude reimagined — drop per-command prose (drift surface); route COMMAND --help to printUsage(); add --help to usage header; move output to stdout
 2026-05-06T12:23Z claude planned — printUsage() stderr→stdout (14 lines); add [--help] to header; test stdout capture; depends on 0084
+2026-05-06T12:24Z claude feasibility PASS/WARN — audit test_help.sh for 2>&1 stderr captures before merging
 --- body ---
 ## Context
 Ticket 0084 fixes the crash/dir-creation bug when --help is passed to a
