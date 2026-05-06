@@ -9,6 +9,7 @@ Author: claude
 2026-05-06T12:21Z claude reimagined — YAGNI walk; real gap is tickets/erg missing from hardcoded candidates in version.go; add one line, skip filepath.WalkDir
 2026-05-06T12:23Z claude planned — candidates list in selfupdate.go:113 (not version.go); add tickets/erg one-liner; test in test_main.sh or new test_version.sh
 2026-05-06T12:24Z claude feasibility WARN — tickets/erg confirmed missing from candidates; hint string must be 'cp build/erg tickets/erg'; running binary deduped out so no semantic confusion
+2026-05-06T12:27Z claude executed
 --- body ---
 ## Context
 `erg version` currently spot-checks a few known paths for other erg binaries
