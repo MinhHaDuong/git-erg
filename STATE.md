@@ -1,30 +1,29 @@
 # State — git-erg
 
-_Last updated: 2026-05-06 — Session: PRs #100–#102 merged (0089–0091). Spec-as-code wave: 3 tickets remain._
+_Last updated: 2026-05-06 — Session: PRs #103–#104 merged (0092, 0095); 0088 umbrella closed; manual enriched; panel review → tickets 0096–0103._
 
 ## Stats
 
-- Tickets: 94 total — 91 closed/archived, 3 open (0088, 0092, 0093)
-- Tests: green — ALL TESTS PASSED (validate, check, ready, update, close, migrate, nextid, log, new, init, main, archive, pipeline, help, version, hook, godoc, docs) + unit tests
+- Tickets: 103 total — 94 closed/archived, 9 open (0093, 0096–0103)
+- Tests: green — ALL TESTS PASSED
 - Open PRs: none
 
 ## Ready to work
 
-- 0088 spec-as-code umbrella (no blockers; closes when 0092 + 0093 done)
-- 0092 cull spec-erg-v1.md to file-format sections only (no blockers)
+- 0093 spec-as-code foundation: ergspecv1.go, struct cleanup, golden fixtures (no blockers)
+- 0096 Umbrella: align spec, PEP, and manual (no blockers; close when 0097–0103 done)
 
 ## Blocked
 
-- 0093 spec-as-code foundation: ergspecv1.go (blocked by 0088)
+- 0097–0103 all blocked by 0096 (open the umbrella to release them)
 
 ## Notes
 
-- **Spec-as-code plan** (tickets 0088–0093): spec-erg-v1.md shrinks to format-only (0092); command docs live in Go doc comments (done); `erg COMMAND --help` serves per-command help (done); `erg --help --all` assembles full manual (done); `make docs` generates docs/erg-manual.md (done); ergspecv1.go provides a Go struct representation (0093).
-- **Per-command help** (PR #101): `helpText` map in `src/go/help.go`; 12 commands; `commandOrder` slice drives `--help --all` iteration order.
-- **`erg --help --all`** (PR #102): prints all 12 sections. `make docs` target writes `docs/erg-manual.md`. `tests/test_docs.sh` and `tests/test_godoc.sh` added.
-- **Pre-commit hook** (PR #98): rejects `tickets/erg` commits on non-main branches. Feature PRs must use `make build` / `build/erg`. CI rebuilds bootstrap binary after merge to main.
-- **`erg validate` vs `erg check`**: validate is per-file (format/headers/refs/cycles); check is corpus-level (duplicate IDs, cross-file cycles, folder closure).
-- **Testing policy**: Go unit tests own pure-function correctness; shell integration tests own CLI black-box behavior. Test fixture IDs ≥9000 reserved for unclaimed-ticket tests (avoid branch-name collision).
-- **CI**: bootstrap binary (`tickets/erg`) rebuilt automatically on every push to main changing `src/go/`. No manual step needed.
+- **Spec-as-code wave complete** (tickets 0088–0092, 0095): spec-erg-v1.md is now format-only (147 lines); command docs live in `erg COMMAND --help`; `erg --help --all` generates `docs/erg-manual.md` with H1 title, author, build metadata, and intro paragraph.
+- **Align spec/PEP/manual wave** (tickets 0096–0103): opened after panel review of the manual. Covers one code bug (trailing period, 0097), manual contradictions and prose (0098–0101), spec sync (0102), and PEP sync (0103).
+- **0093 spec-as-code foundation**: new `src/go/ergspecv1.go` with all format constants, struct cleanup (drop HasLog/HasBody), tighter parseRef, and golden test fixtures. Substantial ticket — consider splitting if it runs long.
+- **erg validate vs erg check**: validate is per-file; check is corpus-level.
+- **CI**: bootstrap binary rebuilt automatically on every push to main changing `src/go/`.
+- **Testing policy**: Go unit tests own pure-function correctness; shell integration tests own CLI black-box behavior. Test fixture IDs ≥9000 reserved for unclaimed-ticket tests.
 
 Autonomous-run policy is maintained in `AGENTS.md`.
