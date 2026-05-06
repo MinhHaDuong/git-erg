@@ -2,12 +2,14 @@
 Title: Add erg --help --all and make docs target
 Created: 2026-05-06
 Author: claude
+Closed: PR #102 merged
 
 --- log ---
 2026-05-06T14:00Z claude created
 
 2026-05-06T15:35Z claude implemented — PR #102
 2026-05-06T16:27Z MinhHaDuong note blocker 0090 closed — Blocked-by removed
+2026-05-06T16:37Z MinhHaDuong closed — PR #102 merged
 --- body ---
 ## Context
 Once per-command help is served from doc comments (0090), assembling the full
