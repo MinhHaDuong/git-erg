@@ -12,28 +12,35 @@ fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 echo "=== erg help ==="
 
 # --- -h: exit 0 ---
-if out=$("$ERG" -h 2>&1); then
+if out=$("$ERG" -h); then
     pass "-h: exit 0"
 else
     fail "-h: expected exit 0"
 fi
 
 # --- --help: exit 0 ---
-if out=$("$ERG" --help 2>&1); then
+if out=$("$ERG" --help); then
     pass "--help: exit 0"
 else
     fail "--help: expected exit 0"
 fi
 
 # --- help: exit 0 ---
-if out=$("$ERG" help 2>&1); then
+if out=$("$ERG" help); then
     pass "help cmd: exit 0"
 else
     fail "help cmd: expected exit 0"
 fi
 
 # Capture help output once for remaining assertions
-help_out=$("$ERG" -h 2>&1)
+help_out=$("$ERG" -h)
+
+# --- --help appears in usage header ---
+if echo "$help_out" | grep -q '\[--help\]'; then
+    pass "help header contains [--help]"
+else
+    fail "help header missing [--help]"
+fi
 
 # --- each canonical command name appears in help output ---
 for cmd in validate check ready next-id new close log archive migrate init version update; do
