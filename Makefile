@@ -12,7 +12,7 @@
 #   make ready      List ready tickets
 #   make install-erg-binary              Install erg to ~/.local/bin
 
-TEST_SUITES := validate check ready update close migrate nextid log new init main archive pipeline help version
+TEST_SUITES := validate check ready update close migrate nextid log new init main archive pipeline help version hook
 TEST_TARGETS := $(TEST_SUITES:%=test-%)
 
 .PHONY: build test unit-test _test-lint $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary

@@ -2,10 +2,12 @@
 Title: Pre-commit hook: reject staged tickets/erg binary on feature branches
 Created: 2026-05-06
 Author: claude
+Closed: autoclosed — PR #98
 
 --- log ---
 2026-05-06T15:00Z claude created
 
+2026-05-06T14:14Z MinhHaDuong closed — autoclosed — PR #98
 --- body ---
 ## Context
 Execute agents routinely commit tickets/erg (the bootstrap binary) in feature
