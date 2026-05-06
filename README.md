@@ -12,26 +12,14 @@ Status: Working draft
 
 ## Specification
 
-Normative specification:  `tickets/spec-erg-v1.md`.
-Reference implementation: `tickets/tools/go/erg`.
-Design rationale: `pep-erg-v1.md`.
+- Normative specification:  `tickets/spec-erg-v1.md`.
+- Reference implementation: `tickets/tools/go/erg`.
+- Design rationale: `pep-erg-v1.md`.
 
 ## Install into a project
 
-The standalone shell installer has been removed.
-
 Project bootstrap is moving into the `erg` CLI itself (`erg init` /
 `erg uninstall`) so the binary is the only required artifact.
-
-## Binary policy
-
-`tickets/tools/go/erg` is a committed Linux x86-64 bootstrap binary for environments where Go may be unavailable (CI runners, agents). It will **not** run on macOS or ARM.
-
-Source is authoritative. CI builds always compile from source and do not rely on the committed binary: all tests and development builds must use `build/erg`, rebuilt from source via `make build`.
-
-The bootstrap binary is updated explicitly via `make update-bootstrap-binary`
-(typically after changes to the Go code or when releasing) and must never be
-modified by `make test`.
 
 ## Quick start
 
@@ -84,7 +72,19 @@ find tickets -type f -name '*.erg' -print0 \
   | xargs -0 awk '/^--- log ---/{nextfile} /^Blocked-by:[[:space:]]+[0-9]{4}$/{print FILENAME, $2}' \
   | sed -E 's|.*/([0-9]{4})[^ ]*|\1|' \
   | awk '{print $2, $1}' | tsort
+
 ```
+
+## Binary policy
+
+`tickets/tools/go/erg` is a committed Linux x86-64 bootstrap binary for environments where Go may be unavailable (CI runners, agents). I look forward to working with macOS, ARM or Windows early adopters.
+
+Source is authoritative. CI builds always compile from source and do not rely on the committed binary: all tests and development builds must use `build/erg`, rebuilt from source via `make build`.
+
+The bootstrap binary is updated explicitly via `make update-bootstrap-binary`
+(typically after changes to the Go code or when releasing) and must never be
+modified by `make test`.
+
 ## License
 
 MIT
