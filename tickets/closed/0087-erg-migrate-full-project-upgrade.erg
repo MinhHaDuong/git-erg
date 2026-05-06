@@ -2,6 +2,7 @@
 Title: erg migrate: upgrade full project install to current layout
 Created: 2026-05-06
 Author: claude
+Closed: autoclosed — PR #94
 
 --- log ---
 2026-05-06T12:00Z claude created
@@ -9,6 +10,7 @@ Author: claude
 2026-05-06T12:21Z claude reimagined — drop --dry-run (YAGNI, git-reversible); ~20 lines in migrate.go; reuse cmdInit() for asset refresh; bridge ticketsDir→root via filepath.Dir
 2026-05-06T12:23Z claude planned — insert after migrate.go:68; guard filepath.Base(dir)==tickets; both-archive-and-closed warns+skips; call cmdInit() directly (accept noisy footer)
 2026-05-06T12:24Z claude feasibility BLOCK resolved — insertion point is before final return 0 (not after line 68 which is dead-code); correct anchor: after summary printf block
+2026-05-06T14:03Z MinhHaDuong closed — autoclosed — PR #94
 --- body ---
 ## Context
 `erg migrate` currently only converts legacy `Status:` headers to `Closed:`

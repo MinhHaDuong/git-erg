@@ -174,5 +174,44 @@ else
     pass "validate rejects unmigrated Status:"
 fi
 
+# --- Layout migration: tools/, FORMAT.md removed; archive/ → closed/; init refreshed ---
+LDIR=$(mktemp -d)
+trap 'rm -rf "$LDIR"' EXIT
+mkdir -p "$LDIR/tickets/tools"
+touch "$LDIR/tickets/FORMAT.md"
+mkdir -p "$LDIR/archive"
+# Place erg binary so cmdInit can find it
+cp "$ERG" "$LDIR/tickets/erg"
+
+$ERG migrate "$LDIR/tickets" >/dev/null 2>&1
+
+if [ -d "$LDIR/tickets/tools" ]; then
+    fail "layout migration: tickets/tools/ removed"
+else
+    pass "layout migration: tickets/tools/ removed"
+fi
+if [ -f "$LDIR/tickets/FORMAT.md" ]; then
+    fail "layout migration: tickets/FORMAT.md removed"
+else
+    pass "layout migration: tickets/FORMAT.md removed"
+fi
+if [ -d "$LDIR/archive" ]; then
+    fail "layout migration: archive/ gone after rename"
+else
+    pass "layout migration: archive/ gone after rename"
+fi
+if [ -d "$LDIR/closed" ]; then
+    pass "layout migration: closed/ exists after rename"
+else
+    fail "layout migration: closed/ exists after rename"
+fi
+
+# --- Layout migration idempotency ---
+if $ERG migrate "$LDIR/tickets" >/dev/null 2>&1; then
+    pass "layout migration: idempotent (second run succeeds)"
+else
+    fail "layout migration: idempotent (second run must not error)"
+fi
+
 echo "migrate: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
