@@ -111,6 +111,7 @@ func cmdVersion(_ []string) int {
 	home, _ := os.UserHomeDir()
 	candidates := []candidate{
 		{"./build/erg", "make build"},
+		{"./tickets/erg", "cp build/erg tickets/erg"},
 	}
 	if home != "" {
 		candidates = append(candidates, candidate{
