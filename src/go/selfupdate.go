@@ -222,7 +222,7 @@ func cmdUpdate(_ []string) int {
 		url = updateURL
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "update: offline or unreachable — %v\n", err)
