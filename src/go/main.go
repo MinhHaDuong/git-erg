@@ -94,7 +94,7 @@ func main() {
 	for _, arg := range rest {
 		if arg == "--help" || arg == "-h" {
 			if text, ok := helpText[cmd]; ok {
-				fmt.Println(text)
+				fmt.Print(text)
 			} else {
 				printUsage()
 			}
