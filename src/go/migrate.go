@@ -7,16 +7,26 @@ import (
 	"strings"
 )
 
-// cmdMigrate implements `erg migrate [dir]`.
+// cmdMigrate implements `erg migrate [dir]` — convert legacy Status: headers to %erg v1 format.
 //
-// Idempotent. For every .erg file under dir (default: tickets/):
-//   - `Status: closed` (any case) → drop the line and append
+// Idempotent. For every .erg file under dir (default: tickets/) the migration
+// rules are:
+//
+//   - `Status: closed` (case-insensitive) → drop the line; append
 //     `Closed: migrated from Status: closed` to the preamble.
-//   - `Status: open|doing|pending` (any case) → drop the line; the
-//     ticket becomes not-closed (which is the correct new state).
+//   - `Status: open`, `Status: doing`, or `Status: pending` → drop the line;
+//     the ticket becomes not-closed (the correct new state — there is no open/doing/pending state in v1).
 //   - No `Status:` line → no-op.
 //
-// Does NOT commit. Always exits 0; running twice is safe.
+// After migration, erg validate will reject any remaining Status: lines.
+//
+// When dir is named "tickets" (the canonical layout), also performs a one-time
+// project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
+// renames archive/ to closed/ if archive/ exists and closed/ does not, then
+// refreshes init assets via cmdInit.
+//
+// Does NOT commit. Always exits 0. Review the diff with `git diff tickets/` and
+// commit manually.
 func cmdMigrate(args []string) int {
 	var dir string
 	if len(args) > 0 {

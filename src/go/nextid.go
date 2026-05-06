@@ -46,7 +46,17 @@ func nextID(dir string) string {
 	return fmt.Sprintf("%04d", maxID+1)
 }
 
-// cmdNextID implements `erg next-id [dir]`.
+// cmdNextID implements `erg next-id [dir]` — print the next available ticket ID.
+//
+// Scans DIR (default: auto-discovered tickets/) and all subdirectories for .erg
+// files, extracts the leading 4-digit numeric prefix from each filename, and
+// returns the maximum found plus one, zero-padded to 4 digits. Prints "0001" if
+// no numbered tickets exist or the directory does not exist.
+//
+// The scan is local to the working directory; other branches, worktrees, and remotes
+// are not consulted. ID allocation is optimistic: two concurrent invocations may
+// return the same ID. The pre-commit hook rejects duplicate IDs; the losing agent
+// renames its ticket with a new ID from a fresh invocation.
 func cmdNextID(args []string) int {
 	var ticketDir string
 	if len(args) > 0 {

@@ -12,6 +12,20 @@ var initAssetPaths = []string{
 	"tickets/integration.md",
 }
 
+// cmdInit implements `erg init [dir]` — unpack embedded bootstrap assets into the project.
+//
+// Writes (or refreshes) three files relative to dir (default: current directory):
+//
+//   - tickets/AGENTS.md — agent operating instructions for the ticket workflow.
+//   - tickets/spec-erg-v1.md — the %erg v1 format specification.
+//   - tickets/integration.md — setup guide for the pre-commit hook and CI integration.
+//
+// Requires tickets/erg (the binary) to already exist in the project; the command
+// refuses if it is absent. This requirement ensures that agents do not accidentally
+// initialize an empty directory that was never meant to be a ticket store.
+//
+// Each asset is compared byte-for-byte with the embedded version; unchanged files
+// are skipped and counted separately from newly created or refreshed files.
 func cmdInit(args []string) int {
 	root := "."
 	if len(args) > 0 {

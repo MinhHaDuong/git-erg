@@ -8,7 +8,25 @@ import (
 	"time"
 )
 
-// cmdClose implements `erg close ID|FILE REASON [DIR]`.
+// cmdClose implements `erg close ID|FILE REASON [DIR]` — atomically close a ticket.
+//
+// Closing a ticket is a three-step atomic operation:
+//
+//  1. Insert a `Closed: REASON` header at the end of the preamble (before --- log ---).
+//  2. Append a timestamped log line: `TIMESTAMP AUTHOR closed — REASON`.
+//  3. Scan every open ticket in DIR for `Blocked-by: ID` and remove those lines,
+//     appending a log entry to each modified ticket:
+//     `TIMESTAMP AUTHOR note blocker ID closed — Blocked-by removed`.
+//
+// Step 3 keeps the corpus clean so that erg ready and erg archive work immediately
+// after close, without stale blockers. The removal is logged in each dependent ticket
+// so the history of why it was blocked is preserved.
+//
+// The command is idempotent: if the ticket already has a Closed: header (or satisfies
+// the path-closed criterion), it prints "CLOSED (already)" and exits 0.
+//
+// ID may be a 4-digit ticket ID (resolved via glob in DIR) or a direct file path.
+// REASON must be non-empty (a PR ref, supersession note, or explanation).
 func cmdClose(args []string) int {
 	if len(args) < 2 {
 		fmt.Fprintln(os.Stderr, "Usage: erg close ID|FILE REASON [DIR]")

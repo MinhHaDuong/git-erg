@@ -55,7 +55,22 @@ func strayGoSource(dir string) []string {
 	return nil
 }
 
-// cmdCheck implements `erg check [dir]` — corpus-level validation.
+// cmdCheck implements `erg check [dir]` — corpus-level integrity checks across the full ticket store.
+//
+// Unlike erg validate (which checks individual files), check loads all .erg files
+// under dir recursively and verifies invariants that require a global view:
+//
+//   - No duplicate ticket IDs across the corpus.
+//   - All Blocked-by local refs point to tickets that exist in the corpus.
+//   - No dependency cycles among Blocked-by edges.
+//   - All per-ticket format rules (delegates to validateAll).
+//
+// Additionally emits warnings (non-fatal) for:
+//
+//   - Folder/header mismatch: open ticket in closed/ or closed ticket not in closed/.
+//   - Stray Go source files (*.go, go.mod, go.sum) inside the ticket store directory.
+//
+// Exit codes: 0 on pass (warnings are printed but do not affect exit code), 1 on any violation.
 func cmdCheck(args []string) int {
 	var dir string
 	if len(args) > 0 {
