@@ -79,5 +79,36 @@ for sub in init check ready next-id archive migrate; do
     rm -rf "$tmp"
 done
 
+# --- per-command --help: content checks ---
+
+# erg close --help must include the phrase "Inserts a Closed: REASON header"
+if $ERG close --help 2>/dev/null | grep -q "Inserts a Closed: REASON header"; then
+    pass "close --help: contains 'Inserts a Closed: REASON header'"
+else
+    fail "close --help: missing 'Inserts a Closed: REASON header'"
+fi
+
+# erg validate --help must print per-command text (unique string not in global usage)
+if $ERG validate --help 2>/dev/null | grep -q "Magic first line"; then
+    pass "validate --help: contains per-command text 'Magic first line'"
+else
+    fail "validate --help: missing per-command text 'Magic first line'"
+fi
+
+# erg unknowncmd --help falls back to global usage (contains [--help])
+if $ERG unknowncmd --help 2>/dev/null | grep -q '\[--help\]'; then
+    pass "unknowncmd --help: falls back to global usage"
+else
+    fail "unknowncmd --help: expected fallback to global usage"
+fi
+
+# per-command --help output goes to stdout (not stderr): stderr must be empty
+stderr_out=$($ERG close --help 2>&1 1>/dev/null)
+if [ -z "$stderr_out" ]; then
+    pass "close --help: no output on stderr (help goes to stdout only)"
+else
+    fail "close --help: unexpected stderr output: $stderr_out"
+fi
+
 echo "help: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
