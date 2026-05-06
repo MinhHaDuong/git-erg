@@ -93,10 +93,9 @@ func main() {
 
 	// erg --help --all  OR  erg --help=all  → print all command help
 	if cmd == "--help=all" || (cmd == "--help" || cmd == "-h") && len(rest) > 0 && rest[0] == "--all" {
-		fmt.Print("# erg manual\n")
 		for _, c := range commandOrder {
 			if text, ok := helpText[c]; ok {
-				fmt.Print("\n" + text)
+				fmt.Print(text)
 			}
 		}
 		os.Exit(0)
