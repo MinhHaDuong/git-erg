@@ -91,6 +91,16 @@ func main() {
 	cmd := os.Args[1]
 	rest := os.Args[2:]
 
+	// erg --help --all  OR  erg --help=all  → print all command help
+	if cmd == "--help=all" || (cmd == "--help" || cmd == "-h") && len(rest) > 0 && rest[0] == "--all" {
+		for _, c := range commandOrder {
+			if text, ok := helpText[c]; ok {
+				fmt.Print(text)
+			}
+		}
+		os.Exit(0)
+	}
+
 	for _, arg := range rest {
 		if arg == "--help" || arg == "-h" {
 			if text, ok := helpText[cmd]; ok {
