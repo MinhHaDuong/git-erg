@@ -2,10 +2,12 @@
 Title: erg init: simplify to unpack-only, drop integration/ directory
 Created: 2026-05-06
 Author: MinhHaDuong
+Closed: autoclosed — PR #92
 
 --- log ---
 2026-05-06T09:55Z MinhHaDuong created
 
+2026-05-06T11:15Z MinhHaDuong closed — autoclosed — PR #92
 --- body ---
 ## Context
 
