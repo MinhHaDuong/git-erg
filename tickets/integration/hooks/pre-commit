@@ -14,6 +14,11 @@ if [ -n "$erg_files" ]; then
             echo "ERROR: Ticket validation failed. Fix errors above." >&2
             exit 1
         fi
+        # Corpus-level checks: duplicate IDs, broken Blocked-by refs, dependency cycles
+        if ! $erg_bin check tickets/; then
+            echo "ERROR: Ticket corpus check failed. Fix errors above." >&2
+            exit 1
+        fi
     else
         echo "ERROR: erg binary not found. Run 'make build' first." >&2
         exit 1
