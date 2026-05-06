@@ -18,6 +18,14 @@ else
     fail "--help --all: expected 12 section headers, got $count"
 fi
 
+# --help=all: alternate form also prints 12 section headers
+count=$("${ERG_BIN:-build/erg}" --help=all 2>/dev/null | grep -c "^# " || true)
+if [ "$count" -eq 12 ]; then
+    pass "--help=all: 12 section headers found"
+else
+    fail "--help=all: expected 12 section headers, got $count"
+fi
+
 # --help --all: output goes to stdout (stderr should be empty)
 stderr_out=$("${ERG_BIN:-build/erg}" --help --all 2>&1 >/dev/null || true)
 if [ -z "$stderr_out" ]; then
