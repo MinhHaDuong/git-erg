@@ -1,5 +1,13 @@
 # erg manual
 
+Author: minh.ha-duong@cnrs.fr
+Generated from: erg built 2026-05-06T20:29:43Z rev cd6aa4a
+
+`git-erg` is an agent-friendly local ticket system for development in disconnected
+environments. Tickets are plain-text files committed alongside source code.
+This manual describes all `erg` commands. For the ticket file format
+specification, see `tickets/spec-erg-v1.md`.
+
 ## erg validate FILE...
 
 Validate individual .erg ticket files (format, headers, refs).
@@ -103,7 +111,7 @@ Closing a ticket is a three-step atomic operation:
   2. Appends a timestamped log line: `TIMESTAMP AUTHOR closed — REASON`.
   3. Scans every open ticket in DIR for Blocked-by: ID and removes those lines,
      appending a log entry to each modified ticket:
-     TIMESTAMP AUTHOR note blocker ID closed — Blocked-by removed.
+     `TIMESTAMP AUTHOR note blocker ID closed — Blocked-by removed.`
 
 ID may be a 4-digit ticket ID or a full filename (e.g. 0042-some-title.erg).
 REASON must be non-empty. The operation is idempotent: closing an already-closed

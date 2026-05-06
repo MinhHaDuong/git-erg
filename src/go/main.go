@@ -93,7 +93,20 @@ func main() {
 
 	// erg --help --all  OR  erg --help=all  → print all command help
 	if cmd == "--help=all" || (cmd == "--help" || cmd == "-h") && len(rest) > 0 && rest[0] == "--all" {
-		fmt.Print("# erg manual\n")
+		fmt.Print("# erg manual\n\n")
+		fmt.Print("Author: minh.ha-duong@cnrs.fr\n")
+		genFrom := "Generated from: erg"
+		if buildDate != "" {
+			genFrom += " built " + buildDate
+		}
+		if vcsRevision != "" {
+			genFrom += " rev " + vcsRevision
+		}
+		fmt.Print(genFrom + "\n\n")
+		fmt.Print("`git-erg` is an agent-friendly local ticket system for development in disconnected\n")
+		fmt.Print("environments. Tickets are plain-text files committed alongside source code.\n")
+		fmt.Print("This manual describes all `erg` commands. For the ticket file format\n")
+		fmt.Print("specification, see `tickets/spec-erg-v1.md`.\n")
 		for _, c := range commandOrder {
 			if text, ok := helpText[c]; ok {
 				fmt.Print("\n" + text)
