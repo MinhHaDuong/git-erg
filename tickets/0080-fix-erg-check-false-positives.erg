@@ -2,11 +2,13 @@
 Title: Restructure: move source to src/go/, binary to tickets/erg, smart dir discovery
 Created: 2026-05-06
 Author: claude
+Closed: done
 
 --- log ---
 2026-05-06T00:00Z claude created — false positive in erg check: strayGoSource self-exception broken
 2026-05-06T00:00Z claude reimagined — structural fix: move source to src/go/, binary to tickets/erg, smart dir discovery
 
+2026-05-06T09:11Z MinhHaDuong closed — done
 --- body ---
 ## Problem
 
