@@ -1,16 +1,16 @@
 # State — git-erg
 
-_Last updated: 2026-05-06 — Housekeeping: beat-skip cleaned (6 expired), ticket 0080 opened (erg check false positives); all green._
+_Last updated: 2026-05-06 — Raid: ticket 0082 merged (PR #92), erg init simplified to unpack-only. All 82 tickets closed._
 
 ## Stats
 
-- Tickets: 80 total — 71 closed (tickets/closed/), 8 archived (tickets/archive/), 1 open
-- Tests: green — ALL TESTS PASSED (validate:26, check:22, ready:21, update:12, close:21, migrate:11, next-id:9, log:10, new:12, init/uninstall:19, main:5, archive:17, pipeline:6, help:21) + unit tests (coverage: 22.2%)
+- Tickets: 82 total — 73 closed (tickets/closed/), 9 archived (tickets/archive/), 0 open
+- Tests: green — ALL TESTS PASSED (validate:26, check:24, ready:21, update:11, close:21, migrate:11, next-id:9, log:10, new:12, init:11, main:5, archive:17, pipeline:6, help:20) + unit tests (coverage: 25.2%)
 - Open PRs: none
 
 ## Ready to work
 
-- **0080** Fix erg check false positives — archive/ dir and module name mismatch
+None — all tickets closed.
 
 ## Blocked
 
@@ -18,6 +18,7 @@ None.
 
 ## Notes
 
+- **`erg init` simplified (PR #92)**: now unpacks exactly 3 files (README.md, spec-erg-v1.md, integration.md) and exits. Requires `tickets/erg` binary to be present first. No more hook installation, AGENTS.md automation, .gitignore editing, or manifest tracking. `erg uninstall` removed — replaced by `rm tickets/README.md tickets/spec-erg-v1.md tickets/integration.md`.
 - **`erg ready` perf**: branch-claim check lazy-loads once on first unblocked ticket (0 spawns when all blocked). O(1) regardless of ticket count.
 - **Pre-commit hook**: now validates staged `.erg` files individually — fixed directory-path regression introduced when `erg validate` stopped accepting directory args (PR #87).
 - **`init` manifest fix**: re-running `erg init` no longer clobbers ownership flags — uninstall correctly removes only entries that init added.
