@@ -259,11 +259,11 @@ func cmdUpdate(_ []string) int {
 	// and commits separately. erg update never mutates ticket files.
 	ticketDir := os.Getenv("ERG_TICKET_DIR")
 	if ticketDir == "" {
-		if d, findErr := findTicketsDir(); findErr == nil {
-			ticketDir = d
-		} else {
-			ticketDir = "."
+		d, findErr := findTicketsDir()
+		if findErr != nil {
+			return 0
 		}
+		ticketDir = d
 	}
 	if info, err := os.Stat(ticketDir); err == nil && info.IsDir() && hasStatusHeader(ticketDir) {
 		fmt.Printf("erg: detected Status: headers in %s — run:\n", ticketDir)

@@ -228,6 +228,31 @@ else
     fail "stray Go source warning exits 0"
 fi
 
+# --- Stray Go source at tickets root (top-level scan) warns ---
+mkdir -p "$FIXTURES/stray-toplevel"
+cat > "$FIXTURES/stray-toplevel/0001-x.erg" <<'EOF'
+%erg v1
+Title: x
+Created: 2026-01-01
+Author: x
+
+--- log ---
+
+--- body ---
+EOF
+touch "$FIXTURES/stray-toplevel/main.go"
+rc=0; out=$($ERG check "$FIXTURES/stray-toplevel" 2>&1) || rc=$?
+if echo "$out" | grep -qF "WARN: Go source files found in"; then
+    pass "stray Go source at tickets root warns"
+else
+    fail "stray Go source at tickets root warns (got: $out)"
+fi
+if [ $rc -eq 0 ]; then
+    pass "stray Go source at root warning exits 0"
+else
+    fail "stray Go source at root warning exits 0"
+fi
+
 # --- go.mod in tools/go/ warns regardless of module name (no exception) ---
 mkdir -p "$FIXTURES/gomod/tools/go"
 cat > "$FIXTURES/gomod/0001-x.erg" <<'EOF'
