@@ -36,4 +36,4 @@ Rules agents must know:
 - `Tags:` is optional and repeatable; accepted values are `needs-human`, `deferred`, `post-talk`, `post-conference`
 - Log entries are append-only: `YYYY-MM-DDTHH:MMZ author verb detail`
 
-In doubt, read the specification `spec-erg-v1.md`
+In doubt, read the specification `spec-erg-v1.md` (file format) or run `erg --help --all` / `erg COMMAND --help` for command documentation.

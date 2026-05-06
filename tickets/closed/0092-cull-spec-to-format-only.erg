@@ -2,11 +2,14 @@
 Title: Cull spec-erg-v1.md to file format sections only
 Created: 2026-05-06
 Author: claude
+Closed: culled spec-erg-v1.md to format-only, ≤150 lines; bootstrap_assets.go updated
 
 --- log ---
 2026-05-06T14:00Z claude created
 
 2026-05-06T15:12Z MinhHaDuong note blocker 0089 closed — Blocked-by removed
+2026-05-06T16:00Z claude closed — culled spec to format-only, ≤150 lines
+2026-05-06T19:10Z MinhHaDuong closed — culled spec-erg-v1.md to format-only, ≤150 lines; bootstrap_assets.go updated
 --- body ---
 ## Context
 spec-erg-v1.md currently covers both the file format and the binary commands.
