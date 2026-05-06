@@ -2,10 +2,12 @@
 Title: Enrich Go doc comments with spec command sections
 Created: 2026-05-06
 Author: claude
+Closed: autoclosed — PR #100
 
 --- log ---
 2026-05-06T14:00Z claude created
 
+2026-05-06T15:12Z MinhHaDuong closed — autoclosed — PR #100
 --- body ---
 ## Context
 The command sections of spec-erg-v1.md (validate rules, check semantics, ready

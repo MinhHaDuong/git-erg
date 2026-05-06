@@ -58,8 +58,23 @@ func selfHash(path string) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-// cmdVersion implements `erg version`: print self-diagnostic info and
-// discover other erg binaries, marking outdated ones.
+// cmdVersion implements `erg version` — print self-diagnostic info and discover other erg binaries.
+//
+// Prints the following fields for the running binary:
+//
+//   - path: resolved absolute path (symlinks followed).
+//   - hash: first 12 hex characters of the SHA-256 of the binary file.
+//   - built: build date injected at compile time via -ldflags (or "[unknown]").
+//   - revision: VCS commit hash injected at compile time via -ldflags (if present).
+//   - arch: GOOS/GOARCH of the running binary.
+//
+// After printing the running binary info, the command discovers other erg binaries
+// in well-known locations (./build/erg, ./tickets/erg, ~/.local/bin/erg, and PATH
+// entries). For each discovered binary it compares VCS revisions and build dates
+// to identify outdated copies, printing the update command needed.
+//
+// Set ERG_VERSION_NO_DISCOVER=1 to suppress discovery (used internally by version
+// comparison to avoid recursion).
 func cmdVersion(_ []string) int {
 	self, err := os.Executable()
 	if err != nil {
@@ -202,9 +217,20 @@ func cmdVersion(_ []string) int {
 	return 0
 }
 
-// cmdUpdate implements `erg update`: fetch the upstream binary and replace
-// this executable atomically when the hashes differ. Network errors exit 0
-// so callers can chain `erg update && erg validate` without flaking offline.
+// cmdUpdate implements `erg update` — fetch the upstream binary and replace this executable atomically.
+//
+// Downloads the binary from ERG_UPDATE_URL (default: the main branch of the
+// upstream GitHub repo). If the downloaded hash matches the running binary,
+// prints "already up to date" and exits 0. Otherwise replaces the binary via
+// an atomic rename (write to .tmp, then rename over self).
+//
+// Network and HTTP errors exit 0 so that `erg update && erg validate` chains
+// do not fail in offline or isolated environments.
+//
+// After a successful update, checks whether any .erg files in the ticket store
+// still carry legacy Status: headers. If found, prints explicit migration
+// guidance: `erg migrate DIR`, `git diff tickets/`, `git commit`. The update
+// command never mutates ticket files itself — migration is a separate, reviewable step.
 func cmdUpdate(_ []string) int {
 	self, err := os.Executable()
 	if err != nil {

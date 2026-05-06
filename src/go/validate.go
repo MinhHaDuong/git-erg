@@ -9,26 +9,42 @@ import (
 )
 
 var (
+	// requiredHeaders lists the three mandatory preamble headers for every %erg v1 ticket.
+	// A missing header is a validation error (rules 2).
 	requiredHeaders = []string{"Title", "Created", "Author"}
-	// Non-repeatable headers: appearing more than once is a validation error.
+
+	// singletonHeaders names headers that must appear at most once in the preamble.
+	// Repeating any of these is a validation error (rule 4).
 	singletonHeaders = map[string]bool{
 		"Title": true, "Created": true, "Author": true, "Closed": true,
 	}
+
+	// validHeaders is the closed set of header keys for %erg v1.
+	// No X- extensions are allowed; unknown keys are rejected (rule 3).
 	validHeaders = map[string]bool{
 		"Title": true, "Created": true, "Author": true,
 		"Closed": true, "Blocked-by": true, "Tags": true,
 	}
-	// validTagValues is the closed value set for the Tags: header (v1.x).
+
+	// validTagValues is the closed value set for the Tags: header (%erg v1).
+	// Allowed values: needs-human, deferred, post-talk, post-conference.
+	// Tags with needs-human or deferred suppress a ticket from erg ready output.
 	validTagValues = map[string]bool{
-		"needs-human":      true,
-		"deferred":         true,
-		"post-talk":        true,
-		"post-conference":  true,
+		"needs-human":     true,
+		"deferred":        true,
+		"post-talk":       true,
+		"post-conference": true,
 	}
+
+	// isoDateRE matches a valid Created: date value (YYYY-MM-DD, rule 7).
 	isoDateRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
-	// Filename: 4-digit ID, dash, lowercase kebab slug
+
+	// filenameRE matches a valid .erg filename: 4-digit ID, dash, lowercase kebab slug (rule 8).
+	// Pattern: NNNN-word(-word)*.erg
 	filenameRE = regexp.MustCompile(`^\d{4}-[a-z0-9]+(-[a-z0-9]+)*\.erg$`)
-	// Log line: ISO timestamp, space, actor, space, verb [detail]
+
+	// logLineRE matches a valid log section line: ISO timestamp, actor, verb, optional detail (rule 11).
+	// Pattern: YYYY-MM-DDThh:mmZ ACTOR VERB [detail...]
 	logLineRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z\s+\S+\s+\S+`)
 )
 
@@ -284,7 +300,25 @@ func globLocalIDs(dir string) map[string]bool {
 	return ids
 }
 
-// cmdValidate implements `erg validate FILE...` — per-file format checks.
+// cmdValidate implements `erg validate FILE...` — per-file format and reference checks.
+//
+// Each FILE must be a .erg ticket. For every file the validator enforces:
+//
+//  1. Magic first line is `%erg v1` (rejects unknown versions).
+//  2. All required headers present: Title, Created, Author.
+//  3. No unknown headers (Status: is unknown; run `erg migrate` to convert it).
+//  4. Non-repeatable headers (Title, Created, Author, Closed) appear at most once.
+//  5. Tags: values are from the closed set (needs-human, deferred, post-talk, post-conference).
+//  6. Closed: header has a non-empty value and does not appear in the log or body sections.
+//  7. Created is a valid ISO date (YYYY-MM-DD).
+//  8. Filename matches NNNN-slug.erg (4-digit ID, lowercase ASCII kebab slug).
+//  9. Blocked-by values parse as local-ref (NNNN) or forge-ref (host/owner/repo#N).
+//  10. Local Blocked-by refs point to existing ticket IDs in the same directory.
+//  11. Log lines match `YYYY-MM-DDThh:mmZ actor verb [detail]` format.
+//  12. Each separator (--- log ---, --- body ---) appears exactly once.
+//  13. No dependency cycles among local Blocked-by refs.
+//
+// Exit codes: 0 on pass, 1 on any violation. Directories are rejected — use erg check.
 func cmdValidate(args []string) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "Usage: erg validate FILE...")
