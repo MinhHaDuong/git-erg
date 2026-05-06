@@ -91,6 +91,13 @@ func main() {
 	cmd := os.Args[1]
 	rest := os.Args[2:]
 
+	for _, arg := range rest {
+		if arg == "--help" || arg == "-h" {
+			printUsage()
+			os.Exit(0)
+		}
+	}
+
 	var exitCode int
 	switch cmd {
 	case "validate":
