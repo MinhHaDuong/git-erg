@@ -1,0 +1,38 @@
+%erg v1
+Title: Manual — prose cleanup (title case, version passive voice, idempotency)
+Created: 2026-05-06
+Author: claude
+Blocked-by: 0096
+
+--- log ---
+2026-05-06T20:45Z claude created
+
+--- body ---
+## Context
+
+Three prose issues flagged by the style reviewer:
+
+1. **Title capitalisation.** `# erg manual` uses all-lowercase; standard for a
+   generated Markdown doc but inconsistent with section heading style. Consider
+   `# erg Manual` or leave as-is with a deliberate choice documented.
+
+2. **`erg version` passive voice tangle.** "After printing the running binary info,
+   the command discovers … For each discovered binary it compares … printing the
+   update command needed." Subject switches mid-paragraph. Rewrite for clarity.
+
+3. **Idempotency used differently in two commands.** `erg close` says idempotent
+   (same close call is a no-op); `erg migrate` says idempotent (safe to run
+   repeatedly). These mean the same thing but the reader cannot tell without
+   checking. Add a brief parenthetical to disambiguate at point of use.
+
+## Actions
+1. In `main.go`: decide on title capitalisation and apply.
+2. In `help.go` `version` entry: rewrite the discovery paragraph in active voice.
+3. In `help.go` `close` and `migrate` entries: clarify idempotency semantics.
+4. Run `make test && make docs`.
+
+## Exit criteria
+- [ ] Title capitalisation is consistent and intentional
+- [ ] `erg version` paragraph reads clearly
+- [ ] Both idempotency claims are unambiguous
+- [ ] `make test` passes

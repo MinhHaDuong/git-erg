@@ -1,0 +1,26 @@
+%erg v1
+Title: Fix trailing period in erg close Blocked-by removed log line
+Created: 2026-05-06
+Author: claude
+Blocked-by: 0096
+
+--- log ---
+2026-05-06T20:45Z claude created
+
+--- body ---
+## Context
+
+`close.go:149` generates: `… note blocker ID closed — Blocked-by removed`
+The manual documents it as: `… note blocker ID closed — Blocked-by removed.` (with period).
+One is wrong. The code has no period; the manual does. Fix the code to match the manual
+(period is cleaner) and verify the validate test passes.
+
+## Actions
+1. In `src/go/close.go` around line 149, add the trailing period to the format string.
+2. In `src/go/help.go` close entry step 3, ensure the documented format matches.
+3. Run `make test`.
+
+## Exit criteria
+- [ ] close.go log line ends with `— Blocked-by removed.`
+- [ ] Manual and code match
+- [ ] `make test` passes

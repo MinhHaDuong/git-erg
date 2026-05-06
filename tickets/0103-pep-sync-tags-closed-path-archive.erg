@@ -1,0 +1,36 @@
+%erg v1
+Title: PEP — sync additions (Tags header, closed-path criterion, archive→closed decision)
+Created: 2026-05-06
+Author: claude
+Blocked-by: 0096
+
+--- log ---
+2026-05-06T20:45Z claude created
+
+--- body ---
+## Context
+
+pep-erg-v1.md predates three design decisions that are now implemented but
+never written up as rationale:
+
+1. **Tags header.** The PEP defines exactly 5 headers; Tags was added later.
+   The PEP should document the design decision: why Tags, why this closed set
+   of values, why repeatable.
+
+2. **Closed-path criterion.** The PEP describes the Closed: header mechanism but
+   omits the path-based closed test (directory named `closed/`, filename containing
+   `-closed`, etc.). Add the rationale: why two mechanisms, when each is appropriate.
+
+3. **`archive/` → `closed/` promotion.** The PEP mentions both `archive/` and `closed/`
+   as valid layouts. The decision to canonicalise `closed/` and migrate `archive/`
+   automatically was made later. Document this as a deliberate simplification.
+
+## Actions
+1. Add a "Tags" section to pep-erg-v1.md with rationale.
+2. Extend the closed-status section to cover path-based detection and its rationale.
+3. Add a note on the archive→closed canonicalisation decision.
+
+## Exit criteria
+- [ ] PEP documents Tags header with rationale
+- [ ] PEP documents closed-path criterion alongside header criterion
+- [ ] PEP explains archive→closed canonicalisation

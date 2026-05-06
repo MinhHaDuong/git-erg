@@ -1,0 +1,32 @@
+%erg v1
+Title: Fix log-line enforcement contradiction in manual
+Created: 2026-05-06
+Author: claude
+Blocked-by: 0096
+
+--- log ---
+2026-05-06T20:45Z claude created
+
+--- body ---
+## Context
+
+The manual contradicts itself on log-line enforcement:
+- `erg validate` rule 11: "Log lines match 'YYYY-MM-DDThh:mmZ actor verb [detail]' format."
+  (implies enforcement)
+- `erg log` section: "should follow the log-line convention … but this is not enforced"
+  (implies no enforcement)
+
+The truth: `erg validate` enforces the timestamp+actor+verb structure; the detail token
+is optional. The `erg log` disclaimer is misleading — it means the *verb choice* and
+*detail content* are free text, not that the full format is unenforced.
+
+## Actions
+1. In `src/go/help.go` `log` entry: replace "but this is not enforced — only format is
+   validated on read by erg validate" with a cleaner statement such as:
+   "The timestamp and at least actor + verb are required by `erg validate`; detail is optional."
+2. Verify the resulting `erg log --help` output is accurate.
+3. Run `make test && make docs`.
+
+## Exit criteria
+- [ ] `erg log --help` no longer contradicts `erg validate --help` on enforcement
+- [ ] `make test` passes

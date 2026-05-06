@@ -1,0 +1,42 @@
+%erg v1
+Title: Spec — sync missing rules (slug truncation, Tags repeatability, folder/header semantics)
+Created: 2026-05-06
+Author: claude
+Blocked-by: 0096
+
+--- log ---
+2026-05-06T20:45Z claude created
+
+--- body ---
+## Context
+
+Three rules that exist in the manual or code but are absent or unclear in spec-erg-v1.md:
+
+1. **Slug 40-char truncation.** `erg new` truncates the slug to 40 characters. The spec
+   defines the slug pattern (`[a-z0-9-]`) but says nothing about length. Add a max-length
+   note to the ID assignment section.
+
+2. **Tags repeatability.** The spec headers table already marks Tags as repeatable
+   (column "Repeatable: yes") but the validate section does not call this out. A reader
+   scanning the validate rules would miss it. Add a note.
+
+3. **Folder/header mismatch semantics.** The spec's closed criterion is disjunctive
+   (path OR header). The manual's `erg check` warns on mismatch, implying they should
+   agree. Clarify in the spec that the mismatch warning is advisory, not a format error —
+   the closed criterion remains disjunctive.
+
+## Actions
+1. In `tickets/spec-erg-v1.md` ID assignment section: add "Slug is truncated to 40
+   characters by `erg new`."
+2. In the Headers table or a following note: confirm Tags is repeatable.
+3. In the Closed/not-closed criterion section: add a note that folder/header mismatch
+   is a corpus hygiene warning (from `erg check`), not a format violation.
+4. Update `bootstrap_assets.go` base64 for spec-erg-v1.md.
+5. Run `make test`.
+
+## Exit criteria
+- [ ] Slug truncation documented in spec
+- [ ] Tags repeatability explicit in spec
+- [ ] Folder/header mismatch semantics clarified as advisory
+- [ ] `bootstrap_assets.go` updated
+- [ ] `make test` passes

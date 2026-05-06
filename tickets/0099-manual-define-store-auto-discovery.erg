@@ -1,0 +1,32 @@
+%erg v1
+Title: Manual — define store auto-discovery mechanism
+Created: 2026-05-06
+Author: claude
+Blocked-by: 0096
+
+--- log ---
+2026-05-06T20:45Z claude created
+
+--- body ---
+## Context
+
+Eight command sections in the manual reference "auto-discovered tickets/" as the
+default DIR, but never explain what auto-discovery means. An agent reading only the
+manual cannot determine which directory `erg` will use when no DIR is given.
+
+The actual logic (from the code): erg tries (1) directory containing the binary,
+(2) `tickets/` under CWD, (3) CWD itself. A directory qualifies if it is named
+`tickets`, contains `.erg-bootstrap-manifest.json`, or contains at least one `.erg` file.
+
+## Actions
+1. Add a short paragraph to the intro section of `--help --all` output (in `main.go`)
+   explaining store auto-discovery, or add a dedicated `## Store discovery` section.
+2. Alternatively, add a note to the first command that uses a DIR default (`erg check`)
+   and cross-reference it from other commands.
+3. Run `make test && make docs`.
+
+## Exit criteria
+- [ ] Manual explains what "auto-discovered tickets/" means
+- [ ] The four-step resolution order is documented
+- [ ] What qualifies as a valid store is stated
+- [ ] `make test` passes

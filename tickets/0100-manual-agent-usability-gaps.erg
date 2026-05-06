@@ -1,0 +1,38 @@
+%erg v1
+Title: Manual — agent usability gaps (Blocked-by format, archive scope, close edge cases)
+Created: 2026-05-06
+Author: claude
+Blocked-by: 0096
+
+--- log ---
+2026-05-06T20:45Z claude created
+
+--- body ---
+## Context
+
+Three gaps that would cause an agent to make mistakes when using only the manual:
+
+1. **Blocked-by format not defined.** The manual references "local-ref (NNNN)" and
+   "forge-ref (host/owner/repo#N)" but never gives the grammar. An agent must know
+   to read spec-erg-v1.md. At minimum, a one-line syntax summary should appear in
+   the `erg validate` or `erg close` section.
+
+2. **`erg archive` top-level scope ambiguous.** "Scans the top-level of DIR" could
+   mean DIR root only, or recursively. Clarify: only direct children of DIR are
+   considered (not tickets already in subdirectories like closed/).
+
+3. **`erg close` step 3 edge cases absent.** Missing: behaviour when the same ID
+   appears in multiple Blocked-by lines of one ticket; what happens to already-closed
+   tickets that reference the closed ID; atomicity on partial failure.
+
+## Actions
+1. In `erg validate` helpText, add a one-line Blocked-by grammar summary.
+2. In `erg archive` helpText, replace "top-level" with explicit wording.
+3. In `erg close` helpText step 3, add one sentence on multi-ref and idempotency.
+4. Run `make test && make docs`.
+
+## Exit criteria
+- [ ] Blocked-by grammar inline or referenced in manual
+- [ ] `erg archive` scope unambiguous
+- [ ] `erg close` step 3 edge cases addressed
+- [ ] `make test` passes
