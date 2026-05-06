@@ -4,18 +4,15 @@ Author: Minh Ha-Duong <minh.ha-duong@cnrs.fr>
 Last modified: 2026-05-04
 Status: Working draft
 
-## Overview
+## Introduction
 
-An agent-friendly local ticket system for development in disconnected environment.
-Not a replacement for GitHub Issues — those handle inter-agent and human coordination.
+`git-erg` is an agent-friendly local ticket system for development in disconnected environment.
 Tickets are committed to git and travel with the repo.
+It intends to complement and work along with forges like GitLab or GitHub, which solve inter-agent and human coordination.
 
-## Scope
+This file is normative and comprises two parts. It defines the format for valid `%erg v1` files and the `erg` binary utility to manage the tickets store. Rationale and design decisions are documented in `pep-erg-v1.md`.
 
-This file is normative. It defines the %erg v1 format and validator rules.
-The Go `erg` validator is the reference implementation and enforces these rules at commit time.
-Any divergence between this document and the validator must be resolved by aligning the specification with the enforced behavior.
-Rationale and design decisions are documented in `pep-erg-v1.md`.
+Any divergence between this document and the `erg` binary reference implementation  must be resolved by aligning the specification with the behavior. The utility is optional: the ticket store is designed as a collection of text files so that the Unix toolkit works starting with `ls tickets` and `ls tickets/closed`.
 
 ## File format
 
@@ -109,6 +106,13 @@ are always **unknown** — erg never makes network calls. Unknown is
 blocking by default; remove the line once you have verified the
 upstream dependency is resolved.
 
+The system is disconnected by design, `erg` never queries external forges.
+
+There is no pending or doing header by design.
+If two agents need to avoid stepping on each other, they should observe out-of-band
+signals — typically a git branch whose name contains the ticket ID — and
+coordinate there.
+
 ### Closed / not-closed criterion
 
 A ticket is **closed** if at least one of these holds:
@@ -201,26 +205,62 @@ Definition of done.
 Not enforced by the validator. Agents are encouraged to follow the convention
 but the body is structurally unconstrained.
 
-## Coordination is out of scope
+## Tickets management tool
 
-%erg v1 describes what a ticket is, not how concurrent agents or worktrees
-share access to one. There is no claim file, no lock, no doing-but-mine state.
-If two agents need to avoid stepping on each other, they observe out-of-band
-signals — typically a git branch whose name contains the ticket ID — and
-coordinate there. Such conventions are workflow choices, not properties of
-this format.
+### The tickets store
 
-## Ready query
+Tickets are stored in a `tickets/` directory at project root.
+Closed tickets may go to `tickets/closed/`.
+
+A Linux/AMD64 `erg` binary lives in the `tickets/` repo and is tracked along with tickets.
+Virtual machines can use it in isolated environment without recompiling or installation.
+
+The `erg` binary finds the ticket store to operate on as follows:
+1. Explicit [DIR] argument. When a command accepts an optional directory argument, that value is used as-is — discovery is skipped entirely.
+2. Directory containing the binary. `erg` resolves its own path at runtime and tries the directory it lives in. When installed as `tickets/erg`, this is `tickets/` — the common case.
+3. `tickets/` under the working directory. If the binary's own directory is not a store (e.g. `~/.local/bin/`), `erg` tries a subdirectory named `tickets/` in the current directory.
+4. Current working directory. As a last resort, `erg` tries the working directory itself, to support bare stores where tickets live at the repo root. However, see condition below.
+
+A directory qualifies as a ticket store if it is named `tickets`, contains a `.erg-bootstrap-manifest.json` file, or contains at least one `.erg` file. If none of the three candidates qualifies, `erg` exits with an error listing the paths it tried.
+
+
+### File format validation
+
+`erg validate FILES...` enforces:
+1. Magic first line is `%erg v1` (reject unknown versions).
+2. All required headers present (`Title`, `Created`, `Author`).
+3. No unknown headers. `Status:` is unknown — `erg migrate` is the one
+   command that tolerates it (in order to convert it).
+4. `Created` is a valid ISO date (`YYYY-MM-DD`).
+5. Filename matches `NNNN-{slug}.erg` pattern (4-digit ID, ASCII slug).
+6. No duplicate IDs within `tickets/`.
+7. `Blocked-by` values parse as `local-ref` or `forge-ref` (see
+   grammar above). Malformed refs are rejected with a precise message
+   identifying the failure mode.
+8. `Blocked-by` local refs point to existing ticket IDs.
+9. No dependency cycles. Forge refs are terminal from this repo's
+   view and cannot participate in local cycles.
+10. Log lines match `{timestamp} {actor} {verb}` format.
+11. Each separator (`--- log ---`, `--- body ---`) appears exactly once.
+12. `Closed:` header appears at most once and has a non-empty value.
+13. `Closed:` does not appear in the log or body sections (header-key
+    match at line start).
+
+A pre-commit hook to ensure `.erg` files validity is provided under `integration/hooks/`.
+
+### Graph Integrity verification
+
+`erg check [DIR]` verifies there are no duplicate IDs, no cycles, and Blocked-by references
+
+### Ready query
+
+`erg ready [DIR]` returns unblocked open tickets:
 
 A ticket is **ready** when:
 - It is **not-closed** (per the criterion above).
-- Every `Blocked-by` local ref points to a **closed** ticket.
-- Every `Blocked-by` forge ref (`host/owner/repo#N`) is treated as
-  **unknown** — erg never makes network calls. Unknown is blocking
-  by default (fail-closed). Remove the forge ref from the ticket
-  once you have verified the dependency is resolved.
+- It does not have any `Blocked-by:` headers.
 
-`erg ready --json [dir]` returns open tickets with structured
+`erg ready [DIR] --json` returns open tickets with structured
 readiness fields:
 
 ```json
@@ -241,15 +281,17 @@ readiness fields:
 - `blocked_by` includes only currently blocking refs.
 - `tags` is always present (possibly empty).
 
-## Closing a ticket
+A ticket will not be returned ready if it has any `Blocked-by` line, even if that reference is in fact closed. User and agents can run `erg check` to detect and delete refs pointing to closed ticket. Note that `erg validate` only verifies reference parseability but does not check the state. And `erg` never resolves forge references by design, so these kind of blockers have to be cleared by editing the text file (delete the `Blocker-by:` line to online ticket, log the change).
 
-`erg close <id|file> <reason> [dir]` closes a ticket atomically:
+### Closing a ticket
 
-1. Inserts a `Closed: <reason>` header in the preamble.
-2. Appends a log line: `{timestamp} claude closed — <reason>`.
-3. Scans every open ticket in `[dir]` for `Blocked-by: <id>` and
+`erg close ID REASON [DIR]` closes a ticket atomically:
+
+1. Inserts a `Closed: REASON` header in the preamble.
+2. Appends a log line: `{timestamp} claude closed — REASON`.
+3. Scans every open ticket in `[DIR]` for `Blocked-by: ID` and
    removes that line, appending a log entry to each modified ticket:
-   `{timestamp} claude note blocker <id> closed — Blocked-by removed`.
+   `{timestamp} claude note blocker ID closed — Blocked-by removed`.
 
 Step 3 keeps the ticket set clean and enables immediate archiving of
 the closed ticket (no open ticket will reference it after the command
@@ -259,40 +301,20 @@ the history of why it was blocked is not lost.
 `erg close` is idempotent: running it twice on the same ticket prints
 `ALREADY_CLOSED` and exits 0.
 
-## Archiving
+For projects tracked with a forge, it is suggested that agents define
+a merge skill to bundle close-then-merge, so that the ticket is closed
+in the last commit that precedes the merge.
 
-Move a closed ticket to `tickets/archive/` (or any subdirectory of
-`tickets/`) once no open ticket references it. `erg validate [dir]`
-recurses into subdirectories and validates every `.erg` file it finds.
-Archived tickets remain inside validation scope when validating the
-top-level `tickets/` directory.
+### Archiving
 
-Do not archive a ticket that is still named in a `Blocked-by:` header
-of an open ticket — the validator would then report a missing reference.
+`erg archive [ID...] [DIR]` moves closed tickets to `tickets/closed/`.
 
-## Validator rules (pre-commit)
+The utility ensures that
+- Only closed tickets are archived.
+- No open tickets reference an archived ticket as a blocker (could happen if the archived ticket was closed by editing the file).
 
-The Go validator enforces:
-1. Magic first line is `%erg v1` (reject unknown versions).
-2. All required headers present (`Title`, `Created`, `Author`).
-3. No unknown headers. `Status:` is unknown — `erg migrate` is the one
-   command that tolerates it (in order to convert it).
-4. `Created` is a valid ISO date (`YYYY-MM-DD`).
-5. Filename matches `NNNN-{slug}.erg` pattern (4-digit ID, ASCII slug).
-6. No duplicate IDs within `tickets/`.
-7. `Blocked-by` values parse as `local-ref` or `forge-ref` (see
-   grammar above). Malformed refs are rejected with a precise message
-   identifying the failure mode.
-8. `Blocked-by` local refs point to existing ticket IDs.
-9. No dependency cycles. Forge refs are terminal from this repo's
-   view and cannot participate in local cycles.
-10. Log lines match `{timestamp} {actor} {verb}` format.
-11. Each separator (`--- log ---`, `--- body ---`) appears exactly once.
-12. `Closed:` header appears at most once and has a non-empty value.
-13. `Closed:` does not appear in the log or body sections (header-key
-    match at line start).
 
-## Migration from %erg v1 with Status
+### Migration from %erg v1 with Status
 
 Existing tickets carrying `Status:` headers are converted by
 `erg migrate [dir]`:
@@ -311,18 +333,6 @@ Existing tickets carrying `Status:` headers are converted by
 lines after a successful binary swap, it prints an explicit migration
 hint (`erg migrate ...`) so migration remains a separate, reviewable
 step.
-
-## Relationship to GitHub Issues
-
-| Concern | Tool |
-|---------|------|
-| Local work organization | `.erg` files |
-| Multi-agent coordination | GitHub Issues |
-| Public visibility, review | GitHub Issues + PRs |
-
-A ticket may reference an issue on any forge
-(`Blocked-by: github.com/org/repo#435`) but never queries it.
-The two systems are independent.
 
 ## Postel's Law
 

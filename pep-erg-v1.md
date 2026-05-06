@@ -121,6 +121,10 @@ filename is the canonical identifier.
 
 ### 6. Coordination is out of scope
 
+We explicitly declares coordination out of scope so future
+readers do not reinvent a mechanism from silence. Coordination is where
+previous attempts to track issues in git foundered and why code forges are used.
+
 On top of doing/pending status, the original proposal included a `.git/ticket-wip/` claim protocol for cross-worktree coordination. This was removed for three reasons:
 
 1. **Not a reliable lock.** Absence of a `.wip` file does not prove
@@ -131,8 +135,12 @@ On top of doing/pending status, the original proposal included a `.git/ticket-wi
 3. **Workflow, not spec.** Branch-naming conventions are choices between
    agents/humans, not properties of the `%erg v1` format.
 
-The spec now explicitly declares coordination out of scope so future
-readers do not reinvent the `.wip` mechanism from silence.
+%erg v1 describes what a ticket is, not how concurrent agents or worktrees
+share access to one. There is no claim file, no lock, no doing-but-mine state.
+If two agents need to avoid stepping on each other, they observe out-of-band
+signals — typically a git branch whose name contains the ticket ID — and
+coordinate there. Such conventions are workflow choices.
+
 
 ### 7. Forge Issues are a separate coordination layer
 
@@ -169,14 +177,24 @@ primary interface. Problem: asking an LLM to burn tokens for something that a lo
 
 ### 9. Directory location: `tickets/` at repo root
 
-**Choice:** Tickets live in `tickets/` at the repository root. Tools live
-in `tickets/tools/`. Agent-specific wiring (rules, skills) lives in
+**Choice:** Tickets live in `tickets/` at the repository root. Closed tickets may go to
+in `tickets/closed/`. Agent-specific wiring (rules, skills) lives in
 `tickets/integration`.
 
 **Constraints**.
 - Blockers should live in the same directory as blocked tickets.
 
 **Rationale (interoperability, discoverability, ergonomics):**
+
+The conceptual path for scaling a ticket store is:
+1. All tickets at root.
+2. Keep only active tickets in `tickets/` directory, move closed tickets to `tickets/closed/`.
+3. Organization of `tickets/closed/` with subdirectories.
+4. Active tickets in `tickets/open/`.
+5. Organization of `tickets/open/` with subdirectories.
+
+The current implementation is only tested with 1. and 2.
+The other levels raise efficiency and file referencing issues -- the idea is to add an optional prefix in tickets ID with resolution along URL and filesystem standards.
 
 - **Discoverability:** An agent dropped into a new repo runs `ls`. It sees
   `tickets/`. Done. The directory name is the documentation. Hidden
@@ -203,6 +221,7 @@ is separate from portable artifacts (`tickets/`). This mirrors how
 instructions about git). A non-Claude agent ignores `.claude/` and reads
 `tickets/README.md` for the spec pointer.
 
+
 ### 10. Go binary as a single implementation
 
 **Choice:** Single Go binary (`erg`) implements validate, ready, close,
@@ -217,6 +236,14 @@ and archive. No alternatives provided.
 - sh, awk: POSIX compliant, still slow.
 - Rust: No real difference with Go. Lost on verbosity.
 - Provide alternative reference implementation: more complexity, zero real benefit.
+
+**Future plans:**
+Supporting other architectures is a design goal for final v1. It involves
+- Cross compilation (never tried ?)
+- Distribution mechanism (`tickets/integration/[ARCH]/erg` ?)
+- Design coexistence of arch-specific local and traveling version
+- Installation documentation and automation
+
 
 ### 11. Postel's Law: tolerant on read, strict on write
 
