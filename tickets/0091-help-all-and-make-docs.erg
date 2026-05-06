@@ -1,0 +1,34 @@
+%erg v1
+Title: Add erg --help --all and make docs target
+Created: 2026-05-06
+Author: claude
+Blocked-by: 0090
+
+--- log ---
+2026-05-06T14:00Z claude created
+
+--- body ---
+## Context
+Once per-command help is served from doc comments (0090), assembling the full
+manual is trivial: concatenate all command helps in declaration order. This
+gives `erg --help --all` as a pipeable manual and a `make docs` target that
+generates the static erg-manual.md for publishing.
+
+## Actions
+1. In main.go, handle `--help --all` (or `--help=all`) before the subcommand
+   guard: iterate commands in declaration order, print each help text with a
+   separator.
+2. Add `make docs` target in Makefile:
+   `tickets/erg --help --all > docs/erg-manual.md`
+3. Add `docs/` to .gitignore or commit erg-manual.md — decide which.
+   Recommendation: commit it so it's browsable on the forge without building.
+
+## Test
+`erg --help --all | grep -c "^# "` must equal the number of commands.
+`make docs` must produce a non-empty docs/erg-manual.md.
+
+## Exit criteria
+- [ ] `erg --help --all` prints all command help sections to stdout
+- [ ] Output is pipeable: `erg --help --all | less` works
+- [ ] `make docs` generates docs/erg-manual.md
+- [ ] `make test` passes

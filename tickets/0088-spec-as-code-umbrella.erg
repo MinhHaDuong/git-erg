@@ -1,0 +1,29 @@
+%erg v1
+Title: Umbrella: generate erg manual from Go doc comments
+Created: 2026-05-06
+Author: claude
+
+--- log ---
+2026-05-06T14:00Z claude created
+
+--- body ---
+## Context
+The current spec-erg-v1.md conflates two concerns: the file format (stable,
+binary-independent) and the command reference (changes with the code). The
+command sections are already partially written as Go doc comments in the source
+— they should be the single source of truth, serving as per-command --help,
+as a full --help --all manual, and as a generated static artifact.
+
+## Child tickets
+- 0089: Enrich Go doc comments with spec command sections
+- 0090: Serve per-command --help text from doc comments
+- 0091: Add erg --help --all and make docs target
+- 0092: Cull spec-erg-v1.md to file-format sections only
+
+## Exit criteria
+- [ ] All four child tickets closed
+- [ ] `erg COMMAND --help` prints rich per-command documentation
+- [ ] `erg --help --all` prints the full manual
+- [ ] `make docs` generates erg-manual.md from the binary
+- [ ] spec-erg-v1.md covers file format only (≤150 lines)
+- [ ] No content duplication between spec and binary help

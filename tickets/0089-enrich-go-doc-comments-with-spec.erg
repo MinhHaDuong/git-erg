@@ -1,0 +1,41 @@
+%erg v1
+Title: Enrich Go doc comments with spec command sections
+Created: 2026-05-06
+Author: claude
+
+--- log ---
+2026-05-06T14:00Z claude created
+
+--- body ---
+## Context
+The command sections of spec-erg-v1.md (validate rules, check semantics, ready
+query, close atomicity, archive preconditions, migrate table) are implementation
+documentation that belongs in Go doc comments. Each cmdXxx function currently
+has a minimal one-line comment or none at all. Moving the spec prose into doc
+comments makes the source self-documenting, enables go doc, and is the
+foundation for per-command --help (0090) and --help --all (0091).
+
+Go 1.19+ supports `// # Section` headers and lists in doc comments, rendering
+clean markdown output via go doc.
+
+## Actions
+1. For each command function (cmdValidate, cmdCheck, cmdReady, cmdClose,
+   cmdArchive, cmdMigrate, cmdInit, cmdNew, cmdLog, cmdNextID, cmdVersion,
+   cmdUpdate), write a full doc comment containing:
+   - One-line summary (existing usage signature)
+   - Full description taken from the corresponding spec section
+   - Use `// # Header` and `//  - list` for structure (Go 1.19 doc syntax)
+2. For format constants (RequiredHeaders, AllowedTags, log line grammar), add
+   doc comments with the spec table content — these don't exist yet as named
+   constants; extract them from validate.go literals first.
+3. Verify `go doc ./src/go/` renders all sections cleanly.
+
+## Test
+`go doc ./src/go/ cmdClose` must include the three-step close semantics.
+`go doc ./src/go/ cmdValidate` must list all 13 validation rules.
+
+## Exit criteria
+- [ ] Every cmdXxx has a full doc comment drawn from the spec
+- [ ] Format constants extracted and documented
+- [ ] `go doc ./src/go/` output is readable as a reference manual
+- [ ] `make test` still passes

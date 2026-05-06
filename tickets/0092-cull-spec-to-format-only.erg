@@ -1,0 +1,38 @@
+%erg v1
+Title: Cull spec-erg-v1.md to file format sections only
+Created: 2026-05-06
+Author: claude
+Blocked-by: 0089
+
+--- log ---
+2026-05-06T14:00Z claude created
+
+--- body ---
+## Context
+spec-erg-v1.md currently covers both the file format and the binary commands.
+Once 0089 moves command documentation into Go doc comments, the "Tickets
+management tool" half of the spec is duplicated. This ticket removes that half,
+leaving spec-erg-v1.md as a pure file-format reference: magic line, headers,
+sections, grammar, closed criterion, ID convention, Postel's Law.
+
+The culled sections (store discovery, validate rules, check, ready, close,
+archive, migrate, update) are fully covered by `erg COMMAND --help` after 0090.
+
+## Actions
+1. Delete from spec-erg-v1.md: "## Tickets management tool" and all subsections.
+2. Keep: Introduction (shortened), File format, Headers, Blocked-by grammar,
+   Closed criterion, ID assignment, Log section, Body convention, Postel's Law.
+3. Update the introduction to note that command documentation is available via
+   `erg COMMAND --help` and `erg --help --all`.
+4. Update the embedded base64 in bootstrap_assets.go and rebuild the binary.
+5. Update AGENTS.md references if needed.
+
+## Test
+`wc -l tickets/spec-erg-v1.md` must be ≤ 150 lines after culling.
+The remaining content must be sufficient to write a valid .erg file by hand.
+
+## Exit criteria
+- [ ] spec-erg-v1.md ≤ 150 lines, format-only
+- [ ] No command descriptions remain in spec (validate rules, close steps, etc.)
+- [ ] bootstrap_assets.go updated with new base64
+- [ ] `make test` passes

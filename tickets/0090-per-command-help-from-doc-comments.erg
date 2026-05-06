@@ -1,0 +1,38 @@
+%erg v1
+Title: Serve per-command --help text from Go doc comments
+Created: 2026-05-06
+Author: claude
+Blocked-by: 0085
+Blocked-by: 0089
+
+--- log ---
+2026-05-06T14:00Z claude created
+
+--- body ---
+## Context
+Ticket 0085 routes `erg COMMAND --help` to the global printUsage() list —
+a minimal fix. This ticket goes further: serve the full doc comment for the
+specific command, so `erg close --help` prints the three-step close semantics,
+not just `close ID REASON [DIR]   Close a ticket atomically`.
+
+The doc comments written in 0089 are the source. This ticket wires them to
+the --help dispatch.
+
+## Actions
+1. Add a `helpText map[string]string` in main.go, keyed by command name,
+   containing each cmdXxx doc comment as a string constant (or extracted
+   via go:embed from a generated file).
+2. In the --help guard loop (added by 0084), if the command is known, print
+   the per-command help and exit 0; if unknown, fall back to printUsage().
+3. Global `erg --help` (no subcommand) keeps printing printUsage() summary.
+
+## Test
+`erg close --help` must include "Inserts a Closed: REASON header".
+`erg --help` must still print the short command list.
+Output must go to stdout.
+
+## Exit criteria
+- [ ] `erg COMMAND --help` prints the full doc comment for that command
+- [ ] Unknown command `--help` falls back to global usage
+- [ ] `erg --help` prints the short list (unchanged)
+- [ ] `make test` passes
