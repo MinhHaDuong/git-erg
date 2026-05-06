@@ -1,0 +1,57 @@
+%erg v1
+Title: Fix erg --help --all formatting: heading levels, blank lines, literal backticks
+Created: 2026-05-06
+Author: claude
+
+--- log ---
+2026-05-06T00:00Z claude created
+
+--- body ---
+## Context
+
+`erg --help --all` concatenates helpText entries that each open with `# erg COMMAND`
+(H1 headings). In a combined manual document this is wrong: H1 is reserved for the
+document title; command sections should be H2. Additionally sections run together
+with no blank line separator, and a few literal strings (`--- log ---`,
+`--- body ---`, format patterns) appear without backtick formatting.
+
+## Actions
+
+1. In `help.go`: change every `# erg COMMAND` opening line to `## erg COMMAND`
+   (12 entries). This keeps standalone `erg COMMAND --help` output correct as H2
+   sections within a document; the assembly step adds the H1 title.
+
+2. In `main.go` (`--help --all` loop): prepend a `# erg manual\n\n` title and
+   insert a `\n` separator between sections. Do NOT add the blank line inside
+   `helpText` strings — that would add a spurious leading blank when a single
+   command's help is printed standalone.
+
+3. In `help.go`: add backtick formatting to bare literal strings:
+   - `validate` entry: `--- log ---`, `--- body ---` in the numbered list
+   - `close` entry: bare `--- log ---` and log-line format string
+   - `log` entry: bare `--- body ---` and `YYYY-MM-DDThh:mmZ LINE` format
+
+4. Update `tests/test_docs.sh` and `tests/test_help.sh`: change
+   `grep -c "^# "` → `grep -c "^## "` (two occurrences in test_docs.sh at
+   lines 15 and 22; one in test_help.sh at line 114).
+
+5. Regenerate `docs/erg-manual.md` via `make docs`.
+
+6. Run `make test` to confirm all suites pass.
+
+## Test
+
+```sh
+build/erg --help --all | head -1    # must be "# erg manual"
+build/erg --help --all | grep -c "^## erg "   # must equal 12
+build/erg --help --all | grep -c "^## erg "   # sequential sections separated by blank line
+build/erg validate --help | head -1  # must be "## erg validate FILE..."
+```
+
+## Exit criteria
+- [ ] `build/erg --help --all` first line is `# erg manual`
+- [ ] `build/erg --help --all | grep -c "^## erg "` equals 12
+- [ ] Each section in `--help --all` is preceded by a blank line
+- [ ] `build/erg validate --help | head -1` starts with `## `
+- [ ] `--- log ---` and `--- body ---` literals in affected entries use backticks
+- [ ] `make test` passes
