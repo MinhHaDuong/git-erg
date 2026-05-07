@@ -884,8 +884,9 @@ else
     fail "Tags: bogus value rejected (rc=$rc, got: $out)"
 fi
 
-# --- Blocked-by: unknown local ID rejected ---
-cat > "$FIXTURES/0124-blocked-unknown.erg" <<'EOF'
+# --- Blocked-by: unknown local ID rejected (isolated dir — no 9999 fixture) ---
+mkdir -p "$FIXTURES/blocked-unknown"
+cat > "$FIXTURES/blocked-unknown/0124-blocked-unknown.erg" <<'EOF'
 %erg v1
 Title: Blocked by unknown
 Created: 2026-01-01
@@ -895,7 +896,7 @@ Blocked-by: 9999
 --- log ---
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0124-blocked-unknown.erg" 2>&1) && rc=0 || rc=$?
+out=$($ERG validate "$FIXTURES/blocked-unknown/0124-blocked-unknown.erg" 2>&1) && rc=0 || rc=$?
 if [ "$rc" -ne 0 ] && echo "$out" | grep -q "references unknown ticket ID"; then
     pass "Blocked-by unknown local ID rejected"
 else
