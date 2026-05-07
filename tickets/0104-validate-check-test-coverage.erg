@@ -1,0 +1,27 @@
+%erg v1
+Title: Add fixtures for under-tested validate/check rules
+Created: 2026-05-07
+Author: claude
+
+--- log ---
+2026-05-07T00:00Z claude created
+2026-05-07T16:12Z claude closed — 28 fixtures added, test_validate 26→54 cases, test_check 24→26 (PR #105)
+
+--- body ---
+## Context
+
+Audit of test_validate.sh and test_check.sh against validate.go's 13 rules
+surfaced several code branches with zero negative tests.
+
+## Actions
+
+Add fixtures covering: missing/wrong magic line, missing required headers,
+singleton-header repetition, Closed: empty value and misplaced in log/body,
+filename pattern violations, separator missing/duplicate, malformed log lines,
+unknown headers, Tags negative case, Blocked-by to unknown ID, kitchen-sink
+positive ticket, and self-reference/length-3 dependency cycles in check.
+
+## Exit criteria
+- [x] test_validate.sh: 26 → 54 cases
+- [x] test_check.sh: 24 → 26 cases
+- [x] `make test` passes
