@@ -420,5 +420,517 @@ else
     fail "validate: 2 errors uses plural (got: $out)"
 fi
 
+# === Rule-coverage gaps (audit additions) ===
+
+# --- Magic line: missing rejected ---
+cat > "$FIXTURES/0100-no-magic.erg" <<'EOF'
+Title: No magic line
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0100-no-magic.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "missing magic first line"; then
+    pass "missing magic line rejected"
+else
+    fail "missing magic line rejected (rc=$rc, got: $out)"
+fi
+
+# --- Magic line: wrong version rejected ---
+cat > "$FIXTURES/0101-wrong-version.erg" <<'EOF'
+%erg v2
+Title: Wrong version
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0101-wrong-version.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "missing magic first line"; then
+    pass "%erg v2 magic rejected"
+else
+    fail "%erg v2 magic rejected (rc=$rc, got: $out)"
+fi
+
+# --- Required header: missing Title rejected ---
+cat > "$FIXTURES/0102-no-title.erg" <<'EOF'
+%erg v1
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0102-no-title.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "missing required header 'Title'"; then
+    pass "missing Title rejected"
+else
+    fail "missing Title rejected (rc=$rc, got: $out)"
+fi
+
+# --- Required header: missing Created rejected ---
+cat > "$FIXTURES/0103-no-created.erg" <<'EOF'
+%erg v1
+Title: No created
+Author: a
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0103-no-created.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "missing required header 'Created'"; then
+    pass "missing Created rejected"
+else
+    fail "missing Created rejected (rc=$rc, got: $out)"
+fi
+
+# --- Required header: missing Author rejected ---
+cat > "$FIXTURES/0104-no-author.erg" <<'EOF'
+%erg v1
+Title: No author
+Created: 2026-01-01
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0104-no-author.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "missing required header 'Author'"; then
+    pass "missing Author rejected"
+else
+    fail "missing Author rejected (rc=$rc, got: $out)"
+fi
+
+# --- Singleton: Title repeated rejected ---
+cat > "$FIXTURES/0105-title-twice.erg" <<'EOF'
+%erg v1
+Title: First
+Title: Second
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0105-title-twice.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "'Title' is non-repeatable"; then
+    pass "duplicate Title rejected"
+else
+    fail "duplicate Title rejected (rc=$rc, got: $out)"
+fi
+
+# --- Singleton: Created repeated rejected ---
+cat > "$FIXTURES/0106-created-twice.erg" <<'EOF'
+%erg v1
+Title: Two creates
+Created: 2026-01-01
+Created: 2026-01-02
+Author: a
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0106-created-twice.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "'Created' is non-repeatable"; then
+    pass "duplicate Created rejected"
+else
+    fail "duplicate Created rejected (rc=$rc, got: $out)"
+fi
+
+# --- Singleton: Author repeated rejected ---
+cat > "$FIXTURES/0107-author-twice.erg" <<'EOF'
+%erg v1
+Title: Two authors
+Created: 2026-01-01
+Author: a
+Author: b
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0107-author-twice.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "'Author' is non-repeatable"; then
+    pass "duplicate Author rejected"
+else
+    fail "duplicate Author rejected (rc=$rc, got: $out)"
+fi
+
+# --- Closed: empty value rejected ---
+cat > "$FIXTURES/0108-closed-empty.erg" <<'EOF'
+%erg v1
+Title: Empty closed
+Created: 2026-01-01
+Author: a
+Closed:
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0108-closed-empty.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "non-empty value"; then
+    pass "Closed: with empty value rejected"
+else
+    fail "Closed: with empty value rejected (rc=$rc, got: $out)"
+fi
+
+# --- Closed: line in log section rejected ---
+cat > "$FIXTURES/0109-closed-in-log.erg" <<'EOF'
+%erg v1
+Title: Closed in log
+Created: 2026-01-01
+Author: a
+
+--- log ---
+2026-01-01T10:00Z a created
+Closed: stray reason
+
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0109-closed-in-log.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "found in log section"; then
+    pass "Closed: in log section rejected"
+else
+    fail "Closed: in log section rejected (rc=$rc, got: $out)"
+fi
+
+# --- Closed: line in body section rejected ---
+cat > "$FIXTURES/0110-closed-in-body.erg" <<'EOF'
+%erg v1
+Title: Closed in body
+Created: 2026-01-01
+Author: a
+
+--- log ---
+
+--- body ---
+Closed: stray reason
+EOF
+out=$($ERG validate "$FIXTURES/0110-closed-in-body.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "found in body section"; then
+    pass "Closed: in body section rejected"
+else
+    fail "Closed: in body section rejected (rc=$rc, got: $out)"
+fi
+
+# --- Closed: substring in body prose accepted (line-start match required) ---
+cat > "$FIXTURES/0111-closed-in-prose.erg" <<'EOF'
+%erg v1
+Title: Closed in prose
+Created: 2026-01-01
+Author: a
+
+--- log ---
+
+--- body ---
+This issue was Closed: by user X earlier.
+  Closed: indented does not count.
+EOF
+if $ERG validate "$FIXTURES/0111-closed-in-prose.erg" >/dev/null 2>&1; then
+    pass "Closed: in body prose (not at column 0) accepted"
+else
+    fail "Closed: in body prose (not at column 0) accepted"
+fi
+
+# --- Filename: 3-digit ID rejected ---
+cat > "$FIXTURES/001-three-digit.erg" <<'EOF'
+%erg v1
+Title: Three digit ID
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/001-three-digit.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "filename does not match"; then
+    pass "3-digit filename ID rejected"
+else
+    fail "3-digit filename ID rejected (rc=$rc, got: $out)"
+fi
+
+# --- Filename: 5-digit ID rejected ---
+cat > "$FIXTURES/12345-five-digit.erg" <<'EOF'
+%erg v1
+Title: Five digit ID
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/12345-five-digit.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "filename does not match"; then
+    pass "5-digit filename ID rejected"
+else
+    fail "5-digit filename ID rejected (rc=$rc, got: $out)"
+fi
+
+# --- Filename: uppercase slug rejected ---
+cat > "$FIXTURES/0112-Foo.erg" <<'EOF'
+%erg v1
+Title: Uppercase slug
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0112-Foo.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "filename does not match"; then
+    pass "uppercase slug rejected"
+else
+    fail "uppercase slug rejected (rc=$rc, got: $out)"
+fi
+
+# --- Filename: underscore in slug rejected ---
+cat > "$FIXTURES/0113-foo_bar.erg" <<'EOF'
+%erg v1
+Title: Underscore slug
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0113-foo_bar.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "filename does not match"; then
+    pass "underscore slug rejected"
+else
+    fail "underscore slug rejected (rc=$rc, got: $out)"
+fi
+
+# --- Separator: missing --- log --- rejected ---
+cat > "$FIXTURES/0114-no-log-sep.erg" <<'EOF'
+%erg v1
+Title: No log separator
+Created: 2026-01-01
+Author: a
+
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0114-no-log-sep.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "missing '--- log ---'"; then
+    pass "missing log separator rejected"
+else
+    fail "missing log separator rejected (rc=$rc, got: $out)"
+fi
+
+# --- Separator: missing --- body --- rejected ---
+cat > "$FIXTURES/0115-no-body-sep.erg" <<'EOF'
+%erg v1
+Title: No body separator
+Created: 2026-01-01
+Author: a
+
+--- log ---
+2026-01-01T10:00Z a created
+EOF
+out=$($ERG validate "$FIXTURES/0115-no-body-sep.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "missing '--- body ---'"; then
+    pass "missing body separator rejected"
+else
+    fail "missing body separator rejected (rc=$rc, got: $out)"
+fi
+
+# --- Separator: duplicate --- log --- rejected ---
+cat > "$FIXTURES/0116-dup-log-sep.erg" <<'EOF'
+%erg v1
+Title: Duplicate log separator
+Created: 2026-01-01
+Author: a
+
+--- log ---
+2026-01-01T10:00Z a created
+--- log ---
+
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0116-dup-log-sep.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "'--- log ---' separator appears 2 times"; then
+    pass "duplicate log separator rejected"
+else
+    fail "duplicate log separator rejected (rc=$rc, got: $out)"
+fi
+
+# --- Separator: duplicate --- body --- rejected ---
+cat > "$FIXTURES/0117-dup-body-sep.erg" <<'EOF'
+%erg v1
+Title: Duplicate body separator
+Created: 2026-01-01
+Author: a
+
+--- log ---
+
+--- body ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0117-dup-body-sep.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "'--- body ---' separator appears 2 times"; then
+    pass "duplicate body separator rejected"
+else
+    fail "duplicate body separator rejected (rc=$rc, got: $out)"
+fi
+
+# --- Log line: missing verb rejected ---
+cat > "$FIXTURES/0118-log-missing-verb.erg" <<'EOF'
+%erg v1
+Title: Log missing verb
+Created: 2026-01-01
+Author: a
+
+--- log ---
+2026-01-01T10:00Z onlyactor
+
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0118-log-missing-verb.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "malformed log line"; then
+    pass "log line missing verb rejected"
+else
+    fail "log line missing verb rejected (rc=$rc, got: $out)"
+fi
+
+# --- Log line: timestamp with seconds rejected ---
+cat > "$FIXTURES/0119-log-with-seconds.erg" <<'EOF'
+%erg v1
+Title: Log with seconds
+Created: 2026-01-01
+Author: a
+
+--- log ---
+2026-01-01T10:00:00Z a created
+
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0119-log-with-seconds.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "malformed log line"; then
+    pass "log line with seconds rejected"
+else
+    fail "log line with seconds rejected (rc=$rc, got: $out)"
+fi
+
+# --- Log line: bad timestamp format rejected ---
+cat > "$FIXTURES/0120-log-bad-ts.erg" <<'EOF'
+%erg v1
+Title: Bad timestamp
+Created: 2026-01-01
+Author: a
+
+--- log ---
+2026-01-01 10:00 a created
+
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0120-log-bad-ts.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "malformed log line"; then
+    pass "log line with bad timestamp rejected"
+else
+    fail "log line with bad timestamp rejected (rc=$rc, got: $out)"
+fi
+
+# --- Unknown header: Priority rejected ---
+cat > "$FIXTURES/0121-priority.erg" <<'EOF'
+%erg v1
+Title: Unknown header
+Created: 2026-01-01
+Author: a
+Priority: high
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0121-priority.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "unknown header 'Priority'"; then
+    pass "unknown header (Priority) rejected"
+else
+    fail "unknown header (Priority) rejected (rc=$rc, got: $out)"
+fi
+
+# --- Unknown header: X-Foo rejected ---
+cat > "$FIXTURES/0122-x-foo.erg" <<'EOF'
+%erg v1
+Title: X-Foo header
+Created: 2026-01-01
+Author: a
+X-Foo: bar
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0122-x-foo.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "unknown header 'X-Foo'"; then
+    pass "unknown header (X-Foo) rejected"
+else
+    fail "unknown header (X-Foo) rejected (rc=$rc, got: $out)"
+fi
+
+# --- Tags: invalid value rejected (per-file validate) ---
+cat > "$FIXTURES/0123-bad-tag.erg" <<'EOF'
+%erg v1
+Title: Bad tag
+Created: 2026-01-01
+Author: a
+Tags: bogus
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0123-bad-tag.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "unknown Tags value 'bogus'"; then
+    pass "Tags: bogus value rejected"
+else
+    fail "Tags: bogus value rejected (rc=$rc, got: $out)"
+fi
+
+# --- Blocked-by: unknown local ID rejected ---
+cat > "$FIXTURES/0124-blocked-unknown.erg" <<'EOF'
+%erg v1
+Title: Blocked by unknown
+Created: 2026-01-01
+Author: a
+Blocked-by: 9999
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0124-blocked-unknown.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "references unknown ticket ID"; then
+    pass "Blocked-by unknown local ID rejected"
+else
+    fail "Blocked-by unknown local ID rejected (rc=$rc, got: $out)"
+fi
+
+# --- Maximally complete ticket (kitchen sink) accepted ---
+cat > "$FIXTURES/0125-kitchen-sink.erg" <<'EOF'
+%erg v1
+Title: Kitchen sink
+Created: 2026-01-01
+Author: claude
+Closed: completed in PR #99
+Blocked-by: 0001
+Blocked-by: github.com/foo/bar#42
+Tags: needs-human
+Tags: post-talk
+
+--- log ---
+2026-01-01T09:00Z claude created
+2026-01-02T10:30Z user note added context
+2026-01-03T11:15Z claude closed PR-99-merged
+
+--- body ---
+## Context
+Free-form markdown.
+
+## Exit criteria
+- [ ] Done
+EOF
+if $ERG validate "$FIXTURES/0125-kitchen-sink.erg" >/dev/null 2>&1; then
+    pass "kitchen-sink ticket (all optional headers) accepted"
+else
+    fail "kitchen-sink ticket (all optional headers) accepted"
+fi
+
 echo "validate: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -375,6 +375,64 @@ else
     fail "check: 2 errors uses plural (got: $out)"
 fi
 
+# --- Self-reference cycle (length 1) detected ---
+mkdir -p "$FIXTURES/self-cycle"
+cat > "$FIXTURES/self-cycle/0001-self.erg" <<'EOF'
+%erg v1
+Title: Self reference
+Created: 2026-01-01
+Author: a
+Blocked-by: 0001
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG check "$FIXTURES/self-cycle" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "dependency cycle"; then
+    pass "self-reference cycle detected"
+else
+    fail "self-reference cycle detected (rc=$rc, got: $out)"
+fi
+
+# --- Length-3 cycle (A->B->C->A) detected ---
+mkdir -p "$FIXTURES/cycle3"
+cat > "$FIXTURES/cycle3/0001-a.erg" <<'EOF'
+%erg v1
+Title: A
+Created: 2026-01-01
+Author: a
+Blocked-by: 0002
+
+--- log ---
+--- body ---
+EOF
+cat > "$FIXTURES/cycle3/0002-b.erg" <<'EOF'
+%erg v1
+Title: B
+Created: 2026-01-01
+Author: a
+Blocked-by: 0003
+
+--- log ---
+--- body ---
+EOF
+cat > "$FIXTURES/cycle3/0003-c.erg" <<'EOF'
+%erg v1
+Title: C
+Created: 2026-01-01
+Author: a
+Blocked-by: 0001
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG check "$FIXTURES/cycle3" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "dependency cycle"; then
+    pass "length-3 cycle detected"
+else
+    fail "length-3 cycle detected (rc=$rc, got: $out)"
+fi
+
 # live-corpus check moved to: make validate
 
 echo "check: $PASS passed, $FAIL failed"
