@@ -1,0 +1,46 @@
+%erg v1
+Title: Align module names on command names: one module = one command
+Created: 2026-05-07
+Author: claude-sonnet-4-6
+
+--- log ---
+2026-05-07T00:00Z claude-sonnet-4-6 created
+
+--- body ---
+## Context
+The Go source files in `src/go/` are not consistently named after the CLI
+commands they implement.  `ticket.go` contains the core `Erg` struct, the
+parser, and helpers — it is not a command.  `help.go` holds helptext data, not
+a help command.  `author.go` holds author resolution, not a command.  This
+makes navigation harder and violates the one-module-one-command principle the
+user wants to enforce.
+
+Current state (commands that do have a matching file: archive, check, close,
+init, log, migrate, new, nextid, ready, selfupdate, validate).  Files without
+a corresponding command: `ticket.go`, `help.go`, `author.go`,
+`bootstrap_assets.go`.
+
+## Actions
+1. Audit every `.go` file in `src/go/` and list what it contains vs. what
+   command (if any) it implements.
+2. Rename files that hold shared model code to names that are honest about
+   their role (e.g. `model.go`, `parse.go`) or consolidate into fewer files.
+3. If `help.go` and `author.go` contain only one command's logic each, fold
+   them into the appropriate command file or rename them.
+4. Update `go build` / `Makefile` references if any file rename breaks them.
+5. Verify `make test` passes after renames.
+
+## Test
+```
+grep -rn 'func cmd' src/go/ | awk -F: '{print $1}' | sort -u
+```
+Each file listed should have exactly one `cmd*` entry and its basename should
+match that command name.
+
+## Exit criteria
+- Every `src/go/*.go` file either (a) is named after the single CLI command it
+  implements or (b) has a clearly descriptive non-command name (`main.go`,
+  `model.go`, `testdata`, etc.) with no `cmd*` function inside.
+- `make test` passes.
+- A brief note in the PR body explains any file that was intentionally kept
+  with a non-command name.

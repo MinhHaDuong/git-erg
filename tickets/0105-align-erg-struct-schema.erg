@@ -1,0 +1,41 @@
+%erg v1
+Title: Align Erg struct on schema literally; explore merging parser and validator
+Created: 2026-05-07
+Author: claude-sonnet-4-6
+
+--- log ---
+2026-05-07T00:00Z claude-sonnet-4-6 created
+
+--- body ---
+## Context
+The `Erg` struct (`ticket.go:123`) uses `Headers map[string][]string` as a
+catch-all bag.  Field access goes through methods like `Title()`, `Tags()`,
+`BlockedBy()` which extract values from the map at runtime.  This is a loose
+coupling: the struct does not mirror the spec's field table directly, so a
+typo in a key string ("Blocked-by" vs "BlockedBy") fails silently.
+
+Additionally, parsing (`parseErg`, `ticket.go:296`) and validation
+(`validateErg`, `validate.go:53`) are split across two files and two passes.
+A merged single-pass approach could catch errors earlier and eliminate
+redundant iteration.
+
+## Actions
+1. Design a schema-literal `Erg` struct where each v1 header is a named field
+   (e.g. `Title string`, `Tags []string`, `BlockedBy []Ref`) — no map bag.
+2. Evaluate whether the parse + validate passes can be merged into one function
+   that returns a valid `Erg` or a list of errors.
+3. If merging is feasible, implement it; if not, document why in the PR body.
+4. Update all call sites; keep `Raw` and `Path` for diagnostics.
+5. Verify `make test` passes.
+
+## Test
+Write a test that constructs an `Erg` with a misspelled field key and confirm
+the compiler (not runtime) rejects it — i.e. all header access is type-safe.
+
+## Exit criteria
+- `Erg` struct fields correspond 1-to-1 to the v1 header table in
+  `tickets/spec-erg-v1.md`.
+- No runtime string-keyed map access for known header names.
+- Parser and validator are either merged (preferred) or the PR body explains
+  the concrete obstacle that prevents merging.
+- `make test` passes.

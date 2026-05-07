@@ -1,0 +1,43 @@
+%erg v1
+Title: Rename Tags: to Tag: if only one value is meaningful per ticket
+Created: 2026-05-07
+Author: claude-sonnet-4-6
+
+--- log ---
+2026-05-07T00:00Z claude-sonnet-4-6 created
+
+--- body ---
+## Context
+The spec marks `Tags` as repeatable (`yes`), but all four allowed values
+(`needs-human`, `deferred`, `post-talk`, `post-conference`) are independent
+flags — there is no natural reason to apply more than one to a ticket at the
+same time.  A plural field name with a singular-value constraint is confusing.
+If the intent is "at most one tag", the field should be `Tag:` (singular,
+non-repeatable).
+
+## Actions
+1. Audit all existing `.erg` files: count how many have more than one `Tags:`
+   line.
+2. Decide: if no ticket has multiple tags, change the field to singular `Tag:`
+   (non-repeatable) in both spec and code.  If multiple tags are genuinely
+   used, keep `Tags:` but document the multi-value intent explicitly.
+3. If renaming: update `tickets/spec-erg-v1.md`, the validator
+   (`validate.go`), the parser (`ticket.go`), the `Erg.Tags()` method (→
+   `Tag()`), all tests, and any shell scripts that grep for `Tags:`.
+4. Bump the format version or add a migration note if the rename is
+   backward-incompatible.
+
+## Test
+```bash
+grep -r '^Tags:' tickets/ | wc -l   # should be 0 after rename
+grep -r '^Tag:' tickets/ | wc -l    # new field
+```
+Write a validator test that rejects a file with two `Tag:` lines if the field
+is declared non-repeatable.
+
+## Exit criteria
+- Field name and repeatability in spec, code, and tests are consistent.
+- `make test` passes.
+- Existing tickets are migrated (or a migration script is provided).
+- Decision (rename vs. keep) is documented in the PR body with the audit
+  count.
