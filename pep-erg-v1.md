@@ -58,8 +58,8 @@ rather than silently misparsing).
 
 ### 2. Closed header set (no X- extensions)
 
-**Choice:** v1 defines exactly 5 headers: Title, Closed, Created, Author,
-Blocked-by. No `X-` extensions are allowed.
+**Choice:** v1 defines exactly 6 headers: Title, Closed, Created, Author,
+Blocked-by, Tags. No `X-` extensions are allowed.
 
 **Rationale:** Agents work best with rigid schemas where there's exactly
 one right way to write a file. Open extension headers invite creative
@@ -111,6 +111,8 @@ filename is the canonical identifier.
 ### 5. Binary status values: open or closed
 
 **Choice:** defaults to `open` (available), can be marked `closed` (done) in two ways: with a `Closed: [reason]` header or with the word `Closed` in the path name (directory or filename).
+
+Two mechanisms exist because they serve different purposes. The `Closed:` header is the explicit author-intent signal: the agent or human who closes a ticket writes the reason directly into the file content. The path-based test is the structural/filesystem signal: it lets tooling move tickets into a `closed/` directory without editing file content at all. These are complementary — a ticket moved by `erg archive` gains the path signal; a ticket closed in-place by `erg close` gains the header signal. Either alone is sufficient to mark a ticket done.
 
 **Rationale:** Closing at the right time is hard enough. `pending` or `doing` adds ceremony without benefit if not executed perfectly, which is hard when development is distributed across machines and worktrees. Follow the `git` approach of optimistic concurrency. Synchronisation has a solution: use a forge not a local-first ticket system. The `erg` system is designed non-exclusive.
 
@@ -207,6 +209,8 @@ The other levels raise efficiency and file referencing issues -- the idea is to 
   know where to look. Short paths tab-complete well.
 - **Flexibility** Projects start with a simple `tickets/` directory. They can create `archive/` or `closed/` tickets.
 
+`closed/` is now the canonical subdirectory for done tickets. `archive/` is deprecated but still accepted on read for backward compatibility. `erg migrate` promotes `archive/` → `closed/` automatically when both directories exist. The decision to canonicalise `closed/` was made after early deployments created both `archive/` and `closed/` in different repos, splitting queries: tooling that searched `tickets/closed/` missed tickets in `tickets/archive/` and vice versa. A single canonical name eliminates that split-brain without breaking existing repos — migration is automatic.
+
 **Alternatives considered:**
 - `.ergs/` (hidden): invisible by default, violates "ls tells you
   what's here" principle. Agents must know to `ls -a`.
@@ -261,3 +265,11 @@ mistakes.
 This keeps the tooling simple (one format to parse, one format to
 validate) while making the system maximally agent-friendly. The strict
 format is a *write contract*, not a *read requirement*.
+
+### 12. Tags header: a closed enum for workflow labels
+
+A `Tags:` header was added in v1 after initial deployment. Unlike a free-form label, it uses a closed enum (`needs-human`, `deferred`, `post-talk`, `post-conference`) for the same reasons as the header set itself: open labels proliferate without a schema.
+
+Tags is repeatable because the allowed values are orthogonal flags — a ticket can legitimately be both `deferred` and `post-talk` simultaneously. Renaming to `Tag:` (singular) would weaken this; the plural name signals the repeatable intent.
+
+The addition is backward-compatible: tickets without `Tags:` remain valid. No version bump was needed.

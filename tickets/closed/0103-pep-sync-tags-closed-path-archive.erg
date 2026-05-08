@@ -2,11 +2,12 @@
 Title: PEP — sync additions (Tags header, closed-path criterion, archive→closed decision)
 Created: 2026-05-06
 Author: claude
-Blocked-by: 0096
+Closed: Tags rationale, closed-path rationale, archive→closed documented
 
 --- log ---
 2026-05-06T20:45Z claude created
 
+2026-05-08T19:15Z MinhHaDuong closed — Tags rationale, closed-path rationale, archive→closed documented
 --- body ---
 ## Context
 
