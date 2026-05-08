@@ -2,9 +2,11 @@
 Title: migrate: merge archive/ into closed/ when both directories exist
 Created: 2026-05-08
 Author: MinhHaDuong
+Closed: completed in PR #108
 
 --- log ---
 2026-05-08T08:00Z MinhHaDuong created
+2026-05-08T16:15Z claude closed — completed in PR #108
 
 --- body ---
 ## Context
