@@ -2,11 +2,12 @@
 Title: Fix trailing period in erg close Blocked-by removed log line
 Created: 2026-05-06
 Author: claude
-Blocked-by: 0096
+Closed: period matches manual
 
 --- log ---
 2026-05-06T20:45Z claude created
 
+2026-05-08T19:14Z MinhHaDuong closed — period matches manual
 --- body ---
 ## Context
 

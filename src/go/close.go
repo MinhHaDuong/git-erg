@@ -146,7 +146,7 @@ func removeBlockedByRef(ticketDir, closedID, timestamp, author string) {
 			continue
 		}
 		updated := removeBlockedByLine(string(data), closedID)
-		logLine := fmt.Sprintf("%s %s note blocker %s closed — Blocked-by removed", timestamp, author, closedID)
+		logLine := fmt.Sprintf("%s %s note blocker %s closed — Blocked-by removed.", timestamp, author, closedID)
 		updated = appendLogLine(updated, logLine)
 		if err := os.WriteFile(path, []byte(updated), 0644); err != nil {
 			fmt.Fprintf(os.Stderr, "close: warning: cannot write %s: %v\n", path, err)
