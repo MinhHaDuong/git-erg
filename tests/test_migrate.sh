@@ -213,5 +213,24 @@ else
     fail "layout migration: idempotent (second run must not error)"
 fi
 
+# --- Layout migration: self-copy binary when tickets/erg absent ---
+BDIR=$(mktemp -d)
+mkdir -p "$BDIR/tickets"
+$ERG migrate "$BDIR/tickets" >/dev/null 2>&1
+if [ -x "$BDIR/tickets/erg" ]; then
+    pass "layout migration: self-copied tickets/erg when absent"
+else
+    fail "layout migration: self-copied tickets/erg when absent"
+fi
+mtime1=$(stat -c %Y "$BDIR/tickets/erg")
+$ERG migrate "$BDIR/tickets" >/dev/null 2>&1
+mtime2=$(stat -c %Y "$BDIR/tickets/erg")
+if [ "$mtime1" = "$mtime2" ]; then
+    pass "layout migration: self-copy idempotent (no overwrite)"
+else
+    fail "layout migration: self-copy idempotent (no overwrite)"
+fi
+rm -rf "$BDIR"
+
 echo "migrate: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
