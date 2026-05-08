@@ -1,7 +1,7 @@
 # Ticket format spec — %erg v1
 
 Author: Minh Ha-Duong <minh.ha-duong@cnrs.fr>
-Last modified: 2026-05-06
+Last modified: 2026-05-08
 Status: Working draft
 
 ## Introduction
@@ -63,6 +63,8 @@ validator rejects files missing either one).
 
 No other headers are valid in v1. No `X-` extensions.
 
+`Tags:` is repeatable; each occurrence adds one tag value. The validator enforces the closed value set per occurrence; see the validate rules.
+
 **`Closed:` header:** optional, non-repeatable, preamble only. Value is required and non-empty.
 Forbidden in the log and body sections (header-key match at line start; substrings in prose are fine).
 Example: `Closed: completed in PR #5`
@@ -98,6 +100,8 @@ A ticket is **closed** if at least one of these holds:
 
 Otherwise the ticket is **not-closed** (open). There is no other state.
 
+`erg check` emits a corpus hygiene **warning** (non-fatal) when a ticket's folder placement and `Closed:` header disagree. This mismatch does not make the ticket invalid — the disjunctive criterion above is authoritative for the closed/not-closed decision.
+
 ### ID assignment
 
 The ticket ID is derived from the filename, not a header.
@@ -105,6 +109,7 @@ The ticket ID is derived from the filename, not a header.
 Filename pattern: `{ID}-{slug}.erg`
 - ID: zero-padded sequential number, 4 digits (`0001`, `0002`, …)
 - Slug: lowercase kebab-case, ASCII only (`[a-z0-9-]`)
+- Slug is truncated to 40 characters by `erg new`; trailing hyphens are stripped after truncation.
 
 ```sh
 erg next-id tickets/

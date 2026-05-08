@@ -2,11 +2,12 @@
 Title: Spec — sync missing rules (slug truncation, Tags repeatability, folder/header semantics)
 Created: 2026-05-06
 Author: claude
-Blocked-by: 0096
+Closed: slug/Tags/mismatch semantics documented
 
 --- log ---
 2026-05-06T20:45Z claude created
 
+2026-05-08T19:35Z MinhHaDuong closed — slug/Tags/mismatch semantics documented
 --- body ---
 ## Context
 
