@@ -232,5 +232,37 @@ else
 fi
 rm -rf "$BDIR"
 
+# --- Layout migration: merge archive/ into existing closed/ (no conflict) ---
+MDIR2=$(mktemp -d)
+mkdir -p "$MDIR2/tickets"
+mkdir -p "$MDIR2/archive"
+printf '%%erg v1\nTitle: Old\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n' > "$MDIR2/archive/0001-alpha.erg"
+mkdir -p "$MDIR2/closed"
+printf '%%erg v1\nTitle: Existing\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n' > "$MDIR2/closed/0002-beta.erg"
+cp "$ERG" "$MDIR2/tickets/erg"
+"$ERG" migrate "$MDIR2/tickets" >/dev/null 2>&1
+if [ ! -d "$MDIR2/archive" ] && [ -f "$MDIR2/closed/0001-alpha.erg" ]; then
+    pass "layout migration: merged archive/ into closed/ (no conflict)"
+else
+    fail "layout migration: merged archive/ into closed/ (no conflict)"
+fi
+rm -rf "$MDIR2"
+
+# --- Layout migration: collision-abort when archive/ and closed/ share a filename ---
+MDIR3=$(mktemp -d)
+mkdir -p "$MDIR3/tickets"
+mkdir -p "$MDIR3/archive"
+echo "a" > "$MDIR3/archive/0001-conflict.erg"
+mkdir -p "$MDIR3/closed"
+echo "b" > "$MDIR3/closed/0001-conflict.erg"
+cp "$ERG" "$MDIR3/tickets/erg"
+"$ERG" migrate "$MDIR3/tickets" >/dev/null 2>&1
+if [ -d "$MDIR3/archive" ] && [ -f "$MDIR3/archive/0001-conflict.erg" ]; then
+    pass "layout migration: collision-abort leaves archive/ untouched"
+else
+    fail "layout migration: collision-abort leaves archive/ untouched"
+fi
+rm -rf "$MDIR3"
+
 echo "migrate: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
