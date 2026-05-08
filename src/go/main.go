@@ -93,6 +93,7 @@ func main() {
 
 	// erg --help --all  OR  erg --help=all  → print all command help
 	if cmd == "--help=all" || (cmd == "--help" || cmd == "-h") && len(rest) > 0 && rest[0] == "--all" {
+		// "# erg manual" — all-lowercase is intentional; matches the kebab project name.
 		fmt.Print("# erg manual\n\n")
 		fmt.Print("Author: minh.ha-duong@cnrs.fr\n")
 		genFrom := "Generated from: erg"
@@ -107,6 +108,13 @@ func main() {
 		fmt.Print("environments. Tickets are plain-text files committed alongside source code.\n")
 		fmt.Print("This manual describes all `erg` commands. For the ticket file format\n")
 		fmt.Print("specification, see `tickets/spec-erg-v1.md`.\n")
+		fmt.Print("\n")
+		fmt.Print("**Store auto-discovery.** When no DIR is given, `erg` tries three candidates in\n")
+		fmt.Print("order: (1) the directory containing the `erg` binary, (2) `tickets/` under the\n")
+		fmt.Print("current working directory, (3) the current working directory itself. A directory\n")
+		fmt.Print("qualifies as a ticket store if its basename is `tickets`, or if it contains at\n")
+		fmt.Print("least one `.erg` file. The first qualifying candidate is used; if none qualify,\n")
+		fmt.Print("`erg` exits with an error listing the directories it tried.\n")
 		for _, c := range commandOrder {
 			if text, ok := helpText[c]; ok {
 				fmt.Print("\n" + text)
