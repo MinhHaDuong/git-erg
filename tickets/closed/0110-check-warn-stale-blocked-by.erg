@@ -1,0 +1,111 @@
+%erg v1
+Title: check: warn when open ticket has Blocked-by pointing to a closed ticket
+Created: 2026-05-08
+Author: MinhHaDuong
+Closed: staleBlockedBy check implemented
+
+--- log ---
+2026-05-08T09:00Z MinhHaDuong created
+2026-05-08T00:00Z claude reimagined — wrong remediation hint; WARN reworded; helpers confirmed
+
+2026-05-08T19:18Z MinhHaDuong closed — staleBlockedBy check implemented
+--- body ---
+## Context
+
+`erg close ID` removes `Blocked-by: ID` lines from open tickets atomically
+(step 3 of the close protocol). If that cleanup was bypassed (manual edit,
+bug, or ticket closed before erg close existed), an open ticket can carry a
+stale `Blocked-by:` pointing to an already-closed ticket.
+
+`erg check` does not detect this. The stale ref passes all current checks
+(it points to an existing ticket). The open ticket shows as "not ready" in
+`erg ready` even though its blocker is resolved.
+
+The silent failure chains: if A has stale `Blocked-by: B` (B closed), and C
+has `Blocked-by: A` (A not yet closed), C is stuck waiting for A which is
+stuck waiting for a cleanup nobody notices.
+
+`erg ready` surfaces A as individually ready, but does not highlight the
+stale ref or the downstream impact on C. `erg check` is the right place for
+a corpus-level warning about this inconsistency.
+
+## Actions
+
+1. In `erg check`, after loading all tickets, iterate open tickets.
+2. For each `Blocked-by` local ref that resolves to a **closed** ticket,
+   emit a non-fatal warning:
+   ```
+   WARN {file}: Blocked-by {id} is already closed — remove the stale Blocked-by line from {file}
+   ```
+   Note: `erg close {id}` is NOT the right command — it targets the already-closed
+   blocker and exits 0 (idempotent no-op) without cleaning up the open ticket's stale ref.
+3. Exit code unchanged: warnings are non-fatal (exit 0 on warn-only).
+
+## Test
+
+```bash
+mkdir -p /tmp/test-stale/tickets
+printf '%%erg v1\nTitle: Blocker\nCreated: 2026-05-08\nAuthor: test\n\n--- log ---\n2026-05-08T09:00Z test created\n\n--- body ---\nDone.\n' \
+  > /tmp/test-stale/tickets/0001-blocker.erg
+
+printf '%%erg v1\nTitle: Has stale blocked-by\nCreated: 2026-05-08\nAuthor: test\nBlocked-by: 0001\n\n--- log ---\n2026-05-08T09:00Z test created\n\n--- body ---\nWaiting.\n' \
+  > /tmp/test-stale/tickets/0002-stale.erg
+
+# Close 0001 manually (simulate bypass)
+sed -i 's/^Author: test/Author: test\nClosed: done/' /tmp/test-stale/tickets/0001-blocker.erg
+
+cd /tmp/test-stale
+~/.local/bin/erg check tickets/ 2>&1 | grep WARN
+# Expect: WARN 0002-stale.erg: Blocked-by 0001 is already closed — run 'erg close 0001' to clean up
+```
+
+## Reimagined (2026-05-08)
+
+### Feasibility — existing helpers make this straightforward
+
+`loadErgs` is already called in `cmdCheck` (check.go:97), so all tickets are
+in memory. The new check mirrors `folderClosure` exactly:
+
+1. One pass: build `closedIDs map[string]bool` from tickets where `t.Closed()` is true.
+   `Erg.Closed()` (ticket.go:147) handles both the `Closed:` header and the path-component
+   criterion — no new logic needed.
+2. Second pass: iterate open tickets; for each `RefLocal` Blocked-by, check whether the
+   ID is in `closedIDs`. Skip entries where `errs[i] != nil` — those are already reported
+   by `validateErg` as parse errors.
+3. Forge refs (`RefForge`) are out of scope: they cannot be resolved offline, consistent
+   with how Rule 8 skips them in `validateErg`.
+
+No new data structures or parsing needed.
+
+### Blocking fix — wrong remediation command
+
+The proposed WARN says:
+```
+WARN {file}: Blocked-by {id} is already closed — run 'erg close {id}' to clean up
+```
+
+This is wrong. `erg close ID` checks `ticket.Closed()` first (close.go:79); if the ticket
+is already closed, it prints "CLOSED (already)" and exits 0 **without running step 3**
+(the stale-ref cleanup). Running `erg close {id}` on an already-closed ticket is a no-op.
+
+The correct remediation targets the *open* ticket that carries the stale line, not the
+closed blocker. Use instead:
+```
+WARN {file}: Blocked-by {id} is already closed — remove the stale Blocked-by line from {file}
+```
+
+Or, if a convenience command is preferable: `erg update {open-id}` to drop the line,
+but that command does not currently exist. For now, manual removal is the honest advice.
+
+### WARN format
+
+Existing `folderClosure` warnings (check.go:28,32) use `WARN {filename}: <description>`.
+The proposed format matches. The em-dash `—` does not appear in current WARN strings but
+is consistent with project prose and log lines; acceptable.
+
+## Exit criteria
+
+- `erg check` emits a WARN (non-fatal) for each open ticket carrying a
+  `Blocked-by:` ref that resolves to a closed ticket.
+- Clean corpora (no stale refs) produce no new warnings.
+- Exit code remains 0 for warn-only runs.
