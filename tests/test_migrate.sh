@@ -256,11 +256,12 @@ echo "a" > "$MDIR3/archive/0001-conflict.erg"
 mkdir -p "$MDIR3/closed"
 echo "b" > "$MDIR3/closed/0001-conflict.erg"
 cp "$ERG" "$MDIR3/tickets/erg"
-"$ERG" migrate "$MDIR3/tickets" >/dev/null 2>&1
-if [ -d "$MDIR3/archive" ] && [ -f "$MDIR3/archive/0001-conflict.erg" ]; then
-    pass "layout migration: collision-abort leaves archive/ untouched"
+EXIT_CODE=0
+"$ERG" migrate "$MDIR3/tickets" >/dev/null 2>&1 || EXIT_CODE=$?
+if [ "$EXIT_CODE" -ne 0 ] && [ -d "$MDIR3/archive" ] && [ -f "$MDIR3/archive/0001-conflict.erg" ]; then
+    pass "layout migration: collision-abort exits non-zero and leaves archive/ untouched"
 else
-    fail "layout migration: collision-abort leaves archive/ untouched"
+    fail "layout migration: collision-abort exits non-zero and leaves archive/ untouched"
 fi
 rm -rf "$MDIR3"
 
