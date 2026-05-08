@@ -20,14 +20,14 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 
 	// Rule 2: required headers
 	for _, hdr := range RequiredHeaders {
-		if _, ok := t.Headers[hdr]; !ok {
+		if _, ok := t.headers[hdr]; !ok {
 			errors = append(errors, fmt.Sprintf("%s: missing required header '%s'", name, hdr))
 		}
 	}
 
 	// Rule 3: no unknown headers (Status: is a relic of the pre-0022 format;
 	// run `erg migrate` to convert it).
-	for key, vals := range t.Headers {
+	for key, vals := range t.headers {
 		if !ValidHeaders[key] {
 			if key == "Status" {
 				errors = append(errors, fmt.Sprintf(
@@ -45,7 +45,7 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 	}
 
 	// Rule 3a: Tags: values must be from the closed value set.
-	if tags, ok := t.Headers["Tags"]; ok {
+	if tags, ok := t.headers["Tags"]; ok {
 		for _, v := range tags {
 			if !ValidTagValues[strings.TrimSpace(v)] {
 				errors = append(errors, fmt.Sprintf(
@@ -55,7 +55,7 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 	}
 
 	// Rule 4: Closed: header — value required, non-empty; not in log/body.
-	if vals, ok := t.Headers["Closed"]; ok {
+	if vals, ok := t.headers["Closed"]; ok {
 		for _, v := range vals {
 			if strings.TrimSpace(v) == "" {
 				errors = append(errors, fmt.Sprintf(
@@ -74,11 +74,9 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 	}
 
 	// Rule 5: Created is ISO date
-	if created, ok := t.Headers["Created"]; ok && len(created) > 0 {
-		if created[0] != "" && !IsoDateRE.MatchString(created[0]) {
-			errors = append(errors, fmt.Sprintf(
-				"%s: Created '%s' is not a valid ISO date (YYYY-MM-DD)", name, created[0]))
-		}
+	if c := t.Created(); c != "" && !IsoDateRE.MatchString(c) {
+		errors = append(errors, fmt.Sprintf(
+			"%s: Created '%s' is not a valid ISO date (YYYY-MM-DD)", name, c))
 	}
 
 	// Rule 6: filename matches NNNN-slug.erg
