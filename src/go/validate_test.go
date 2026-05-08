@@ -317,3 +317,45 @@ func TestDetectCycles(t *testing.T) {
 		}
 	})
 }
+
+func TestValidateErg_GoldenValid(t *testing.T) {
+	fixtures, _ := filepath.Glob("testdata/valid/*.erg")
+	allIDs := map[string]bool{"0001": true, "0002": true, "0003": true, "0004": true}
+	for _, path := range fixtures {
+		t.Run(filepath.Base(path), func(t *testing.T) {
+			erg := parseErg(path)
+			errs := validateErg(&erg, allIDs)
+			if len(errs) != 0 {
+				t.Errorf("expected no errors, got: %v", errs)
+			}
+		})
+	}
+}
+
+func TestValidateErg_GoldenInvalid(t *testing.T) {
+	fixtures, _ := filepath.Glob("testdata/invalid/*.erg")
+	for _, path := range fixtures {
+		t.Run(filepath.Base(path), func(t *testing.T) {
+			erg := parseErg(path)
+			errs := validateErg(&erg, map[string]bool{})
+			if len(errs) == 0 {
+				t.Errorf("expected at least one error, got none")
+			}
+		})
+	}
+}
+
+func TestValidateAll_GoldenDuplicateIDs(t *testing.T) {
+	tickets := loadErgs("testdata/invalid-duplicate")
+	errs := validateAll(tickets)
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e, "duplicate ID") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected at least one 'duplicate ID' error, got: %v", errs)
+	}
+}

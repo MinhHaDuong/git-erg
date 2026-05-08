@@ -100,7 +100,7 @@ func TestParseErg(t *testing.T) {
 	})
 
 	t.Run("magic line padded with whitespace", func(t *testing.T) {
-		// parseErg uses TrimSpace before comparing to magicLine, so leading/trailing
+		// parseErg uses TrimSpace before comparing to MagicLine, so leading/trailing
 		// spaces on the first line must still be accepted as a valid magic marker.
 		content := "  %erg v1  \nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
