@@ -1,0 +1,62 @@
+%erg v1
+Title: check: warn when open ticket has Blocked-by pointing to a closed ticket
+Created: 2026-05-08
+Author: MinhHaDuong
+
+--- log ---
+2026-05-08T09:00Z MinhHaDuong created
+
+--- body ---
+## Context
+
+`erg close ID` removes `Blocked-by: ID` lines from open tickets atomically
+(step 3 of the close protocol). If that cleanup was bypassed (manual edit,
+bug, or ticket closed before erg close existed), an open ticket can carry a
+stale `Blocked-by:` pointing to an already-closed ticket.
+
+`erg check` does not detect this. The stale ref passes all current checks
+(it points to an existing ticket). The open ticket shows as "not ready" in
+`erg ready` even though its blocker is resolved.
+
+The silent failure chains: if A has stale `Blocked-by: B` (B closed), and C
+has `Blocked-by: A` (A not yet closed), C is stuck waiting for A which is
+stuck waiting for a cleanup nobody notices.
+
+`erg ready` surfaces A as individually ready, but does not highlight the
+stale ref or the downstream impact on C. `erg check` is the right place for
+a corpus-level warning about this inconsistency.
+
+## Actions
+
+1. In `erg check`, after loading all tickets, iterate open tickets.
+2. For each `Blocked-by` local ref that resolves to a **closed** ticket,
+   emit a non-fatal warning:
+   ```
+   WARN {file}: Blocked-by {id} is already closed — run 'erg close {id}' to clean up
+   ```
+3. Exit code unchanged: warnings are non-fatal (exit 0 on warn-only).
+
+## Test
+
+```bash
+mkdir -p /tmp/test-stale/tickets
+printf '%%erg v1\nTitle: Blocker\nCreated: 2026-05-08\nAuthor: test\n\n--- log ---\n2026-05-08T09:00Z test created\n\n--- body ---\nDone.\n' \
+  > /tmp/test-stale/tickets/0001-blocker.erg
+
+printf '%%erg v1\nTitle: Has stale blocked-by\nCreated: 2026-05-08\nAuthor: test\nBlocked-by: 0001\n\n--- log ---\n2026-05-08T09:00Z test created\n\n--- body ---\nWaiting.\n' \
+  > /tmp/test-stale/tickets/0002-stale.erg
+
+# Close 0001 manually (simulate bypass)
+sed -i 's/^Author: test/Author: test\nClosed: done/' /tmp/test-stale/tickets/0001-blocker.erg
+
+cd /tmp/test-stale
+~/.local/bin/erg check tickets/ 2>&1 | grep WARN
+# Expect: WARN 0002-stale.erg: Blocked-by 0001 is already closed — run 'erg close 0001' to clean up
+```
+
+## Exit criteria
+
+- `erg check` emits a WARN (non-fatal) for each open ticket carrying a
+  `Blocked-by:` ref that resolves to a closed ticket.
+- Clean corpora (no stale refs) produce no new warnings.
+- Exit code remains 0 for warn-only runs.
