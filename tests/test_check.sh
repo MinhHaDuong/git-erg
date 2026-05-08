@@ -433,6 +433,97 @@ else
     fail "length-3 cycle detected (rc=$rc, got: $out)"
 fi
 
+# --- Stale Blocked-by: open ticket refs closed ticket warns (Case A) ---
+mkdir -p "$FIXTURES/stale-blocked/closed"
+cat > "$FIXTURES/stale-blocked/closed/0001-blocker.erg" <<'EOF'
+%erg v1
+Title: Blocker closed
+Created: 2026-01-01
+Author: a
+Closed: done
+
+--- log ---
+--- body ---
+EOF
+cat > "$FIXTURES/stale-blocked/0002-stale.erg" <<'EOF'
+%erg v1
+Title: Stale blocked-by
+Created: 2026-01-01
+Author: a
+Blocked-by: 0001
+
+--- log ---
+--- body ---
+EOF
+rc=0; out=$($ERG check "$FIXTURES/stale-blocked" 2>&1) || rc=$?
+if echo "$out" | grep -q "Blocked-by 0001 is already closed"; then
+    pass "stale Blocked-by warns"
+else
+    fail "stale Blocked-by warns (got: $out)"
+fi
+if [ $rc -eq 0 ]; then
+    pass "stale Blocked-by warning exits 0"
+else
+    fail "stale Blocked-by warning exits 0"
+fi
+
+# --- Stale Blocked-by: both open — no stale warn (Case B) ---
+mkdir -p "$FIXTURES/no-stale"
+cat > "$FIXTURES/no-stale/0001-open.erg" <<'EOF'
+%erg v1
+Title: Open blocker
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+cat > "$FIXTURES/no-stale/0002-blocked.erg" <<'EOF'
+%erg v1
+Title: Blocked by open
+Created: 2026-01-01
+Author: a
+Blocked-by: 0001
+
+--- log ---
+--- body ---
+EOF
+rc=0; out=$($ERG check "$FIXTURES/no-stale" 2>&1) || rc=$?
+if echo "$out" | grep -q "is already closed"; then
+    fail "no stale warn when blocker is open (got: $out)"
+else
+    pass "no stale warn when blocker is open"
+fi
+if [ $rc -eq 0 ]; then
+    pass "no stale warn exits 0"
+else
+    fail "no stale warn exits 0"
+fi
+
+# --- Stale Blocked-by: forge ref skipped — no stale warn (Case C) ---
+mkdir -p "$FIXTURES/stale-forge"
+cat > "$FIXTURES/stale-forge/0001-forge-only.erg" <<'EOF'
+%erg v1
+Title: Forge blocked only
+Created: 2026-01-01
+Author: a
+Blocked-by: github.com/other/repo#1
+
+--- log ---
+--- body ---
+EOF
+rc=0; out=$($ERG check "$FIXTURES/stale-forge" 2>&1) || rc=$?
+if echo "$out" | grep -q "is already closed"; then
+    fail "forge ref skipped for stale check (got: $out)"
+else
+    pass "forge ref skipped for stale check"
+fi
+if [ $rc -eq 0 ]; then
+    pass "forge ref stale check exits 0"
+else
+    fail "forge ref stale check exits 0"
+fi
+
 # live-corpus check moved to: make validate
 
 echo "check: $PASS passed, $FAIL failed"

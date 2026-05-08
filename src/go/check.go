@@ -36,6 +36,41 @@ func folderClosure(tickets []Erg) []string {
 	return warnings
 }
 
+// staleBlockedBy warns about open tickets whose Blocked-by local refs
+// point to tickets that are already closed.
+func staleBlockedBy(tickets []Erg) []string {
+	closedIDs := make(map[string]bool)
+	for i := range tickets {
+		id := tickets[i].FilenameID()
+		if id != "" && tickets[i].Closed() {
+			closedIDs[id] = true
+		}
+	}
+
+	var warnings []string
+	for i := range tickets {
+		t := &tickets[i]
+		if t.Closed() {
+			continue
+		}
+		refs, errs := t.BlockedByRefs()
+		for j, ref := range refs {
+			if errs[j] != nil {
+				continue
+			}
+			if ref.Kind != RefLocal {
+				continue
+			}
+			if closedIDs[ref.ID] {
+				warnings = append(warnings, fmt.Sprintf(
+					"WARN %s: Blocked-by %s is already closed — remove the stale Blocked-by line from %s",
+					t.Filename(), ref.ID, t.Filename()))
+			}
+		}
+	}
+	return warnings
+}
+
 // strayGoSource warns when Go source files (*.go, go.mod, go.sum) are found
 // in dir itself or in the legacy dir/tools/go/ subdirectory.
 func strayGoSource(dir string) []string {
@@ -102,6 +137,7 @@ func cmdCheck(args []string) int {
 
 	errors := validateAll(tickets)
 	warnings := folderClosure(tickets)
+	warnings = append(warnings, staleBlockedBy(tickets)...)
 	warnings = append(warnings, strayGoSource(dir)...)
 
 	hasErrors := len(errors) > 0
