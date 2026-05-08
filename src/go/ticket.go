@@ -124,8 +124,6 @@ type Erg struct {
 	LogLines []string
 	Body     string
 	HasMagic bool
-	HasLog   bool
-	HasBody  bool
 	// Separator occurrence counts. A well-formed ticket has exactly 1 of each.
 	LogSepCount  int
 	BodySepCount int
@@ -302,8 +300,6 @@ func parseErg(path string) Erg {
 	var logLines, bodyLines []string
 	section := "magic" // magic | headers | gap | log | body
 	hasMagic := false
-	hasLog := false
-	hasBody := false
 	logSepCount := 0
 	bodySepCount := 0
 	closedInLog := false
@@ -329,17 +325,15 @@ func parseErg(path string) Erg {
 
 		if trimmed == "--- log ---" {
 			logSepCount++
-			if !hasBody {
+			if bodySepCount == 0 {
 				section = "log"
-				hasLog = true
 				continue
 			}
 		}
 		if trimmed == "--- body ---" {
 			bodySepCount++
-			if !hasBody {
+			if bodySepCount == 1 {
 				section = "body"
-				hasBody = true
 				continue
 			}
 		}
@@ -376,8 +370,6 @@ func parseErg(path string) Erg {
 		LogLines:     logLines,
 		Body:         strings.Join(bodyLines, "\n"),
 		HasMagic:     hasMagic,
-		HasLog:       hasLog,
-		HasBody:      hasBody,
 		LogSepCount:  logSepCount,
 		BodySepCount: bodySepCount,
 		ClosedInLog:  closedInLog,

@@ -2,10 +2,12 @@
 Title: Remove HasLog and HasBody redundant booleans from Erg struct
 Created: 2026-05-08
 Author: claude
+Closed: completed in PR #109 alongside 0093
 
 --- log ---
 2026-05-08T00:00Z claude created
 
+2026-05-08T15:31Z MinhHaDuong closed — completed in PR #109 alongside 0093
 --- body ---
 ## Context
 

@@ -111,12 +111,12 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 	}
 
 	// Rule 11: each separator appears exactly once
-	if !t.HasLog {
+	if t.LogSepCount == 0 {
 		errors = append(errors, fmt.Sprintf("%s: missing '--- log ---' separator", name))
 	} else if t.LogSepCount > 1 {
 		errors = append(errors, fmt.Sprintf("%s: '--- log ---' separator appears %d times (expected 1)", name, t.LogSepCount))
 	}
-	if !t.HasBody {
+	if t.BodySepCount == 0 {
 		errors = append(errors, fmt.Sprintf("%s: missing '--- body ---' separator", name))
 	} else if t.BodySepCount > 1 {
 		errors = append(errors, fmt.Sprintf("%s: '--- body ---' separator appears %d times (expected 1)", name, t.BodySepCount))

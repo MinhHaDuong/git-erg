@@ -51,11 +51,11 @@ func TestParseErg(t *testing.T) {
 		if erg.Title() != "My Title" {
 			t.Errorf("Title() = %q, want %q", erg.Title(), "My Title")
 		}
-		if !erg.HasLog {
-			t.Error("expected HasLog=true")
+		if erg.LogSepCount == 0 {
+			t.Error("expected LogSepCount > 0")
 		}
-		if !erg.HasBody {
-			t.Error("expected HasBody=true")
+		if erg.BodySepCount == 0 {
+			t.Error("expected BodySepCount > 0")
 		}
 	})
 
