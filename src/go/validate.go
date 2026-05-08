@@ -4,48 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
-)
-
-var (
-	// requiredHeaders lists the three mandatory preamble headers for every %erg v1 ticket.
-	// A missing header is a validation error (rules 2).
-	requiredHeaders = []string{"Title", "Created", "Author"}
-
-	// singletonHeaders names headers that must appear at most once in the preamble.
-	// Repeating any of these is a validation error (rule 4).
-	singletonHeaders = map[string]bool{
-		"Title": true, "Created": true, "Author": true, "Closed": true,
-	}
-
-	// validHeaders is the closed set of header keys for %erg v1.
-	// No X- extensions are allowed; unknown keys are rejected (rule 3).
-	validHeaders = map[string]bool{
-		"Title": true, "Created": true, "Author": true,
-		"Closed": true, "Blocked-by": true, "Tags": true,
-	}
-
-	// validTagValues is the closed value set for the Tags: header (%erg v1).
-	// Allowed values: needs-human, deferred, post-talk, post-conference.
-	// Tags with needs-human or deferred suppress a ticket from erg ready output.
-	validTagValues = map[string]bool{
-		"needs-human":     true,
-		"deferred":        true,
-		"post-talk":       true,
-		"post-conference": true,
-	}
-
-	// isoDateRE matches a valid Created: date value (YYYY-MM-DD, rule 7).
-	isoDateRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
-
-	// filenameRE matches a valid .erg filename: 4-digit ID, dash, lowercase kebab slug (rule 8).
-	// Pattern: NNNN-word(-word)*.erg
-	filenameRE = regexp.MustCompile(`^\d{4}-[a-z0-9]+(-[a-z0-9]+)*\.erg$`)
-
-	// logLineRE matches a valid log section line: ISO timestamp, actor, verb, optional detail (rule 11).
-	// Pattern: YYYY-MM-DDThh:mmZ ACTOR VERB [detail...]
-	logLineRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z\s+\S+\s+\S+`)
 )
 
 // validateErg returns rule violations for a single ticket. allIDs lists every
@@ -60,7 +19,7 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 	}
 
 	// Rule 2: required headers
-	for _, hdr := range requiredHeaders {
+	for _, hdr := range RequiredHeaders {
 		if _, ok := t.Headers[hdr]; !ok {
 			errors = append(errors, fmt.Sprintf("%s: missing required header '%s'", name, hdr))
 		}
@@ -69,7 +28,7 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 	// Rule 3: no unknown headers (Status: is a relic of the pre-0022 format;
 	// run `erg migrate` to convert it).
 	for key, vals := range t.Headers {
-		if !validHeaders[key] {
+		if !ValidHeaders[key] {
 			if key == "Status" {
 				errors = append(errors, fmt.Sprintf(
 					"%s: 'Status:' header is no longer part of %%erg v1 — run `erg migrate` to convert", name))
@@ -79,7 +38,7 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 			continue
 		}
 		// Singleton check: non-repeatable headers must appear at most once.
-		if singletonHeaders[key] && len(vals) > 1 {
+		if SingletonHeaders[key] && len(vals) > 1 {
 			errors = append(errors, fmt.Sprintf(
 				"%s: header '%s' is non-repeatable (appears %d times)", name, key, len(vals)))
 		}
@@ -88,7 +47,7 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 	// Rule 3a: Tags: values must be from the closed value set.
 	if tags, ok := t.Headers["Tags"]; ok {
 		for _, v := range tags {
-			if !validTagValues[strings.TrimSpace(v)] {
+			if !ValidTagValues[strings.TrimSpace(v)] {
 				errors = append(errors, fmt.Sprintf(
 					"%s: unknown Tags value '%s' (not in v1 closed set)", name, v))
 			}
@@ -116,14 +75,14 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 
 	// Rule 5: Created is ISO date
 	if created, ok := t.Headers["Created"]; ok && len(created) > 0 {
-		if created[0] != "" && !isoDateRE.MatchString(created[0]) {
+		if created[0] != "" && !IsoDateRE.MatchString(created[0]) {
 			errors = append(errors, fmt.Sprintf(
 				"%s: Created '%s' is not a valid ISO date (YYYY-MM-DD)", name, created[0]))
 		}
 	}
 
 	// Rule 6: filename matches NNNN-slug.erg
-	if !filenameRE.MatchString(name) {
+	if !FilenameRE.MatchString(name) {
 		errors = append(errors, fmt.Sprintf(
 			"%s: filename does not match NNNN-slug.erg pattern", name))
 	}
@@ -145,19 +104,19 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 	// Rule 10: log lines match format
 	for _, line := range t.LogLines {
 		trimmed := strings.TrimSpace(line)
-		if trimmed != "" && !logLineRE.MatchString(trimmed) {
+		if trimmed != "" && !LogLineRE.MatchString(trimmed) {
 			errors = append(errors, fmt.Sprintf(
 				"%s: malformed log line: %s", name, trimmed))
 		}
 	}
 
 	// Rule 11: each separator appears exactly once
-	if !t.HasLog {
+	if t.LogSepCount == 0 {
 		errors = append(errors, fmt.Sprintf("%s: missing '--- log ---' separator", name))
 	} else if t.LogSepCount > 1 {
 		errors = append(errors, fmt.Sprintf("%s: '--- log ---' separator appears %d times (expected 1)", name, t.LogSepCount))
 	}
-	if !t.HasBody {
+	if t.BodySepCount == 0 {
 		errors = append(errors, fmt.Sprintf("%s: missing '--- body ---' separator", name))
 	} else if t.BodySepCount > 1 {
 		errors = append(errors, fmt.Sprintf("%s: '--- body ---' separator appears %d times (expected 1)", name, t.BodySepCount))

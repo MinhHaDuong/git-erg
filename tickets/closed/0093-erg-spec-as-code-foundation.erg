@@ -2,11 +2,15 @@
 Title: spec-as-code foundation: ergspecv1.go, struct cleanup, golden fixtures
 Created: 2026-05-06
 Author: claude
+Closed: autoclosed — PR #109
 
 --- log ---
 2026-05-06T14:30Z claude created
 
 2026-05-06T19:55Z MinhHaDuong note blocker 0088 closed — Blocked-by removed
+2026-05-08T15:30Z claude bump verify-reroll — round 1: Erg struct has no HasLog or HasBody fields (exit criterion unmet, deferred without follow-up ticket)
+2026-05-08T16:00Z claude bump verify-reroll — round 2: duplicate ticket IDs 0008 and 0108 (conflict-fix commit restored open copies that already exist as closed); round budget exhausted — human escalation required
+2026-05-08T16:07Z MinhHaDuong closed — autoclosed — PR #109
 --- body ---
 ## Context
 

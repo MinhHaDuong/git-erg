@@ -1,0 +1,10 @@
+%erg v1
+Title: Pending Ticket
+Created: 2024-03-01
+Author: test
+Tags: deferred
+
+--- log ---
+2024-03-01T09:00Z test created
+--- body ---
+This ticket is deferred.

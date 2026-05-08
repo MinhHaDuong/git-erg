@@ -1,0 +1,29 @@
+%erg v1
+Title: Rich Body Ticket
+Created: 2024-04-01
+Author: test
+
+--- log ---
+2024-04-01T08:00Z test created
+--- body ---
+## Overview
+
+This ticket has rich markdown content.
+
+### Features
+
+- Item one
+- Item two
+- Item three
+
+| Column A | Column B |
+|----------|----------|
+| cell 1   | cell 2   |
+
+```go
+func hello() {
+    fmt.Println("world")
+}
+```
+
+> A blockquote example.
