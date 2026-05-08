@@ -2,10 +2,12 @@
 Title: Align module names on command names: one module = one command
 Created: 2026-05-07
 Author: claude-sonnet-4-6
+Closed: autoclosed — PR #106
 
 --- log ---
 2026-05-07T00:00Z claude-sonnet-4-6 created
 
+2026-05-08T14:23Z MinhHaDuong closed — autoclosed — PR #106
 --- body ---
 ## Context
 The Go source files in `src/go/` are not consistently named after the CLI
