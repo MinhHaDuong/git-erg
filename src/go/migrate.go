@@ -115,6 +115,29 @@ func cmdMigrate(args []string) int {
 		} else if archiveErr == nil && closedErr == nil {
 			fmt.Fprintln(os.Stderr, "migrate: both archive/ and closed/ exist — resolve manually")
 		}
+		ergBin := filepath.Join(dir, "erg")
+		_, statErr := os.Stat(ergBin)
+		if os.IsNotExist(statErr) {
+			exe, err := os.Executable()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "migrate: cannot locate self: %v\n", err)
+				return 1
+			}
+			data, err := os.ReadFile(exe)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "migrate: cannot read self: %v\n", err)
+				return 1
+			}
+			if err := os.WriteFile(ergBin, data, 0755); err != nil {
+				fmt.Fprintf(os.Stderr, "migrate: cannot write tickets/erg: %v\n", err)
+				return 1
+			}
+			if err := os.Chmod(ergBin, 0755); err != nil {
+				fmt.Fprintf(os.Stderr, "migrate: cannot chmod tickets/erg: %v\n", err)
+				return 1
+			}
+			fmt.Println("migrate: copied binary → tickets/erg")
+		}
 		if code := cmdInit([]string{root}); code != 0 {
 			fmt.Fprintln(os.Stderr, "migrate: init assets refresh failed")
 		}

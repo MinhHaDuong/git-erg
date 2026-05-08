@@ -2,11 +2,13 @@
 Title: Add fixtures for under-tested validate/check rules
 Created: 2026-05-07
 Author: claude
+Closed: 28 fixtures added, test_validate 26→54 cases, test_check 24→26; merged in PR #105
 
 --- log ---
 2026-05-07T00:00Z claude created
 2026-05-07T16:12Z claude closed — 28 fixtures added, test_validate 26→54 cases, test_check 24→26 (PR #105)
 
+2026-05-07T18:54Z MinhHaDuong closed — 28 fixtures added, test_validate 26→54 cases, test_check 24→26; merged in PR #105
 --- body ---
 ## Context
 
