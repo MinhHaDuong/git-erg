@@ -67,7 +67,7 @@ var IsoDateRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 //
 //	filename := 4DIGIT "-" lc-word *("-" lc-word) ".erg"
 //	lc-word   := 1*(ALPHA / DIGIT)   ; lowercase ASCII alphanumeric
-var FilenameRE = regexp.MustCompile(`^\d{4}-[a-z0-9]+(-[a-z0-9]+)*\.erg$`)
+var FilenameRE = regexp.MustCompile(`^\d{4}-[a-z0-9]+(?:-[a-z0-9]+)*\.erg$`)
 
 // LogLineRE matches a valid log section line: ISO timestamp, actor, verb,
 // optional detail (rule 11).

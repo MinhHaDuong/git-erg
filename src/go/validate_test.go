@@ -320,7 +320,15 @@ func TestDetectCycles(t *testing.T) {
 
 func TestValidateErg_GoldenValid(t *testing.T) {
 	fixtures, _ := filepath.Glob("testdata/valid/*.erg")
-	allIDs := map[string]bool{"0001": true, "0002": true, "0003": true, "0004": true}
+	// Build allIDs from the fixture filenames so adding a new fixture
+	// doesn't require updating this test.
+	allIDs := map[string]bool{}
+	for _, path := range fixtures {
+		base := filepath.Base(path)
+		if len(base) >= 4 {
+			allIDs[base[:4]] = true
+		}
+	}
 	for _, path := range fixtures {
 		t.Run(filepath.Base(path), func(t *testing.T) {
 			erg := parseErg(path)
