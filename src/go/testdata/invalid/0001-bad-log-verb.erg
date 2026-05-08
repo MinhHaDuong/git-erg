@@ -1,0 +1,8 @@
+%erg v1
+Title: Bad Log Verb
+Created: 2024-01-01
+Author: test
+
+--- log ---
+2024-01-01T10:00Z actor-only
+--- body ---

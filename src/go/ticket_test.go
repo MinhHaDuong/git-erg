@@ -51,11 +51,11 @@ func TestParseErg(t *testing.T) {
 		if erg.Title() != "My Title" {
 			t.Errorf("Title() = %q, want %q", erg.Title(), "My Title")
 		}
-		if !erg.HasLog {
-			t.Error("expected HasLog=true")
+		if erg.LogSepCount == 0 {
+			t.Error("expected LogSepCount > 0")
 		}
-		if !erg.HasBody {
-			t.Error("expected HasBody=true")
+		if erg.BodySepCount == 0 {
+			t.Error("expected BodySepCount > 0")
 		}
 	})
 
@@ -100,7 +100,7 @@ func TestParseErg(t *testing.T) {
 	})
 
 	t.Run("magic line padded with whitespace", func(t *testing.T) {
-		// parseErg uses TrimSpace before comparing to magicLine, so leading/trailing
+		// parseErg uses TrimSpace before comparing to MagicLine, so leading/trailing
 		// spaces on the first line must still be accepted as a valid magic marker.
 		content := "  %erg v1  \nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)

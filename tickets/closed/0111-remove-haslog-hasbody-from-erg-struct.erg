@@ -1,0 +1,30 @@
+%erg v1
+Title: Remove HasLog and HasBody redundant booleans from Erg struct
+Created: 2026-05-08
+Author: claude
+Closed: completed in PR #109 alongside 0093
+
+--- log ---
+2026-05-08T00:00Z claude created
+
+2026-05-08T15:31Z MinhHaDuong closed — completed in PR #109 alongside 0093
+--- body ---
+## Context
+
+`Erg.HasLog` and `Erg.HasBody` are always equal to `LogSepCount > 0` and
+`BodySepCount > 0` respectively. They are redundant fields. Deferred from
+ticket 0093 (spec-as-code foundation) to keep that PR focused on constant
+extraction.
+
+## Actions
+
+1. Remove `HasLog` and `HasBody` from the `Erg` struct in `ticket.go`.
+2. In `validate.go` rule 11: replace `!t.HasLog` with `t.LogSepCount == 0`
+   and `!t.HasBody` with `t.BodySepCount == 0`.
+3. Update `ticket_test.go`: remove assertions on `HasLog`/`HasBody` fields.
+4. Run `make test`.
+
+## Exit criteria
+- `Erg` struct has no `HasLog` or `HasBody` fields.
+- `validate.go` uses `LogSepCount`/`BodySepCount` for rule 11.
+- `make test` passes.
