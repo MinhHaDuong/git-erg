@@ -2,11 +2,12 @@
 Title: Manual — define store auto-discovery mechanism
 Created: 2026-05-06
 Author: claude
-Blocked-by: 0096
+Closed: main.go manual intro: store auto-discovery paragraph added
 
 --- log ---
 2026-05-06T20:45Z claude created
 
+2026-05-08T19:17Z MinhHaDuong closed — main.go manual intro: store auto-discovery paragraph added
 --- body ---
 ## Context
 

@@ -1,12 +1,19 @@
 # erg manual
 
 Author: minh.ha-duong@cnrs.fr
-Generated from: erg built 2026-05-08T14:47:45Z rev 00b5b48
+Generated from: erg built 2026-05-08T19:18:20Z rev 7723d6e
 
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
 This manual describes all `erg` commands. For the ticket file format
 specification, see `tickets/spec-erg-v1.md`.
+
+**Store auto-discovery.** When no DIR is given, `erg` tries three candidates in
+order: (1) the directory containing the `erg` binary, (2) `tickets/` under the
+current working directory, (3) the current working directory itself. A directory
+qualifies as a ticket store if its basename is `tickets`, or if it contains at
+least one `.erg` file. The first qualifying candidate is used; if none qualify,
+`erg` exits with an error listing the directories it tried.
 
 ## erg validate FILE...
 
@@ -22,7 +29,8 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
   6. Closed: header has a non-empty value and does not appear in the log or body sections.
   7. Created is a valid ISO date (YYYY-MM-DD).
   8. Filename matches NNNN-slug.erg (4-digit ID, lowercase ASCII kebab slug).
-  9. Blocked-by values parse as local-ref (NNNN) or forge-ref (host/owner/repo#N).
+  9. Blocked-by values parse as local-ref (NNNN, exactly 4 digits) or
+     forge-ref (host/owner/repo#N, e.g. github.com/acme/myrepo#42).
   10. Local Blocked-by refs point to existing ticket IDs in the same directory.
   11. Log lines match 'YYYY-MM-DDThh:mmZ actor verb [detail]' format.
   12. Each separator (`--- log ---`, `--- body ---`) appears exactly once.
@@ -112,10 +120,14 @@ Closing a ticket is a three-step atomic operation:
   3. Scans every open ticket in DIR for Blocked-by: ID and removes those lines,
      appending a log entry to each modified ticket:
      `TIMESTAMP AUTHOR note blocker ID closed — Blocked-by removed.`
+     Already-closed tickets that reference the ID are not modified. If a ticket
+     has multiple Blocked-by: ID lines, all are removed in one pass.
 
 ID may be a 4-digit ticket ID or a full filename (e.g. 0042-some-title.erg).
-REASON must be non-empty. The operation is idempotent: closing an already-closed
-ticket prints 'CLOSED (already)' and exits 0.
+REASON must be non-empty. The operation is idempotent (safe to call twice for
+the same ticket): closing an already-closed ticket prints 'CLOSED (already)' and
+exits 0. Step 3 (Blocked-by removal) is also idempotent; re-running close on
+an already-closed ticket does not re-scan dependents.
 
 ## erg log ID LINE [DIR]
 
@@ -129,9 +141,10 @@ The resulting log entry format is:
 
   `YYYY-MM-DDThh:mmZ LINE`
 
-LINE must be non-empty. It should follow the log-line convention of
-'actor verb [detail]' (e.g. "claude note retried with narrower scope"), but this
-is not enforced — only format is validated on read by erg validate.
+LINE must be non-empty. It must follow the format 'actor verb [detail]'
+(e.g. "claude note retried with narrower scope"). The timestamp, actor, and verb
+tokens are required; the detail token is optional. The log-line format is
+enforced by erg validate (rule 11).
 
 Prints "LOGGED" on success. Exits non-zero if the ticket is not found or has no
 `--- body ---` separator (which would indicate a malformed file).
@@ -140,7 +153,7 @@ Prints "LOGGED" on success. Exits non-zero if the ticket is not found or has no
 
 Move closed tickets to DIR/closed/.
 
-With no IDs, scans the top-level of DIR (default: tickets/) for tickets that
+With no IDs, scans only the direct children of DIR (default: tickets/) — not subdirectories — for tickets that
 have a non-empty Closed: header and are not already inside a closed/ directory,
 then moves each eligible ticket to DIR/closed/. With IDs given, archives only
 the named tickets.
@@ -157,7 +170,7 @@ an existing file at the destination.
 
 Convert legacy Status: headers to %erg v1 format.
 
-Idempotent. For every .erg file under DIR (default: tickets/) the migration
+Idempotent (safe to run repeatedly: already-migrated files are not modified twice). For every .erg file under DIR (default: tickets/) the migration
 rules are:
 
   - 'Status: closed' (case-insensitive) → drop the line; append
@@ -170,15 +183,11 @@ After migration, erg validate will reject any remaining Status: lines.
 
 When DIR is named "tickets" (the canonical layout), also performs a one-time
 project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
-handles archive/ → closed/ migration (see below), then refreshes init assets
-via cmdInit.
+renames archive/ to closed/ if archive/ exists and closed/ does not, then
+refreshes init assets via cmdInit.
 
-archive/ → closed/ migration: if only archive/ exists, it is renamed to closed/.
-If both archive/ and closed/ exist, all files from archive/ are moved into
-closed/ and archive/ is removed. If any filename collides, migration aborts with
-exit code 1 and both directories are left untouched — resolve the conflict manually.
-
-Does NOT commit. Review the diff with 'git diff tickets/' and commit manually.
+Does NOT commit. Always exits 0. Review the diff with 'git diff tickets/' and
+commit manually.
 
 ## erg init [DIR]
 
@@ -209,10 +218,10 @@ Prints the following fields for the running binary:
   - revision: VCS commit hash injected at compile time via -ldflags (if present).
   - arch:     GOOS/GOARCH of the running binary.
 
-After printing the running binary info, the command discovers other erg binaries
+After printing the running binary info, `erg version` discovers other erg binaries
 in well-known locations (./build/erg, ./tickets/erg, ~/.local/bin/erg, and PATH
-entries). For each discovered binary it compares VCS revisions and build dates
-to identify outdated copies, printing the update command needed.
+entries), compares VCS revisions and build dates against each discovered copy, and
+prints the update command for any outdated copy it finds.
 
 Set ERG_VERSION_NO_DISCOVER=1 to suppress discovery (used internally by version
 comparison to avoid recursion).

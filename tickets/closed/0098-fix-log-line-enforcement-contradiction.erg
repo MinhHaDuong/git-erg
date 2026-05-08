@@ -2,11 +2,12 @@
 Title: Fix log-line enforcement contradiction in manual
 Created: 2026-05-06
 Author: claude
-Blocked-by: 0096
+Closed: help.go log section: enforced vs unenforced contradiction resolved
 
 --- log ---
 2026-05-06T20:45Z claude created
 
+2026-05-08T19:17Z MinhHaDuong closed — help.go log section: enforced vs unenforced contradiction resolved
 --- body ---
 ## Context
 
