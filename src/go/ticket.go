@@ -120,7 +120,7 @@ func validateIssueNumber(num string) error {
 // Erg is a parsed %erg v1 ticket file.
 type Erg struct {
 	Path     string
-	Headers  map[string][]string // repeatable headers
+	headers  map[string][]string // repeatable headers (unexported; use accessor methods)
 	LogLines []string
 	Body     string
 	HasMagic bool
@@ -135,7 +135,7 @@ type Erg struct {
 
 // Title returns the first Title header value, or "" if absent.
 func (t *Erg) Title() string {
-	if vs, ok := t.Headers["Title"]; ok && len(vs) > 0 {
+	if vs, ok := t.headers["Title"]; ok && len(vs) > 0 {
 		return vs[0]
 	}
 	return ""
@@ -148,7 +148,7 @@ func (t *Erg) Closed() bool {
 	if pathIsClosed(t.Path) {
 		return true
 	}
-	if vs, ok := t.Headers["Closed"]; ok {
+	if vs, ok := t.headers["Closed"]; ok {
 		for _, v := range vs {
 			if strings.TrimSpace(v) != "" {
 				return true
@@ -187,7 +187,7 @@ func pathIsClosed(path string) bool {
 
 // BlockedBy returns all Blocked-by header values verbatim.
 func (t *Erg) BlockedBy() []string {
-	if vs, ok := t.Headers["Blocked-by"]; ok {
+	if vs, ok := t.headers["Blocked-by"]; ok {
 		return vs
 	}
 	return nil
@@ -195,7 +195,7 @@ func (t *Erg) BlockedBy() []string {
 
 // Tags returns all normalized Tags header values.
 func (t *Erg) Tags() []string {
-	vs, ok := t.Headers["Tags"]
+	vs, ok := t.headers["Tags"]
 	if !ok || len(vs) == 0 {
 		return nil
 	}
@@ -207,6 +207,37 @@ func (t *Erg) Tags() []string {
 		}
 	}
 	return out
+}
+
+// ClosedHeader reports whether the ticket has a non-empty Closed: header.
+// This is a pure header test — it does NOT check the ticket path.
+// Use Closed() when path-based closure (tickets/closed/ directory) must
+// also be considered.
+func (t *Erg) ClosedHeader() bool {
+	if vs, ok := t.headers["Closed"]; ok {
+		for _, v := range vs {
+			if strings.TrimSpace(v) != "" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Created returns the first Created header value, or "" if absent.
+func (t *Erg) Created() string {
+	if vs, ok := t.headers["Created"]; ok && len(vs) > 0 {
+		return vs[0]
+	}
+	return ""
+}
+
+// Author returns the first Author header value, or "" if absent.
+func (t *Erg) Author() string {
+	if vs, ok := t.headers["Author"]; ok && len(vs) > 0 {
+		return vs[0]
+	}
+	return ""
 }
 
 // BlockedByRefs parses every Blocked-by header value and returns refs
@@ -292,7 +323,7 @@ func parseHeaderLine(line string) (string, string, bool) {
 func parseErg(path string) Erg {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return Erg{Path: path, Headers: make(map[string][]string)}
+		return Erg{Path: path, headers: make(map[string][]string)}
 	}
 	lines := strings.Split(string(data), "\n")
 
@@ -366,7 +397,7 @@ func parseErg(path string) Erg {
 
 	return Erg{
 		Path:         path,
-		Headers:      headers,
+		headers:      headers,
 		LogLines:     logLines,
 		Body:         strings.Join(bodyLines, "\n"),
 		HasMagic:     hasMagic,

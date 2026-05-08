@@ -14,15 +14,7 @@ func folderClosure(tickets []Erg) []string {
 	for i := range tickets {
 		t := &tickets[i]
 		inClosedDir := pathIsClosed(filepath.Dir(t.Path))
-		hasClosed := false
-		if vs, ok := t.Headers["Closed"]; ok {
-			for _, v := range vs {
-				if strings.TrimSpace(v) != "" {
-					hasClosed = true
-					break
-				}
-			}
-		}
+		hasClosed := t.ClosedHeader()
 
 		if inClosedDir && !hasClosed {
 			warnings = append(warnings, fmt.Sprintf(

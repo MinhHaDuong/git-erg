@@ -126,8 +126,8 @@ func removeBlockedByRef(ticketDir, closedID, timestamp, author string) {
 		if t.Closed() {
 			continue
 		}
-		refs, ok := t.Headers["Blocked-by"]
-		if !ok {
+		refs := t.BlockedBy()
+		if refs == nil {
 			continue
 		}
 		found := false

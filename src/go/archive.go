@@ -113,16 +113,7 @@ func cmdArchive(args []string) int {
 		// Skip tickets without a non-empty Closed: header.
 		// We use header-only check (not t.Closed()) to avoid re-processing
 		// tickets that are already path-closed.
-		hasClosed := false
-		if vs, ok := t.Headers["Closed"]; ok {
-			for _, v := range vs {
-				if strings.TrimSpace(v) != "" {
-					hasClosed = true
-					break
-				}
-			}
-		}
-		if !hasClosed {
+		if !t.ClosedHeader() {
 			continue
 		}
 

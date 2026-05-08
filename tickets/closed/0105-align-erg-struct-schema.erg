@@ -2,10 +2,12 @@
 Title: Align Erg struct on schema literally; explore merging parser and validator
 Created: 2026-05-07
 Author: claude-sonnet-4-6
+Closed: add ClosedHeader/Created/Author accessors; unexport Headers field
 
 --- log ---
 2026-05-07T00:00Z claude-sonnet-4-6 created
 
+2026-05-08T19:44Z MinhHaDuong closed — add ClosedHeader/Created/Author accessors; unexport Headers field
 --- body ---
 ## Context
 The `Erg` struct (`ticket.go:123`) uses `Headers map[string][]string` as a
