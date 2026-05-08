@@ -25,8 +25,9 @@ import (
 // renames archive/ to closed/ if archive/ exists and closed/ does not, then
 // refreshes init assets via cmdInit.
 //
-// Does NOT commit. Always exits 0. Review the diff with `git diff tickets/` and
-// commit manually.
+// Does NOT commit. Exits 1 on archive/→closed/ filename collision (both directories
+// are left untouched; the user must resolve manually). Exits 0 otherwise.
+// Review the diff with `git diff tickets/` and commit manually.
 func cmdMigrate(args []string) int {
 	var dir string
 	if len(args) > 0 {
@@ -113,7 +114,32 @@ func cmdMigrate(args []string) int {
 				fmt.Println("migrate: renamed archive/ → closed/")
 			}
 		} else if archiveErr == nil && closedErr == nil {
-			fmt.Fprintln(os.Stderr, "migrate: both archive/ and closed/ exist — resolve manually")
+			entries, err := os.ReadDir(archiveDir)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "migrate: read archive/: %v\n", err)
+			} else {
+				var conflicts []string
+				for _, e := range entries {
+					if _, err := os.Stat(filepath.Join(closedDir, e.Name())); err == nil {
+						conflicts = append(conflicts, e.Name())
+					}
+				}
+				if len(conflicts) > 0 {
+					fmt.Fprintf(os.Stderr, "migrate: archive/→closed/ collision: %v — resolve manually\n", conflicts)
+					return 1
+				} else {
+					for _, e := range entries {
+						if err := os.Rename(filepath.Join(archiveDir, e.Name()), filepath.Join(closedDir, e.Name())); err != nil {
+							fmt.Fprintf(os.Stderr, "migrate: move %s: %v\n", e.Name(), err)
+						}
+					}
+					if err := os.Remove(archiveDir); err != nil {
+						fmt.Fprintf(os.Stderr, "migrate: remove archive/: %v\n", err)
+					} else {
+						fmt.Printf("migrate: merged %d files archive/ → closed/, removed archive/\n", len(entries))
+					}
+				}
+			}
 		}
 		ergBin := filepath.Join(dir, "erg")
 		_, statErr := os.Stat(ergBin)

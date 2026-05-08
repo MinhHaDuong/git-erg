@@ -1,7 +1,7 @@
 # erg manual
 
 Author: minh.ha-duong@cnrs.fr
-Generated from: erg built 2026-05-08T13:25:25Z rev d68afc1
+Generated from: erg built 2026-05-08T14:47:45Z rev 00b5b48
 
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
@@ -170,11 +170,15 @@ After migration, erg validate will reject any remaining Status: lines.
 
 When DIR is named "tickets" (the canonical layout), also performs a one-time
 project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
-renames archive/ to closed/ if archive/ exists and closed/ does not, then
-refreshes init assets via cmdInit.
+handles archive/ → closed/ migration (see below), then refreshes init assets
+via cmdInit.
 
-Does NOT commit. Always exits 0. Review the diff with 'git diff tickets/' and
-commit manually.
+archive/ → closed/ migration: if only archive/ exists, it is renamed to closed/.
+If both archive/ and closed/ exist, all files from archive/ are moved into
+closed/ and archive/ is removed. If any filename collides, migration aborts with
+exit code 1 and both directories are left untouched — resolve the conflict manually.
+
+Does NOT commit. Review the diff with 'git diff tickets/' and commit manually.
 
 ## erg init [DIR]
 
