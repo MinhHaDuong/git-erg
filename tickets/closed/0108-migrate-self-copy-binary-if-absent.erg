@@ -2,10 +2,12 @@
 Title: migrate: self-copy binary into tickets/ when tickets/erg is absent
 Created: 2026-05-08
 Author: MinhHaDuong
+Closed: autoclosed — PR #107
 
 --- log ---
 2026-05-08T08:00Z MinhHaDuong created
 
+2026-05-08T14:24Z MinhHaDuong closed — autoclosed — PR #107
 --- body ---
 ## Context
 
