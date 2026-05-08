@@ -1,0 +1,62 @@
+%erg v1
+Title: migrate: merge archive/ into closed/ when both directories exist
+Created: 2026-05-08
+Author: MinhHaDuong
+
+--- log ---
+2026-05-08T08:00Z MinhHaDuong created
+
+--- body ---
+## Context
+
+`erg migrate` renames `archive/` to `closed/` only when `closed/` does not
+already exist. When both directories are present, the condition is false and
+`archive/` is silently left behind with no warning.
+
+This creates a silent correctness problem: the user assumes migrate cleaned up
+`archive/`, but the directory remains and its tickets are invisible to
+`erg check` (which only scans `tickets/` and `tickets/closed/`).
+
+## Actions
+
+1. When migrate finds both `archive/` and `closed/` present, move every file
+   from `archive/` into `closed/`.
+2. If any filename already exists in `closed/`, abort with an error naming the
+   conflicting file(s) and leave both directories untouched. The user must
+   resolve the conflict manually.
+3. After all files are moved successfully, remove the now-empty `archive/`.
+4. Print a summary line: `merged N files archive/ → closed/, removed archive/`.
+
+The rename-only path (archive/ exists, closed/ absent) is unchanged.
+
+## Test
+
+```bash
+# Setup: both directories present, no conflicts
+mkdir -p /tmp/test-merge/tickets/{archive,closed}
+echo "%erg v1" > /tmp/test-merge/tickets/archive/0001-old.erg
+echo "%erg v1" > /tmp/test-merge/tickets/closed/0002-existing.erg
+cd /tmp/test-merge
+~/.local/bin/erg migrate
+test ! -d tickets/archive  || echo "FAIL: archive/ still present"
+test -f tickets/closed/0001-old.erg || echo "FAIL: file not merged"
+test -f tickets/closed/0002-existing.erg || echo "FAIL: existing file lost"
+echo PASS
+
+# Conflict case
+mkdir -p /tmp/test-conflict/tickets/{archive,closed}
+echo "a" > /tmp/test-conflict/tickets/archive/0001-conflict.erg
+echo "b" > /tmp/test-conflict/tickets/closed/0001-conflict.erg
+cd /tmp/test-conflict
+~/.local/bin/erg migrate && echo "FAIL: should have errored" || echo PASS
+test -d tickets/archive || echo "FAIL: archive/ should be untouched on error"
+```
+
+## Exit criteria
+
+- `erg migrate` with both `archive/` and `closed/` present moves all
+  non-conflicting files and removes `archive/`.
+- Name collision aborts migrate with a non-zero exit and leaves both
+  directories intact.
+- When only `archive/` exists (no `closed/`), the existing rename path
+  is unchanged.
