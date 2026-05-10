@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-05-08 — Session: Full raid (PRs #110–#118); all open tickets closed; zero open tickets remaining._
+_Last updated: 2026-05-10 — Housekeeping: pruned 4 orphaned verify worktrees; all else clean._
 
 ## Stats
 
