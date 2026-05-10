@@ -1,0 +1,34 @@
+%erg v1
+Title: Review and resolve stale branch claude/install-rtk-proxy-nYj6X
+Created: 2026-05-10
+Author: claude
+
+--- log ---
+2026-05-10T00:00Z claude created
+
+--- body ---
+## Context
+
+Branch `claude/install-rtk-proxy-nYj6X` has 2 unmerged commits from 2026-05-07
+that were never PR'd or merged into main:
+
+- `b352547 fix(test): isolate test 0124 in subdirectory to prevent future 9999-fixture collision`
+- `0865a10 test: add fixtures for under-tested validate/check rules`
+
+Discovered during housekeeping (2026-05-10). The branch name suggests it
+originated from an RTK proxy install session but the commits are test
+improvements. Decision needed: PR and merge, or discard.
+
+## Actions
+
+1. Review the 2 commits: `git diff main...claude/install-rtk-proxy-nYj6X`
+2. If changes are worth keeping: open a PR and merge via /merge
+3. If changes are stale or superseded: delete the branch
+
+## Test
+
+If merged: `make test` passes with the new fixtures contributing to coverage.
+
+## Exit criteria
+
+Branch is either merged into main or deleted. No stale branches remain.
