@@ -2,10 +2,12 @@
 Title: Review and resolve stale branch claude/install-rtk-proxy-nYj6X
 Created: 2026-05-10
 Author: claude
+Closed: superseded by PR #105 (squash merge)
 
 --- log ---
 2026-05-10T00:00Z claude created
 
+2026-05-10T22:01Z MinhHaDuong closed — superseded by PR #105 (squash merge)
 --- body ---
 ## Context
 
