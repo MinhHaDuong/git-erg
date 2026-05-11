@@ -1,7 +1,7 @@
 # erg manual
 
 Author: minh.ha-duong@cnrs.fr
-Generated from: erg built 2026-05-11T10:09:56Z rev 19ab2f0
+Generated from: erg built 2026-05-11T11:17:38Z rev c1fd7f5
 
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
@@ -22,7 +22,7 @@ Validate individual .erg ticket files (format, headers, refs).
 Each FILE must be a .erg ticket. For every file the validator enforces:
 
   1. Magic first line is '%erg v1' (rejects unknown versions).
-  2. All required headers present: Title, Created, Author.
+  2. All required headers present AND non-empty: Title, Created, Author.
   3. No unknown headers (Status: is unknown; run 'erg migrate' to convert it).
   4. Non-repeatable headers (Title, Created, Author, Closed) appear at most once.
   5. Tag: values are from the closed set (needs-human, deferred, post-talk, post-conference).
@@ -33,7 +33,9 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
      forge-ref (host/owner/repo#N, e.g. github.com/acme/myrepo#42).
   10. Local Blocked-by refs point to existing ticket IDs in the same directory.
   11. Log lines match 'YYYY-MM-DDThh:mmZ actor verb [detail]' format.
-  12. Each separator (`--- log ---`, `--- body ---`) appears exactly once.
+  12. Both separators (`--- log ---`, `--- body ---`) appear at least once;
+      the first occurrence of each is the section separator, subsequent
+      occurrences are body text (legitimate bodies may quote the literals).
   13. No dependency cycles among local Blocked-by refs.
 
 For corpus-level checks (duplicate IDs, cycles), use: erg check [dir]
