@@ -9,6 +9,8 @@ Blocked-by: 0116
 
 2026-05-11T00:00Z MinhHaDuong reimagined — corrected per-file/corpus rule split (rule 13 = cycles, corpus); flagged ParseError-as-struct as YAGNI vs. plain []string; recommended incremental migration (one trace field per commit) instead of atomic
 
+2026-05-11T00:00Z MinhHaDuong scope — error messages MUST include line numbers ("filename:line: msg"); upgrade from today's "filename: msg" format. Expected level of service.
+
 --- body ---
 ## Context
 After ticket 0116, the `Erg` struct carries diagnostic-trace fields
@@ -44,6 +46,23 @@ func validateCorpus(tickets []Erg) []string
 reimagined ParseError struct (file/line/rule fields) is YAGNI — no
 consumer reads errors programmatically today.
 
+## Error message format
+Upgrade from `"filename: msg"` to `"filename:LINE: msg"` for every
+error the parser emits (the parser knows the line; the validator
+mostly does not, today). End-of-file errors (e.g. "missing `--- log
+---` separator") use line 0 or omit the line — pick one convention
+and document. Suggested: omit the line when no specific line applies
+(`"filename: missing '--- log ---' separator"`).
+
+Existing validator output (today's `"filename: msg"`) is updated to
+match: the corpus walker also emits `"filename:LINE: msg"` for errors
+that pertain to a specific line (e.g. corpus-level Blocked-by
+resolution: line of the `Blocked-by:` header).
+
+Test impact: every fixture that asserts on error strings updates to
+the new format. Mechanical; the new strings are strictly more
+informative.
+
 ## Actions (incremental migration)
 Change `parseErg` signature to `(Erg, []string)` first (returning nil).
 Then migrate one trace field per commit — each independently testable:
@@ -59,6 +78,35 @@ Then migrate one trace field per commit — each independently testable:
 8. Rename corpus-level checker to `validateCorpus`; update `cmdValidate`
    and `cmdCheck` call sites.
 9. Update `validate_test.go` and parser tests.
+
+## Leniency / recovery
+The parser is **lenient**: it never bails on a single error. It walks
+the whole file, accumulates every error it can find, returns the
+best-effort `Erg` alongside the `[]string`. Same policy as today's
+parser; restate explicitly so the implementer doesn't "fix" it.
+
+- Malformed header line → emit, skip line, continue.
+- Unknown header → emit migration hint, continue.
+- Missing magic → emit, attempt header parse anyway.
+- Missing separator → emit at end, body content stays wherever the
+  parser was.
+- Empty required header → emit, continue.
+
+The validator's exit code is non-zero if any error fired; strictness
+lives at the CLI level, not the parser level.
+
+## Migration test contract
+`make test` must stay green at every commit in the incremental
+migration (signature change → field-by-field). Each per-commit diff
+keeps tests passing; the final commit deletes `validateErg`. No
+"green only at the end" merges.
+
+End-of-walk emissions: rule 4 (Closed in log/body) and rule 11
+(separator missing) only know the answer at end of file. They emit
+before return, not mid-walk. Flag for the implementer.
+
+validate_test.go callers of `validateErg` directly: rewrite to call
+`parseErg` and assert on its `[]string`. Mechanical but volume-y.
 
 ## Open question
 Eliminating ~5 trace fields requires coupling error policy into the
@@ -84,5 +132,6 @@ diffs feel forced.
 - Per-file rules emit errors at parse time, not in a separate pass.
 - Corpus-level rules (duplicate IDs, ref resolution, cycles) live in a
   clearly-named `validateCorpus`.
-- `make test` passes; error messages preserved (the existing
-  `name: message` shape is the contract — tests assert it).
+- `make test` passes; error messages upgraded to `filename:LINE: msg`
+  format where a specific line applies, `filename: msg` where it does
+  not. All test fixtures updated.
