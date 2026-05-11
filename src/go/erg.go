@@ -33,12 +33,17 @@ type Erg struct {
 }
 
 // ParseDiagnostics carries parser observations the validator consumes.
-// In 0117 (parse+validate merge) this struct is replaced in-place by
-// []ParseError; until then, validate.go walks these fields.
+// In 0117 (parse+validate merge) this struct collapses to a plain
+// []string of error messages. Shape (c) transitional: Errors is
+// populated alongside the legacy trace fields, and each subsequent
+// commit migrates one rule from validateErg into parseErgBytes
+// (emitting into Errors and zeroing the corresponding trace field).
+// The struct is deleted once every per-file rule has migrated.
 type ParseDiagnostics struct {
-	Unknown            []Line // unknown header keys seen
-	RepeatedSingletons []Line // singleton keys seen more than once
-	ClosedEmpty        bool   // ANY `Closed:` line seen with empty value
+	Errors             []string // parse-time error messages (filename: msg)
+	Unknown            []Line   // unknown header keys seen
+	RepeatedSingletons []Line   // singleton keys seen more than once
+	ClosedEmpty        bool     // ANY `Closed:` line seen with empty value
 	ClosedInLog        bool
 	ClosedInBody       bool
 	HasLogSep          bool // `--- log ---` seen at least once
