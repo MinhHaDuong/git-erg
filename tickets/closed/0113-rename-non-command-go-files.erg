@@ -2,10 +2,12 @@
 Title: Rename non-command Go source files to honest descriptive names
 Created: 2026-05-11
 Author: claude-sonnet-4-6
+Closed: autoclosed — PR #119
 
 --- log ---
 2026-05-11T00:00Z claude-sonnet-4-6 created
 
+2026-05-11T07:58Z MinhHaDuong closed — autoclosed — PR #119
 --- body ---
 ## Context
 Ticket 0104 renamed selfupdate.go → version.go + update.go but left three
