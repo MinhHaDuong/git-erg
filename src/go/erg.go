@@ -15,8 +15,9 @@ type Line = string
 // Erg is the schema-literal projection of a %erg v1 ticket file.
 // Lenient-parse invariant: parseErg always returns a usable Erg (at
 // minimum with Path set) so callers can report a filename even when the
-// file is unreadable or malformed. The validator (validateErg) decides
-// which structural defects are errors.
+// file is unreadable or malformed. parseErg also returns a []string of
+// per-file rule violations alongside the Erg; corpus-level rules
+// (duplicate IDs, ref resolution, cycles) live in validateCorpus.
 type Erg struct {
 	Path     Line
 	HasMagic bool
