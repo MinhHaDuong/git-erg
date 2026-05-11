@@ -187,13 +187,37 @@ else
     fail "collision: source not removed on collision"
 fi
 
-# --- Non-existent ID: warning printed, exit 0 ---
+# --- Non-existent ID: warning printed, exit 1 (audit fix-now: ID-mode failures must set exit code) ---
 OUT6=$($ERG archive 9999 "$FIXTURES" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -eq 0 ] && echo "$OUT6" | grep -q "no ticket found"; then
-    pass "id mode: non-existent ID prints warning"
+if [ "$rc" -eq 1 ] && echo "$OUT6" | grep -q "no ticket found"; then
+    pass "id mode: non-existent ID prints warning and exits 1"
 else
-    fail "id mode: non-existent ID prints warning (rc=$rc, got: $OUT6)"
+    fail "id mode: non-existent ID prints warning and exits 1 (rc=$rc, got: $OUT6)"
 fi
+
+# --- filepath.Clean regression: trailing slash on directory arg ---
+# PR #126 added filepath.Clean to ticketDir so that `tickets/` and
+# `tickets` compare equal. Without it, default-mode filtering in
+# archive.go:116 (filepath.Dir(t.Path) == ticketDir) silently drops
+# every ticket because `tickets/` != `tickets`.
+SLASH_DIR=$(mktemp -d)
+write_closed "$SLASH_DIR/8001-trailing-slash.erg" "Trailing Slash Test"
+# Pass dir WITH trailing slash — must behave identically to without.
+OUT_SLASH=$($ERG archive "$SLASH_DIR/" 2>&1)
+if [ -f "$SLASH_DIR/closed/8001-trailing-slash.erg" ]; then
+    pass "trailing slash: ticket archived with dir/ arg"
+else
+    fail "trailing slash: ticket archived with dir/ arg (got: $OUT_SLASH)"
+fi
+OUT_NOSLASH_DIR=$(mktemp -d)
+write_closed "$OUT_NOSLASH_DIR/8002-no-slash.erg" "No Slash Test"
+OUT_NOSLASH=$($ERG archive "$OUT_NOSLASH_DIR" 2>&1)
+if [ -f "$OUT_NOSLASH_DIR/closed/8002-no-slash.erg" ]; then
+    pass "trailing slash: ticket archived with dir arg (no slash)"
+else
+    fail "trailing slash: ticket archived with dir arg (no slash) (got: $OUT_NOSLASH)"
+fi
+rm -rf "$SLASH_DIR" "$OUT_NOSLASH_DIR"
 
 echo "archive: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

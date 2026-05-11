@@ -375,7 +375,7 @@ func TestValidateErg_GoldenInvalid(t *testing.T) {
 		"0001-missing-body.erg":      "body",
 		"0001-missing-log.erg":       "log",
 		"0001-missing-created.erg":   "Created",
-		"0001-missing-required.erg":  "required header",
+		"0001-missing-author.erg":    "Author",
 		"0001-missing-title.erg":     "Title",
 		"0001-unknown-header.erg":    "unknown header",
 		"0001-wrong-magic.erg":       "%erg v1",

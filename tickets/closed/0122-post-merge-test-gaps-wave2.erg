@@ -2,10 +2,12 @@
 Title: Test coverage gaps surfaced by post-merge audit wave 2
 Created: 2026-05-11
 Author: claude-opus-4-7
+Closed: autoclosed — PR #127
 
 --- log ---
 2026-05-11T00:00Z claude-opus-4-7 created from second audit (post #124/#125/#126 merge)
 
+2026-05-11T13:55Z MinhHaDuong closed — autoclosed — PR #127
 --- body ---
 ## Context
 Second audit pass after the wave-1 raid (#124/#125/#126 merged) surfaced

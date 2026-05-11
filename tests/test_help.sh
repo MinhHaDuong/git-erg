@@ -134,5 +134,19 @@ else
     fail "validate --help: expected '## erg validate...', got '$first_cmd_line'"
 fi
 
+# --help --all: must contain "Generated from:" build-stamp line
+if $ERG --help --all 2>/dev/null | grep -q "^Generated from: erg"; then
+    pass "--help --all: contains 'Generated from: erg' build-stamp"
+else
+    fail "--help --all: missing 'Generated from: erg' build-stamp"
+fi
+
+# --help --all: must NOT contain a literal '%s' placeholder leak
+if $ERG --help --all 2>/dev/null | grep -qF '%s'; then
+    fail "--help --all: literal '%s' placeholder leaked in output"
+else
+    pass "--help --all: no literal '%s' placeholder"
+fi
+
 echo "help: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

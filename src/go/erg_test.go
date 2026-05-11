@@ -1,7 +1,12 @@
 package main
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -343,6 +348,219 @@ func TestStaleBlockedBy(t *testing.T) {
 		warnings := staleBlockedBy(tickets)
 		if len(warnings) != 0 {
 			t.Errorf("expected no warnings for forge ref, got: %v", warnings)
+		}
+	})
+}
+
+// TestDispatchRegistrySync walks the switch statement in main.go and
+// compares its case labels against the commands registry in helptext.go.
+// If someone adds a commandEntry but forgets the switch case (or vice
+// versa), this test catches the drift.
+func TestDispatchRegistrySync(t *testing.T) {
+	// 1. Extract case labels from main.go's dispatch switch.
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "main.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parsing main.go: %v", err)
+	}
+
+	// helpAliases are case labels in the switch that are NOT commands
+	// (they handle --help / -h / help fallback).
+	helpAliases := map[string]bool{
+		"-h": true, "--help": true, "help": true,
+	}
+
+	var switchCmds []string
+	ast.Inspect(f, func(n ast.Node) bool {
+		sw, ok := n.(*ast.SwitchStmt)
+		if !ok {
+			return true
+		}
+		// Only look at the switch whose tag is the ident "cmd".
+		tag, ok := sw.Tag.(*ast.Ident)
+		if !ok || tag.Name != "cmd" {
+			return true
+		}
+		for _, stmt := range sw.Body.List {
+			cc, ok := stmt.(*ast.CaseClause)
+			if !ok || cc.List == nil { // skip default
+				continue
+			}
+			for _, expr := range cc.List {
+				lit, ok := expr.(*ast.BasicLit)
+				if !ok || lit.Kind != token.STRING {
+					continue
+				}
+				val := strings.Trim(lit.Value, `"`)
+				if helpAliases[val] {
+					continue
+				}
+				switchCmds = append(switchCmds, val)
+			}
+		}
+		return false // only need the first matching switch
+	})
+
+	// 2. Extract command names from the registry.
+	var registryCmds []string
+	for _, c := range commands {
+		registryCmds = append(registryCmds, c.Name)
+	}
+
+	sort.Strings(switchCmds)
+	sort.Strings(registryCmds)
+
+	// 3. Compare.
+	if strings.Join(switchCmds, ",") != strings.Join(registryCmds, ",") {
+		t.Errorf("dispatch switch and commands registry are out of sync\n  switch cases: %v\n  registry:     %v",
+			switchCmds, registryCmds)
+	}
+}
+
+// TestFolderClosure exercises folderClosure (check.go:12).
+func TestFolderClosure(t *testing.T) {
+	t.Run("open ticket in closed dir warns", func(t *testing.T) {
+		dir := t.TempDir()
+		closedDir := filepath.Join(dir, "closed")
+		if err := os.MkdirAll(closedDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		// Open ticket (no Closed: header) placed inside closed/
+		writeErg(t, closedDir, "0001-misplaced.erg",
+			"%erg v1\nTitle: Misplaced\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		tickets, _ := loadErgs(dir)
+		warnings := folderClosure(tickets)
+		if len(warnings) == 0 {
+			t.Fatal("expected a warning for open ticket in closed/ directory, got none")
+		}
+		found := false
+		for _, w := range warnings {
+			if strings.Contains(w, "open ticket in closed/ directory") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected warning about 'open ticket in closed/ directory', got: %v", warnings)
+		}
+	})
+
+	t.Run("closed ticket not in closed dir warns", func(t *testing.T) {
+		dir := t.TempDir()
+		// Closed ticket (has Closed: header) placed in top-level, not in closed/
+		writeErg(t, dir, "0001-stale.erg",
+			"%erg v1\nTitle: Stale\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n")
+		tickets, _ := loadErgs(dir)
+		warnings := folderClosure(tickets)
+		if len(warnings) == 0 {
+			t.Fatal("expected a warning for closed ticket not in closed/ directory, got none")
+		}
+		found := false
+		for _, w := range warnings {
+			if strings.Contains(w, "closed ticket not in closed/ directory") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected warning about 'closed ticket not in closed/ directory', got: %v", warnings)
+		}
+	})
+
+	t.Run("open ticket in open dir no warning", func(t *testing.T) {
+		dir := t.TempDir()
+		writeErg(t, dir, "0001-normal.erg",
+			"%erg v1\nTitle: Normal\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		tickets, _ := loadErgs(dir)
+		warnings := folderClosure(tickets)
+		if len(warnings) != 0 {
+			t.Errorf("expected no warnings, got: %v", warnings)
+		}
+	})
+
+	t.Run("closed ticket in closed dir no warning", func(t *testing.T) {
+		dir := t.TempDir()
+		closedDir := filepath.Join(dir, "closed")
+		if err := os.MkdirAll(closedDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		writeErg(t, closedDir, "0001-archived.erg",
+			"%erg v1\nTitle: Archived\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n")
+		tickets, _ := loadErgs(dir)
+		warnings := folderClosure(tickets)
+		if len(warnings) != 0 {
+			t.Errorf("expected no warnings, got: %v", warnings)
+		}
+	})
+
+	t.Run("empty slice returns nil", func(t *testing.T) {
+		warnings := folderClosure(nil)
+		if len(warnings) != 0 {
+			t.Errorf("expected no warnings, got: %v", warnings)
+		}
+	})
+}
+
+// TestStrayGoSource exercises strayGoSource (check.go:68).
+func TestStrayGoSource(t *testing.T) {
+	t.Run("warns when go files in dir", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		warnings := strayGoSource(dir)
+		if len(warnings) == 0 {
+			t.Fatal("expected a warning for stray .go file, got none")
+		}
+		if !strings.Contains(warnings[0], "Go source files found") {
+			t.Errorf("unexpected warning text: %s", warnings[0])
+		}
+	})
+
+	t.Run("warns when go.mod in dir", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module x"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		warnings := strayGoSource(dir)
+		if len(warnings) == 0 {
+			t.Fatal("expected a warning for stray go.mod, got none")
+		}
+	})
+
+	t.Run("warns when go files in tools/go subdir", func(t *testing.T) {
+		dir := t.TempDir()
+		toolsGoDir := filepath.Join(dir, "tools", "go")
+		if err := os.MkdirAll(toolsGoDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(toolsGoDir, "helper.go"), []byte("package main"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		warnings := strayGoSource(dir)
+		if len(warnings) == 0 {
+			t.Fatal("expected a warning for stray .go in tools/go/, got none")
+		}
+		if !strings.Contains(warnings[0], "tools/go") {
+			t.Errorf("expected warning to mention tools/go path, got: %s", warnings[0])
+		}
+	})
+
+	t.Run("no warning for clean dir", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "0001-test.erg"), []byte("ticket"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		warnings := strayGoSource(dir)
+		if len(warnings) != 0 {
+			t.Errorf("expected no warnings, got: %v", warnings)
+		}
+	})
+
+	t.Run("nonexistent dir returns nil", func(t *testing.T) {
+		warnings := strayGoSource(filepath.Join(t.TempDir(), "nonexistent"))
+		if len(warnings) != 0 {
+			t.Errorf("expected no warnings, got: %v", warnings)
 		}
 	})
 }
