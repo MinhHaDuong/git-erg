@@ -186,7 +186,7 @@ func parseErg(path string) (Erg, ParseDiagnostics) {
 	var blockedBys, tags []Line
 	section := "magic" // magic | headers | gap | log | body
 	hasMagic := false
-	bodySepSeen := 0
+	bodySepSeen := false
 	unknownSeen := make(map[string]bool)
 	repeatedSeen := make(map[string]bool)
 	headerCounts := make(map[string]int)
@@ -211,15 +211,15 @@ func parseErg(path string) (Erg, ParseDiagnostics) {
 
 		if trimmed == "--- log ---" {
 			diag.HasLogSep = true
-			if bodySepSeen == 0 {
+			if !bodySepSeen {
 				section = "log"
 				continue
 			}
 		}
 		if trimmed == "--- body ---" {
-			bodySepSeen++
 			diag.HasBodySep = true
-			if bodySepSeen == 1 {
+			if !bodySepSeen {
+				bodySepSeen = true
 				section = "body"
 				continue
 			}
@@ -262,8 +262,8 @@ func parseErg(path string) (Erg, ParseDiagnostics) {
 						author = val
 					}
 				case "Closed":
-					tv := strings.TrimSpace(val)
-					if tv == "" {
+					// parseHeaderLine already trims val; no re-trim needed.
+					if val == "" {
 						diag.ClosedEmpty = true
 					} else if closed == "" {
 						closed = val
@@ -271,9 +271,9 @@ func parseErg(path string) (Erg, ParseDiagnostics) {
 				case "Blocked-by":
 					blockedBys = append(blockedBys, val)
 				case "Tag":
-					tv := strings.TrimSpace(val)
-					if tv != "" {
-						tags = append(tags, tv)
+					// parseHeaderLine already trims val; skip empties.
+					if val != "" {
+						tags = append(tags, val)
 					}
 				}
 			}

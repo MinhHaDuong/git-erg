@@ -135,7 +135,8 @@ func removeBlockedByRef(ticketDir, closedID, timestamp, author string) {
 		}
 		found := false
 		for _, r := range refs {
-			if strings.TrimSpace(r) == closedID {
+			// parseErg already trims Blocked-by values via parseHeaderLine.
+			if r == closedID {
 				found = true
 				break
 			}
