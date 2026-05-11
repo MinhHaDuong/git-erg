@@ -1,0 +1,40 @@
+%erg v1
+Title: Move help strings into their command files for locality
+Created: 2026-05-11
+Author: claude-sonnet-4-6
+
+--- log ---
+2026-05-11T00:00Z claude-sonnet-4-6 created
+
+--- body ---
+## Context
+helptext.go holds a `helpText` map with all command help strings. The doc
+comments on each `cmd*` function repeat the same content. Two sources of
+truth for the same information; changing a command's help requires editing
+two files.
+
+The root cause: ticket 0089 enriched doc comments, ticket 0090 added runtime
+help strings — neither reconciled with the other.
+
+## Actions
+1. In each command file (validate.go, check.go, close.go, etc.), define a
+   package-level `const helpXxx = \`...\`` holding the full help text.
+   Remove the duplicate rule list from the `cmd*` doc comment; replace with
+   a one-liner referencing the const.
+2. Rewrite helptext.go as a thin registry:
+   ```go
+   var helpText = map[string]string{
+       "validate": helpValidate,
+       "check":    helpCheck,
+       ...
+   }
+   ```
+   commandOrder stays in helptext.go — it is cross-cutting, not per-command.
+3. Verify erg validate --help and erg --help --all still produce correct output.
+4. make test passes.
+
+## Exit criteria
+- Each command's help string is defined once, in the same file as its cmd* function.
+- helptext.go contains only the registry map and commandOrder.
+- No duplicate rule lists between helptext.go and command file doc comments.
+- make test passes.
