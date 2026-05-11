@@ -200,7 +200,7 @@ func cmdReady(args []string) int {
 	for i := range tickets {
 		id := tickets[i].FilenameID()
 		if id != "" {
-			closedByID[id] = tickets[i].Closed()
+			closedByID[id] = tickets[i].IsClosed()
 			knownID[id] = true
 		}
 	}
@@ -215,13 +215,13 @@ func cmdReady(args []string) int {
 
 	for i := range tickets {
 		t := &tickets[i]
-		if t.Closed() {
+		if t.IsClosed() {
 			continue
 		}
 		openCount++
 
 		tid := t.FilenameID()
-		tags := t.Tag()
+		tags := t.Tags
 		blocked := false
 		var blockedBy []blockedByEntry
 		for _, tag := range tags {
@@ -266,7 +266,7 @@ func cmdReady(args []string) int {
 			}
 		}
 
-		entry := readyEntry{tid, t.Title(), t.Filename(), tags, !blocked, claimed, blockedBy}
+		entry := readyEntry{tid, t.Title, t.Filename(), tags, !blocked, claimed, blockedBy}
 		openEntries = append(openEntries, entry)
 		if !blocked {
 			ready = append(ready, entry)

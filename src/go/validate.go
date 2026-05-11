@@ -78,7 +78,7 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 	}
 
 	// Rule 5: Created is ISO date
-	if c := t.Created(); c != "" && !IsoDateRE.MatchString(c) {
+	if c := t.Created; c != "" && !IsoDateRE.MatchString(c) {
 		errors = append(errors, fmt.Sprintf(
 			"%s: Created '%s' is not a valid ISO date (YYYY-MM-DD)", name, c))
 	}
@@ -313,7 +313,7 @@ func cmdValidate(args []string) int {
 			fmt.Fprintf(os.Stderr, "WARNING: skipping %s (not a .erg file)\n", arg)
 			continue
 		}
-		t := parseErg(arg)
+		t, _ := parseErg(arg)
 		localIDs := globLocalIDs(filepath.Dir(arg))
 		errs := validateErg(&t, localIDs)
 		allErrors = append(allErrors, errs...)

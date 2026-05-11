@@ -14,7 +14,7 @@ func folderClosure(tickets []Erg) []string {
 	for i := range tickets {
 		t := &tickets[i]
 		inClosedDir := pathIsClosed(filepath.Dir(t.Path))
-		hasClosed := t.ClosedHeader()
+		hasClosed := t.Closed != ""
 
 		if inClosedDir && !hasClosed {
 			warnings = append(warnings, fmt.Sprintf(
@@ -34,7 +34,7 @@ func staleBlockedBy(tickets []Erg) []string {
 	closedIDs := make(map[string]bool)
 	for i := range tickets {
 		id := tickets[i].FilenameID()
-		if id != "" && tickets[i].Closed() {
+		if id != "" && tickets[i].IsClosed() {
 			closedIDs[id] = true
 		}
 	}
@@ -42,7 +42,7 @@ func staleBlockedBy(tickets []Erg) []string {
 	var warnings []string
 	for i := range tickets {
 		t := &tickets[i]
-		if t.Closed() {
+		if t.IsClosed() {
 			continue
 		}
 		refs, errs := t.BlockedByRefs()

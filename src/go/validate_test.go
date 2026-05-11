@@ -202,7 +202,7 @@ func TestValidateErg(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			path := writeErg(t, dir, tc.filename, tc.content)
-			erg := parseErg(path)
+			erg, _ := parseErg(path)
 			errs := validateErg(&erg, map[string]bool{})
 			if tc.wantErrors && len(errs) == 0 {
 				t.Errorf("expected at least one validation error, got none")
@@ -338,7 +338,7 @@ func TestValidateErg_GoldenValid(t *testing.T) {
 	}
 	for _, path := range fixtures {
 		t.Run(filepath.Base(path), func(t *testing.T) {
-			erg := parseErg(path)
+			erg, _ := parseErg(path)
 			errs := validateErg(&erg, allIDs)
 			if len(errs) != 0 {
 				t.Errorf("expected no errors, got: %v", errs)
@@ -351,7 +351,7 @@ func TestValidateErg_GoldenInvalid(t *testing.T) {
 	fixtures, _ := filepath.Glob("testdata/invalid/*.erg")
 	for _, path := range fixtures {
 		t.Run(filepath.Base(path), func(t *testing.T) {
-			erg := parseErg(path)
+			erg, _ := parseErg(path)
 			errs := validateErg(&erg, map[string]bool{})
 			if len(errs) == 0 {
 				t.Errorf("expected at least one error, got none")
