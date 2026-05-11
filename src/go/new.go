@@ -29,6 +29,7 @@ func slugify(title string) string {
 	return s
 }
 
+// summaryNew is the one-liner printed by printUsage via the commands registry.
 const summaryNew = "Create a new ticket file atomically"
 
 const helpNew = `## erg new TITLE [DIR]

@@ -14,6 +14,7 @@ import (
 // location used by `erg update` when the environment variable is unset.
 const updateURL = "https://raw.githubusercontent.com/MinhHaDuong/git-erg/main/tickets/erg"
 
+// summaryUpdate is the one-liner printed by printUsage via the commands registry.
 const summaryUpdate = "Fetch and replace binary from origin"
 
 const helpUpdate = `## erg update

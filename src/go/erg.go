@@ -193,6 +193,12 @@ func parseErg(path string) (Erg, ParseDiagnostics) {
 // parseErgBytes parses raw .erg file content into an Erg plus parser
 // observations. Callers that already hold the file bytes (e.g. after
 // os.ReadFile for rewriting) use this to avoid a second read.
+//
+// Edge case: diag.HasLogSep and diag.HasBodySep are set to true on ANY
+// sighting of the literal "--- log ---" or "--- body ---", including
+// occurrences inside the body section (which are body text, not actual
+// separators). The validator treats these flags as "at least one separator
+// present" and does not distinguish genuine separators from quoted literals.
 func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
 	var diag ParseDiagnostics
 	lines := strings.Split(string(data), "\n")
@@ -215,7 +221,7 @@ func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
 			if trimmed == "" {
 				continue
 			}
-			if trimmed == MagicLine {
+			if trimmed == magicLine {
 				hasMagic = true
 				section = "headers"
 				continue
@@ -324,14 +330,28 @@ func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
 	}, diag
 }
 
+// hasHeaderKey reports whether line begins with the literal header key
+// prefix (e.g. "Closed:"). When foldCase is true, the comparison is
+// case-insensitive on the key portion only. This is a header-key match,
+// not a free substring match — indented examples and prose mentions
+// never trigger.
+func hasHeaderKey(line, key string, foldCase bool) bool {
+	if len(line) < len(key) {
+		return false
+	}
+	if foldCase {
+		return strings.EqualFold(line[:len(key)], key)
+	}
+	return line[:len(key)] == key
+}
+
 // isClosedHeaderLine reports whether a line begins with the literal
 // header key `Closed:` at the start of the line (no leading whitespace).
 // Used to detect misplaced `Closed:` keys in the log or body sections.
-// This is a header-key match, not a free substring match — `disclosed`,
-// indented examples, and prose mentions never trigger.
+// Case-sensitive: `disclosed`, indented examples, and quirky casing
+// never trigger.
 func isClosedHeaderLine(line string) bool {
-	const key = "Closed:"
-	return len(line) >= len(key) && line[:len(key)] == key
+	return hasHeaderKey(line, "Closed:", false)
 }
 
 // loadErgs parses every .erg file under dir recursively. Returns parallel
@@ -367,16 +387,6 @@ func loadErgs(dir string) ([]Erg, []ParseDiagnostics) {
 		diags[i] = p.d
 	}
 	return tickets, diags
-}
-
-// jsonEscape escapes a string for inclusion in a double-quoted JSON value.
-func jsonEscape(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, `"`, `\"`)
-	s = strings.ReplaceAll(s, "\n", `\n`)
-	s = strings.ReplaceAll(s, "\r", `\r`)
-	s = strings.ReplaceAll(s, "\t", `\t`)
-	return s
 }
 
 func sortedKeys[V any](m map[string]V) []string {

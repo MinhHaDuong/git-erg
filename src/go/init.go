@@ -12,6 +12,7 @@ var initAssetPaths = []string{
 	"tickets/integration.md",
 }
 
+// summaryInit is the one-liner printed by printUsage via the commands registry.
 const summaryInit = "Unpack AGENTS.md, spec-erg-v1.md, integration.md into tickets/"
 
 const helpInit = `## erg init [DIR]

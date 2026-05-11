@@ -55,7 +55,7 @@ func validateErg(t *Erg, diag ParseDiagnostics, allIDs map[string]bool) []string
 
 	// Rule 5: Tag: values must be from the closed value set.
 	for _, v := range t.Tags {
-		if !ValidTagValues[v] {
+		if !validTagValues[v] {
 			errors = append(errors, fmt.Sprintf(
 				"%s: unknown Tag value '%s' (not in v1 closed set: needs-human, deferred, post-talk, post-conference)", name, v))
 		}
@@ -76,13 +76,13 @@ func validateErg(t *Erg, diag ParseDiagnostics, allIDs map[string]bool) []string
 	}
 
 	// Rule 7: Created is ISO date
-	if c := t.Created; c != "" && !IsoDateRE.MatchString(c) {
+	if c := t.Created; c != "" && !isoDateRE.MatchString(c) {
 		errors = append(errors, fmt.Sprintf(
 			"%s: Created '%s' is not a valid ISO date (YYYY-MM-DD)", name, c))
 	}
 
 	// Rule 8: filename matches NNNN-slug.erg
-	if !FilenameRE.MatchString(name) {
+	if !filenameRE.MatchString(name) {
 		errors = append(errors, fmt.Sprintf(
 			"%s: filename does not match NNNN-slug.erg pattern", name))
 	}
@@ -104,7 +104,7 @@ func validateErg(t *Erg, diag ParseDiagnostics, allIDs map[string]bool) []string
 	// Rule 11: log lines match format
 	for _, line := range t.LogLines {
 		trimmed := strings.TrimSpace(line)
-		if trimmed != "" && !LogLineRE.MatchString(trimmed) {
+		if trimmed != "" && !logLineRE.MatchString(trimmed) {
 			errors = append(errors, fmt.Sprintf(
 				"%s: malformed log line: %s", name, trimmed))
 		}
@@ -263,6 +263,7 @@ func globLocalIDs(dir string) map[string]bool {
 	return ids
 }
 
+// summaryValidate is the one-liner printed by printUsage via the commands registry.
 const summaryValidate = "Validate individual .erg files (format, headers, refs)"
 
 const helpValidate = `## erg validate FILE...

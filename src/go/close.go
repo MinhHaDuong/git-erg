@@ -8,13 +8,14 @@ import (
 	"time"
 )
 
+// summaryClose is the one-liner printed by printUsage via the commands registry.
 const summaryClose = "Close a ticket atomically"
 
 const helpClose = `## erg close ID|FILE REASON [DIR]
 
 Atomically close a ticket.
 
-Closing a ticket is a three-step atomic operation:
+Closing a ticket is a three-step operation:
 
   1. Inserts a Closed: REASON header at the end of the preamble (before ` + "`--- log ---`" + `).
   2. Appends a timestamped log line: ` + "`TIMESTAMP AUTHOR closed — REASON`" + `.
@@ -23,6 +24,7 @@ Closing a ticket is a three-step atomic operation:
      ` + "`TIMESTAMP AUTHOR note blocker ID closed — Blocked-by removed.`" + `
      Already-closed tickets that reference the ID are not modified. If a ticket
      has multiple Blocked-by: ID lines, all are removed in one pass.
+     Step 3 iterates all open tickets; it is idempotent but not atomic.
 
 ID may be a 4-digit ticket ID or a full filename (e.g. 0042-some-title.erg).
 REASON must be non-empty. The operation is idempotent (safe to call twice for
@@ -116,33 +118,18 @@ func cmdClose(args []string) int {
 
 // removeBlockedByRef scans ticketDir for open tickets that have a
 // Blocked-by header referencing closedID, removes those lines, and
-// appends a log entry recording the removal.
+// appends a log entry recording the removal. Uses loadErgs for
+// consistent parsing/filtering, then re-reads only the matching files
+// to perform the byte-level rewrite.
 func removeBlockedByRef(ticketDir, closedID, timestamp, author string) {
-	entries, err := os.ReadDir(ticketDir)
-	if err != nil {
-		return
-	}
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".erg") {
-			continue
-		}
-		path := filepath.Join(ticketDir, entry.Name())
-		// Read once, parse from bytes — avoids a second ReadFile.
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		t, _ := parseErgBytes(data, path)
+	tickets, _ := loadErgs(ticketDir)
+	for i := range tickets {
+		t := &tickets[i]
 		if t.IsClosed() {
 			continue
 		}
-		refs := t.BlockedBys
-		if refs == nil {
-			continue
-		}
 		found := false
-		for _, r := range refs {
-			// parseErgBytes already trims Blocked-by values via parseHeaderLine.
+		for _, r := range t.BlockedBys {
 			if r == closedID {
 				found = true
 				break
@@ -151,11 +138,15 @@ func removeBlockedByRef(ticketDir, closedID, timestamp, author string) {
 		if !found {
 			continue
 		}
+		data, err := os.ReadFile(t.Path)
+		if err != nil {
+			continue
+		}
 		updated := removeBlockedByLine(string(data), closedID)
 		logLine := fmt.Sprintf("%s %s note blocker %s closed — Blocked-by removed.", timestamp, author, closedID)
 		updated = appendLogLine(updated, logLine)
-		if err := os.WriteFile(path, []byte(updated), 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "close: warning: cannot write %s: %v\n", path, err)
+		if err := os.WriteFile(t.Path, []byte(updated), 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "close: warning: cannot write %s: %v\n", t.Path, err)
 		}
 	}
 }

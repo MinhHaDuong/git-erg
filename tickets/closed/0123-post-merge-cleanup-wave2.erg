@@ -2,10 +2,12 @@
 Title: Code cleanup and transparency fixes from post-merge audit wave 2
 Created: 2026-05-11
 Author: claude-opus-4-7
+Closed: autoclosed — PR #128
 
 --- log ---
 2026-05-11T00:00Z claude-opus-4-7 created from second audit (post #124/#125/#126 merge)
 
+2026-05-11T13:58Z MinhHaDuong closed — autoclosed — PR #128
 --- body ---
 ## Context
 Second audit pass after the wave-1 raid surfaced 13 small code-quality

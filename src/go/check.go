@@ -82,6 +82,7 @@ func strayGoSource(dir string) []string {
 	return nil
 }
 
+// summaryCheck is the one-liner printed by printUsage via the commands registry.
 const summaryCheck = "Corpus-level checks (duplicate IDs, cycles, refs)"
 
 const helpCheck = `## erg check [DIR]

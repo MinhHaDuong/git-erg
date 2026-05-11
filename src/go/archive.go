@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// summaryArchive is the one-liner printed by printUsage via the commands registry.
 const summaryArchive = "Move closed tickets to tickets/closed/"
 
 const helpArchive = `## erg archive [ID...] [DIR]

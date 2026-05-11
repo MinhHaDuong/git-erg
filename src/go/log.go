@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// summaryLog is the one-liner printed by printUsage via the commands registry.
 const summaryLog = "Append a timestamped log entry to a ticket"
 
 const helpLog = `## erg log ID LINE [DIR]
