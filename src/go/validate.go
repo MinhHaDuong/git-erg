@@ -29,27 +29,9 @@ func validateErg(t *Erg, diag ParseDiagnostics, allIDs map[string]bool) []string
 		errors = append(errors, fmt.Sprintf("%s: missing or empty required header 'Author' — add 'Author: <name>' to the preamble", name))
 	}
 
-	// Rule 3: no unknown headers (Status: and Tags: are relics; run `erg
-	// migrate` to convert them).
-	// Rule 4: non-repeatable headers appear at most once.
-	// Unknown keys come from the parser in first-occurrence order.
-	for _, key := range diag.Unknown {
-		switch key {
-		case "Status":
-			errors = append(errors, fmt.Sprintf(
-				"%s: 'Status:' header is no longer part of %%erg v1 — run `erg migrate` to convert", name))
-		case "Tags":
-			errors = append(errors, fmt.Sprintf(
-				"%s: 'Tags:' has been renamed to 'Tag:' — run `erg migrate` to convert", name))
-		default:
-			errors = append(errors, fmt.Sprintf("%s: unknown header '%s' (not in v1 closed set) — remove it or run `erg migrate`", name, key))
-		}
-	}
-	// (Rule 4 cont.) Singleton check: non-repeatable headers must appear at most once.
-	for _, key := range diag.RepeatedSingletons {
-		errors = append(errors, fmt.Sprintf(
-			"%s: header '%s' is non-repeatable (appears more than once)", name, key))
-	}
+	// Rule 3 (unknown headers) and rule 4 (repeated singletons) emit at
+	// parse time (0117 step 4). The Unknown / RepeatedSingletons fields
+	// stay on ParseDiagnostics only as emission guards.
 
 	// Rule 5: Tag: values must be from the closed value set.
 	for _, v := range t.Tags {

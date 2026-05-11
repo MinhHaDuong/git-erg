@@ -267,12 +267,29 @@ func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
 						if !repeatedSeen[key] {
 							diag.RepeatedSingletons = append(diag.RepeatedSingletons, key)
 							repeatedSeen[key] = true
+							diag.Errors = append(diag.Errors, fmt.Sprintf(
+								"%s: header '%s' is non-repeatable (appears more than once)",
+								filepath.Base(path), key))
 						}
 					}
 				} else {
 					if !unknownSeen[key] {
 						diag.Unknown = append(diag.Unknown, key)
 						unknownSeen[key] = true
+						switch key {
+						case "Status":
+							diag.Errors = append(diag.Errors, fmt.Sprintf(
+								"%s: 'Status:' header is no longer part of %%erg v1 — run `erg migrate` to convert",
+								filepath.Base(path)))
+						case "Tags":
+							diag.Errors = append(diag.Errors, fmt.Sprintf(
+								"%s: 'Tags:' has been renamed to 'Tag:' — run `erg migrate` to convert",
+								filepath.Base(path)))
+						default:
+							diag.Errors = append(diag.Errors, fmt.Sprintf(
+								"%s: unknown header '%s' (not in v1 closed set) — remove it or run `erg migrate`",
+								filepath.Base(path), key))
+						}
 					}
 				}
 				// Populate typed fields. Singletons keep first occurrence.
