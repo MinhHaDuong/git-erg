@@ -1,77 +1,98 @@
 %erg v1
-Title: Configurable tag vocabulary from tickets/.erg-tags
+Title: Project config file tickets/.ergrc with [tags] section
 Created: 2026-05-11
 Author: MinhHaDuong
 
 --- log ---
 2026-05-11T14:30Z claude open — surfaced during audit lint review of ergspecv1.go
 2026-05-11T14:45Z claude reimagine — configurable vocabulary via tickets/.erg-tags, sensible defaults, created by erg init
+2026-05-11T15:00Z claude reimagine — general config file tickets/.ergrc with [tags] section, not a single-purpose file
 
 --- body ---
 ## Problem
 
 The v1 tag vocabulary hardcodes four values in Go source: needs-human,
-deferred, post-talk, post-conference. The first two are generic workflow
-states. The last two are personal calendar labels that leaked into a
-reusable spec. No live ticket has ever used post-talk or post-conference.
-
-Affected code:
-- ergspecv1.go: validTagValues map (compile-time)
-- ready.go: skipReadyTags map (duplicate, also compile-time)
-- bootstrap_assets.go: AGENTS.md and spec-erg-v1.md mention the values
-- validate_test.go: test fixtures reference post-talk/post-conference
+deferred, post-talk, post-conference. The last two are personal calendar
+labels that leaked into a reusable spec. No live ticket has ever used
+them. More broadly, several settings are either hardcoded constants or
+env-var-only with no project-level override.
 
 ## Design
 
-Tag vocabulary comes from a configuration file `tickets/.erg-tags`,
-one value per line. Lines starting with `#` are comments, blank lines
-are ignored.
+A general INI-style config file `tickets/.ergrc`, created by `erg init`
+with sensible defaults.
 
-Default file created by `erg init`:
+```ini
+# Project configuration for git-erg.
+# Created by: erg init
 
-```
-# Tag vocabulary for this project.
-# One tag per line. Remove or add lines to fit your workflow.
-# All tags suppress the ticket from `erg ready` output.
+[tags]
+# Tag vocabulary — one per line. All tags suppress `erg ready` output.
+# Remove or add lines to fit your workflow.
 needs-human
 deferred
+
+[update]
+# url = https://raw.githubusercontent.com/MinhHaDuong/git-erg/main/tickets/erg
 ```
 
-### Lookup order
+### Format
 
-1. `$ERG_TICKET_DIR/.erg-tags` (or discovered ticket dir)
-2. If missing, fall back to built-in defaults: needs-human, deferred
+INI-style, minimal:
+- `[section]` headers
+- `key = value` pairs within sections (for scalar settings)
+- Bare values within sections (for list settings like [tags])
+- `#` line comments
+- Blank lines ignored
+
+No need for a third-party parser — this is ~40 lines of Go.
+
+### Sections
+
+| Section | Shape | What it replaces |
+|---------|-------|------------------|
+| `[tags]` | bare values (list) | validTagValues + skipReadyTags (compile-time maps) |
+| `[update]` | key=value | ERG_UPDATE_URL env var / hardcoded updateURL constant |
+
+Future sections (out of scope for this ticket):
+- `[author]` — default author identity (currently ERG_AUTHOR / git config / $USER)
+
+### Lookup and precedence
+
+1. Env vars override config file (ERG_UPDATE_URL beats [update] url)
+2. Config file: `$ERG_TICKET_DIR/.ergrc` (or discovered ticket dir)
+3. Built-in defaults if config absent or section missing
 
 ### Validator behavior
 
-- If `.erg-tags` exists and is readable, its contents are the closed set.
-- If `.erg-tags` is absent, fall back to built-in defaults.
-- Empty `.erg-tags` (no non-comment lines) means no tags are valid.
-- Unknown tag values still fail validation (closed-set contract preserved).
+- [tags] present → its values are the closed set
+- [tags] absent → fall back to built-in: needs-human, deferred
+- [tags] empty (section exists, no values) → no tags valid
+- Unknown tag values still fail validation (closed-set contract preserved)
 
 ### erg ready behavior
 
-All tags in the vocabulary suppress readiness (current behavior for
-skipReadyTags). The two maps collapse into one: the vocabulary IS the
-skip set.
+All tags in the vocabulary suppress readiness. The two maps collapse
+into one: the vocabulary IS the skip set.
 
 ## Actions
 
-1. Add `.erg-tags` to initAssetPaths and bootstrap_assets.go
-2. Add loadTagVocabulary(dir string) -> map[string]bool function
-3. Replace validTagValues with runtime-loaded vocabulary in parseErgBytes
-4. Replace skipReadyTags with same vocabulary in ready.go
-5. Remove post-talk and post-conference from built-in defaults
-6. Update spec-erg-v1.md: Tag values come from .erg-tags
-7. Update AGENTS.md: mention .erg-tags
+1. Add `loadConfig(dir string) -> Config` with section parsing
+2. Add `.ergrc` to initAssetPaths and bootstrap_assets.go
+3. Wire [tags] into validator (replaces validTagValues)
+4. Wire [tags] into ready.go (replaces skipReadyTags)
+5. Wire [update] url into cmdUpdate (replaces hardcoded updateURL)
+6. Remove post-talk and post-conference from built-in defaults
+7. Update spec-erg-v1.md and AGENTS.md
 8. Update test fixtures
 
 ## Exit criteria
 
-- [ ] `erg init` creates tickets/.erg-tags with needs-human and deferred
-- [ ] Validator reads .erg-tags when present, falls back to defaults
+- [ ] `erg init` creates tickets/.ergrc with default [tags] and [update]
+- [ ] Validator reads [tags] when present, falls back to defaults
 - [ ] `erg ready` uses same vocabulary (one source of truth)
+- [ ] `erg update` reads [update] url, env var still overrides
 - [ ] post-talk and post-conference removed from defaults
-- [ ] Existing tests updated, new tests cover: custom .erg-tags,
-      missing .erg-tags fallback, empty .erg-tags
+- [ ] Tests cover: custom .ergrc, missing .ergrc fallback, empty [tags],
+      env var overrides config
 - [ ] `make check` passes
