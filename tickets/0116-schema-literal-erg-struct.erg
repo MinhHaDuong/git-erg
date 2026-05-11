@@ -140,8 +140,8 @@ Change:
 - §Structure rewording: "Both separators are required" becomes "The
   first `--- log ---` and the first `--- body ---` (in order) are the
   section separators. Subsequent occurrences are body text."
-- §Headers / validator rules text (in the helpText for `erg validate`)
-  updated to match.
+- Validator rules text in `const helpValidate` (validate.go, since
+  PR #121) updated to match.
 - Struct change: replace `LogSepCount`/`BodySepCount` (which existed
   only to drive the now-deleted overstrict check) with
   `HasLogSep`/`HasBodySep` bools in `ParseDiagnostics`.
@@ -218,8 +218,9 @@ unreachable and must be removed in the same PR:
   `BlockedByRefs()` method and push date parsing into the parser. File
   as a separate ticket after the merge ticket lands (the merge is the
   natural place to introduce parse-time type errors).
-- Renaming `Tags` → `Tag` (header rename) is ticket 0106. If 0106 lands
-  first, this ticket reads `Tag:` headers into the `Tags` field.
+- Renaming `Tags:` → `Tag:` (header rename) is ticket 0106 / PR #122.
+  This ticket keeps the Go field name `Tags []Line` (idiomatic plural
+  slice) regardless of which order they merge.
 - Function-level splits in `parseErg`; only struct shape and the
   accessor surface change.
 
@@ -254,10 +255,26 @@ and `ParseDiagnostics` both vanish: refs are pre-parsed at parse time
 projection of the spec.
 
 ## Dependencies
-- Interleave-tolerant with ticket 0115 (split Ref into ref.go).
-  This ticket keeps `BlockedBys []Line` regardless of 0115's state;
-  Ref pre-parsing happens later in 0118. If 0115 lands first the diff
-  is smaller; if not, both touch erg.go but on disjoint code regions.
+- Ticket 0115 (split Ref into ref.go) has **landed** (PR #120). This
+  ticket now touches only the Erg portion of erg.go; `BlockedBys` stays
+  `[]Line` here, with Ref pre-parsing deferred to 0118.
+- Ticket 0114 (help strings into command files) has **landed**
+  (PR #121). The validator help text (rule-11/12 wording) now lives in
+  `const helpValidate` in `validate.go` — NOT in `helptext.go` (which
+  is now a thin registry). Spec/help edits in this ticket target
+  `helpValidate`.
+- Ticket 0106 (rename `Tags:` → `Tag:`) is **open in PR #122**.
+  Resolution depends on merge order:
+  - If 0106 merges first: this ticket reads `Tag:` lines into the
+    `Tags` field (idiomatic Go plural slice). The "Today" column of
+    the accessor-elimination table refers to `t.Tag()` (not `Tags()`).
+  - If this ticket merges first: 0106 is rebased to delete the
+    `Tag:`-vs-`Tags:` map-key constants on top of the schema-literal
+    fields; rename is then a one-liner on the field comment and the
+    parser key string.
+  - PR #122 was branched before PR #120 and currently re-introduces
+    Ref code into erg.go. It will need a rebase against main
+    regardless of 0116's timing.
 - This ticket bundles three changes deliberately (struct refactor +
   rule 2 tightening + rule 11 relaxation) so the spec and code stay
   synced in a single review.
