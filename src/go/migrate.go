@@ -9,7 +9,7 @@ import (
 
 const helpMigrate = `## erg migrate [DIR]
 
-Convert legacy Status: headers to %erg v1 format.
+Convert legacy headers to %erg v1 format.
 
 Idempotent (safe to run repeatedly: already-migrated files are not modified twice). For every .erg file under DIR (default: tickets/) the migration
 rules are:
@@ -18,9 +18,11 @@ rules are:
     'Closed: migrated from Status: closed' to the preamble.
   - 'Status: open', 'Status: doing', or 'Status: pending' → drop the line;
     the ticket becomes not-closed (the correct new state).
-  - No 'Status:' line → no-op.
+  - 'Tags:' preamble line → rewrite the key to 'Tag:' (singular; the header is
+    repeatable and singular names are the v1 convention). The value is preserved.
+  - No legacy line → no-op.
 
-After migration, erg validate will reject any remaining Status: lines.
+After migration, erg validate will reject any remaining Status: or Tags: lines.
 
 When DIR is named "tickets" (the canonical layout), also performs a one-time
 project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
@@ -53,6 +55,7 @@ func cmdMigrate(args []string) int {
 
 	migratedClosed := 0
 	migratedOther := 0
+	migratedTags := 0
 	alreadyClean := 0
 
 	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -62,18 +65,23 @@ func cmdMigrate(args []string) int {
 		if info.IsDir() || !strings.HasSuffix(info.Name(), ".erg") {
 			return nil
 		}
-		changed, wasClosed, mErr := migrateFile(path)
+		res, mErr := migrateFile(path)
 		if mErr != nil {
 			fmt.Fprintf(os.Stderr, "migrate: %s: %v\n", path, mErr)
 			return nil
 		}
-		switch {
-		case !changed:
+		if !res.changed {
 			alreadyClean++
-		case wasClosed:
+			return nil
+		}
+		switch {
+		case res.wasClosed:
 			migratedClosed++
-		default:
+		case res.statusStripped:
 			migratedOther++
+		}
+		if res.tagsRenamed {
+			migratedTags++
 		}
 		return nil
 	})
@@ -85,6 +93,7 @@ func cmdMigrate(args []string) int {
 	total := migratedClosed + migratedOther
 	fmt.Printf("migrated: %d tickets (%d closed, %d open/doing/pending stripped)\n",
 		total, migratedClosed, migratedOther)
+	fmt.Printf("Tags: → Tag: rewrite: %d tickets\n", migratedTags)
 	fmt.Printf("already clean: %d tickets\n", alreadyClean)
 
 	// Layout migration: only run when dir is named "tickets" (canonical layout).
@@ -176,14 +185,22 @@ func cmdMigrate(args []string) int {
 	return 0
 }
 
-// migrateFile rewrites a single .erg file in place. Returns:
-//   - changed: whether the file was modified.
-//   - wasClosed: whether at least one removed Status: line carried the
-//     value "closed" (in which case a Closed: header is appended).
-func migrateFile(path string) (changed bool, wasClosed bool, err error) {
+// migrateResult summarizes what migrateFile rewrote in a single .erg file.
+type migrateResult struct {
+	changed        bool // file was rewritten on disk
+	wasClosed      bool // at least one removed Status: line carried value "closed"
+	statusStripped bool // at least one Status: line was removed (closed or open/doing/pending)
+	tagsRenamed    bool // at least one preamble `Tags:` line was renamed to `Tag:`
+}
+
+// migrateFile rewrites a single .erg file in place. The rewrite is preamble-bounded
+// (everything before the first `--- log ---` separator); body code blocks that
+// happen to contain `Status:` or `Tags:` are preserved verbatim.
+func migrateFile(path string) (migrateResult, error) {
+	var res migrateResult
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return false, false, err
+		return res, err
 	}
 	original := string(data)
 	// Preserve trailing-newline state when splitting/rejoining.
@@ -207,30 +224,30 @@ func migrateFile(path string) (changed bool, wasClosed bool, err error) {
 	}
 
 	out := make([]string, 0, len(lines))
-	foundStatus := false
-	foundClosed := false
-
 	for i, line := range lines {
 		if i < preambleEnd && isStatusHeaderLine(line) {
-			foundStatus = true
+			res.statusStripped = true
 			val := strings.TrimSpace(line[len("Status:"):])
 			if strings.EqualFold(val, "closed") {
-				foundClosed = true
+				res.wasClosed = true
 			}
+			continue
+		}
+		if i < preambleEnd && isTagsHeaderLine(line) {
+			// Rewrite `Tags:` → `Tag:` preserving the value (and any
+			// inline comment). Original casing of the value is kept.
+			rewritten := "Tag:" + line[len("Tags:"):]
+			out = append(out, rewritten)
+			res.tagsRenamed = true
 			continue
 		}
 		out = append(out, line)
 	}
 
-	if !foundStatus {
-		return false, false, nil
-	}
-
-	if foundClosed {
-		// After we've removed Status: lines, the preamble end shifts by
-		// however many we dropped — recompute relative to the rewritten
-		// slice. Insert the Closed header immediately after the last
-		// non-blank preamble line.
+	if res.wasClosed {
+		// After removing Status: lines, the preamble end shifts by however
+		// many we dropped — recompute relative to the rewritten slice. Insert
+		// the Closed header immediately after the last non-blank preamble line.
 		newLogIdx := -1
 		for i, line := range out {
 			if strings.TrimSpace(line) == "--- log ---" {
@@ -254,12 +271,13 @@ func migrateFile(path string) (changed bool, wasClosed bool, err error) {
 		rejoined += "\n"
 	}
 	if rejoined == original {
-		return false, false, nil
+		return res, nil
 	}
 	if err := os.WriteFile(path, []byte(rejoined), 0644); err != nil {
-		return false, false, err
+		return res, err
 	}
-	return true, foundClosed, nil
+	res.changed = true
+	return res, nil
 }
 
 // isStatusHeaderLine reports whether a line begins with the literal
@@ -267,6 +285,18 @@ func migrateFile(path string) (changed bool, wasClosed bool, err error) {
 // tickets in the wild may carry quirky casing).
 func isStatusHeaderLine(line string) bool {
 	const key = "Status:"
+	if len(line) < len(key) {
+		return false
+	}
+	return strings.EqualFold(line[:len(key)], key)
+}
+
+// isTagsHeaderLine reports whether a line begins with the literal
+// `Tags:` header key (case-insensitive on the key itself, parallel to
+// isStatusHeaderLine). Used to rewrite legacy `Tags:` preamble lines
+// to the singular `Tag:` form.
+func isTagsHeaderLine(line string) bool {
+	const key = "Tags:"
 	if len(line) < len(key) {
 		return false
 	}
