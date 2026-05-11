@@ -44,18 +44,18 @@ func ergWithTitle(title string) string {
 func TestParseErg(t *testing.T) {
 	t.Run("minimal valid ticket", func(t *testing.T) {
 		path := writeErg(t, t.TempDir(), "0001-test.erg", ergWithTitle("My Title"))
-		erg, _ := parseErg(path)
+		erg, diag := parseErg(path)
 		if !erg.HasMagic {
 			t.Error("expected HasMagic=true")
 		}
 		if erg.Title != "My Title" {
 			t.Errorf("Title = %q, want %q", erg.Title, "My Title")
 		}
-		if erg.LogSepCount == 0 {
-			t.Error("expected LogSepCount > 0")
+		if !diag.HasLogSep {
+			t.Error("expected ParseDiagnostics.HasLogSep=true")
 		}
-		if erg.BodySepCount == 0 {
-			t.Error("expected BodySepCount > 0")
+		if !diag.HasBodySep {
+			t.Error("expected ParseDiagnostics.HasBodySep=true")
 		}
 	})
 
@@ -111,16 +111,20 @@ func TestParseErg(t *testing.T) {
 	})
 
 	t.Run("separator inside body section", func(t *testing.T) {
-		// A second '--- log ---' inside the body increments LogSepCount but must
-		// not change the section or cause a panic.
+		// A second '--- log ---' inside the body must not change the
+		// section or cause a panic. The literal becomes body text and
+		// HasLogSep stays true (set on ANY sighting).
 		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n--- log ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
-		erg, _ := parseErg(path)
+		erg, diag := parseErg(path)
 		if !erg.HasMagic {
 			t.Error("expected HasMagic=true")
 		}
-		if erg.LogSepCount != 2 {
-			t.Errorf("LogSepCount = %d, want 2 (separator counted even inside body)", erg.LogSepCount)
+		if !diag.HasLogSep {
+			t.Error("expected ParseDiagnostics.HasLogSep=true")
+		}
+		if !strings.Contains(erg.Body, "--- log ---") {
+			t.Errorf("erg.Body = %q, expected to contain the quoted '--- log ---' literal", erg.Body)
 		}
 	})
 

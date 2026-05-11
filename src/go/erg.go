@@ -26,14 +26,6 @@ type Erg struct {
 
 	LogLines []Line // one structured event per entry
 	Body     string // multiline
-
-	// Legacy fields retained during the 0116 dual-write migration.
-	// Removed in commit 4 of the ticket.
-	headers      map[string][]string
-	LogSepCount  int
-	BodySepCount int
-	ClosedInLog  bool
-	ClosedInBody bool
 }
 
 // ParseDiagnostics carries parser observations the validator consumes.
@@ -178,32 +170,23 @@ var v1SingletonKeys = map[string]bool{
 	"Title": true, "Created": true, "Author": true, "Closed": true,
 }
 
-// parseErg parses a single .erg file. On read error, returns an empty Erg with
-// only Path set so callers can still report a filename.
-//
-// During the 0116 migration the parser dual-writes: both the new typed
-// fields and the legacy `headers` map / `LogSepCount` / `BodySepCount` /
-// `ClosedInLog` / `ClosedInBody` fields are populated, and a
-// ParseDiagnostics value is returned alongside the Erg. The legacy
-// fields are removed in commit 4 of the ticket.
+// parseErg parses a single .erg file into an Erg plus parser observations
+// for the validator (ParseDiagnostics). On read error, returns an empty
+// Erg with only Path set so callers can still report a filename.
 func parseErg(path string) (Erg, ParseDiagnostics) {
 	var diag ParseDiagnostics
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return Erg{Path: path, headers: make(map[string][]string)}, diag
+		return Erg{Path: path}, diag
 	}
 	lines := strings.Split(string(data), "\n")
 
-	headers := make(map[string][]string)
 	var logLines, bodyLines []string
 	var title, created, author, closed Line
 	var blockedBys, tags []Line
 	section := "magic" // magic | headers | gap | log | body
 	hasMagic := false
-	logSepCount := 0
-	bodySepCount := 0
-	closedInLog := false
-	closedInBody := false
+	bodySepSeen := 0
 	unknownSeen := make(map[string]bool)
 	repeatedSeen := make(map[string]bool)
 	headerCounts := make(map[string]int)
@@ -227,17 +210,16 @@ func parseErg(path string) (Erg, ParseDiagnostics) {
 		}
 
 		if trimmed == "--- log ---" {
-			logSepCount++
 			diag.HasLogSep = true
-			if bodySepCount == 0 {
+			if bodySepSeen == 0 {
 				section = "log"
 				continue
 			}
 		}
 		if trimmed == "--- body ---" {
-			bodySepCount++
+			bodySepSeen++
 			diag.HasBodySep = true
-			if bodySepCount == 1 {
+			if bodySepSeen == 1 {
 				section = "body"
 				continue
 			}
@@ -250,7 +232,6 @@ func parseErg(path string) (Erg, ParseDiagnostics) {
 				continue
 			}
 			if key, val, ok := parseHeaderLine(line); ok {
-				headers[key] = append(headers[key], val)
 				headerCounts[key]++
 				// Classify header for diagnostics.
 				if v1HeaderKeys[key] {
@@ -303,34 +284,27 @@ func parseErg(path string) (Erg, ParseDiagnostics) {
 				logLines = append(logLines, line)
 			}
 			if isClosedHeaderLine(line) {
-				closedInLog = true
 				diag.ClosedInLog = true
 			}
 		case "body":
 			bodyLines = append(bodyLines, line)
 			if isClosedHeaderLine(line) {
-				closedInBody = true
 				diag.ClosedInBody = true
 			}
 		}
 	}
 
 	return Erg{
-		Path:         path,
-		HasMagic:     hasMagic,
-		Title:        title,
-		Created:      created,
-		Author:       author,
-		Closed:       closed,
-		BlockedBys:   blockedBys,
-		Tags:         tags,
-		LogLines:     logLines,
-		Body:         strings.Join(bodyLines, "\n"),
-		headers:      headers,
-		LogSepCount:  logSepCount,
-		BodySepCount: bodySepCount,
-		ClosedInLog:  closedInLog,
-		ClosedInBody: closedInBody,
+		Path:       path,
+		HasMagic:   hasMagic,
+		Title:      title,
+		Created:    created,
+		Author:     author,
+		Closed:     closed,
+		BlockedBys: blockedBys,
+		Tags:       tags,
+		LogLines:   logLines,
+		Body:       strings.Join(bodyLines, "\n"),
 	}, diag
 }
 
