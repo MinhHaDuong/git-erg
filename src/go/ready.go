@@ -269,7 +269,15 @@ func cmdReady(args []string) int {
 			}
 		}
 
-		entry := readyEntry{tid, t.Title, t.Filename(), tags, !blocked, claimed, blockedBy}
+		entry := readyEntry{
+			id:        tid,
+			title:     t.Title,
+			file:      t.Filename(),
+			tags:      tags,
+			ready:     !blocked,
+			claimed:   claimed,
+			blockedBy: blockedBy,
+		}
 		openEntries = append(openEntries, entry)
 		if !blocked {
 			ready = append(ready, entry)

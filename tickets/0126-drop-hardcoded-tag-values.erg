@@ -1,0 +1,330 @@
+%erg v1
+Title: Project config file tickets/.ergrc with [tags] section
+Created: 2026-05-11
+Author: MinhHaDuong
+
+--- log ---
+2026-05-11T14:30Z claude open — surfaced during audit lint review of ergspecv1.go
+2026-05-11T14:45Z claude reimagine — configurable vocabulary via tickets/.erg-tags, sensible defaults, created by erg init
+2026-05-11T15:00Z claude reimagine — general config file tickets/.ergrc with [tags] section, not a single-purpose file
+
+--- body ---
+## Problem
+
+The v1 tag vocabulary hardcodes four values in Go source: needs-human,
+deferred, post-talk, post-conference. The last two are personal calendar
+labels that leaked into a reusable spec. No live ticket has ever used
+them. More broadly, several settings are either hardcoded constants or
+env-var-only with no project-level override.
+
+## Design
+
+A general INI-style config file `tickets/.ergrc`, created by `erg init`
+with sensible defaults.
+
+```ini
+# Project configuration for git-erg.
+# Created by: erg init
+
+[tags]
+# Tag vocabulary — one per line. All tags suppress `erg ready` output.
+# Remove or add lines to fit your workflow.
+needs-human
+deferred
+
+[update]
+# url = https://raw.githubusercontent.com/MinhHaDuong/git-erg/main/tickets/erg
+```
+
+### Format
+
+INI-style, minimal:
+- `[section]` headers
+- `key = value` pairs within sections (for scalar settings)
+- Bare values within sections (for list settings like [tags])
+- `#` line comments
+- Blank lines ignored
+
+No need for a third-party parser — this is ~40 lines of Go.
+
+### Sections
+
+| Section | Shape | What it replaces |
+|---------|-------|------------------|
+| `[tags]` | bare values (list) | validTagValues + skipReadyTags (compile-time maps) |
+| `[update]` | key=value | ERG_UPDATE_URL env var / hardcoded updateURL constant |
+
+Future sections (out of scope for this ticket):
+- `[author]` — default author identity (currently ERG_AUTHOR / git config / $USER)
+
+### Lookup and precedence
+
+1. Env vars override config file (ERG_UPDATE_URL beats [update] url)
+2. Config file: `$ERG_TICKET_DIR/.ergrc` (or discovered ticket dir)
+3. Built-in defaults if config absent or section missing
+
+### Validator behavior
+
+- [tags] present → its values are the closed set
+- [tags] absent → fall back to built-in: needs-human, deferred
+- [tags] empty (section exists, no values) → no tags valid
+- Unknown tag values still fail validation (closed-set contract preserved)
+
+### erg ready behavior
+
+All tags in the vocabulary suppress readiness. The two maps collapse
+into one: the vocabulary IS the skip set.
+
+## Actions
+
+### Step 0 — TDD anchor test (write first, must fail before wiring)
+
+Write `config_test.go` with the bug-fix pinning test:
+- Create a temp tickets dir with NO `.ergrc`.
+- Write a ticket with `Tag: post-talk`.
+- Run `parseErg` + `validateWithConfig` (new name, see step 2).
+- Assert validation REJECTS the tag — proves the built-in defaults
+  shrank and the wiring reaches the validator.
+
+This test drives the entire implementation; it must fail initially and
+pass only after steps 1-4 complete.
+
+### Step 1 — Config struct and loadConfig (new file: `config.go`)
+
+```go
+// Config holds project-level settings loaded from tickets/.ergrc.
+type Config struct {
+    TagsSection bool     // true when [tags] section was present (even if empty)
+    Tags        []string // tag vocabulary; nil when TagsSection is false
+    UpdateURL   string   // [update] url value; empty when absent
+}
+```
+
+Distinguish "section absent" from "section present but empty":
+- `TagsSection == false, Tags == nil` → fall back to built-in defaults
+- `TagsSection == true, Tags == []string{}` → no tags valid
+- `TagsSection == true, Tags == [...]` → those tags are the closed set
+
+`loadConfig(dir string) (*Config, error)`:
+- Look for `filepath.Join(dir, ".ergrc")`.
+- If not found, return `nil, nil` (no error, no config).
+- Parse INI-style: `[section]` headers, `key = value` pairs, bare values
+  (one per line within a list section like [tags]), `#` comments, blank
+  lines ignored. ~40-50 lines of Go, no third-party parser.
+- Return populated Config.
+
+Built-in defaults (package-level, used when loadConfig returns nil):
+
+```go
+var defaultTags = []string{"needs-human", "deferred"}
+```
+
+No post-talk, no post-conference.
+
+Helper function to get the effective tag set:
+
+```go
+// effectiveTagSet returns the tag vocabulary as a map[string]bool.
+// Precedence: Config file → built-in defaults.
+func effectiveTagSet(cfg *Config) map[string]bool {
+    var tags []string
+    if cfg != nil && cfg.TagsSection {
+        tags = cfg.Tags
+    } else {
+        tags = defaultTags
+    }
+    m := make(map[string]bool, len(tags))
+    for _, t := range tags {
+        m[t] = true
+    }
+    return m
+}
+```
+
+### Step 2 — Move tag validation out of parseErgBytes into a post-parse pass
+
+Today, rule 5 (tag value validation) fires inside `parseErgBytes` at
+lines 389-395, using the package-level `validTagValues` map. This
+couples the parser to policy. Move it out:
+
+**In `erg.go`:** Delete lines 388-395 (the rule 5 end-of-walk emission).
+Remove the `validTagValues` reference from `parseErgBytes`. The parser
+still collects `tags` and `tagLines` into the Erg struct — it just stops
+validating them against a vocabulary.
+
+**In `erg.go` (Erg struct):** Add `TagLines []int` field so the tag line
+numbers survive for error messages after the parser returns. Today
+`tagLines` is a local variable; promote it to a struct field.
+
+**In `validate.go` (validateCorpus):** Add a new loop after the existing
+per-file error fold-in that validates tag values against
+`effectiveTagSet(cfg)`. This means `validateCorpus` gains a `cfg *Config`
+parameter:
+
+```go
+func validateCorpus(tickets []Erg, parseErrs [][]string, cfg *Config) []string
+```
+
+Error message uses the runtime vocabulary, not a hardcoded string:
+
+```go
+// erg.go:392 currently hardcodes the list. Replace with:
+fmt.Sprintf("%s:%d: unknown Tag value '%s' (valid tags: %s)",
+    name, tagLines[i], v, strings.Join(effectiveTagSet keys, ", "))
+```
+
+**Why option (d)** (move validation out) over alternatives:
+- (a) Replace package var at startup: works but init-order hazard;
+  global mutable state in a tool used by concurrent worktrees is fragile.
+- (b) Pass Config through: massive signature churn — parseErgBytes is
+  called from parseErg, loadErgs, tests, the whole chain.
+- (c) Accept tag set parameter in parseErgBytes: moderate churn, but the
+  parser should not own policy.
+- **(d) Post-parse pass in validateCorpus: structurally cleanest.** The
+  parser stays pure (collects data), the validator enforces policy with
+  Config in scope. Aligns with 0125's goal of keeping ergspecv1.go for
+  declarations, not behavior.
+
+### Step 3 — Wire Config into call sites
+
+**`cmdValidate` (validate.go):** After calling `parseErg`, load config
+once per directory (cache like `idCache`). Pass to the new tag
+validation logic. For the single-file path (`erg validate FILE`), tag
+validation runs inline using `effectiveTagSet(cfg)` and the Erg's
+TagLines.
+
+**`cmdCheck` (check.go):** Load config from the ticket dir before
+calling `validateCorpus(tickets, parseErrs, cfg)`.
+
+**`cmdReady` (ready.go):** Replace `skipReadyTags` usage with
+`effectiveTagSet(cfg)`. Load config at the top of `cmdReady` from
+`ticketDir`. The vocabulary IS the skip set — one source of truth.
+
+**`cmdUpdate` (update.go):** After loading config, use the precedence
+ladder at the call site:
+1. `os.Getenv("ERG_UPDATE_URL")` (env var wins)
+2. `cfg.UpdateURL` (config file)
+3. `updateURL` constant (hardcoded default)
+
+loadConfig itself does NOT read env vars — it is a pure file parser.
+
+### Step 4 — Delete the old package-level maps
+
+- **`ergspecv1.go`:** Delete `validTagValues` var (lines 12-25). Keep
+  `defaultTags` in `config.go` instead.
+- **`ready.go`:** Delete `skipReadyTags` var (lines 27-31).
+- **`erg.go:392`:** Already handled in step 2 (error message made
+  dynamic).
+
+### Step 5 — Bootstrap asset for .ergrc
+
+Add to `initAssetPaths` in `init.go`:
+
+```go
+var initAssetPaths = []string{
+    "tickets/.ergrc",
+    "tickets/AGENTS.md",
+    "tickets/spec-erg-v1.md",
+    "tickets/integration.md",
+}
+```
+
+Add the default `.ergrc` content to `bootstrapAssetsBase64` in
+`bootstrap_assets.go` (base64-encode the default content). Default
+content:
+
+```ini
+# Project configuration for git-erg.
+# Created by: erg init
+
+[tags]
+# Tag vocabulary — one per line. All tags suppress `erg ready` output.
+# Remove or add lines to fit your workflow.
+needs-human
+deferred
+
+[update]
+# url = https://raw.githubusercontent.com/MinhHaDuong/git-erg/main/tickets/erg
+```
+
+Update `summaryInit` and `helpInit` to mention `.ergrc`.
+
+### Step 6 — Update hardcoded help text and embedded docs
+
+**Dynamic error messages:**
+- `erg.go:392` — already handled in step 2 (lists valid tags from config).
+
+**Static help text (keep as documentation of defaults):**
+- `ready.go:162` (`helpReady`) — change the tag list to say
+  "default: needs-human, deferred; see tickets/.ergrc [tags]".
+- `validate.go:172` (`helpValidate`) — same treatment for rule 5 text.
+
+**Embedded bootstrap docs (base64 in bootstrap_assets.go):**
+- `AGENTS.md` — update the Tag: line from listing four values to
+  "accepted values are defined in tickets/.ergrc; defaults: needs-human,
+  deferred". Decode the base64, edit the markdown, re-encode. There is no
+  Makefile target for this — the base64 is maintained manually.
+- `spec-erg-v1.md` — update the Tag header row in the headers table from
+  four values to "configurable via .ergrc; defaults: needs-human,
+  deferred".
+
+### Step 7 — Update test fixtures and test cases
+
+**Tests that must change in `validate_test.go`:**
+- `"Tag post-talk accepted"` (line 122-127): This currently asserts no
+  errors. After defaults shrink, it must assert rejection. Convert to:
+  assert `wantErrors: true, wantSubstr: "unknown Tag value"`. This proves
+  the built-in defaults no longer include post-talk.
+- `"Tag post-conference accepted"` (line 128-133): Same treatment.
+- `"Tag value not in closed set"` (line 116-120): Keep as-is — tests
+  that an unknown tag is rejected regardless of config.
+
+**New test cases in `config_test.go`:**
+1. **TDD anchor** (step 0): no .ergrc, `Tag: post-talk` rejected.
+2. **Custom .ergrc with [tags]**: write `.ergrc` with `[tags]\nmy-tag`,
+   write ticket with `Tag: my-tag`, validate passes.
+3. **Missing .ergrc fallback**: no .ergrc, ticket with `Tag: needs-human`
+   accepted.
+4. **Empty [tags] section**: `.ergrc` with `[tags]` and no values,
+   ticket with `Tag: needs-human`, validate rejects (no tags valid).
+5. **[tags] absent, [update] present**: `.ergrc` with only `[update]`
+   section, falls back to built-in tag defaults.
+6. **Env var overrides [update] url**: set `ERG_UPDATE_URL` env var,
+   verify it wins over config value.
+7. **Comments and blank lines**: `.ergrc` with `#` comments and blanks
+   inside [tags] section, verify they are ignored.
+8. **Precedence ladder**: both env var and config and hardcoded default
+   for update URL — verify correct winner at each level.
+
+**End-to-end flavor (avoid tautology):** Tests 2-4 go through the full
+pipeline (write .ergrc + write .erg ticket + parse + validate) rather
+than unit-testing loadConfig in isolation. This avoids the antipattern
+where the test pins the parser against itself. The loadConfig unit tests
+(comments, blank lines) are structural and acceptable.
+
+**Golden fixture files (testdata/):**
+- No changes needed — no fixture file references post-talk or
+  post-conference (confirmed by grep).
+
+### Step 8 — Deconflict with ticket 0125
+
+Ticket 0125 consolidates type declarations into `ergspecv1.go`. This
+ticket adds a new file (`config.go`) and modifies existing files. Points
+of contact:
+- `ergspecv1.go`: 0125 may move things into it; 0126 deletes
+  `validTagValues` from it. No conflict — 0126 deletes, 0125 does not
+  use the deleted var.
+- `erg.go`: 0125 may move Erg struct; 0126 adds TagLines field. If 0125
+  moves Erg to ergspecv1.go, add TagLines there. Mechanical rebase.
+- New `config.go`: entirely new file, no overlap with 0125.
+
+## Exit criteria
+
+- [ ] `erg init` creates tickets/.ergrc with default [tags] and [update]
+- [ ] Validator reads [tags] when present, falls back to defaults
+- [ ] `erg ready` uses same vocabulary (one source of truth)
+- [ ] `erg update` reads [update] url, env var still overrides
+- [ ] post-talk and post-conference removed from defaults
+- [ ] Tests cover: custom .ergrc, missing .ergrc fallback, empty [tags],
+      env var overrides config
+- [ ] `make check` passes

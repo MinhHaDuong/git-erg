@@ -9,6 +9,69 @@ import "regexp"
 //	magic-line := "%erg v1"
 const magicLine = "%erg v1"
 
+// separatorLog is the log section delimiter.
+const separatorLog = "--- log ---"
+
+// separatorBody is the body section delimiter.
+const separatorBody = "--- body ---"
+
+// Erg is the schema-literal projection of a %erg v1 ticket file.
+// Lenient-parse invariant: parseErg always returns a usable Erg (at
+// minimum with Path set) so callers can report a filename even when the
+// file is unreadable or malformed. parseErg also returns a []string of
+// per-file rule violations alongside the Erg; corpus-level rules
+// (duplicate IDs, ref resolution, cycles) live in validateCorpus.
+type Erg struct {
+	Path string
+
+	// v1 headers — typed fields populated from first occurrence
+	Title      string   // required, non-empty (validator rule 2)
+	Created    string   // required, non-empty
+	Author     string   // required, non-empty
+	Closed     string   // optional; first non-empty Closed: value when present
+	BlockedBys []Ref    // possibly empty; one entry per `Blocked-by:` line, parsed at parse time
+	Tags       []string // possibly empty; one entry per `Tag:` line, trimmed; empties skipped
+
+	LogLines []string // one structured event per entry
+	Body     string   // multiline
+}
+
+// RefKind discriminates the two Blocked-by reference forms defined in
+// rules/tickets.md.
+type RefKind int
+
+const (
+	RefInvalid RefKind = iota
+	RefLocal           // 0042 — local ticket ID
+	RefForge           // host/owner/repo#N — forge issue
+)
+
+// Ref is a parsed Blocked-by value. Downstream code (validator, ready)
+// must read these fields rather than re-parse Raw — a single parser is
+// the source of truth.
+type Ref struct {
+	Raw    string // original text as written in the .erg file
+	Kind   RefKind
+	ID     string // 4-digit ticket ID (RefLocal only)
+	Host   string // hostname (RefForge only)
+	Owner  string // owner/org (RefForge only)
+	Repo   string // repo name (RefForge only)
+	Number string // issue number (RefForge only)
+}
+
+// v1HeaderKeys is the closed set of header keys recognised by parseErg.
+// Used to classify header lines as known/unknown during parsing.
+var v1HeaderKeys = map[string]bool{
+	"Title": true, "Created": true, "Author": true,
+	"Closed": true, "Blocked-by": true, "Tag": true,
+}
+
+// v1SingletonKeys is the subset of v1HeaderKeys that may appear at most
+// once in the preamble. Repeats are reported as parse errors.
+var v1SingletonKeys = map[string]bool{
+	"Title": true, "Created": true, "Author": true, "Closed": true,
+}
+
 // validTagValues is the closed value set for the Tag: header (%erg v1).
 // Allowed values: needs-human, deferred, post-talk, post-conference.
 // Any Tag: value suppresses the ticket from `erg ready` output (see
@@ -60,16 +123,11 @@ var logLineRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z\s+\S+\s+\S+`
 //	ALNUM := ALPHA / DIGIT
 var hostRE = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$`)
 
-// ownerRE matches the owner/org component of a forge ref.
+// identRE matches the owner/org or repository name component of a forge ref.
+// Both use the same character set: alphanumeric, underscore, dot, dash.
 //
-// ABNF production:
+// ABNF productions:
 //
 //	owner := 1*( ALNUM / "_" / "." / "-" )
-var ownerRE = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
-
-// repoRE matches the repository name component of a forge ref.
-//
-// ABNF production:
-//
-//	repo := 1*( ALNUM / "_" / "." / "-" )
-var repoRE = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+//	repo  := 1*( ALNUM / "_" / "." / "-" )
+var identRE = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)

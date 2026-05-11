@@ -5,29 +5,6 @@ import (
 	"strings"
 )
 
-// RefKind discriminates the two Blocked-by reference forms defined in
-// rules/tickets.md.
-type RefKind int
-
-const (
-	RefInvalid RefKind = iota
-	RefLocal           // 0042 — local ticket ID
-	RefForge           // host/owner/repo#N — forge issue
-)
-
-// Ref is a parsed Blocked-by value. Downstream code (validator, ready)
-// must read these fields rather than re-parse Raw — a single parser is
-// the source of truth.
-type Ref struct {
-	Raw    string // original text as written in the .erg file
-	Kind   RefKind
-	ID     string // 4-digit ticket ID (RefLocal only)
-	Host   string // hostname (RefForge only)
-	Owner  string // owner/org (RefForge only)
-	Repo   string // repo name (RefForge only)
-	Number string // issue number (RefForge only)
-}
-
 // IsForge reports whether the ref targets a forge issue (offline-unknown).
 func (r Ref) IsForge() bool {
 	return r.Kind == RefForge
@@ -73,7 +50,7 @@ func parseRef(raw string) (Ref, error) {
 		parts := strings.Split(hostOwnerRepo, "/")
 		if len(parts) == 3 {
 			host, owner, repo := parts[0], parts[1], parts[2]
-			if hostRE.MatchString(host) && ownerRE.MatchString(owner) && repoRE.MatchString(repo) {
+			if hostRE.MatchString(host) && identRE.MatchString(owner) && identRE.MatchString(repo) {
 				// Validate the number format.
 				if err := validateIssueNumber(num); err != nil {
 					return Ref{Raw: raw}, fmt.Errorf("malformed ref %q: %v", raw, err)

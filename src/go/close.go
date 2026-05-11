@@ -173,13 +173,13 @@ func insertClosedHeader(content, headerLine string) (string, error) {
 	lines := strings.Split(content, "\n")
 	logIdx := -1
 	for i, line := range lines {
-		if strings.TrimSpace(line) == "--- log ---" {
+		if strings.TrimSpace(line) == separatorLog {
 			logIdx = i
 			break
 		}
 	}
 	if logIdx < 0 {
-		return "", fmt.Errorf("missing '--- log ---' separator")
+		return "", fmt.Errorf("missing '%s' separator", separatorLog)
 	}
 
 	// Find the last non-blank line before the log separator. That's the
@@ -201,7 +201,7 @@ func insertClosedHeader(content, headerLine string) (string, error) {
 // before the `--- body ---` separator. If the file lacks a body separator,
 // appends to the end of the file.
 func appendLogLine(content, logLine string) string {
-	bodyIdx := strings.Index(content, "\n--- body ---")
+	bodyIdx := strings.Index(content, "\n"+separatorBody)
 	if bodyIdx < 0 {
 		if !strings.HasSuffix(content, "\n") {
 			content += "\n"

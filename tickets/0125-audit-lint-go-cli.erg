@@ -1,0 +1,254 @@
+%erg v1
+Title: Audit lint findings — Go CLI codebase
+Created: 2026-05-11
+Author: MinhHaDuong
+Tag: deferred
+
+--- log ---
+2026-05-11T14:00Z claude open audit sweep of src/go/
+
+--- body ---
+Categorized findings from full read of all 26 production files and 7 test
+files. go vet clean, 177 tests pass. Findings grouped by category.
+
+## Dead code (low)
+1. HasMagic field on Erg — set by parser, never read in production; only
+   consumed by test assertions.
+2. type Line = string — type alias (not definition), zero compile-time
+   safety; semantic noise.
+
+## Duplication (medium)
+3. ownerRE and repoRE in ergspecv1.go are byte-identical regexps.
+4. validTagValues (ergspecv1.go) and skipReadyTags (ready.go) are
+   independently defined maps with the same keys.
+5. Three ID-from-filename extractors: parseIDFromFilename (int),
+   FilenameID (string), globLocalIDs (inline split).
+
+## Consistency (low–medium)
+6. filepath.Walk (deprecated) in migrate.go and check.go vs
+   filepath.WalkDir (modern) in nextid.go and ready.go.
+7. TestClosedWhitespaceDivergence documents parseHeaderLine vs
+   isClosedHeaderLine whitespace inconsistency — pins divergence
+   instead of fixing it.
+
+## Efficiency (medium)
+8. removeBlockedByRef in close.go loads entire corpus via loadErgs to
+   find files referencing a given ID, then re-reads each matching file
+   line-by-line to edit it. Single pass possible.
+
+## Test gaps (high–medium)
+9. migrate.go (~344 lines) — complex multi-pass rewrite logic with zero
+   unit tests. migrateFile is pure (bytes in -> bytes out), table-drivable.
+10. No unit tests for cmdLog, cmdArchive, cmdReady, cmdCheck, cmdVersion,
+    cmdUpdate, cmdInit. Priority: cmdReady and cmdCheck (most logic).
+11. globLocalIDs (validate.go) has no direct test.
+
+## Design / fragility (medium–low)
+12. Positional struct literal at ready.go:272 (readyEntry{...}).
+13. bootstrap_assets.go uses hand-rolled base64 instead of //go:embed.
+
+## File organization (medium)
+14. erg.go mixes type declarations (Line, Erg, Ref-adjacent helpers) with
+    parser logic and spec constants (v1HeaderKeys, v1SingletonKeys, inline
+    separator literals). ergspecv1.go already holds spec constants but the
+    split is incomplete — types and remaining constants should consolidate
+    into ergspecv1.go, leaving erg.go as pure parser/method code.
+
+## Actions (quick-fix PR scope)
+
+In-scope findings: #1, #2, #3, #6, #12, #13, #14. Commit order follows
+dependency (types first, then callers).
+
+### A1. Remove HasMagic from Erg struct (#1)
+
+Verified: HasMagic is set in parseErgBytes (erg.go:440) and in the struct
+literal (erg.go:23). Production code never reads it. 8 test assertions in
+erg_test.go read it as a proxy for "parser detected magic line."
+
+Actions:
+- Delete `HasMagic bool` from the Erg struct (erg.go:23).
+- Delete `HasMagic: hasMagic,` from the struct literal (erg.go:440).
+  The local `hasMagic` variable stays — it drives rule 1 error emission.
+- Rewrite 8 test assertions in erg_test.go: replace `erg.HasMagic`
+  checks with assertions on `parseErrs` content — presence/absence of
+  the string `"missing magic first line"`. This is the observable
+  behavior, not an internal field.
+
+### A2. Remove type Line = string alias (#2)
+
+Verified: `type Line = string` at erg.go:13 is a type alias (=), not a
+type definition. The compiler treats Line and string identically — no
+type safety. Used only in the Erg struct fields and local variables in
+parseErgBytes.
+
+Actions:
+- Delete the `type Line = string` declaration and its comment (erg.go:11-13).
+- Replace all `Line` with `string` in the Erg struct fields (erg.go:22-33)
+  and in `var title, created, author, closed Line` (erg.go:183)
+  and `var tags []Line` (erg.go:185).
+
+### A3. Merge ownerRE and repoRE into identRE (#3)
+
+Verified: ownerRE (ergspecv1.go:68) and repoRE (ergspecv1.go:75) compile
+identical patterns: `^[A-Za-z0-9_.-]+$`. Single call site: ref.go:76
+(`ownerRE.MatchString(owner) && repoRE.MatchString(repo)`).
+
+Actions:
+- Replace both declarations with a single `identRE` in ergspecv1.go.
+  Comment references the ABNF productions for both owner and repo.
+- Update ref.go:76 to `identRE.MatchString(owner) && identRE.MatchString(repo)`.
+- Existing tests in ref_test.go cover this end-to-end (no new tests needed).
+
+### A4. Replace filepath.Walk with filepath.WalkDir (#6)
+
+Verified: filepath.Walk call sites are:
+- erg.go:485 (loadErgs) — uses `os.FileInfo`
+- migrate.go:68 (cmdMigrate walk) — uses `os.FileInfo`
+- migrate.go:321 (hasStatusHeader) — uses `os.FileInfo`
+
+These pass `os.FileInfo` in their walk function signature. filepath.WalkDir
+uses `fs.DirEntry` instead, which avoids a stat syscall per entry.
+
+Correction to original finding: check.go does NOT call filepath.Walk
+directly — it uses loadErgs (erg.go). The three actual call sites are
+all in erg.go and migrate.go.
+
+Actions per call site:
+- Change `filepath.Walk` to `filepath.WalkDir` and update the callback
+  signature from `func(path string, info os.FileInfo, err error)` to
+  `func(path string, d fs.DirEntry, err error)`.
+- Replace `info.IsDir()` with `d.IsDir()` and `info.Name()` with
+  `d.Name()` (same API on DirEntry).
+- Add `"io/fs"` import to erg.go and migrate.go (remove `"os"` if it
+  becomes unused — but both files still use os.ReadFile/os.WriteFile).
+
+### A5. Switch positional struct literal to named fields (#12)
+
+Verified: ready.go:272 constructs readyEntry positionally:
+  `entry := readyEntry{tid, t.Title, t.Filename(), tags, !blocked, claimed, blockedBy}`
+
+The readyEntry struct (ready.go:18-24) has 7 fields. Any reordering
+or insertion breaks this silently.
+
+Action:
+- Rewrite to named fields:
+  `entry := readyEntry{id: tid, title: t.Title, file: t.Filename(), tags: tags, ready: !blocked, claimed: claimed, blockedBy: blockedBy}`
+
+### A6. Replace hand-rolled base64 with //go:embed (#13)
+
+Verified: bootstrap_assets.go holds 3 assets as base64 strings in a
+hand-maintained map. No Makefile target generates it. go.mod requires
+Go 1.21, which supports //go:embed. The asset files referenced are:
+- tickets/AGENTS.md
+- tickets/spec-erg-v1.md
+- tickets/integration.md
+
+These paths are relative to the project root, not to src/go/. For
+//go:embed, files must be in or below the package directory.
+
+Actions:
+- Create directory src/go/assets/ and place the 3 decoded .md files
+  there (AGENTS.md, spec-erg-v1.md, integration.md).
+- Rewrite bootstrap_assets.go: declare `//go:embed assets/AGENTS.md`,
+  etc. using `embed.FS` or individual `string` vars.
+- Update bootstrapAsset() to read from the embedded FS.
+- Update initAssetPaths in init.go (the lookup keys change from
+  `tickets/AGENTS.md` to `assets/AGENTS.md` internally, but the write
+  targets stay as `tickets/AGENTS.md`).
+- Shell test tests/test_init.sh covers end-to-end asset unpacking.
+
+### A7. Consolidate types and spec constants into ergspecv1.go (#14)
+
+Verified: erg.go currently holds declarations that belong with the spec:
+- `type Line = string` (removed by A2, irrelevant here)
+- `Erg` struct definition (lines 15-35)
+- `v1HeaderKeys` map (lines 141-144)
+- `v1SingletonKeys` map (lines 148-150)
+- Separator literals `"--- log ---"` and `"--- body ---"` are inlined
+  at 9 code sites across 4 files (erg.go, migrate.go, close.go, new.go)
+
+ergspecv1.go already holds: magicLine, validTagValues, isoDateRE,
+filenameRE, logLineRE, hostRE, ownerRE/repoRE.
+
+Actions (three sub-steps):
+
+A7a. Move `Erg` struct definition from erg.go to ergspecv1.go.
+  Methods (IsClosed, Filename, FilenameID) stay in erg.go — Go allows
+  methods in any file of the same package.
+
+A7b. Move `v1HeaderKeys` and `v1SingletonKeys` from erg.go to
+  ergspecv1.go.
+
+A7c. Define `logSeparator` and `bodySeparator` constants in
+  ergspecv1.go and replace all inline literals. Code sites to update:
+  - erg.go:219   `trimmed == "--- log ---"`
+  - erg.go:226   `trimmed == "--- body ---"`
+  - migrate.go:234  `strings.TrimSpace(line) == "--- log ---"`
+  - migrate.go:271  `strings.TrimSpace(line) == "--- log ---"`
+  - migrate.go:333  `strings.TrimSpace(line) == "--- log ---"`
+  - close.go:176  `strings.TrimSpace(line) == "--- log ---"`
+  - close.go:204  `strings.Index(content, "\n--- body ---")`
+  - log.go:77     `strings.Contains(string(data), "\n--- body ---")`
+  - new.go:88     inline in template string (use constant concat)
+  Test assertions and doc comments that mention the literals stay as-is.
+
+Scope deferral: Ref and RefKind already live in ref.go alongside their
+parser (parseRef). Moving them to ergspecv1.go would gut ref.go into a
+parser-only file with no type context. Deferred — ref.go is already a
+coherent unit.
+
+### Commit order
+
+1. A2 (remove Line alias) — no dependencies, simplest change.
+2. A1 (remove HasMagic) — includes test rewrites.
+3. A3 (merge ownerRE/repoRE) — standalone.
+4. A7 (move Erg struct, v1HeaderKeys, v1SingletonKeys, separator
+   constants to ergspecv1.go) — may split into sub-commits if diff
+   is large.
+5. A4 (filepath.Walk→WalkDir) — standalone.
+6. A5 (named struct fields) — standalone.
+7. A6 (embed) — last because it creates new files and touches init.go.
+
+### First test to write
+
+After A6, add TestBootstrapAssetContent in erg_test.go (or a new
+bootstrap_assets_test.go): for each of the 3 asset paths, call
+bootstrapAsset() and assert the returned string starts with the expected
+first line (e.g., `# tickets/` for AGENTS.md, `# Ticket format spec` for
+spec-erg-v1.md). This catches encoding drift from the embed switch
+without being tautological.
+
+Antipattern check — tests to avoid:
+- Asserting `identRE.String() == "^[A-Za-z0-9_.-]+$"` — recompiles
+  the regex pattern; catches only a different implementation, not a
+  wrong one.
+- Asserting "HasMagic field does not exist" — tests the implementation
+  shape, not behavior.
+- Asserting Erg struct fields list — recompiles the type.
+
+### Out of scope (deferred findings)
+
+- #4 (tag map duplication): absorbed by ticket 0126.
+- #5 (3 ID extractors): needs design thought about which to keep.
+- #7 (whitespace divergence): needs design decision (align which way).
+- #8 (removeBlockedByRef double-parse): medium complexity refactor.
+- #9 (migrate.go tests): large scope, separate ticket.
+- #10 (command tests): large scope, separate ticket.
+- #11 (globLocalIDs test): low priority.
+- #14 partial (Ref/RefKind move): ref.go is a coherent unit — type and
+  parser together. Moving Ref/RefKind to ergspecv1.go would gut it.
+
+## Exit criteria
+
+- [ ] `cd src/go && go vet ./...` clean
+- [ ] `cd src/go && go test ./...` passes (177+ tests)
+- [ ] `make test` passes (unit + shell integration)
+- [ ] No `HasMagic` references outside comments
+- [ ] No `type Line =` declaration
+- [ ] `ownerRE` and `repoRE` replaced by single `identRE`
+- [ ] Zero `filepath.Walk` calls (all replaced by WalkDir)
+- [ ] readyEntry literal uses named fields
+- [ ] bootstrap_assets.go uses //go:embed, no base64 encoding
+- [ ] v1HeaderKeys, v1SingletonKeys live in ergspecv1.go
+- [ ] Erg struct definition lives in ergspecv1.go
+- [ ] logSeparator, bodySeparator constants in ergspecv1.go; no inline literals

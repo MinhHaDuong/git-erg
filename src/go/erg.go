@@ -2,37 +2,12 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 )
-
-// Line is a single-line string: no embedded newlines.
-// Enforced by the parser invariant (header values read up to LF).
-type Line = string
-
-// Erg is the schema-literal projection of a %erg v1 ticket file.
-// Lenient-parse invariant: parseErg always returns a usable Erg (at
-// minimum with Path set) so callers can report a filename even when the
-// file is unreadable or malformed. parseErg also returns a []string of
-// per-file rule violations alongside the Erg; corpus-level rules
-// (duplicate IDs, ref resolution, cycles) live in validateCorpus.
-type Erg struct {
-	Path     Line
-	HasMagic bool
-
-	// v1 headers — typed fields populated from first occurrence
-	Title      Line   // required, non-empty (validator rule 2)
-	Created    Line   // required, non-empty
-	Author     Line   // required, non-empty
-	Closed     Line   // optional; first non-empty Closed: value when present
-	BlockedBys []Ref // possibly empty; one entry per `Blocked-by:` line, parsed at parse time
-	Tags       []Line // possibly empty; one entry per `Tag:` line, trimmed; empties skipped
-
-	LogLines []Line // one structured event per entry
-	Body     string // multiline
-}
 
 // IsClosed reports whether the ticket is closed under the v1 criterion:
 // either a path component test fires, or a `Closed:` preamble header is
@@ -136,19 +111,6 @@ func parseHeaderLine(line string) (string, string, bool) {
 	return key, val, true
 }
 
-// v1HeaderKeys is the closed set of header keys recognised by parseErg.
-// Used to classify header lines as known/unknown during parsing.
-var v1HeaderKeys = map[string]bool{
-	"Title": true, "Created": true, "Author": true,
-	"Closed": true, "Blocked-by": true, "Tag": true,
-}
-
-// v1SingletonKeys is the subset of v1HeaderKeys that may appear at most
-// once in the preamble. Repeats are reported as parse errors.
-var v1SingletonKeys = map[string]bool{
-	"Title": true, "Created": true, "Author": true, "Closed": true,
-}
-
 // parseErg parses a single .erg file into an Erg plus parse-time errors
 // (per-file rule violations: rules 1-9, 11, 12). On read error, returns
 // an empty Erg with only Path set so callers can still report a filename.
@@ -180,9 +142,9 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 
 	var logLines, bodyLines []string
 	var logLineNums []int
-	var title, created, author, closed Line
+	var title, created, author, closed string
 	var titleLine, createdLine, authorLine int
-	var tags []Line
+	var tags []string
 	var blockedBys []Ref
 	var blockedByLines, tagLines []int
 	section := "magic" // magic | headers | gap | log | body
@@ -216,14 +178,14 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 			// Fall through to header parsing
 		}
 
-		if trimmed == "--- log ---" {
+		if trimmed == separatorLog {
 			hasLogSep = true
 			if !bodySepSeen {
 				section = "log"
 				continue
 			}
 		}
-		if trimmed == "--- body ---" {
+		if trimmed == separatorBody {
 			hasBodySep = true
 			if !bodySepSeen {
 				bodySepSeen = true
@@ -428,16 +390,15 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	// neither was ever seen.
 	if !hasLogSep {
 		errs = append(errs,
-			fmt.Sprintf("%s: missing '--- log ---' separator", name))
+			fmt.Sprintf("%s: missing '%s' separator", name, separatorLog))
 	}
 	if !hasBodySep {
 		errs = append(errs,
-			fmt.Sprintf("%s: missing '--- body ---' separator", name))
+			fmt.Sprintf("%s: missing '%s' separator", name, separatorBody))
 	}
 
 	return Erg{
 		Path:       path,
-		HasMagic:   hasMagic,
 		Title:      title,
 		Created:    created,
 		Author:     author,
@@ -482,11 +443,11 @@ func loadErgs(dir string) ([]Erg, [][]string) {
 		e []string
 	}
 	var pairs []pair
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
-		if info.IsDir() || !strings.HasSuffix(path, ".erg") {
+		if d.IsDir() || !strings.HasSuffix(path, ".erg") {
 			return nil
 		}
 		t, e := parseErg(path)

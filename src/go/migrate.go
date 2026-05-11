@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,11 +66,11 @@ func cmdMigrate(args []string) int {
 	migratedTags := 0
 	alreadyClean := 0
 
-	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() || !strings.HasSuffix(info.Name(), ".erg") {
+		if d.IsDir() || !strings.HasSuffix(d.Name(), ".erg") {
 			return nil
 		}
 		res, mErr := migrateFile(path)
@@ -231,7 +232,7 @@ func migrateFile(path string) (migrateResult, error) {
 	// Bound preamble at the first `--- log ---` separator.
 	logIdx := -1
 	for i, line := range lines {
-		if strings.TrimSpace(line) == "--- log ---" {
+		if strings.TrimSpace(line) == separatorLog {
 			logIdx = i
 			break
 		}
@@ -268,7 +269,7 @@ func migrateFile(path string) (migrateResult, error) {
 		// the Closed header immediately after the last non-blank preamble line.
 		newLogIdx := -1
 		for i, line := range out {
-			if strings.TrimSpace(line) == "--- log ---" {
+			if strings.TrimSpace(line) == separatorLog {
 				newLogIdx = i
 				break
 			}
@@ -318,8 +319,8 @@ func isTagsHeaderLine(line string) bool {
 // migration guidance after a binary swap.
 func hasStatusHeader(dir string) bool {
 	stopWalk := fmt.Errorf("found")
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || !strings.HasSuffix(info.Name(), ".erg") {
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".erg") {
 			return nil
 		}
 		data, err := os.ReadFile(path)
@@ -330,7 +331,7 @@ func hasStatusHeader(dir string) bool {
 			return nil
 		}
 		for _, line := range strings.Split(string(data), "\n") {
-			if strings.TrimSpace(line) == "--- log ---" {
+			if strings.TrimSpace(line) == separatorLog {
 				return nil
 			}
 			if isStatusHeaderLine(line) {
