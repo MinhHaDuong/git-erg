@@ -1,0 +1,25 @@
+%erg v1
+Title: Rename non-command Go source files to honest descriptive names
+Created: 2026-05-11
+Author: claude-sonnet-4-6
+
+--- log ---
+2026-05-11T00:00Z claude-sonnet-4-6 created
+
+--- body ---
+## Context
+Ticket 0104 renamed selfupdate.go → version.go + update.go but left three
+files with misleading names: help.go (no cmdHelp), author.go (no cmdAuthor),
+ticket.go (no cmdTicket). Exit criteria from 0104 are not fully met.
+
+## Actions
+1. ticket.go → model.go  (Erg struct, accessors, parser, helpers — shared model)
+2. help.go   → helptext.go  (commandOrder + helpText data, no cmd*)
+3. author.go → identity.go  (resolveAuthor() helper shared by new.go + close.go)
+4. Rename companion _test.go files accordingly.
+5. Check Makefile, CI, docs, shell scripts for file-name references.
+6. Verify make test passes.
+
+## Exit criteria
+- No src/go/*.go file named after a concept that implies a CLI command it does not implement.
+- make test passes.
