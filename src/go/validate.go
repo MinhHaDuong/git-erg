@@ -182,6 +182,10 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
       occurrences are body text (legitimate bodies may quote the literals).
   13. No dependency cycles among local Blocked-by refs.
 
+Error format: 'filename:LINE: message' when a specific line applies
+(rules 1-7, 9, 11); 'filename: message' when no line applies (rules 8, 12).
+Line numbers are 1-indexed.
+
 For corpus-level checks (duplicate IDs, cycles), use: erg check [dir]
 
 Exit codes: 0 on pass, 1 on any violation. Directories are rejected — use erg check.
