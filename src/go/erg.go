@@ -344,9 +344,15 @@ func isClosedHeaderLine(line string) bool {
 	return len(line) >= len(key) && line[:len(key)] == key
 }
 
-// loadErgs parses every .erg file under dir recursively, sorted by path.
-func loadErgs(dir string) []Erg {
-	var tickets []Erg
+// loadErgs parses every .erg file under dir recursively. Returns parallel
+// slices: tickets[i] and diags[i] describe the same file. The pair is
+// sorted by ticket path. On walk failure, returns (nil, nil).
+func loadErgs(dir string) ([]Erg, []ParseDiagnostics) {
+	type pair struct {
+		t Erg
+		d ParseDiagnostics
+	}
+	var pairs []pair
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
@@ -354,17 +360,23 @@ func loadErgs(dir string) []Erg {
 		if info.IsDir() || !strings.HasSuffix(path, ".erg") {
 			return nil
 		}
-		t, _ := parseErg(path)
-		tickets = append(tickets, t)
+		t, d := parseErg(path)
+		pairs = append(pairs, pair{t, d})
 		return nil
 	})
 	if err != nil {
-		return nil
+		return nil, nil
 	}
-	sort.Slice(tickets, func(i, j int) bool {
-		return tickets[i].Path < tickets[j].Path
+	sort.Slice(pairs, func(i, j int) bool {
+		return pairs[i].t.Path < pairs[j].t.Path
 	})
-	return tickets
+	tickets := make([]Erg, len(pairs))
+	diags := make([]ParseDiagnostics, len(pairs))
+	for i, p := range pairs {
+		tickets[i] = p.t
+		diags[i] = p.d
+	}
+	return tickets, diags
 }
 
 // jsonEscape escapes a string for inclusion in a double-quoted JSON value.

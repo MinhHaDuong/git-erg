@@ -485,7 +485,7 @@ Author: a
 --- body ---
 EOF
 out=$($ERG validate "$FIXTURES/0102-no-title.erg" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "missing required header 'Title'"; then
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "missing or empty required header 'Title'"; then
     pass "missing Title rejected"
 else
     fail "missing Title rejected (rc=$rc, got: $out)"
@@ -501,7 +501,7 @@ Author: a
 --- body ---
 EOF
 out=$($ERG validate "$FIXTURES/0103-no-created.erg" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "missing required header 'Created'"; then
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "missing or empty required header 'Created'"; then
     pass "missing Created rejected"
 else
     fail "missing Created rejected (rc=$rc, got: $out)"
@@ -517,7 +517,7 @@ Created: 2026-01-01
 --- body ---
 EOF
 out=$($ERG validate "$FIXTURES/0104-no-author.erg" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "missing required header 'Author'"; then
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "missing or empty required header 'Author'"; then
     pass "missing Author rejected"
 else
     fail "missing Author rejected (rc=$rc, got: $out)"
@@ -768,10 +768,13 @@ Author: a
 --- body ---
 EOF
 out=$($ERG validate "$FIXTURES/0116-dup-log-sep.erg" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "'--- log ---' separator appears 2 times"; then
-    pass "duplicate log separator rejected"
+# Ticket 0116: rule 11 relaxed — duplicate separators are no longer
+# errors. The first occurrence transitions sections; subsequent ones
+# are body text (legitimate bodies quote the format literals).
+if [ "$rc" -eq 0 ] && echo "$out" | grep -q "PASS"; then
+    pass "duplicate log separator accepted (rule 11 relaxation)"
 else
-    fail "duplicate log separator rejected (rc=$rc, got: $out)"
+    fail "duplicate log separator accepted (rc=$rc, got: $out)"
 fi
 
 # --- Separator: duplicate --- body --- rejected ---
@@ -787,10 +790,12 @@ Author: a
 --- body ---
 EOF
 out=$($ERG validate "$FIXTURES/0117-dup-body-sep.erg" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "'--- body ---' separator appears 2 times"; then
-    pass "duplicate body separator rejected"
+# Ticket 0116: rule 11 relaxed — duplicate separators are no longer
+# errors. See above.
+if [ "$rc" -eq 0 ] && echo "$out" | grep -q "PASS"; then
+    pass "duplicate body separator accepted (rule 11 relaxation)"
 else
-    fail "duplicate body separator rejected (rc=$rc, got: $out)"
+    fail "duplicate body separator accepted (rc=$rc, got: $out)"
 fi
 
 # --- Log line: missing verb rejected ---

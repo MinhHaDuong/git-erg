@@ -8,8 +8,10 @@ import (
 )
 
 // validateErg returns rule violations for a single ticket. allIDs lists every
-// ticket ID known to the run for Blocked-by resolution.
-func validateErg(t *Erg, allIDs map[string]bool) []string {
+// ticket ID known to the run for Blocked-by resolution. diag carries
+// parser observations (unknown/repeated headers, separator sightings,
+// misplaced `Closed:` lines, empty `Closed:` values).
+func validateErg(t *Erg, diag ParseDiagnostics, allIDs map[string]bool) []string {
 	var errors []string
 	name := t.Filename()
 
@@ -18,61 +20,56 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 		errors = append(errors, fmt.Sprintf("%s: missing magic first line '%%erg v1'", name))
 	}
 
-	// Rule 2: required headers
-	for _, hdr := range RequiredHeaders {
-		if _, ok := t.headers[hdr]; !ok {
-			errors = append(errors, fmt.Sprintf("%s: missing required header '%s'", name, hdr))
-		}
+	// Rule 2: required headers — must be present AND non-empty.
+	if strings.TrimSpace(t.Title) == "" {
+		errors = append(errors, fmt.Sprintf("%s: missing or empty required header 'Title'", name))
+	}
+	if strings.TrimSpace(t.Created) == "" {
+		errors = append(errors, fmt.Sprintf("%s: missing or empty required header 'Created'", name))
+	}
+	if strings.TrimSpace(t.Author) == "" {
+		errors = append(errors, fmt.Sprintf("%s: missing or empty required header 'Author'", name))
 	}
 
 	// Rule 3: no unknown headers (Status: and Tags: are relics; run `erg
-	// migrate` to convert them).
-	for key, vals := range t.headers {
-		if !ValidHeaders[key] {
-			switch key {
-			case "Status":
-				errors = append(errors, fmt.Sprintf(
-					"%s: 'Status:' header is no longer part of %%erg v1 — run `erg migrate` to convert", name))
-			case "Tags":
-				errors = append(errors, fmt.Sprintf(
-					"%s: 'Tags:' has been renamed to 'Tag:' — run `erg migrate` to convert", name))
-			default:
-				errors = append(errors, fmt.Sprintf("%s: unknown header '%s' (not in v1 closed set)", name, key))
-			}
-			continue
-		}
-		// Singleton check: non-repeatable headers must appear at most once.
-		if SingletonHeaders[key] && len(vals) > 1 {
+	// migrate` to convert them). Unknown keys come from the parser in
+	// first-occurrence order.
+	for _, key := range diag.Unknown {
+		switch key {
+		case "Status":
 			errors = append(errors, fmt.Sprintf(
-				"%s: header '%s' is non-repeatable (appears %d times)", name, key, len(vals)))
+				"%s: 'Status:' header is no longer part of %%erg v1 — run `erg migrate` to convert", name))
+		case "Tags":
+			errors = append(errors, fmt.Sprintf(
+				"%s: 'Tags:' has been renamed to 'Tag:' — run `erg migrate` to convert", name))
+		default:
+			errors = append(errors, fmt.Sprintf("%s: unknown header '%s' (not in v1 closed set)", name, key))
 		}
+	}
+	// Singleton check: non-repeatable headers must appear at most once.
+	for _, key := range diag.RepeatedSingletons {
+		errors = append(errors, fmt.Sprintf(
+			"%s: header '%s' is non-repeatable (appears more than once)", name, key))
 	}
 
 	// Rule 3a: Tag: values must be from the closed value set.
-	if tags, ok := t.headers["Tag"]; ok {
-		for _, v := range tags {
-			if !ValidTagValues[strings.TrimSpace(v)] {
-				errors = append(errors, fmt.Sprintf(
-					"%s: unknown Tag value '%s' (not in v1 closed set)", name, v))
-			}
+	for _, v := range t.Tags {
+		if !ValidTagValues[v] {
+			errors = append(errors, fmt.Sprintf(
+				"%s: unknown Tag value '%s' (not in v1 closed set)", name, v))
 		}
 	}
 
 	// Rule 4: Closed: header — value required, non-empty; not in log/body.
-	if vals, ok := t.headers["Closed"]; ok {
-		for _, v := range vals {
-			if strings.TrimSpace(v) == "" {
-				errors = append(errors, fmt.Sprintf(
-					"%s: 'Closed:' header requires a non-empty value (closure reason)", name))
-				break
-			}
-		}
+	if diag.ClosedEmpty {
+		errors = append(errors, fmt.Sprintf(
+			"%s: 'Closed:' header requires a non-empty value (closure reason)", name))
 	}
-	if t.ClosedInLog {
+	if diag.ClosedInLog {
 		errors = append(errors, fmt.Sprintf(
 			"%s: 'Closed:' header found in log section — only allowed in header section", name))
 	}
-	if t.ClosedInBody {
+	if diag.ClosedInBody {
 		errors = append(errors, fmt.Sprintf(
 			"%s: 'Closed:' header found in body section — only allowed in header section", name))
 	}
@@ -112,16 +109,15 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 		}
 	}
 
-	// Rule 11: each separator appears exactly once
-	if t.LogSepCount == 0 {
+	// Rule 11: the first `--- log ---` and the first `--- body ---` in
+	// order are the section separators; subsequent occurrences are body
+	// text. Only the missing case is an error — a body that quotes the
+	// separator literals is legitimate (rule 11 relaxation, ticket 0116).
+	if !diag.HasLogSep {
 		errors = append(errors, fmt.Sprintf("%s: missing '--- log ---' separator", name))
-	} else if t.LogSepCount > 1 {
-		errors = append(errors, fmt.Sprintf("%s: '--- log ---' separator appears %d times (expected 1)", name, t.LogSepCount))
 	}
-	if t.BodySepCount == 0 {
+	if !diag.HasBodySep {
 		errors = append(errors, fmt.Sprintf("%s: missing '--- body ---' separator", name))
-	} else if t.BodySepCount > 1 {
-		errors = append(errors, fmt.Sprintf("%s: '--- body ---' separator appears %d times (expected 1)", name, t.BodySepCount))
 	}
 
 	return errors
@@ -202,8 +198,9 @@ func detectCycles(tickets []Erg) []string {
 	return errors
 }
 
-// validateAll runs every rule across the supplied tickets.
-func validateAll(tickets []Erg) []string {
+// validateAll runs every rule across the supplied tickets. diags must be
+// the parallel-by-index slice of ParseDiagnostics emitted by parseErg.
+func validateAll(tickets []Erg, diags []ParseDiagnostics) []string {
 	var errors []string
 
 	// Rule 7: no duplicate IDs
@@ -232,7 +229,11 @@ func validateAll(tickets []Erg) []string {
 
 	// Per-ticket validation
 	for i := range tickets {
-		errors = append(errors, validateErg(&tickets[i], allIDs)...)
+		var diag ParseDiagnostics
+		if i < len(diags) {
+			diag = diags[i]
+		}
+		errors = append(errors, validateErg(&tickets[i], diag, allIDs)...)
 	}
 
 	// Rule 9: dependency cycles
@@ -313,9 +314,9 @@ func cmdValidate(args []string) int {
 			fmt.Fprintf(os.Stderr, "WARNING: skipping %s (not a .erg file)\n", arg)
 			continue
 		}
-		t, _ := parseErg(arg)
+		t, diag := parseErg(arg)
 		localIDs := globLocalIDs(filepath.Dir(arg))
-		errs := validateErg(&t, localIDs)
+		errs := validateErg(&t, diag, localIDs)
 		allErrors = append(allErrors, errs...)
 		count++
 	}

@@ -126,13 +126,13 @@ func cmdCheck(args []string) int {
 		return 1
 	}
 
-	tickets := loadErgs(dir)
+	tickets, diags := loadErgs(dir)
 	if len(tickets) == 0 {
 		fmt.Println("No .erg files found.")
 		return 0
 	}
 
-	errors := validateAll(tickets)
+	errors := validateAll(tickets, diags)
 	warnings := folderClosure(tickets)
 	warnings = append(warnings, staleBlockedBy(tickets)...)
 	warnings = append(warnings, strayGoSource(dir)...)

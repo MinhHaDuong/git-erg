@@ -194,7 +194,7 @@ func cmdReady(args []string) int {
 		return 1
 	}
 
-	tickets := loadErgs(ticketDir)
+	tickets, _ := loadErgs(ticketDir)
 	closedByID := make(map[string]bool)
 	knownID := make(map[string]bool)
 	for i := range tickets {

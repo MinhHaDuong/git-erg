@@ -54,7 +54,7 @@ func cmdArchive(args []string) int {
 
 	// Load all tickets recursively (includes closed/) for building the
 	// reverse blocker index.
-	allTickets := loadErgs(ticketDir)
+	allTickets, _ := loadErgs(ticketDir)
 
 	// Build reverse index: for each open ticket X, for each local Blocked-by
 	// ref R in X, record that R.ID is blocking X.FilenameID().
