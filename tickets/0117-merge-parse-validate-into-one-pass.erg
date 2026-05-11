@@ -11,73 +11,158 @@ Author: claude-sonnet-4-6
 2026-05-11T00:00Z MinhHaDuong scope — error messages MUST include line numbers ("filename:line: msg"); upgrade from today's "filename: msg" format. Expected level of service.
 
 2026-05-11T11:22Z MinhHaDuong note blocker 0116 closed — Blocked-by removed.
+
+2026-05-11T12:00Z claude-opus-4-7 refreshed — re-pinned against current main (post PR #126/#128); resolved 0116 outcome (ParseDiagnostics struct, Erg already clean); retargeted signature discussion to parseErgBytes; redesigned step 1 transitional shape; split format upgrade as orthogonal follow-up; tally of call sites
 --- body ---
+## Current state vs. ticket (2026-05-11 refresh)
+
+What 0116 actually chose: `ParseDiagnostics` is a separate struct returned
+alongside `Erg`. The `Erg` struct in `src/go/erg.go:19-33` is already free
+of diagnostic-trace fields — only schema/body/log content remain. The
+elimination target for 0117 is therefore the **`ParseDiagnostics` struct
+itself** (defined `erg.go:35-46`), not fields on `Erg`.
+
+Other intermediate PRs (since the ticket was written) that affect the plan:
+- PR #126 split `parseErg` into a thin reader wrapper plus
+  `parseErgBytes(data []byte, path string)` (the real walker,
+  `erg.go:202-331`). All line-by-line work happens in `parseErgBytes`.
+  `parseErg` is now a 5-line wrapper (`erg.go:185-191`).
+- PR #128 unexported `magicLine`, `isoDateRE`, `filenameRE`, `logLineRE`,
+  `validTagValues` into `ergspecv1.go`; added `hasHeaderKey` helper used
+  by `isClosedHeaderLine`. Affects nothing for this ticket but the helper
+  is the right point to capture line numbers when emitting "Closed in log"
+  errors mid-walk.
+- PR #124 added line-number-aware error messaging hooks (review at execute
+  time — the line-tracking infrastructure may already exist).
+
+Tally of touched call sites (current main):
+- `parseErg(` direct callers (non-test): none outside erg.go. Production
+  callers use `loadErgs` (4 sites: archive.go:63, check.go:132,
+  close.go:125, ready.go:201) or `parseErgBytes` (1 site: close.go:83).
+- `validateErg(` callers: only `validateAll` (validate.go:237) and
+  validate_test.go (6 direct calls — these are the ones to rewrite).
+- `loadErgs(` callers: 4 production + 15 in tests; signature change here
+  ripples wider than `parseErg`.
+- Tests reading `diag.HasLogSep`/`HasBodySep`/`ClosedInBody` directly:
+  6 sites in erg_test.go (lines 59, 62, 95, 98, 134, 188, 200) and 2 in
+  validate_test.go (lines 457, 460). These tests assert on the
+  diagnostic-trace field directly today; under 0117 they assert on the
+  emitted error string instead.
+
 ## Context
-After ticket 0116, the `Erg` struct carries diagnostic-trace fields
+After ticket 0116, the parser emits a `ParseDiagnostics` struct
 (`Unknown`, `RepeatedSingletons`, `ClosedEmpty`, `ClosedInLog`,
-`ClosedInBody`, `HasLogSep`, `HasBodySep`) that exist only so the
+`ClosedInBody`, `HasLogSep`, `HasBodySep`) that exists only so the
 separate validator can re-derive what the parser already saw. This is
 two passes over the same information.
 
 A validating parser emits parse errors directly as it walks the file.
-The trace fields collapse to zero. `parseErg` becomes the single source
-of truth for both shape and error reporting.
+`ParseDiagnostics` collapses to `[]string`. `parseErgBytes` becomes the
+single source of truth for both shape and error reporting.
 
 ## Proposed signature change
+The work lives in `parseErgBytes`; `parseErg` inherits the new shape:
+
 ```go
-// Before
-func parseErg(path string) Erg
-func validateErg(t *Erg, allIDs map[string]bool) []string
+// Before (current main, post-#126)
+func parseErg(path string) (Erg, ParseDiagnostics)
+func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics)
+func validateErg(t *Erg, diag ParseDiagnostics, allIDs map[string]bool) []string
 
 // After
 func parseErg(path string) (Erg, []string)
+func parseErgBytes(data []byte, path string) (Erg, []string)
 // Corpus-level checks stay separate — they need the full corpus.
-func validateCorpus(tickets []Erg) []string
+func validateCorpus(tickets []Erg, parseErrs [][]string) []string
 ```
+
+`loadErgs` signature changes in lockstep: `([]Erg, [][]string)` instead
+of `([]Erg, []ParseDiagnostics)`. The four production callers
+(archive/check/close/ready) currently ignore the diagnostics slice with
+`_`, so the rename is a one-token edit per call site.
 
 **Rule split** (using validator's current numbering in helpValidate):
 - Per-file rules into parser: 1, 2, 3, 3a, 4 (Closed empty/misplaced),
   5, 6, 7 (filename), 8 (single-file Blocked-by parse), 9, 11
   (separators), 12 (date format).
-- Corpus rules stay: 7-dup (duplicate IDs across corpus), 10 (local
-  Blocked-by ID resolution), 13 (dependency cycles).
+- Corpus rules stay in `validateCorpus`: 7-dup (duplicate IDs across
+  corpus), 10 (local Blocked-by ID resolution), 13 (dependency cycles).
 
-`[]string` return matches `validateAll`'s current return type. The
-reimagined ParseError struct (file/line/rule fields) is YAGNI — no
-consumer reads errors programmatically today.
+`[]string` return matches `validateAll`'s current return type. A
+`ParseError` struct (file/line/rule fields) is YAGNI — no consumer
+reads errors programmatically today.
 
-## Error message format
-Upgrade from `"filename: msg"` to `"filename:LINE: msg"` for every
-error the parser emits (the parser knows the line; the validator
-mostly does not, today). End-of-file errors (e.g. "missing `--- log
----` separator") use line 0 or omit the line — pick one convention
-and document. Suggested: omit the line when no specific line applies
-(`"filename: missing '--- log ---' separator"`).
+## Error message format (split as follow-up — see Out of scope)
+Upgrading from `"filename: msg"` to `"filename:LINE: msg"` is orthogonal
+to the merge and can land before, after, or as part of this ticket.
+Recommendation: do the merge first against the existing format, then
+file a follow-up that walks one rule at a time adding line numbers.
+Rationale: the merge already touches every parser/validator test fixture;
+piling on the format change doubles the diff and entangles two
+independent rollbacks.
 
-Existing validator output (today's `"filename: msg"`) is updated to
-match: the corpus walker also emits `"filename:LINE: msg"` for errors
-that pertain to a specific line (e.g. corpus-level Blocked-by
-resolution: line of the `Blocked-by:` header).
-
-Test impact: every fixture that asserts on error strings updates to
-the new format. Mechanical; the new strings are strictly more
-informative.
+If kept in scope: end-of-file errors (e.g. "missing `--- log ---`
+separator") omit the line number; convention is `"filename: msg"` when
+no specific line applies, `"filename:LINE: msg"` otherwise. Tests
+mostly use `strings.Contains` for error assertions, so impact is
+narrower than feared but still volume-y.
 
 ## Actions (incremental migration)
-Change `parseErg` signature to `(Erg, []string)` first (returning nil).
-Then migrate one trace field per commit — each independently testable:
 
-1. Signature change: `parseErg` returns `(Erg, []string)`, initially nil.
-2. Migrate `HasMagic` rule into parser; delete validator branch; delete
-   field from `ParseDiagnostics` (or `Erg` if 0116 chose embed path).
-3. Migrate `ClosedInLog` / `ClosedInBody` similarly.
-4. Migrate `Unknown` / `RepeatedSingletons` similarly.
-5. Migrate `ClosedEmpty` similarly.
-6. Migrate `HasLogSep` / `HasBodySep` similarly.
-7. Delete `validateErg` after all per-file rules have migrated.
-8. Rename corpus-level checker to `validateCorpus`; update `cmdValidate`
-   and `cmdCheck` call sites.
-9. Update `validate_test.go` and parser tests.
+**Step 1 (redesigned).** The naive "flip the second return type, return
+nil" cannot compile: `validateErg` and ~25 destructure sites consume
+`ParseDiagnostics`. Three viable transitional shapes; pick one and
+commit:
+
+  - **(a) Parallel function.** Introduce
+    `parseErgFull(data, path) (Erg, []string)` alongside the existing
+    `parseErgBytes` returning `ParseDiagnostics`. Migrate one trace
+    field at a time from the old function to the new. Delete the old
+    function once all fields have moved. *Largest LOC churn, simplest
+    per-commit diff.*
+  - **(b) Triple return transitional.** `parseErgBytes` returns
+    `(Erg, ParseDiagnostics, []string)`. Each migration commit moves
+    one error emission from the validator into the parser, populating
+    `[]string` and zeroing the matching `ParseDiagnostics` field.
+    Final commit drops the middle return. *Compiles cleanly at every
+    step but every call site is touched twice.*
+  - **(c) Embed []string in ParseDiagnostics.** Add `Errors []string`
+    to `ParseDiagnostics`. Migrate field-by-field as before, but the
+    parser appends to `diag.Errors` and the validator stops checking
+    the trace flag. Final commit renames `ParseDiagnostics` to a
+    type alias or drops the struct in favour of plain `[]string`.
+    *Smallest per-commit diff; ugliest intermediate type.*
+
+Recommendation: **(c)**. The intermediate ugliness is short-lived (one
+PR) and every commit touches the minimum number of files. Explicitly
+record the choice in the first commit message.
+
+**Steps 2-9 (unchanged in intent, renumbered where needed):**
+
+2. Migrate `HasMagic` rule — parser emits "missing magic first line"
+   directly into the errors slice; validator stops checking `t.HasMagic`.
+   (Note: `HasMagic` is a field on `Erg`, not on `ParseDiagnostics`. It
+   stays on `Erg` if any caller still needs it post-merge; otherwise
+   delete it too in a follow-up.)
+3. Migrate `ClosedInLog` / `ClosedInBody` — parser emits at the
+   `isClosedHeaderLine` site.
+4. Migrate `Unknown` / `RepeatedSingletons` — parser emits at the
+   header-classification branch.
+5. Migrate `ClosedEmpty` — parser emits at the `Closed:` branch.
+6. Migrate `HasLogSep` / `HasBodySep` — parser emits at end of walk
+   (these rules only know the answer after the full pass).
+7. Delete `validateErg` after all per-file rules have migrated; delete
+   `ParseDiagnostics` struct.
+8. Rename `validateAll` to `validateCorpus`; update `cmdValidate`
+   (validate.go:333) and `cmdCheck` (check.go:138) call sites. Also
+   update `loadErgs` signature: `([]Erg, [][]string)`. Production
+   callers in archive.go/close.go/ready.go that currently discard the
+   second return with `_` keep the underscore — no other changes.
+9. Update `validate_test.go` (6 direct `validateErg` calls,
+   2 `diag.*` assertions) and `erg_test.go` (6 `diag.*` assertions).
+   Test rewrite is mechanical: `errs := parseErg(path); contains(errs,
+   "expected message")` replaces `diag, _ := parseErg(...); if
+   !diag.HasFoo { ... }`.
 
 ## Leniency / recovery
 The parser is **lenient**: it never bails on a single error. It walks
@@ -97,41 +182,74 @@ lives at the CLI level, not the parser level.
 
 ## Migration test contract
 `make test` must stay green at every commit in the incremental
-migration (signature change → field-by-field). Each per-commit diff
-keeps tests passing; the final commit deletes `validateErg`. No
-"green only at the end" merges.
+migration (step 1 transitional shape → field-by-field). Each
+per-commit diff keeps tests passing; the final commit deletes
+`validateErg` and `ParseDiagnostics`. No "green only at the end"
+merges.
 
 End-of-walk emissions: rule 4 (Closed in log/body) and rule 11
 (separator missing) only know the answer at end of file. They emit
 before return, not mid-walk. Flag for the implementer.
 
-validate_test.go callers of `validateErg` directly: rewrite to call
-`parseErg` and assert on its `[]string`. Mechanical but volume-y.
+`validate_test.go` callers of `validateErg` directly (6 sites at
+v_t.go:219, 355, 388, 442, 483, 506): rewrite to call `parseErg` and
+assert on its `[]string`. Mechanical but volume-y.
+
+## Riskiest step + mitigation
+**Step 6** (HasLogSep / HasBodySep migration) is the highest-risk
+single commit. Reasons:
+  1. End-of-walk emission requires reordering the parser's return
+     statement and any early-return paths (currently the only early
+     return is on `os.ReadFile` error, but step 1 may have added more).
+  2. The "separator inside body is body text" rule (rule 12 relaxation
+     from 0116) lives in this code path. A naive migration risks
+     re-introducing the old over-strict behaviour.
+  3. Tests at erg_test.go:59,62,95,98,134 and validate_test.go:457,460
+     directly read `diag.HasLogSep`/`HasBodySep` — they must be
+     rewritten to assert on the absence of the missing-separator error
+     string, not the presence of a positive boolean. The semantic
+     inversion is a footgun.
+
+Mitigation: handle step 6 as its own PR with a pre-commit run of the
+full test suite plus a corpus-level smoke (`erg check tickets/` and
+`erg check tickets/closed/`) before merging. Keep the migrated boolean
+as a local variable in `parseErgBytes` until the very last line of the
+function so the rule-12 logic remains lexically adjacent to the
+emission.
 
 ## Open question
-Eliminating ~5 trace fields requires coupling error policy into the
+Eliminating ~7 trace fields requires coupling error policy into the
 parser. The "duplication" between parse-and-validate may actually be
 cheaper than the merge. Reconsider during execution if the per-commit
-diffs feel forced.
+diffs feel forced. **Refresh note:** the call-site tally above
+(production callers all use `_` for diagnostics) suggests the merge
+costs even less than the original estimate — fewer than a dozen lines
+of non-test production code change.
 
 ## Out of scope
 - Type tightening (`BlockedBys []Ref`, `Created time.Time`). Filed
   separately so this ticket stays focused on the pass merge.
 - Changes to validator rules themselves; only the architecture moves.
+- **Error message format upgrade** (`filename:LINE: msg`). Split as
+  follow-up ticket — orthogonal to the merge, doubles test churn if
+  bundled in. The merge lands against today's `"filename: msg"`
+  format; the format upgrade lands on top.
 
 ## Dependencies
-- Hard dep: ticket 0116 (schema-literal struct). The diagnostic-trace
-  fields removed here are the ones 0116 introduces; they must exist
-  before they can be eliminated.
+- Hard dep: ticket 0116 (schema-literal struct). Closed
+  2026-05-11; `ParseDiagnostics` exists, `Erg` is clean of trace
+  fields. Dependency satisfied.
 
 ## Exit criteria
-- `Erg` struct contains no diagnostic-trace fields — only schema and
-  body/log content. (Or `ParseDiagnostics` deleted, if 0116 chose that
-  shape.)
-- `parseErg` returns `(Erg, []string)`.
+- `ParseDiagnostics` struct deleted from `erg.go`. (`Erg` was already
+  clean of trace fields post-0116; this ticket finishes the cleanup
+  on the diagnostics side.)
+- `parseErg` and `parseErgBytes` return `(Erg, []string)`.
+- `loadErgs` returns `([]Erg, [][]string)`.
 - Per-file rules emit errors at parse time, not in a separate pass.
-- Corpus-level rules (duplicate IDs, ref resolution, cycles) live in a
-  clearly-named `validateCorpus`.
-- `make test` passes; error messages upgraded to `filename:LINE: msg`
-  format where a specific line applies, `filename: msg` where it does
-  not. All test fixtures updated.
+- Corpus-level rules (duplicate IDs, ref resolution, cycles) live in
+  a clearly-named `validateCorpus`.
+- `make test` passes; error messages keep today's `"filename: msg"`
+  format (format upgrade is a separate ticket).
+- No direct reads of `diag.*` fields remain in tests; assertions are
+  on error strings.

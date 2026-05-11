@@ -1,0 +1,45 @@
+%erg v1
+Title: Upgrade validator error messages to filename:LINE: msg format
+Created: 2026-05-11
+Author: claude-opus-4-7
+Blocked-by: 0117
+
+--- log ---
+2026-05-11T00:00Z claude-opus-4-7 created — split out of 0117's original scope; orthogonal to the parser/validator merge, see 0117 imagine pass
+
+--- body ---
+## Context
+Today's validator errors are formatted as `"filename: msg"`. The
+parser knows the line number for every emission but doesn't include
+it. Upgrading to `"filename:LINE: msg"` is expected level of service
+for a validator; users jump-to-line from their editor.
+
+This was originally bundled in 0117 (parser/validator merge) but the
+0117 imagine pass split it out: orthogonal change, doubles test churn
+if bundled, can land before/after/independent of the merge.
+
+## Proposed format
+- `"filename:LINE: msg"` when a specific line applies (most rules).
+- `"filename: msg"` when no specific line applies (e.g., "missing
+  --- log --- separator").
+
+## Actions (incremental, one rule at a time)
+1. Audit which rules know their line at emission and which don't.
+2. Per rule: thread the line number through, update the error format,
+   update test fixtures that assert on the error string.
+3. End-of-walk rules (missing magic, missing separator) stay
+   `"filename: msg"` since they don't pertain to a specific line.
+
+## Dependencies
+- Hard dep: ticket 0117 (parser/validator merge). The merge consolidates
+  the error-emission sites; doing this upgrade afterward means one
+  emission helper to update instead of two.
+
+## Out of scope
+- Column numbers (we're line-oriented, no useful column).
+- Structured error types — still `[]string`, just more informative.
+
+## Exit criteria
+- Every per-rule error includes `:LINE:` when applicable.
+- `make test` passes; test fixtures updated to match.
+- Documented in `helpValidate` const so users know to expect it.
