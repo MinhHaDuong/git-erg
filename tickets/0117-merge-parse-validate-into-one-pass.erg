@@ -1,0 +1,68 @@
+%erg v1
+Title: Merge parseErg and validateErg into a single validating-parser pass
+Created: 2026-05-11
+Author: claude-sonnet-4-6
+Blocked-by: 0116
+
+--- log ---
+2026-05-11T00:00Z claude-sonnet-4-6 created
+
+--- body ---
+## Context
+After ticket 0116, the `Erg` struct carries diagnostic-trace fields
+(`Unknown`, `RepeatedSingletons`, `ClosedEmpty`, `ClosedInLog`,
+`ClosedInBody`, `HasLogSep`, `HasBodySep`) that exist only so the
+separate validator can re-derive what the parser already saw. This is
+two passes over the same information.
+
+A validating parser emits parse errors directly as it walks the file.
+The trace fields collapse to zero. `parseErg` becomes the single source
+of truth for both shape and error reporting.
+
+## Proposed signature change
+```go
+// Before
+func parseErg(path string) Erg
+func validateErg(t *Erg, allIDs map[string]bool) []string
+
+// After
+func parseErg(path string) (Erg, []ParseError)
+// Corpus-level checks (Blocked-by resolution, cycle detection) stay
+// separate — they need the full corpus, not a single file.
+func validateCorpus(tickets []Erg) []ValidationError
+```
+
+Per-file rules (1-9, 11-13) move into the parser. Corpus-level rules
+(10: Blocked-by ID resolution; cycle detection) stay in a thin corpus
+walker that consumes already-parsed `Erg` values.
+
+## Actions
+1. Define a `ParseError` type with file, line, rule, message fields.
+2. In `parseErg`, emit `ParseError` values as each per-file rule fires
+   (today's rules 1-9, 11-13 plus the relaxed rule 12).
+3. Delete the trace fields from `Erg` (the user of each disappears with
+   the corresponding validator branch).
+4. Delete `validateErg` (per-file rules). Rename or refactor the
+   corpus-level checks into `validateCorpus`.
+5. Update `cmdValidate` and `cmdCheck` to call the new entry points.
+6. Update tests: validate_test.go gets restructured around parser
+   output; new fixtures for error reporting shape.
+
+## Out of scope
+- Type tightening (`BlockedBys []Ref`, `Created time.Time`). Filed
+  separately so this ticket stays focused on the pass merge.
+- Changes to validator rules themselves; only the architecture moves.
+
+## Dependencies
+- Hard dep: ticket 0116 (schema-literal struct). The diagnostic-trace
+  fields removed here are the ones 0116 introduces; they must exist
+  before they can be eliminated.
+
+## Exit criteria
+- `Erg` struct contains no diagnostic-trace fields — only schema and
+  body/log content.
+- `parseErg` returns `(Erg, []ParseError)`.
+- Per-file rules emit errors at parse time, not in a separate pass.
+- Corpus-level rules (ref resolution, cycles) live in a clearly-named
+  corpus walker.
+- `make test` passes; error messages preserved or improved.

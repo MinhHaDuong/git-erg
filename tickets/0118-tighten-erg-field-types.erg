@@ -1,0 +1,50 @@
+%erg v1
+Title: Tighten Erg field types: BlockedBys []Ref and Created time.Time
+Created: 2026-05-11
+Author: claude-sonnet-4-6
+Blocked-by: 0117
+
+--- log ---
+2026-05-11T00:00Z claude-sonnet-4-6 created
+
+--- body ---
+## Context
+After tickets 0116 (schema-literal struct) and 0117 (validating-parser
+merge), two `Erg` fields still carry raw strings that the parser already
+has enough information to type:
+
+- `BlockedBys []string` — each entry is a `Blocked-by:` value that the
+  ref grammar can already parse. Lazy parsing via `BlockedByRefs()` is
+  the last surviving accessor method after 0116.
+- `Created string` — a date the validator regex-checks. Parsing to
+  `time.Time` at parse time turns malformed dates into structured
+  parse errors and gives downstream code a real value.
+
+This ticket completes the type alignment.
+
+## Proposed changes
+1. `BlockedBys []string` → `BlockedBys []Ref`. Each ref is parsed at
+   parse time; malformed values become `ParseError`s from 0117's pass.
+   Delete `BlockedByRefs()`.
+2. `Created string` → `Created time.Time`. ISO date parsed at parse
+   time; malformed value becomes a `ParseError`.
+3. Update all call sites that read these fields (today's accessors are
+   already gone after 0116; call sites just read the typed fields).
+4. Output paths (JSON serialization, log lines) format the typed values
+   back to strings where needed — single conversion point.
+
+## Out of scope
+- Other field types (`Title`, `Author`, `Closed`, `Tags`) remain
+  strings; they have no richer type to graduate to.
+
+## Dependencies
+- Hard dep: ticket 0117 (validating-parser merge). The parse-time
+  error channel introduced there is where malformed refs and dates
+  flow as parse errors.
+
+## Exit criteria
+- `Erg.BlockedBys` is `[]Ref`; `Erg.Created` is `time.Time`.
+- No accessor methods remain on `Erg` for these fields.
+- Malformed refs / dates produce parse errors via 0117's mechanism.
+- `make test` passes; output paths format `time.Time` back to the
+  spec's `YYYY-MM-DD` form.
