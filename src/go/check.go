@@ -131,7 +131,13 @@ func cmdCheck(args []string) int {
 		return 0
 	}
 
-	errors := validateCorpus(tickets, parseErrs)
+	cfg, cfgErr := loadConfig(dir)
+	if cfgErr != nil {
+		fmt.Fprintf(os.Stderr, "check: cannot read .ergrc: %v\n", cfgErr)
+		return 1
+	}
+
+	errors := validateCorpus(tickets, parseErrs, cfg)
 	warnings := folderClosure(tickets)
 	warnings = append(warnings, staleBlockedBy(tickets)...)
 	warnings = append(warnings, strayGoSource(dir)...)

@@ -938,7 +938,7 @@ Closed: completed in PR #99
 Blocked-by: 0001
 Blocked-by: github.com/foo/bar#42
 Tag: needs-human
-Tag: post-talk
+Tag: deferred
 
 --- log ---
 2026-01-01T09:00Z claude created

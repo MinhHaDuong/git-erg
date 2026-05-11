@@ -347,15 +347,6 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 		}
 	}
 
-	// Rule 5: Tag: values must be from the closed value set.
-	for i, v := range tags {
-		if !validTagValues[v] {
-			errs = append(errs, fmt.Sprintf(
-				"%s:%d: unknown Tag value '%s' (not in v1 closed set: needs-human, deferred, post-talk, post-conference)",
-				name, tagLines[i], v))
-		}
-	}
-
 	// Rule 7: Created is ISO date.
 	if created != "" && !isoDateRE.MatchString(created) {
 		errs = append(errs, fmt.Sprintf(
@@ -405,6 +396,7 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 		Closed:     closed,
 		BlockedBys: blockedBys,
 		Tags:       tags,
+		TagLines:   tagLines,
 		LogLines:   logLines,
 		Body:       strings.Join(bodyLines, "\n"),
 	}, errs

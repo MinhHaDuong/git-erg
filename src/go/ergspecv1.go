@@ -30,7 +30,8 @@ type Erg struct {
 	Author     string   // required, non-empty
 	Closed     string   // optional; first non-empty Closed: value when present
 	BlockedBys []Ref    // possibly empty; one entry per `Blocked-by:` line, parsed at parse time
-	Tags       []string // possibly empty; one entry per `Tag:` line, trimmed; empties skipped
+	Tags     []string // possibly empty; one entry per `Tag:` line, trimmed; empties skipped
+	TagLines []int    // 1-indexed line numbers for each Tags entry
 
 	LogLines []string // one structured event per entry
 	Body     string   // multiline
@@ -70,21 +71,6 @@ var v1HeaderKeys = map[string]bool{
 // once in the preamble. Repeats are reported as parse errors.
 var v1SingletonKeys = map[string]bool{
 	"Title": true, "Created": true, "Author": true, "Closed": true,
-}
-
-// validTagValues is the closed value set for the Tag: header (%erg v1).
-// Allowed values: needs-human, deferred, post-talk, post-conference.
-// Any Tag: value suppresses the ticket from `erg ready` output (see
-// skipReadyTags in ready.go).
-//
-// ABNF production:
-//
-//	tag-value := "needs-human" / "deferred" / "post-talk" / "post-conference"
-var validTagValues = map[string]bool{
-	"needs-human":     true,
-	"deferred":        true,
-	"post-talk":       true,
-	"post-conference": true,
 }
 
 // isoDateRE matches a valid Created: date value (YYYY-MM-DD, rule 7).

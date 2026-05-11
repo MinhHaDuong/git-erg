@@ -119,16 +119,18 @@ func TestValidateErg(t *testing.T) {
 			wantSubstr: "unknown Tag value",
 		},
 		{
-			name:       "Tag post-talk accepted",
+			name:       "Tag post-talk rejected (not in defaults)",
 			filename:   "0001-test.erg",
 			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: post-talk\n\n--- log ---\n--- body ---\n",
-			wantErrors: false,
+			wantErrors: true,
+			wantSubstr: "unknown Tag value",
 		},
 		{
-			name:       "Tag post-conference accepted",
+			name:       "Tag post-conference rejected (not in defaults)",
 			filename:   "0001-test.erg",
 			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: post-conference\n\n--- log ---\n--- body ---\n",
-			wantErrors: false,
+			wantErrors: true,
+			wantSubstr: "unknown Tag value",
 		},
 		{
 			name:       "Tags header rejected with migration hint",
@@ -234,7 +236,7 @@ func TestValidateErg(t *testing.T) {
 			// IDs are derived from the file basename; only "NNNN-…"
 			// fixtures will populate the local-id set, matching today's
 			// expectations.
-			errs := validateCorpus([]Erg{erg}, [][]string{parseErrs})
+			errs := validateCorpus([]Erg{erg}, [][]string{parseErrs}, nil)
 			if tc.wantErrors && len(errs) == 0 {
 				t.Errorf("expected at least one validation error, got none")
 				return
@@ -418,7 +420,7 @@ func TestValidateErg_GoldenInvalid(t *testing.T) {
 
 func TestValidateCorpus_GoldenDuplicateIDs(t *testing.T) {
 	tickets, parseErrs := loadErgs("testdata/invalid-duplicate")
-	errs := validateCorpus(tickets, parseErrs)
+	errs := validateCorpus(tickets, parseErrs, nil)
 	if !errsContain(errs, "duplicate ID") {
 		t.Errorf("expected at least one 'duplicate ID' error, got: %v", errs)
 	}

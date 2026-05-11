@@ -2,13 +2,14 @@ package main
 
 import "embed"
 
-//go:embed assets/AGENTS.md assets/spec-erg-v1.md assets/integration.md
+//go:embed assets/AGENTS.md assets/spec-erg-v1.md assets/integration.md assets/.ergrc
 var embeddedAssets embed.FS
 
 var assetMapping = map[string]string{
 	"tickets/AGENTS.md":      "assets/AGENTS.md",
 	"tickets/spec-erg-v1.md": "assets/spec-erg-v1.md",
 	"tickets/integration.md": "assets/integration.md",
+	"tickets/.ergrc":         "assets/.ergrc",
 }
 
 func bootstrapAsset(path string) (string, bool) {
