@@ -358,6 +358,59 @@ func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
 			fmt.Sprintf("%s: missing magic first line '%%erg v1'", name))
 	}
 
+	// Rule 2: required headers must be present AND non-empty (0117 step 6b).
+	if strings.TrimSpace(title) == "" {
+		diag.Errors = append(diag.Errors, fmt.Sprintf(
+			"%s: missing or empty required header 'Title' — add 'Title: <text>' to the preamble", name))
+	}
+	if strings.TrimSpace(created) == "" {
+		diag.Errors = append(diag.Errors, fmt.Sprintf(
+			"%s: missing or empty required header 'Created' — add 'Created: YYYY-MM-DD' to the preamble", name))
+	}
+	if strings.TrimSpace(author) == "" {
+		diag.Errors = append(diag.Errors, fmt.Sprintf(
+			"%s: missing or empty required header 'Author' — add 'Author: <name>' to the preamble", name))
+	}
+
+	// Rule 5: Tag: values must be from the closed value set (0117 step 6b).
+	for _, v := range tags {
+		if !validTagValues[v] {
+			diag.Errors = append(diag.Errors, fmt.Sprintf(
+				"%s: unknown Tag value '%s' (not in v1 closed set: needs-human, deferred, post-talk, post-conference)",
+				name, v))
+		}
+	}
+
+	// Rule 7: Created is ISO date (0117 step 6b).
+	if created != "" && !isoDateRE.MatchString(created) {
+		diag.Errors = append(diag.Errors, fmt.Sprintf(
+			"%s: Created '%s' is not a valid ISO date (YYYY-MM-DD)", name, created))
+	}
+
+	// Rule 8: filename matches NNNN-slug.erg (0117 step 6b).
+	if !filenameRE.MatchString(name) {
+		diag.Errors = append(diag.Errors, fmt.Sprintf(
+			"%s: filename does not match NNNN-slug.erg pattern", name))
+	}
+
+	// Rule 9: Blocked-by values parse to one of the two ref forms (0117
+	// step 6b). Rule 10 (local-ref resolution against corpus IDs) stays
+	// corpus-level and lives in validateCorpus.
+	for _, raw := range blockedBys {
+		if _, err := parseRef(raw); err != nil {
+			diag.Errors = append(diag.Errors, fmt.Sprintf("%s: %v", name, err))
+		}
+	}
+
+	// Rule 11: log lines match format (0117 step 6b).
+	for _, line := range logLines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" && !logLineRE.MatchString(trimmed) {
+			diag.Errors = append(diag.Errors, fmt.Sprintf(
+				"%s: malformed log line: %s", name, trimmed))
+		}
+	}
+
 	// Rule 12 (separators): only the *missing* case is an error. The rule
 	// 12 relaxation from ticket 0116 — quoted "--- log ---" / "--- body ---"
 	// literals inside the body are legitimate body text — lives in the

@@ -12,74 +12,24 @@ import (
 // parser observations (unknown/repeated headers, separator sightings,
 // misplaced `Closed:` lines, empty `Closed:` values).
 func validateErg(t *Erg, diag ParseDiagnostics, allIDs map[string]bool) []string {
-	// Rule 1: magic first line — emitted at parse time (0117 step 2).
-	// Subsequent steps migrate further rules; until the merge completes,
-	// the parser's diag.Errors prefix this slice.
+	// All per-file rules (1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12) emit at parse
+	// time (0117 steps 2-6b). Only rule 10 (local-ref resolution against
+	// corpus IDs) remains here — it needs the full corpus's allIDs. This
+	// function is deleted in step 7; rule 10 moves into validateCorpus.
 	errors := append([]string(nil), diag.Errors...)
 	name := t.Filename()
 
-	// Rule 2: required headers — must be present AND non-empty.
-	if strings.TrimSpace(t.Title) == "" {
-		errors = append(errors, fmt.Sprintf("%s: missing or empty required header 'Title' — add 'Title: <text>' to the preamble", name))
-	}
-	if strings.TrimSpace(t.Created) == "" {
-		errors = append(errors, fmt.Sprintf("%s: missing or empty required header 'Created' — add 'Created: YYYY-MM-DD' to the preamble", name))
-	}
-	if strings.TrimSpace(t.Author) == "" {
-		errors = append(errors, fmt.Sprintf("%s: missing or empty required header 'Author' — add 'Author: <name>' to the preamble", name))
-	}
-
-	// Rule 3 (unknown headers) and rule 4 (repeated singletons) emit at
-	// parse time (0117 step 4). The Unknown / RepeatedSingletons fields
-	// stay on ParseDiagnostics only as emission guards.
-
-	// Rule 5: Tag: values must be from the closed value set.
-	for _, v := range t.Tags {
-		if !validTagValues[v] {
-			errors = append(errors, fmt.Sprintf(
-				"%s: unknown Tag value '%s' (not in v1 closed set: needs-human, deferred, post-talk, post-conference)", name, v))
-		}
-	}
-
-	// Rule 6: Closed: header value/placement checks all migrated to parser
-	// (steps 3 and 5). Rule remains documented in helpValidate.
-
-	// Rule 7: Created is ISO date
-	if c := t.Created; c != "" && !isoDateRE.MatchString(c) {
-		errors = append(errors, fmt.Sprintf(
-			"%s: Created '%s' is not a valid ISO date (YYYY-MM-DD)", name, c))
-	}
-
-	// Rule 8: filename matches NNNN-slug.erg
-	if !filenameRE.MatchString(name) {
-		errors = append(errors, fmt.Sprintf(
-			"%s: filename does not match NNNN-slug.erg pattern", name))
-	}
-
-	// Rule 9: Blocked-by values parse to one of the two ref forms.
-	// Rule 10: local refs point to existing ticket IDs.
+	// Rule 10: local Blocked-by refs point to existing ticket IDs.
 	refs, refErrs := t.BlockedByRefs()
 	for i, ref := range refs {
 		if refErrs[i] != nil {
-			errors = append(errors, fmt.Sprintf("%s: %v", name, refErrs[i]))
-			continue
+			continue // rule 9 (malformed) already reported by parser
 		}
 		if ref.Kind == RefLocal && !allIDs[ref.ID] {
 			errors = append(errors, fmt.Sprintf(
 				"%s: Blocked-by '%s' references unknown ticket ID", name, ref.ID))
 		}
 	}
-
-	// Rule 11: log lines match format
-	for _, line := range t.LogLines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed != "" && !logLineRE.MatchString(trimmed) {
-			errors = append(errors, fmt.Sprintf(
-				"%s: malformed log line: %s", name, trimmed))
-		}
-	}
-
-	// Rule 12 (separator presence) emits at parse time (0117 step 6).
 
 	return errors
 }
