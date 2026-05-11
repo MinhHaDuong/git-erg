@@ -190,7 +190,7 @@ func detectCycles(tickets []Erg) []string {
 		color[node] = black
 	}
 
-	ids := sortedKeys2(adj)
+	ids := sortedKeys(adj)
 	for _, id := range ids {
 		if color[id] == white {
 			dfs(id)
@@ -213,7 +213,7 @@ func validateAll(tickets []Erg, diags []ParseDiagnostics) []string {
 		}
 	}
 
-	dupIDs := sortedKeys2(idToFiles)
+	dupIDs := sortedKeys(idToFiles)
 	for _, tid := range dupIDs {
 		files := idToFiles[tid]
 		if len(files) > 1 {
@@ -263,6 +263,8 @@ func globLocalIDs(dir string) map[string]bool {
 	return ids
 }
 
+const summaryValidate = "Validate individual .erg files (format, headers, refs)"
+
 const helpValidate = `## erg validate FILE...
 
 Validate individual .erg ticket files (format, headers, refs).
@@ -303,6 +305,9 @@ func cmdValidate(args []string) int {
 
 	var allErrors []string
 	count := 0
+	// Cache globLocalIDs per directory — avoids re-reading the same dir
+	// when multiple files from the same directory are validated together.
+	idCache := make(map[string]map[string]bool)
 	for _, arg := range args {
 		info, err := os.Stat(arg)
 		if err != nil {
@@ -318,7 +323,12 @@ func cmdValidate(args []string) int {
 			continue
 		}
 		t, diag := parseErg(arg)
-		localIDs := globLocalIDs(filepath.Dir(arg))
+		dir := filepath.Dir(arg)
+		localIDs, ok := idCache[dir]
+		if !ok {
+			localIDs = globLocalIDs(dir)
+			idCache[dir] = localIDs
+		}
 		errs := validateErg(&t, diag, localIDs)
 		allErrors = append(allErrors, errs...)
 		count++

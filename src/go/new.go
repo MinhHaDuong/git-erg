@@ -29,6 +29,8 @@ func slugify(title string) string {
 	return s
 }
 
+const summaryNew = "Create a new ticket file atomically"
+
 const helpNew = `## erg new TITLE [DIR]
 
 Create a new %erg v1 ticket file atomically.

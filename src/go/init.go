@@ -12,6 +12,8 @@ var initAssetPaths = []string{
 	"tickets/integration.md",
 }
 
+const summaryInit = "Unpack AGENTS.md, spec-erg-v1.md, integration.md into tickets/"
+
 const helpInit = `## erg init [DIR]
 
 Unpack embedded bootstrap assets into the project.

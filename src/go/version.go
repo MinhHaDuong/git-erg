@@ -54,6 +54,8 @@ func selfHash(path string) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
+const summaryVersion = "Print version, path, build date, and obsolescence info"
+
 const helpVersion = `## erg version
 
 Print self-diagnostic info and discover other erg binaries.

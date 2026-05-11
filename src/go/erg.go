@@ -183,11 +183,18 @@ var v1SingletonKeys = map[string]bool{
 // for the validator (ParseDiagnostics). On read error, returns an empty
 // Erg with only Path set so callers can still report a filename.
 func parseErg(path string) (Erg, ParseDiagnostics) {
-	var diag ParseDiagnostics
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return Erg{Path: path}, diag
+		return Erg{Path: path}, ParseDiagnostics{}
 	}
+	return parseErgBytes(data, path)
+}
+
+// parseErgBytes parses raw .erg file content into an Erg plus parser
+// observations. Callers that already hold the file bytes (e.g. after
+// os.ReadFile for rewriting) use this to avoid a second read.
+func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
+	var diag ParseDiagnostics
 	lines := strings.Split(string(data), "\n")
 
 	var logLines, bodyLines []string
@@ -372,7 +379,7 @@ func jsonEscape(s string) string {
 	return s
 }
 
-func sortedKeys2[V any](m map[string]V) []string {
+func sortedKeys[V any](m map[string]V) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)

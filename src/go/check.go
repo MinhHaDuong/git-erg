@@ -82,6 +82,8 @@ func strayGoSource(dir string) []string {
 	return nil
 }
 
+const summaryCheck = "Corpus-level checks (duplicate IDs, cycles, refs)"
+
 const helpCheck = `## erg check [DIR]
 
 Corpus-level integrity checks across the full ticket store.

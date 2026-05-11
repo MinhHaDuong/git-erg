@@ -2,10 +2,12 @@
 Title: Reduce redundant file reads and parsing; fix naming leftovers
 Created: 2026-05-11
 Author: claude-opus-4-7
+Closed: autoclosed — PR #126
 
 --- log ---
 2026-05-11T00:00Z claude-opus-4-7 created from post-0116 audit (cluster C: code quality)
 
+2026-05-11T12:54Z MinhHaDuong closed — autoclosed — PR #126
 --- body ---
 ## Context
 Audit after the 0116 merge surfaced 7 code-quality items: file/parse

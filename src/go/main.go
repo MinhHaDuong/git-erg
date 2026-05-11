@@ -24,6 +24,27 @@ import (
 	"strings"
 )
 
+// manualPreamble is the header printed by `erg --help --all` before the
+// per-command sections. The %s placeholder receives the "Generated from:"
+// line (which includes runtime build metadata).
+const manualPreamble = `# erg manual
+
+Author: minh.ha-duong@cnrs.fr
+%s
+
+` + "`git-erg`" + ` is an agent-friendly local ticket system for development in disconnected
+environments. Tickets are plain-text files committed alongside source code.
+This manual describes all ` + "`erg`" + ` commands. For the ticket file format
+specification, see ` + "`tickets/spec-erg-v1.md`" + `.
+
+**Store auto-discovery.** When no DIR is given, ` + "`erg`" + ` tries three candidates in
+order: (1) the directory containing the ` + "`erg`" + ` binary, (2) ` + "`tickets/`" + ` under the
+current working directory, (3) the current working directory itself. A directory
+qualifies as a ticket store if its basename is ` + "`tickets`" + `, or if it contains at
+least one ` + "`.erg`" + ` file. The first qualifying candidate is used; if none qualify,
+` + "`erg`" + ` exits with an error listing the directories it tried.
+`
+
 // looksLikeTicketStore reports whether dir is a managed ticket store.
 func looksLikeTicketStore(dir string) bool {
 	if _, err := os.Stat(dir); err != nil {
@@ -68,18 +89,13 @@ func printUsage() {
 	fmt.Fprintln(os.Stdout, "Usage: erg COMMAND [--help] [args...]")
 	fmt.Fprintln(os.Stdout)
 	fmt.Fprintln(os.Stdout, "Commands:")
-	fmt.Fprintln(os.Stdout, "  validate FILES...         Validate individual .erg files (format, headers, refs)")
-	fmt.Fprintln(os.Stdout, "  check [DIR]               Corpus-level checks (duplicate IDs, cycles, refs)")
-	fmt.Fprintln(os.Stdout, "  ready [DIR] [--json]      Show tickets ready for work")
-	fmt.Fprintln(os.Stdout, "  next-id [DIR]             Print the next available ticket ID")
-	fmt.Fprintln(os.Stdout, "  new TITLE [DIR]           Create a new ticket file atomically")
-	fmt.Fprintln(os.Stdout, "  close ID REASON [DIR]     Close a ticket atomically")
-	fmt.Fprintln(os.Stdout, "  log ID LINE [DIR]         Append a timestamped log entry to a ticket")
-	fmt.Fprintln(os.Stdout, "  archive [ID...] [DIR]     Move closed tickets to tickets/closed/")
-	fmt.Fprintln(os.Stdout, "  migrate [DIR]             Convert legacy Status: headers to Closed: form")
-	fmt.Fprintln(os.Stdout, "  init [DIR]                Unpack AGENTS.md, spec-erg-v1.md, integration.md into tickets/")
-	fmt.Fprintln(os.Stdout, "  version                   Print version, path, build date, and obsolescence info")
-	fmt.Fprintln(os.Stdout, "  update                    Fetch and replace binary from origin")
+	for _, c := range commands {
+		nameArgs := c.Name
+		if c.Args != "" {
+			nameArgs += " " + c.Args
+		}
+		fmt.Fprintf(os.Stdout, "  %-26s%s\n", nameArgs, c.Summary)
+	}
 }
 
 func main() {
@@ -93,9 +109,6 @@ func main() {
 
 	// erg --help --all  OR  erg --help=all  → print all command help
 	if cmd == "--help=all" || (cmd == "--help" || cmd == "-h") && len(rest) > 0 && rest[0] == "--all" {
-		// "# erg manual" — all-lowercase is intentional; matches the kebab project name.
-		fmt.Print("# erg manual\n\n")
-		fmt.Print("Author: minh.ha-duong@cnrs.fr\n")
 		genFrom := "Generated from: erg"
 		if buildDate != "" {
 			genFrom += " built " + buildDate
@@ -103,31 +116,24 @@ func main() {
 		if vcsRevision != "" {
 			genFrom += " rev " + vcsRevision
 		}
-		fmt.Print(genFrom + "\n\n")
-		fmt.Print("`git-erg` is an agent-friendly local ticket system for development in disconnected\n")
-		fmt.Print("environments. Tickets are plain-text files committed alongside source code.\n")
-		fmt.Print("This manual describes all `erg` commands. For the ticket file format\n")
-		fmt.Print("specification, see `tickets/spec-erg-v1.md`.\n")
-		fmt.Print("\n")
-		fmt.Print("**Store auto-discovery.** When no DIR is given, `erg` tries three candidates in\n")
-		fmt.Print("order: (1) the directory containing the `erg` binary, (2) `tickets/` under the\n")
-		fmt.Print("current working directory, (3) the current working directory itself. A directory\n")
-		fmt.Print("qualifies as a ticket store if its basename is `tickets`, or if it contains at\n")
-		fmt.Print("least one `.erg` file. The first qualifying candidate is used; if none qualify,\n")
-		fmt.Print("`erg` exits with an error listing the directories it tried.\n")
-		for _, c := range commandOrder {
-			if text, ok := helpText[c]; ok {
-				fmt.Print("\n" + text)
-			}
+		fmt.Printf(manualPreamble, genFrom)
+		for _, c := range commands {
+			fmt.Print("\n" + c.Help)
 		}
 		os.Exit(0)
 	}
 
 	for _, arg := range rest {
 		if arg == "--help" || arg == "-h" {
-			if text, ok := helpText[cmd]; ok {
-				fmt.Print(text)
-			} else {
+			found := false
+			for _, c := range commands {
+				if c.Name == cmd {
+					fmt.Print(c.Help)
+					found = true
+					break
+				}
+			}
+			if !found {
 				printUsage()
 			}
 			os.Exit(0)
