@@ -27,7 +27,7 @@ type Erg struct {
 	Created    Line   // required, non-empty
 	Author     Line   // required, non-empty
 	Closed     Line   // optional; first non-empty Closed: value when present
-	BlockedBys []Line // possibly empty; one entry per `Blocked-by:` line, trimmed by parseHeaderLine
+	BlockedBys []Ref // possibly empty; one entry per `Blocked-by:` line, parsed at parse time
 	Tags       []Line // possibly empty; one entry per `Tag:` line, trimmed; empties skipped
 
 	LogLines []Line // one structured event per entry
@@ -69,25 +69,6 @@ func pathIsClosed(path string) bool {
 		}
 	}
 	return false
-}
-
-// BlockedByRefs parses every Blocked-by header value and returns refs
-// aligned with parse errors by index. A nil error means a successful
-// parse; a non-nil error means the corresponding ref is RefInvalid and
-// the validator will reject it. Downstream callers (ready) treat invalid
-// refs as not-yet-known and skip them — by the time tickets are
-// committed, the validator has already rejected any malformed ref.
-func (t *Erg) BlockedByRefs() ([]Ref, []error) {
-	raws := t.BlockedBys
-	if len(raws) == 0 {
-		return nil, nil
-	}
-	refs := make([]Ref, len(raws))
-	errs := make([]error, len(raws))
-	for i, raw := range raws {
-		refs[i], errs[i] = parseRef(raw)
-	}
-	return refs, errs
 }
 
 // Filename returns the basename of the ticket path. Always non-empty when
@@ -198,7 +179,8 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 
 	var logLines, bodyLines []string
 	var title, created, author, closed Line
-	var blockedBys, tags []Line
+	var tags []Line
+	var blockedBys []Ref
 	section := "magic" // magic | headers | gap | log | body
 	hasMagic := false
 	hasLogSep := false
@@ -309,7 +291,11 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 						closed = val
 					}
 				case "Blocked-by":
-					blockedBys = append(blockedBys, val)
+					ref, refErr := parseRef(val)
+					if refErr != nil {
+						errs = append(errs, fmt.Sprintf("%s: %v", filepath.Base(path), refErr))
+					}
+					blockedBys = append(blockedBys, ref)
 				case "Tag":
 					// parseHeaderLine already trims val; skip empties.
 					if val != "" {
@@ -387,14 +373,9 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 			"%s: filename does not match NNNN-slug.erg pattern", name))
 	}
 
-	// Rule 9: Blocked-by values parse to one of the two ref forms. Rule
-	// 10 (local-ref resolution against corpus IDs) is corpus-level and
-	// lives in validateCorpus.
-	for _, raw := range blockedBys {
-		if _, err := parseRef(raw); err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", name, err))
-		}
-	}
+	// Rule 9: Blocked-by values are parsed inline (case "Blocked-by"
+	// above) — errors emitted there. Rule 10 (local-ref resolution
+	// against corpus IDs) is corpus-level and lives in validateCorpus.
 
 	// Rule 11: log lines match format.
 	for _, line := range logLines {

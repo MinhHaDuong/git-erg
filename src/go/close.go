@@ -129,8 +129,8 @@ func removeBlockedByRef(ticketDir, closedID, timestamp, author string) {
 			continue
 		}
 		found := false
-		for _, r := range t.BlockedBys {
-			if r == closedID {
+		for _, ref := range t.BlockedBys {
+			if ref.ID == closedID || ref.Raw == closedID {
 				found = true
 				break
 			}

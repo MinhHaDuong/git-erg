@@ -364,12 +364,8 @@ func TestValidateErg_GoldenValid(t *testing.T) {
 			// Per-file errors must be empty. Rule 10 (local ref resolution)
 			// lives in validateCorpus, but valid fixtures should not have
 			// dangling local refs; re-check inline against the synthesized
-			// allIDs to match the prior validateErg(erg, diag, allIDs) call.
-			refs, refErrs := erg.BlockedByRefs()
-			for j, ref := range refs {
-				if refErrs[j] != nil {
-					continue
-				}
+			// allIDs.
+			for _, ref := range erg.BlockedBys {
 				if ref.Kind == RefLocal && !allIDs[ref.ID] {
 					errs = append(errs, "unresolved local ref "+ref.ID)
 				}

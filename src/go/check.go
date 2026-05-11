@@ -45,11 +45,7 @@ func staleBlockedBy(tickets []Erg) []string {
 		if t.IsClosed() {
 			continue
 		}
-		refs, errs := t.BlockedByRefs()
-		for j, ref := range refs {
-			if errs[j] != nil {
-				continue
-			}
+		for _, ref := range t.BlockedBys {
 			if ref.Kind != RefLocal {
 				continue
 			}

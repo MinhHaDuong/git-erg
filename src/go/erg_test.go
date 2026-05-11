@@ -106,7 +106,13 @@ func TestParseErg(t *testing.T) {
 		erg, _ := parseErg(path)
 		bb := erg.BlockedBys
 		if len(bb) != 2 {
-			t.Errorf("BlockedBys = %v (len=%d), want 2 values", bb, len(bb))
+			t.Fatalf("BlockedBys len=%d, want 2", len(bb))
+		}
+		if bb[0].ID != "0002" {
+			t.Errorf("BlockedBys[0].ID = %q, want %q", bb[0].ID, "0002")
+		}
+		if bb[1].ID != "0003" {
+			t.Errorf("BlockedBys[1].ID = %q, want %q", bb[1].ID, "0003")
 		}
 	})
 

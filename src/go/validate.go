@@ -20,11 +20,7 @@ func detectCycles(tickets []Erg) []string {
 			continue
 		}
 		var localRefs []string
-		refs, errs := tickets[i].BlockedByRefs()
-		for j, ref := range refs {
-			if errs[j] != nil {
-				continue // malformed — already reported by parseErgBytes
-			}
+		for _, ref := range tickets[i].BlockedBys {
 			if ref.Kind == RefLocal {
 				localRefs = append(localRefs, ref.ID)
 			}
@@ -126,11 +122,7 @@ func validateCorpus(tickets []Erg, parseErrs [][]string) []string {
 	for i := range tickets {
 		t := &tickets[i]
 		name := t.Filename()
-		refs, refErrs := t.BlockedByRefs()
-		for j, ref := range refs {
-			if refErrs[j] != nil {
-				continue // rule 9 (malformed) already reported by parser
-			}
+		for _, ref := range t.BlockedBys {
 			if ref.Kind == RefLocal && !allIDs[ref.ID] {
 				errors = append(errors, fmt.Sprintf(
 					"%s: Blocked-by '%s' references unknown ticket ID", name, ref.ID))
@@ -236,11 +228,7 @@ func cmdValidate(args []string) int {
 		// `erg validate` this is the per-directory glob; for `erg check`
 		// (validateCorpus) it's the loaded corpus.
 		name := t.Filename()
-		refs, refErrs := t.BlockedByRefs()
-		for j, ref := range refs {
-			if refErrs[j] != nil {
-				continue // rule 9 already reported by parser
-			}
+		for _, ref := range t.BlockedBys {
 			if ref.Kind == RefLocal && !localIDs[ref.ID] {
 				allErrors = append(allErrors, fmt.Sprintf(
 					"%s: Blocked-by '%s' references unknown ticket ID", name, ref.ID))
