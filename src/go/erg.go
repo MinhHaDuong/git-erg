@@ -83,9 +83,10 @@ func (t *Erg) BlockedBy() []string {
 	return nil
 }
 
-// Tags returns all normalized Tags header values.
-func (t *Erg) Tags() []string {
-	vs, ok := t.headers["Tags"]
+// Tag returns all normalized Tag: header values (repeatable; one value per
+// occurrence).
+func (t *Erg) Tag() []string {
+	vs, ok := t.headers["Tag"]
 	if !ok || len(vs) == 0 {
 		return nil
 	}

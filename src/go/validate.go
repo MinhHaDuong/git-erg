@@ -25,14 +25,18 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 		}
 	}
 
-	// Rule 3: no unknown headers (Status: is a relic of the pre-0022 format;
-	// run `erg migrate` to convert it).
+	// Rule 3: no unknown headers (Status: and Tags: are relics; run `erg
+	// migrate` to convert them).
 	for key, vals := range t.headers {
 		if !ValidHeaders[key] {
-			if key == "Status" {
+			switch key {
+			case "Status":
 				errors = append(errors, fmt.Sprintf(
 					"%s: 'Status:' header is no longer part of %%erg v1 — run `erg migrate` to convert", name))
-			} else {
+			case "Tags":
+				errors = append(errors, fmt.Sprintf(
+					"%s: 'Tags:' has been renamed to 'Tag:' — run `erg migrate` to convert", name))
+			default:
 				errors = append(errors, fmt.Sprintf("%s: unknown header '%s' (not in v1 closed set)", name, key))
 			}
 			continue
@@ -44,12 +48,12 @@ func validateErg(t *Erg, allIDs map[string]bool) []string {
 		}
 	}
 
-	// Rule 3a: Tags: values must be from the closed value set.
-	if tags, ok := t.headers["Tags"]; ok {
+	// Rule 3a: Tag: values must be from the closed value set.
+	if tags, ok := t.headers["Tag"]; ok {
 		for _, v := range tags {
 			if !ValidTagValues[strings.TrimSpace(v)] {
 				errors = append(errors, fmt.Sprintf(
-					"%s: unknown Tags value '%s' (not in v1 closed set)", name, v))
+					"%s: unknown Tag value '%s' (not in v1 closed set)", name, v))
 			}
 		}
 	}
@@ -267,7 +271,7 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
   2. All required headers present: Title, Created, Author.
   3. No unknown headers (Status: is unknown; run 'erg migrate' to convert it).
   4. Non-repeatable headers (Title, Created, Author, Closed) appear at most once.
-  5. Tags: values are from the closed set (needs-human, deferred, post-talk, post-conference).
+  5. Tag: values are from the closed set (needs-human, deferred, post-talk, post-conference).
   6. Closed: header has a non-empty value and does not appear in the log or body sections.
   7. Created is a valid ISO date (YYYY-MM-DD).
   8. Filename matches NNNN-slug.erg (4-digit ID, lowercase ASCII kebab slug).

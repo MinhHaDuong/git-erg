@@ -329,14 +329,14 @@ else
     fail "forge ref with leading zero rejected (rc=$rc, got: $out)"
 fi
 
-# --- Tags: valid value accepted ---
+# --- Tag: valid value accepted ---
 cat > "$FIXTURES/0030-tags-valid.erg" <<'EOF'
 %erg v1
-Title: Tags valid
+Title: Tag valid
 Created: 2026-01-01
 Author: a
-Tags: needs-human
-Tags: deferred
+Tag: needs-human
+Tag: deferred
 
 --- log ---
 2026-01-01T10:00Z a created
@@ -344,9 +344,29 @@ Tags: deferred
 --- body ---
 EOF
 if $ERG validate "$FIXTURES/0030-tags-valid.erg" >/dev/null 2>&1; then
-    pass "Tags: valid values accepted"
+    pass "Tag: valid values accepted"
 else
-    fail "Tags: valid values accepted"
+    fail "Tag: valid values accepted"
+fi
+
+# --- Legacy Tags: header rejected with migration hint ---
+cat > "$FIXTURES/0031-tags-legacy.erg" <<'EOF'
+%erg v1
+Title: Tags legacy
+Created: 2026-01-01
+Author: a
+Tags: needs-human
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0031-tags-legacy.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "renamed to 'Tag:'"; then
+    pass "Tags: legacy header rejected with migration hint"
+else
+    fail "Tags: legacy header rejected with migration hint (rc=$rc, got: $out)"
 fi
 
 # --- Nonexistent path emits WARNING and exits 0 ---
@@ -866,22 +886,22 @@ else
     fail "unknown header (X-Foo) rejected (rc=$rc, got: $out)"
 fi
 
-# --- Tags: invalid value rejected (per-file validate) ---
+# --- Tag: invalid value rejected (per-file validate) ---
 cat > "$FIXTURES/0123-bad-tag.erg" <<'EOF'
 %erg v1
 Title: Bad tag
 Created: 2026-01-01
 Author: a
-Tags: bogus
+Tag: bogus
 
 --- log ---
 --- body ---
 EOF
 out=$($ERG validate "$FIXTURES/0123-bad-tag.erg" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "unknown Tags value 'bogus'"; then
-    pass "Tags: bogus value rejected"
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "unknown Tag value 'bogus'"; then
+    pass "Tag: bogus value rejected"
 else
-    fail "Tags: bogus value rejected (rc=$rc, got: $out)"
+    fail "Tag: bogus value rejected (rc=$rc, got: $out)"
 fi
 
 # --- Blocked-by: unknown local ID rejected (isolated dir — no 9999 fixture) ---
@@ -912,8 +932,8 @@ Author: claude
 Closed: completed in PR #99
 Blocked-by: 0001
 Blocked-by: github.com/foo/bar#42
-Tags: needs-human
-Tags: post-talk
+Tag: needs-human
+Tag: post-talk
 
 --- log ---
 2026-01-01T09:00Z claude created

@@ -33,7 +33,7 @@ We need exponential backoff with jitter, capped at 3 retries.
 Rules agents must know:
 - No `Status:` header in %erg v1 (use `erg migrate` for legacy files)
 - Closed/not-closed is inferred from path conventions or a non-empty `Closed:` header
-- `Tags:` is optional and repeatable; accepted values are `needs-human`, `deferred`, `post-talk`, `post-conference`
+- `Tag:` is optional and repeatable; accepted values are `needs-human`, `deferred`, `post-talk`, `post-conference`
 - Log entries are append-only: `YYYY-MM-DDTHH:MMZ author verb detail`
 
 In doubt, read the specification `spec-erg-v1.md` (file format) or run `erg --help --all` / `erg COMMAND --help` for command documentation.

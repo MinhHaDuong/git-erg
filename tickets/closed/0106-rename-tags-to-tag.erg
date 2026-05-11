@@ -1,0 +1,50 @@
+%erg v1
+Title: Rename Tags: to Tag: — repeatable headers use singular names
+Created: 2026-05-07
+Author: claude-sonnet-4-6
+Closed: autoclosed — PR #122
+
+--- log ---
+2026-05-07T00:00Z claude-sonnet-4-6 created
+
+2026-05-08T19:47Z MinhHaDuong closed — wontfix: Tags repeatability confirmed intentional — Tags is a multi-value header by design (ticket 0015; PR #114)
+
+2026-05-11T00:00Z MinhHaDuong reopened — wrong rationale at close; real issue is naming convention: repeatable headers use singular form (Blocked-by: not Blocked-bys:); Tags: plural implies a non-repeatable list on one line, Tag: singular is consistent with the repeatable-header convention
+
+2026-05-11T00:00Z claude-sonnet-4-6 note reimagined+planned — repeatable header uses singular name; add migrate support and a hint diagnostic so old `Tags:` files surface a clear migration path
+
+2026-05-11T08:38Z claude-sonnet-4-6 implemented — see PR
+2026-05-11T10:13Z MinhHaDuong closed — autoclosed — PR #122
+--- body ---
+## Context
+The spec marks `Tags` as repeatable — one `Tags:` line per value, like `Blocked-by:`.
+The plural name `Tags:` implies a non-repeatable list on a single line (e.g. CSV),
+which is the opposite of how it works. The existing convention in this format is
+singular names for repeatable headers (`Blocked-by:`, not `Blocked-bys:`).
+Rename to `Tag:` for consistency; repeatability is kept.
+
+## Actions
+1. Spec: rename `Tags` row in the headers table and update prose in `tickets/spec-erg-v1.md`.
+2. Definition layer: rename `Tags` → `Tag` in `ValidHeaders` and update the ABNF comments and `ValidTagValues` doc in `src/go/ergspecv1.go`.
+3. Parser/accessor: rename `Erg.Tags()` → `Erg.Tag()`, switch the underlying header key, update call site in `src/go/ready.go`. The JSON struct field `Tags []string` (the array name in the wire format) is preserved.
+4. Validator: emit a migration hint when an old `Tags:` header is encountered (analogous to the `Status:` hint), and update rule 3a + rule 5 doc comments to say `Tag:`.
+5. Migration: extend `erg migrate` to rewrite preamble `Tags:` lines to `Tag:` (preamble-bounded, idempotent), with a separate counter and matching summary text.
+6. Embedded assets: regenerate the base64 blobs in `src/go/bootstrap_assets.go` after spec and AGENTS.md changes.
+7. Tests: update the existing `Tags value not in closed set` case; add a new case asserting the migration hint; update shell-test fixtures and grep patterns in `tests/test_validate.sh`, `tests/test_ready.sh`, `tests/test_check.sh`; add a `Tags:` → `Tag:` migration round-trip case in `tests/test_migrate.sh`.
+8. Regenerate `docs/erg-manual.md` via `make docs`.
+9. Migrate existing tickets with `build/erg migrate tickets/`. No preamble `Tags:` lines exist in the corpus (only code-block illustrations inside the body of `tickets/closed/0015-tags-header.erg`), so the migration is a no-op against real headers; the command exits 0.
+
+## Test
+```bash
+grep -rn '^Tags:' tickets/   # only literal preamble Tags: lines; expect 0 outside body code blocks
+build/erg validate <(printf '%%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: t\nTags: needs-human\n\n--- log ---\n--- body ---\n') 2>&1 | grep "renamed to 'Tag:'"
+```
+Validator: a file with `Tags: needs-human` is rejected with a clear error pointing to `erg migrate`.
+Migrator: a preamble `Tags:` line is rewritten to `Tag:` while body code blocks containing `Tags:` are preserved.
+
+## Exit criteria
+- `Tag:` is the header name in spec, code, and all ticket preambles.
+- `erg migrate` rewrites preamble `Tags:` → `Tag:` cleanly and is idempotent.
+- Validator emits a clear migration hint when it encounters a `Tags:` preamble line.
+- `make test` passes.
+- PR body documents the migration approach and audit count.

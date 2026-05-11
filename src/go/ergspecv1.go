@@ -33,15 +33,15 @@ var SingletonHeaders = map[string]bool{
 // ABNF production:
 //
 //	header-key := "Title" / "Created" / "Author" / "Closed" /
-//	              "Blocked-by" / "Tags"
+//	              "Blocked-by" / "Tag"
 var ValidHeaders = map[string]bool{
 	"Title": true, "Created": true, "Author": true,
-	"Closed": true, "Blocked-by": true, "Tags": true,
+	"Closed": true, "Blocked-by": true, "Tag": true,
 }
 
-// ValidTagValues is the closed value set for the Tags: header (%erg v1).
+// ValidTagValues is the closed value set for the Tag: header (%erg v1).
 // Allowed values: needs-human, deferred, post-talk, post-conference.
-// Tags with needs-human or deferred suppress a ticket from erg ready output.
+// Tag: needs-human or deferred suppresses a ticket from erg ready output.
 //
 // ABNF production:
 //
