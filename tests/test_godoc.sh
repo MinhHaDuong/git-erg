@@ -39,8 +39,8 @@ doc_contains helpValidate "2. All required headers" "helpValidate rule 2 present
 doc_contains helpValidate "3. No unknown headers" "helpValidate rule 3 present"
 doc_contains helpValidate "13. No dependency cycles" "helpValidate rule 13 present"
 
-# helpClose: three-step atomicity
-doc_contains helpClose "three-step atomic" "helpClose three-step semantics"
+# helpClose: three-step semantics (step 3 is non-atomic per 0123 clarification)
+doc_contains helpClose "idempotent but not atomic" "helpClose step 3 idempotent-not-atomic"
 doc_contains helpClose "1. Insert" "helpClose step 1"
 doc_contains helpClose "2. Append" "helpClose step 2"
 doc_contains helpClose "3. Scan" "helpClose step 3"
