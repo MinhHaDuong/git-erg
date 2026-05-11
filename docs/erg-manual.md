@@ -1,7 +1,7 @@
 # erg manual
 
 Author: minh.ha-duong@cnrs.fr
-Generated from: erg built 2026-05-10T22:02:08Z rev 25604c2
+Generated from: erg built 2026-05-11T07:47:36Z rev 5698b59
 
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
