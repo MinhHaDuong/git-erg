@@ -6,6 +6,7 @@ Author: claude-sonnet-4-6
 --- log ---
 2026-05-11T00:00Z claude-sonnet-4-6 created
 
+2026-05-11T08:28Z claude-sonnet-4-6 note expanding plan with drift bug fixes
 --- body ---
 ## Context
 helptext.go holds a `helpText` map with all command help strings. The doc
@@ -33,8 +34,26 @@ help strings — neither reconciled with the other.
 3. Verify erg validate --help and erg --help --all still produce correct output.
 4. make test passes.
 
+## Drift bugs fixed during the refactor
+While moving content, reconcile two pre-existing drifts between helpText and
+cmd* doc comments:
+
+- cmdLog doc said the actor-verb log-line format was "not enforced"; helpText
+  said "enforced by erg validate (rule 11)". The helpText wording is correct
+  (rule 11 in validate.go enforces LogLineRE). Keep the helpText wording.
+- cmdMigrate doc said "Exits 1 on archive/→closed/ filename collision";
+  helpText said "Always exits 0". migrate.go (around line 129) returns 1 on
+  collision — the doc comment is correct. Update helpMigrate to match the
+  doc-comment wording.
+
+## Verification
+Baseline help output (build/erg --help=all plus per-command --help) must
+match byte-for-byte after the refactor except for the helpMigrate exit-code
+sentence (the deliberate fix above).
+
 ## Exit criteria
 - Each command's help string is defined once, in the same file as its cmd* function.
 - helptext.go contains only the registry map and commandOrder.
 - No duplicate rule lists between helptext.go and command file doc comments.
+- The two drift bugs (helpLog, helpMigrate) are reconciled.
 - make test passes.
