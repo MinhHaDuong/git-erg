@@ -73,7 +73,7 @@ func parseRef(raw string) (Ref, error) {
 		parts := strings.Split(hostOwnerRepo, "/")
 		if len(parts) == 3 {
 			host, owner, repo := parts[0], parts[1], parts[2]
-			if hostRE.MatchString(host) && ownerRE.MatchString(owner) && repoRE.MatchString(repo) {
+			if hostRE.MatchString(host) && identRE.MatchString(owner) && identRE.MatchString(repo) {
 				// Validate the number format.
 				if err := validateIssueNumber(num); err != nil {
 					return Ref{Raw: raw}, fmt.Errorf("malformed ref %q: %v", raw, err)

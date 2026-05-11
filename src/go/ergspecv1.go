@@ -60,16 +60,11 @@ var logLineRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z\s+\S+\s+\S+`
 //	ALNUM := ALPHA / DIGIT
 var hostRE = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$`)
 
-// ownerRE matches the owner/org component of a forge ref.
+// identRE matches the owner/org or repository name component of a forge ref.
+// Both use the same character set: alphanumeric, underscore, dot, dash.
 //
-// ABNF production:
+// ABNF productions:
 //
 //	owner := 1*( ALNUM / "_" / "." / "-" )
-var ownerRE = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
-
-// repoRE matches the repository name component of a forge ref.
-//
-// ABNF production:
-//
-//	repo := 1*( ALNUM / "_" / "." / "-" )
-var repoRE = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+//	repo  := 1*( ALNUM / "_" / "." / "-" )
+var identRE = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
