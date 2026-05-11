@@ -1,0 +1,72 @@
+%erg v1
+Title: Code cleanup and transparency fixes from post-merge audit wave 2
+Created: 2026-05-11
+Author: claude-opus-4-7
+
+--- log ---
+2026-05-11T00:00Z claude-opus-4-7 created from second audit (post #124/#125/#126 merge)
+
+--- body ---
+## Context
+Second audit pass after the wave-1 raid surfaced 13 small code-quality
+and transparency items. Many are minor; the meaningful refactors are
+the duplicated header-line predicates and the migrate.go layout block
+extraction.
+
+## Code health (8 items)
+1. **Unused `jsonEscape`**: defined in `erg.go:373` but ready.go uses
+   `encoding/json` instead. Delete.
+2. **`parseErg` one-line wrapper inlineable**: after PR #126 introduced
+   `parseErgBytes`, `parseErg` is just `ReadFile` + delegate. Only 2
+   call sites left (loadErgs at line 353, cmdValidate at validate.go:325).
+   Either inline both call sites and drop `parseErg`, OR document why
+   the wrapper stays (callers that want default-file-read ergonomics).
+   *Note: 0117 will reshape this surface; consider deferring.*
+3. **`printReadyText` redundant param**: receives both `totalCount` and
+   `openEntries`; `totalCount == len(tickets)` at the only call site.
+   Collapse — `src/go/ready.go:111`.
+4. **`removeBlockedByRef` re-walks ticketDir**: close.go:120 walks the
+   dir non-recursively while `loadErgs` already exists. Unify via a
+   shared loader to keep one parse-path and one filter rule.
+5. **Triple-duplication of header-key-prefix predicates**:
+   `isClosedHeaderLine` (erg.go:332), `isStatusHeaderLine` (migrate.go:288),
+   `isTagsHeaderLine` (migrate.go:300) duplicate the same "line starts
+   with key" pattern. Fold into `hasHeaderKey(line, key string)` helper.
+6. **Exported names in ergspecv1.go**: `MagicLine`, `IsoDateRE`,
+   `FilenameRE`, `LogLineRE`, `ValidTagValues` are exported despite
+   single-package use. Unexport now that the post-0116 schema is stable.
+7. **`migrate.go` layout-upgrade block is ~85 lines** inside
+   `cmdMigrate` (lines 102-185). Extract to `migrateLayout(dir)` for
+   readability and testability.
+8. **`Line` type alias re-litigation**: previous audit flagged it as
+   pure documentation; design decision was to keep. Recorded; NOT
+   changing.
+
+## Code transparency (5 items)
+9. **`helpClose` says "three-step atomic operation"** but step 3
+   iterates many files non-atomically. Misleading — `src/go/close.go:17`.
+10. **`summary<Cmd>` consts lack doc comments** explaining the
+    "printed by printUsage via the commands registry" contract — all
+    12 command files.
+11. **`migrate.go:54` generic message**: "directory not found" prints
+    for any `os.Stat` error (permission, broken symlink, etc.).
+    Distinguish or use `fmt.Errorf("...: %w", err)`.
+12. **`manualPreamble` empty-build-stamp behavior undocumented**: if
+    `buildDate`/`vcsRevision` are empty, the line becomes
+    `"Generated from: erg"` — the const doc doesn't mention this.
+    `src/go/main.go:27-46`.
+13. **`parseErgBytes` doc missing HasLogSep edge case**: the comment
+    doesn't warn that body-quoted `--- log ---` / `--- body ---`
+    literals set `diag.HasLogSep`/`HasBodySep` to true even though
+    they're not actual separators — `src/go/erg.go:193-196`.
+
+## Out of scope
+- Defer-to-0117: item 2 (parseErg wrapper) if 0117 lands first will
+  rewrite the entire parser signature; drop item 2 in that case.
+- Defer-to-0118: nothing here.
+
+## Exit criteria
+- All 13 items addressed (or items 2 explicitly deferred to 0117).
+- `make test` passes.
+- No exported-name churn breaks tests (item 6 is package-internal so
+  should be safe — verify).

@@ -1,0 +1,46 @@
+%erg v1
+Title: Test coverage gaps surfaced by post-merge audit wave 2
+Created: 2026-05-11
+Author: claude-opus-4-7
+
+--- log ---
+2026-05-11T00:00Z claude-opus-4-7 created from second audit (post #124/#125/#126 merge)
+
+--- body ---
+## Context
+Second audit pass after the wave-1 raid (#124/#125/#126 merged) surfaced
+5 additional test-coverage items, mostly around code paths NOT exercised
+by the first round's added tests. Smaller in scope than 0120.
+
+## Items
+1. **No test asserts main.go dispatch ↔ commands registry sync**: adding
+   a command to `commandEntry` in helptext.go but forgetting the
+   `switch` case in main.go fails silently. Add an automated check
+   (Go test that walks both and compares) — `src/go/main.go:144`,
+   `src/go/helptext.go:15`.
+2. **`filepath.Clean(ticketDir)` regression untested**: PR #126 added
+   defensive cleaning for trailing-slash args; no test exercises
+   `erg archive tickets/` vs `erg archive tickets` — `src/go/archive.go:48`,
+   `tests/test_archive.sh`.
+3. **`manualPreamble` build-stamp substitution untested**: PR #126's
+   `%s` placeholder for the build-stamp line isn't asserted; tests only
+   check the H1 header — `src/go/main.go:119`, `tests/test_help.sh:121-127`.
+4. **Fixture rename + assertion tightening**:
+   `0001-missing-required.erg` is actually missing-Author. Rename to
+   `0001-missing-author.erg` and tighten the `wantSubstr` from generic
+   `"required header"` to `"Author"` — `src/go/testdata/invalid/0001-missing-required.erg`,
+   `src/go/validate_test.go:378`.
+5. **`folderClosure` and `strayGoSource` have no Go unit tests**:
+   surfaced while auditing the `staleBlockedBy` coverage 0120 added —
+   `src/go/check.go:12, 68`.
+
+## Out of scope
+- Defer-to-0117 testing items (error-format changes).
+- Direct unit tests for `parseErgBytes`, `idCache`, `ticketByPath` —
+  transitively covered; no concrete failure mode missed.
+
+## Exit criteria
+- All 5 items addressed.
+- `make test` passes.
+- New tests demonstrably fail on a regression (verify by temporarily
+  breaking the relevant code).

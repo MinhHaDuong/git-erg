@@ -87,6 +87,7 @@ func cmdArchive(args []string) int {
 
 	// Collect target tickets — reuse allTickets, no second parse.
 	var targets []Erg
+	exitCode := 0
 
 	if len(ids) > 0 {
 		// ID mode: resolve each ID to a file in the top-level ticketDir only.
@@ -96,10 +97,12 @@ func cmdArchive(args []string) int {
 			matches, err := filepath.Glob(pattern)
 			if err != nil || len(matches) == 0 {
 				fmt.Fprintf(os.Stderr, "archive: no ticket found for ID %s in %s\n", id, ticketDir)
+				exitCode = 1
 				continue
 			}
 			if len(matches) > 1 {
 				fmt.Fprintf(os.Stderr, "archive: ambiguous ID %s — matches: %s\n", id, strings.Join(matches, ", "))
+				exitCode = 1
 				continue
 			}
 			if t, ok := ticketByPath[matches[0]]; ok {
@@ -117,7 +120,6 @@ func cmdArchive(args []string) int {
 	}
 
 	closedDir := filepath.Join(ticketDir, "closed")
-	exitCode := 0
 
 	for _, t := range targets {
 		// Skip tickets without a non-empty Closed: header.

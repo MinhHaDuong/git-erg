@@ -18,7 +18,7 @@ var commands = []commandEntry{
 	{"ready", "[DIR] [--json]", summaryReady, helpReady},
 	{"next-id", "[DIR]", summaryNextID, helpNextID},
 	{"new", "TITLE [DIR]", summaryNew, helpNew},
-	{"close", "ID REASON [DIR]", summaryClose, helpClose},
+	{"close", "ID|FILE REASON [DIR]", summaryClose, helpClose},
 	{"log", "ID LINE [DIR]", summaryLog, helpLog},
 	{"archive", "[ID...] [DIR]", summaryArchive, helpArchive},
 	{"migrate", "[DIR]", summaryMigrate, helpMigrate},

@@ -754,7 +754,7 @@ else
     fail "missing body separator rejected (rc=$rc, got: $out)"
 fi
 
-# --- Separator: duplicate --- log --- accepted (rule 11 relaxation, ticket 0116) ---
+# --- Separator: duplicate --- log --- accepted (rule 12 relaxation, ticket 0116) ---
 cat > "$FIXTURES/0116-dup-log-sep.erg" <<'EOF'
 %erg v1
 Title: Duplicate log separator
@@ -768,16 +768,16 @@ Author: a
 --- body ---
 EOF
 out=$($ERG validate "$FIXTURES/0116-dup-log-sep.erg" 2>&1) && rc=0 || rc=$?
-# Ticket 0116: rule 11 relaxed — duplicate separators are no longer
+# Ticket 0116: rule 12 relaxed — duplicate separators are no longer
 # errors. The first occurrence transitions sections; subsequent ones
 # are body text (legitimate bodies quote the format literals).
 if [ "$rc" -eq 0 ] && echo "$out" | grep -q "PASS"; then
-    pass "duplicate log separator accepted (rule 11 relaxation)"
+    pass "duplicate log separator accepted (rule 12 relaxation)"
 else
     fail "duplicate log separator accepted (rc=$rc, got: $out)"
 fi
 
-# --- Separator: duplicate --- body --- accepted (rule 11 relaxation, ticket 0116) ---
+# --- Separator: duplicate --- body --- accepted (rule 12 relaxation, ticket 0116) ---
 cat > "$FIXTURES/0117-dup-body-sep.erg" <<'EOF'
 %erg v1
 Title: Duplicate body separator
@@ -790,10 +790,10 @@ Author: a
 --- body ---
 EOF
 out=$($ERG validate "$FIXTURES/0117-dup-body-sep.erg" 2>&1) && rc=0 || rc=$?
-# Ticket 0116: rule 11 relaxed — duplicate separators are no longer
+# Ticket 0116: rule 12 relaxed — duplicate separators are no longer
 # errors. See above.
 if [ "$rc" -eq 0 ] && echo "$out" | grep -q "PASS"; then
-    pass "duplicate body separator accepted (rule 11 relaxation)"
+    pass "duplicate body separator accepted (rule 12 relaxation)"
 else
     fail "duplicate body separator accepted (rc=$rc, got: $out)"
 fi
