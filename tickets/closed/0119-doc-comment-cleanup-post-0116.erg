@@ -2,10 +2,12 @@
 Title: Doc-comment cleanup and error-message helpfulness post-0116
 Created: 2026-05-11
 Author: claude-opus-4-7
+Closed: autoclosed — PR #124
 
 --- log ---
 2026-05-11T00:00Z claude-opus-4-7 created from post-0116 audit (cluster A: doc cleanup)
 
+2026-05-11T12:42Z MinhHaDuong closed — autoclosed — PR #124
 --- body ---
 ## Context
 Audit after the 0116 merge surfaced 11 small doc/comment issues — none

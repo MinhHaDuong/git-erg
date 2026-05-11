@@ -22,18 +22,19 @@ func validateErg(t *Erg, diag ParseDiagnostics, allIDs map[string]bool) []string
 
 	// Rule 2: required headers — must be present AND non-empty.
 	if strings.TrimSpace(t.Title) == "" {
-		errors = append(errors, fmt.Sprintf("%s: missing or empty required header 'Title'", name))
+		errors = append(errors, fmt.Sprintf("%s: missing or empty required header 'Title' — add 'Title: <text>' to the preamble", name))
 	}
 	if strings.TrimSpace(t.Created) == "" {
-		errors = append(errors, fmt.Sprintf("%s: missing or empty required header 'Created'", name))
+		errors = append(errors, fmt.Sprintf("%s: missing or empty required header 'Created' — add 'Created: YYYY-MM-DD' to the preamble", name))
 	}
 	if strings.TrimSpace(t.Author) == "" {
-		errors = append(errors, fmt.Sprintf("%s: missing or empty required header 'Author'", name))
+		errors = append(errors, fmt.Sprintf("%s: missing or empty required header 'Author' — add 'Author: <name>' to the preamble", name))
 	}
 
 	// Rule 3: no unknown headers (Status: and Tags: are relics; run `erg
-	// migrate` to convert them). Unknown keys come from the parser in
-	// first-occurrence order.
+	// migrate` to convert them).
+	// Rule 4: non-repeatable headers appear at most once.
+	// Unknown keys come from the parser in first-occurrence order.
 	for _, key := range diag.Unknown {
 		switch key {
 		case "Status":
@@ -43,24 +44,24 @@ func validateErg(t *Erg, diag ParseDiagnostics, allIDs map[string]bool) []string
 			errors = append(errors, fmt.Sprintf(
 				"%s: 'Tags:' has been renamed to 'Tag:' — run `erg migrate` to convert", name))
 		default:
-			errors = append(errors, fmt.Sprintf("%s: unknown header '%s' (not in v1 closed set)", name, key))
+			errors = append(errors, fmt.Sprintf("%s: unknown header '%s' (not in v1 closed set) — remove it or run `erg migrate`", name, key))
 		}
 	}
-	// Singleton check: non-repeatable headers must appear at most once.
+	// (Rule 4 cont.) Singleton check: non-repeatable headers must appear at most once.
 	for _, key := range diag.RepeatedSingletons {
 		errors = append(errors, fmt.Sprintf(
 			"%s: header '%s' is non-repeatable (appears more than once)", name, key))
 	}
 
-	// Rule 3a: Tag: values must be from the closed value set.
+	// Rule 5: Tag: values must be from the closed value set.
 	for _, v := range t.Tags {
 		if !ValidTagValues[v] {
 			errors = append(errors, fmt.Sprintf(
-				"%s: unknown Tag value '%s' (not in v1 closed set)", name, v))
+				"%s: unknown Tag value '%s' (not in v1 closed set: needs-human, deferred, post-talk, post-conference)", name, v))
 		}
 	}
 
-	// Rule 4: Closed: header — value required, non-empty; not in log/body.
+	// Rule 6: Closed: header — value required, non-empty; not in log/body.
 	if diag.ClosedEmpty {
 		errors = append(errors, fmt.Sprintf(
 			"%s: 'Closed:' header requires a non-empty value (closure reason)", name))
@@ -74,20 +75,20 @@ func validateErg(t *Erg, diag ParseDiagnostics, allIDs map[string]bool) []string
 			"%s: 'Closed:' header found in body section — only allowed in header section", name))
 	}
 
-	// Rule 5: Created is ISO date
+	// Rule 7: Created is ISO date
 	if c := t.Created; c != "" && !IsoDateRE.MatchString(c) {
 		errors = append(errors, fmt.Sprintf(
 			"%s: Created '%s' is not a valid ISO date (YYYY-MM-DD)", name, c))
 	}
 
-	// Rule 6: filename matches NNNN-slug.erg
+	// Rule 8: filename matches NNNN-slug.erg
 	if !FilenameRE.MatchString(name) {
 		errors = append(errors, fmt.Sprintf(
 			"%s: filename does not match NNNN-slug.erg pattern", name))
 	}
 
-	// Rule 7: Blocked-by values parse to one of the two ref forms.
-	// Rule 8: local refs point to existing ticket IDs.
+	// Rule 9: Blocked-by values parse to one of the two ref forms.
+	// Rule 10: local refs point to existing ticket IDs.
 	refs, refErrs := t.BlockedByRefs()
 	for i, ref := range refs {
 		if refErrs[i] != nil {
@@ -100,7 +101,7 @@ func validateErg(t *Erg, diag ParseDiagnostics, allIDs map[string]bool) []string
 		}
 	}
 
-	// Rule 10: log lines match format
+	// Rule 11: log lines match format
 	for _, line := range t.LogLines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed != "" && !LogLineRE.MatchString(trimmed) {
@@ -109,10 +110,10 @@ func validateErg(t *Erg, diag ParseDiagnostics, allIDs map[string]bool) []string
 		}
 	}
 
-	// Rule 11: the first `--- log ---` and the first `--- body ---` in
+	// Rule 12: the first `--- log ---` and the first `--- body ---` in
 	// order are the section separators; subsequent occurrences are body
 	// text. Only the missing case is an error — a body that quotes the
-	// separator literals is legitimate (rule 11 relaxation, ticket 0116).
+	// separator literals is legitimate (rule 12 relaxation, ticket 0116).
 	if !diag.HasLogSep {
 		errors = append(errors, fmt.Sprintf("%s: missing '--- log ---' separator", name))
 	}
@@ -203,7 +204,7 @@ func detectCycles(tickets []Erg) []string {
 func validateAll(tickets []Erg, diags []ParseDiagnostics) []string {
 	var errors []string
 
-	// Rule 7: no duplicate IDs
+	// Corpus check: no duplicate IDs (not a per-file rule)
 	idToFiles := make(map[string][]string)
 	for i := range tickets {
 		id := tickets[i].FilenameID()
@@ -236,7 +237,7 @@ func validateAll(tickets []Erg, diags []ParseDiagnostics) []string {
 		errors = append(errors, validateErg(&tickets[i], diag, allIDs)...)
 	}
 
-	// Rule 9: dependency cycles
+	// Rule 13: dependency cycles
 	errors = append(errors, detectCycles(tickets)...)
 	return errors
 }

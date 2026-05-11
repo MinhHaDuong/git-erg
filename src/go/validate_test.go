@@ -149,7 +149,7 @@ func TestValidateErg(t *testing.T) {
 			wantSubstr: "malformed log line",
 		},
 		{
-			// Rule 11 relaxation (ticket 0116): duplicate separators are
+			// Rule 12 relaxation (ticket 0116): duplicate separators are
 			// no longer an error. The first occurrence transitions sections;
 			// subsequent ones are body text.
 			name:       "duplicate log separator accepted",
@@ -408,7 +408,7 @@ func TestValidateAll_GoldenDuplicateIDs(t *testing.T) {
 	}
 }
 
-// TestSeparatorLiteralInBodyAccepted pins the rule 11 relaxation from
+// TestSeparatorLiteralInBodyAccepted pins the rule 12 relaxation from
 // ticket 0116: a body that quotes the `--- log ---` / `--- body ---`
 // literals must validate AND round-trip through erg.Body byte-for-byte.
 // Also pins the parser invariants that HasLogSep/HasBodySep are set on
@@ -424,7 +424,7 @@ func TestSeparatorLiteralInBodyAccepted(t *testing.T) {
 
 	erg, diag := parseErg(path)
 
-	// (a) validator accepts the file (rule 11 relaxed).
+	// (a) validator accepts the file (rule 12 relaxed).
 	errs := validateErg(&erg, diag, map[string]bool{"0001": true})
 	if len(errs) != 0 {
 		t.Fatalf("expected no validation errors, got: %v", errs)

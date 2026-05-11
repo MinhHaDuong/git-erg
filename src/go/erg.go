@@ -12,6 +12,10 @@ import (
 type Line = string
 
 // Erg is the schema-literal projection of a %erg v1 ticket file.
+// Lenient-parse invariant: parseErg always returns a usable Erg (at
+// minimum with Path set) so callers can report a filename even when the
+// file is unreadable or malformed. The validator (validateErg) decides
+// which structural defects are errors.
 type Erg struct {
 	Path     Line
 	HasMagic bool
@@ -21,7 +25,7 @@ type Erg struct {
 	Created    Line   // required, non-empty
 	Author     Line   // required, non-empty
 	Closed     Line   // optional; first non-empty Closed: value when present
-	BlockedBys []Line // possibly empty; one entry per `Blocked-by:` line, verbatim
+	BlockedBys []Line // possibly empty; one entry per `Blocked-by:` line, trimmed by parseHeaderLine
 	Tags       []Line // possibly empty; one entry per `Tag:` line, trimmed; empties skipped
 
 	LogLines []Line // one structured event per entry
@@ -97,12 +101,16 @@ func (t *Erg) BlockedByRefs() ([]Ref, []error) {
 	return refs, errs
 }
 
-// Filename returns the basename of the ticket path.
+// Filename returns the basename of the ticket path. Always non-empty when
+// Path is set (parseErg guarantees Path is set even on read errors).
 func (t *Erg) Filename() string {
 	return filepath.Base(t.Path)
 }
 
-// FilenameID extracts the numeric prefix from the filename (e.g., "0042" from "0042-add-auth.erg").
+// FilenameID extracts the numeric prefix from the filename (e.g., "0042"
+// from "0042-add-auth.erg"). Returns the full stem when no dash is present,
+// which may be empty or non-numeric — callers (close, archive, check) must
+// guard against empty-string returns.
 func (t *Erg) FilenameID() string {
 	stem := strings.TrimSuffix(t.Filename(), ".erg")
 	if idx := strings.Index(stem, "-"); idx > 0 {
@@ -119,7 +127,9 @@ func isAlphanumeric(c byte) bool {
 	return isLetter(c) || (c >= '0' && c <= '9')
 }
 
-// parseHeaderLine extracts "Key: value" from a line.
+// parseHeaderLine extracts "Key: value" from a line. Accepts both "Key:"
+// and "Key :" (whitespace before colon is tolerated). Both key and value
+// are trimmed of surrounding whitespace before return.
 func parseHeaderLine(line string) (string, string, bool) {
 	if len(line) == 0 || !isLetter(line[0]) {
 		return "", "", false
@@ -157,8 +167,7 @@ func parseHeaderLine(line string) (string, string, bool) {
 }
 
 // v1HeaderKeys is the closed set of header keys recognised by parseErg.
-// Used to classify header lines as known/unknown without depending on
-// validate.go data (which 0116 commit 4 removes anyway).
+// Used to classify header lines as known/unknown during parsing.
 var v1HeaderKeys = map[string]bool{
 	"Title": true, "Created": true, "Author": true,
 	"Closed": true, "Blocked-by": true, "Tag": true,
