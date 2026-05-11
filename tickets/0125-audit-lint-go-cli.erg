@@ -1,0 +1,55 @@
+%erg v1
+Title: Audit lint findings — Go CLI codebase
+Created: 2026-05-11
+Author: MinhHaDuong
+Tag: deferred
+
+--- log ---
+2026-05-11T14:00Z claude open audit sweep of src/go/
+
+--- body ---
+Categorized findings from full read of all 26 production files and 7 test
+files. go vet clean, 177 tests pass. Findings grouped by category.
+
+## Dead code (low)
+1. HasMagic field on Erg — set by parser, never read in production; only
+   consumed by test assertions.
+2. type Line = string — type alias (not definition), zero compile-time
+   safety; semantic noise.
+
+## Duplication (medium)
+3. ownerRE and repoRE in ergspecv1.go are byte-identical regexps.
+4. validTagValues (ergspecv1.go) and skipReadyTags (ready.go) are
+   independently defined maps with the same keys.
+5. Three ID-from-filename extractors: parseIDFromFilename (int),
+   FilenameID (string), globLocalIDs (inline split).
+
+## Consistency (low–medium)
+6. filepath.Walk (deprecated) in migrate.go and check.go vs
+   filepath.WalkDir (modern) in nextid.go and ready.go.
+7. TestClosedWhitespaceDivergence documents parseHeaderLine vs
+   isClosedHeaderLine whitespace inconsistency — pins divergence
+   instead of fixing it.
+
+## Efficiency (medium)
+8. removeBlockedByRef in close.go loads entire corpus via loadErgs to
+   find files referencing a given ID, then re-reads each matching file
+   line-by-line to edit it. Single pass possible.
+
+## Test gaps (high–medium)
+9. migrate.go (~344 lines) — complex multi-pass rewrite logic with zero
+   unit tests. migrateFile is pure (bytes in -> bytes out), table-drivable.
+10. No unit tests for cmdLog, cmdArchive, cmdReady, cmdCheck, cmdVersion,
+    cmdUpdate, cmdInit. Priority: cmdReady and cmdCheck (most logic).
+11. globLocalIDs (validate.go) has no direct test.
+
+## Design / fragility (medium–low)
+12. Positional struct literal at ready.go:272 (readyEntry{...}).
+13. bootstrap_assets.go uses hand-rolled base64 instead of //go:embed.
+
+## File organization (medium)
+14. erg.go mixes type declarations (Line, Erg, Ref-adjacent helpers) with
+    parser logic and spec constants (v1HeaderKeys, v1SingletonKeys, inline
+    separator literals). ergspecv1.go already holds spec constants but the
+    split is incomplete — types and remaining constants should consolidate
+    into ergspecv1.go, leaving erg.go as pure parser/method code.
