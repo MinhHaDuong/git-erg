@@ -187,12 +187,12 @@ else
     fail "collision: source not removed on collision"
 fi
 
-# --- Non-existent ID: warning printed, exit 0 ---
+# --- Non-existent ID: warning printed, exit 1 (audit fix-now: ID-mode failures must set exit code) ---
 OUT6=$($ERG archive 9999 "$FIXTURES" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -eq 0 ] && echo "$OUT6" | grep -q "no ticket found"; then
-    pass "id mode: non-existent ID prints warning"
+if [ "$rc" -eq 1 ] && echo "$OUT6" | grep -q "no ticket found"; then
+    pass "id mode: non-existent ID prints warning and exits 1"
 else
-    fail "id mode: non-existent ID prints warning (rc=$rc, got: $OUT6)"
+    fail "id mode: non-existent ID prints warning and exits 1 (rc=$rc, got: $OUT6)"
 fi
 
 # --- filepath.Clean regression: trailing slash on directory arg ---
