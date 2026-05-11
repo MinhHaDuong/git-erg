@@ -8,10 +8,6 @@ import (
 	"strings"
 )
 
-// Line is a single-line string: no embedded newlines.
-// Enforced by the parser invariant (header values read up to LF).
-type Line = string
-
 // Erg is the schema-literal projection of a %erg v1 ticket file.
 // Lenient-parse invariant: parseErg always returns a usable Erg (at
 // minimum with Path set) so callers can report a filename even when the
@@ -19,19 +15,19 @@ type Line = string
 // per-file rule violations alongside the Erg; corpus-level rules
 // (duplicate IDs, ref resolution, cycles) live in validateCorpus.
 type Erg struct {
-	Path     Line
+	Path     string
 	HasMagic bool
 
 	// v1 headers — typed fields populated from first occurrence
-	Title      Line   // required, non-empty (validator rule 2)
-	Created    Line   // required, non-empty
-	Author     Line   // required, non-empty
-	Closed     Line   // optional; first non-empty Closed: value when present
-	BlockedBys []Ref // possibly empty; one entry per `Blocked-by:` line, parsed at parse time
-	Tags       []Line // possibly empty; one entry per `Tag:` line, trimmed; empties skipped
+	Title      string   // required, non-empty (validator rule 2)
+	Created    string   // required, non-empty
+	Author     string   // required, non-empty
+	Closed     string   // optional; first non-empty Closed: value when present
+	BlockedBys []Ref    // possibly empty; one entry per `Blocked-by:` line, parsed at parse time
+	Tags       []string // possibly empty; one entry per `Tag:` line, trimmed; empties skipped
 
-	LogLines []Line // one structured event per entry
-	Body     string // multiline
+	LogLines []string // one structured event per entry
+	Body     string   // multiline
 }
 
 // IsClosed reports whether the ticket is closed under the v1 criterion:
@@ -180,9 +176,9 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 
 	var logLines, bodyLines []string
 	var logLineNums []int
-	var title, created, author, closed Line
+	var title, created, author, closed string
 	var titleLine, createdLine, authorLine int
-	var tags []Line
+	var tags []string
 	var blockedBys []Ref
 	var blockedByLines, tagLines []int
 	section := "magic" // magic | headers | gap | log | body
