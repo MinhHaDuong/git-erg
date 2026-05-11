@@ -1,7 +1,7 @@
 # erg manual
 
 Author: minh.ha-duong@cnrs.fr
-Generated from: erg built 2026-05-11T08:34:39Z rev d9f9ddd
+Generated from: erg built 2026-05-11T10:09:56Z rev 19ab2f0
 
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
@@ -25,7 +25,7 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
   2. All required headers present: Title, Created, Author.
   3. No unknown headers (Status: is unknown; run 'erg migrate' to convert it).
   4. Non-repeatable headers (Title, Created, Author, Closed) appear at most once.
-  5. Tags: values are from the closed set (needs-human, deferred, post-talk, post-conference).
+  5. Tag: values are from the closed set (needs-human, deferred, post-talk, post-conference).
   6. Closed: header has a non-empty value and does not appear in the log or body sections.
   7. Created is a valid ISO date (YYYY-MM-DD).
   8. Filename matches NNNN-slug.erg (4-digit ID, lowercase ASCII kebab slug).
@@ -168,7 +168,7 @@ an existing file at the destination.
 
 ## erg migrate [DIR]
 
-Convert legacy Status: headers to %erg v1 format.
+Convert legacy headers to %erg v1 format.
 
 Idempotent (safe to run repeatedly: already-migrated files are not modified twice). For every .erg file under DIR (default: tickets/) the migration
 rules are:
@@ -177,9 +177,11 @@ rules are:
     'Closed: migrated from Status: closed' to the preamble.
   - 'Status: open', 'Status: doing', or 'Status: pending' → drop the line;
     the ticket becomes not-closed (the correct new state).
-  - No 'Status:' line → no-op.
+  - 'Tags:' preamble line → rewrite the key to 'Tag:' (singular; the header is
+    repeatable and singular names are the v1 convention). The value is preserved.
+  - No legacy line → no-op.
 
-After migration, erg validate will reject any remaining Status: lines.
+After migration, erg validate will reject any remaining Status: or Tags: lines.
 
 When DIR is named "tickets" (the canonical layout), also performs a one-time
 project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
