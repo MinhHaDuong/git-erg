@@ -48,6 +48,42 @@ gotchas and import weight. Leaving `Created` as `string`.
 - Hard dep: ticket 0117 (validating-parser merge). The parse-time error
   channel from 0117 is where malformed refs flow as errors.
 
+## Plan (commits)
+
+**C1: Change field type + update parser.**
+- `BlockedBys []Line` → `BlockedBys []Ref` in Erg struct.
+- In `parseErgBytes`: parse each Blocked-by value via `parseRef` at
+  append time. Move rule 9 error emission from end-of-walk loop
+  (erg.go:393-396) into the header-parsing switch case (erg.go:311-312).
+  On parse error, emit error AND still append the Ref (Kind=RefInvalid,
+  Raw set) so downstream code can iterate uniformly.
+- Delete the end-of-walk rule 9 block.
+
+**C2: Update call sites + delete BlockedByRefs().**
+- archive.go:74 — `refs, errs := t.BlockedByRefs()` → iterate
+  `t.BlockedBys` directly; drop the `errs[j] != nil` guard (malformed
+  refs are now RefInvalid, Kind check suffices).
+- check.go:48 — same pattern.
+- close.go:132 — `for _, r := range t.BlockedBys` currently compares
+  raw strings; change to `for _, ref := range t.BlockedBys` and compare
+  `ref.Raw == closedID` or `ref.ID == closedID`.
+- ready.go:239 — same as archive.go.
+- validate.go:23 (detectCycles) — same pattern.
+- validate.go:129 (validateCorpus rule 10) — iterate `t.BlockedBys`,
+  skip `ref.Kind != RefLocal`.
+- validate.go:239 (cmdValidate rule 10) — same pattern.
+- Delete `BlockedByRefs()` method from erg.go:80-91.
+
+**C3: Update tests.**
+- erg_test.go:107 — `bb := erg.BlockedBys` now returns `[]Ref`;
+  assert `len(bb) == 2` and check `bb[0].ID == "0002"`.
+- validate_test.go:368 — `refs, refErrs := erg.BlockedByRefs()` →
+  iterate `erg.BlockedBys` directly.
+
+**First test:** after C1, `go build` must compile (no stale references)
+and `make test` must pass. After C2, `make test` must pass with
+BlockedByRefs() deleted (any stale reference → compile error).
+
 ## Exit criteria
 - `Erg.BlockedBys` is `[]Ref`.
 - `BlockedByRefs()` method deleted; call sites read `t.BlockedBys`

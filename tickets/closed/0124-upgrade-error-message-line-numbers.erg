@@ -41,6 +41,44 @@ if bundled, can land before/after/independent of the merge.
 - Column numbers (we're line-oriented, no useful column).
 - Structured error types — still `[]string`, just more informative.
 
+## Plan (commits)
+
+**C1: Add line counter + mid-walk emissions.**
+Change `for _, line := range lines` to `for lineIdx, line := range lines`,
+compute `lineNum := lineIdx + 1`. Update the 7 mid-walk emission sites
+to use `"%s:%d: msg"` format:
+- Rule 3 (unknown headers): erg.go:271,275,279
+- Rule 4 (repeated singleton): erg.go:261
+- Rule 6 (Closed empty): erg.go:304
+- Rule 6 (Closed in log): erg.go:328
+- Rule 6 (Closed in body): erg.go:336
+
+**C2: Store header line numbers + end-of-walk emissions.**
+Add locals: `titleLine`, `createdLine`, `authorLine`, `closedEmptyLine int`.
+Add parallel slices `tagLines`, `blockedByLines []int` alongside the
+value slices. Record the line number when each header is first parsed.
+Update the 7 end-of-walk emission sites:
+- Rule 2 (missing/empty Title/Created/Author): emit with stored line
+  number if header was present-but-empty, stay filename-only if missing.
+- Rule 5 (invalid Tag value): emit with stored tag line number.
+- Rule 7 (bad Created date): emit with stored Created line number.
+- Rule 9 (malformed Blocked-by): emit with stored line number.
+- Rule 11 (malformed log line): store log-line indices or compute from
+  the original lines array.
+
+**C3: Update test fixtures.**
+- Go tests use `errsContain(errs, "substring")` — most still work since
+  the message text is unchanged; only tests that assert on the full
+  prefix `"filename: "` need updating.
+- Shell tests (test_validate.sh) use `grep` patterns — update any that
+  anchor on `"filename: "` to allow `"filename:N: "`.
+
+**C4: Update helpValidate documentation.**
+Add a note about the `filename:LINE: msg` format.
+
+**First test:** after C1, `make test` must pass. The Go tests use
+substring matching so most will survive the prefix change.
+
 ## Exit criteria
 - Every per-rule error includes `:LINE:` when applicable.
 - `make test` passes; test fixtures updated to match.
