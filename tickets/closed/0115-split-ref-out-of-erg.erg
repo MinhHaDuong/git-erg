@@ -2,10 +2,12 @@
 Title: Split Ref type and parser out of erg.go into ref.go
 Created: 2026-05-11
 Author: claude-sonnet-4-6
+Closed: autoclosed — PR #120
 
 --- log ---
 2026-05-11T00:00Z claude-sonnet-4-6 created
 
+2026-05-11T10:00Z MinhHaDuong closed — autoclosed — PR #120
 --- body ---
 ## Context
 After ticket 0113 renamed `ticket.go` → `erg.go`, the file still mixes two
