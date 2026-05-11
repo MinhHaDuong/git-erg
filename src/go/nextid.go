@@ -46,6 +46,7 @@ func nextID(dir string) string {
 	return fmt.Sprintf("%04d", maxID+1)
 }
 
+// summaryNextID is the one-liner printed by printUsage via the commands registry.
 const summaryNextID = "Print the next available ticket ID"
 
 const helpNextID = `## erg next-id [DIR]

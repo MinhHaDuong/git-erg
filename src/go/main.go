@@ -26,7 +26,9 @@ import (
 
 // manualPreamble is the header printed by `erg --help --all` before the
 // per-command sections. The %s placeholder receives the "Generated from:"
-// line (which includes runtime build metadata).
+// line (which includes runtime build metadata). When buildDate and
+// vcsRevision are both empty (e.g. `go run` without -ldflags), the line
+// becomes just "Generated from: erg" with no build stamp.
 const manualPreamble = `# erg manual
 
 Author: minh.ha-duong@cnrs.fr

@@ -54,6 +54,7 @@ func selfHash(path string) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
+// summaryVersion is the one-liner printed by printUsage via the commands registry.
 const summaryVersion = "Print version, path, build date, and obsolescence info"
 
 const helpVersion = `## erg version

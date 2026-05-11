@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// summaryMigrate is the one-liner printed by printUsage via the commands registry.
 const summaryMigrate = "Convert legacy Status: headers to Closed: form"
 
 const helpMigrate = `## erg migrate [DIR]
@@ -50,8 +51,12 @@ func cmdMigrate(args []string) int {
 	}
 
 	info, err := os.Stat(dir)
-	if err != nil || !info.IsDir() {
-		fmt.Fprintf(os.Stderr, "migrate: directory not found: %s\n", dir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "migrate: %s: %v\n", dir, err)
+		return 1
+	}
+	if !info.IsDir() {
+		fmt.Fprintf(os.Stderr, "migrate: not a directory: %s\n", dir)
 		return 1
 	}
 
@@ -100,90 +105,101 @@ func cmdMigrate(args []string) int {
 
 	// Layout migration: only run when dir is named "tickets" (canonical layout).
 	if filepath.Base(dir) == "tickets" {
-		root := filepath.Dir(dir)
-		toolsDir := filepath.Join(dir, "tools")
-		formatMD := filepath.Join(dir, "FORMAT.md")
-		archiveDir := filepath.Join(root, "archive")
-		closedDir := filepath.Join(root, "closed")
-
-		if _, err := os.Stat(toolsDir); err == nil {
-			if err := os.RemoveAll(toolsDir); err != nil {
-				fmt.Fprintf(os.Stderr, "migrate: remove tools/: %v\n", err)
-			} else {
-				fmt.Println("migrate: removed tickets/tools/")
-			}
-		}
-		if _, err := os.Stat(formatMD); err == nil {
-			if err := os.Remove(formatMD); err != nil {
-				fmt.Fprintf(os.Stderr, "migrate: remove FORMAT.md: %v\n", err)
-			} else {
-				fmt.Println("migrate: removed tickets/FORMAT.md")
-			}
-		}
-		_, archiveErr := os.Stat(archiveDir)
-		_, closedErr := os.Stat(closedDir)
-		if archiveErr == nil && closedErr != nil {
-			if err := os.Rename(archiveDir, closedDir); err != nil {
-				fmt.Fprintf(os.Stderr, "migrate: rename archive/→closed/: %v\n", err)
-			} else {
-				fmt.Println("migrate: renamed archive/ → closed/")
-			}
-		} else if archiveErr == nil && closedErr == nil {
-			entries, err := os.ReadDir(archiveDir)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "migrate: read archive/: %v\n", err)
-			} else {
-				var conflicts []string
-				for _, e := range entries {
-					if _, err := os.Stat(filepath.Join(closedDir, e.Name())); err == nil {
-						conflicts = append(conflicts, e.Name())
-					}
-				}
-				if len(conflicts) > 0 {
-					fmt.Fprintf(os.Stderr, "migrate: archive/→closed/ collision: %v — resolve manually\n", conflicts)
-					return 1
-				} else {
-					for _, e := range entries {
-						if err := os.Rename(filepath.Join(archiveDir, e.Name()), filepath.Join(closedDir, e.Name())); err != nil {
-							fmt.Fprintf(os.Stderr, "migrate: move %s: %v\n", e.Name(), err)
-						}
-					}
-					if err := os.Remove(archiveDir); err != nil {
-						fmt.Fprintf(os.Stderr, "migrate: remove archive/: %v\n", err)
-					} else {
-						fmt.Printf("migrate: merged %d files archive/ → closed/, removed archive/\n", len(entries))
-					}
-				}
-			}
-		}
-		ergBin := filepath.Join(dir, "erg")
-		_, statErr := os.Stat(ergBin)
-		if os.IsNotExist(statErr) {
-			exe, err := os.Executable()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "migrate: cannot locate self: %v\n", err)
-				return 1
-			}
-			data, err := os.ReadFile(exe)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "migrate: cannot read self: %v\n", err)
-				return 1
-			}
-			if err := os.WriteFile(ergBin, data, 0755); err != nil {
-				fmt.Fprintf(os.Stderr, "migrate: cannot write tickets/erg: %v\n", err)
-				return 1
-			}
-			if err := os.Chmod(ergBin, 0755); err != nil {
-				fmt.Fprintf(os.Stderr, "migrate: cannot chmod tickets/erg: %v\n", err)
-				return 1
-			}
-			fmt.Println("migrate: copied binary → tickets/erg")
-		}
-		if code := cmdInit([]string{root}); code != 0 {
-			fmt.Fprintln(os.Stderr, "migrate: init assets refresh failed")
+		if code := migrateLayout(dir); code != 0 {
+			return code
 		}
 	}
 
+	return 0
+}
+
+// migrateLayout performs a one-time project layout upgrade when the ticket
+// directory is the canonical "tickets/". It removes legacy artifacts
+// (tickets/tools/, tickets/FORMAT.md), renames archive/ to closed/ if
+// applicable, copies the erg binary into tickets/, and refreshes init
+// assets. Returns 0 on success or 1 on collision (archive/ vs closed/).
+func migrateLayout(dir string) int {
+	root := filepath.Dir(dir)
+	toolsDir := filepath.Join(dir, "tools")
+	formatMD := filepath.Join(dir, "FORMAT.md")
+	archiveDir := filepath.Join(root, "archive")
+	closedDir := filepath.Join(root, "closed")
+
+	if _, err := os.Stat(toolsDir); err == nil {
+		if err := os.RemoveAll(toolsDir); err != nil {
+			fmt.Fprintf(os.Stderr, "migrate: remove tools/: %v\n", err)
+		} else {
+			fmt.Println("migrate: removed tickets/tools/")
+		}
+	}
+	if _, err := os.Stat(formatMD); err == nil {
+		if err := os.Remove(formatMD); err != nil {
+			fmt.Fprintf(os.Stderr, "migrate: remove FORMAT.md: %v\n", err)
+		} else {
+			fmt.Println("migrate: removed tickets/FORMAT.md")
+		}
+	}
+	_, archiveErr := os.Stat(archiveDir)
+	_, closedErr := os.Stat(closedDir)
+	if archiveErr == nil && closedErr != nil {
+		if err := os.Rename(archiveDir, closedDir); err != nil {
+			fmt.Fprintf(os.Stderr, "migrate: rename archive/→closed/: %v\n", err)
+		} else {
+			fmt.Println("migrate: renamed archive/ → closed/")
+		}
+	} else if archiveErr == nil && closedErr == nil {
+		entries, err := os.ReadDir(archiveDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "migrate: read archive/: %v\n", err)
+		} else {
+			var conflicts []string
+			for _, e := range entries {
+				if _, err := os.Stat(filepath.Join(closedDir, e.Name())); err == nil {
+					conflicts = append(conflicts, e.Name())
+				}
+			}
+			if len(conflicts) > 0 {
+				fmt.Fprintf(os.Stderr, "migrate: archive/→closed/ collision: %v — resolve manually\n", conflicts)
+				return 1
+			}
+			for _, e := range entries {
+				if err := os.Rename(filepath.Join(archiveDir, e.Name()), filepath.Join(closedDir, e.Name())); err != nil {
+					fmt.Fprintf(os.Stderr, "migrate: move %s: %v\n", e.Name(), err)
+				}
+			}
+			if err := os.Remove(archiveDir); err != nil {
+				fmt.Fprintf(os.Stderr, "migrate: remove archive/: %v\n", err)
+			} else {
+				fmt.Printf("migrate: merged %d files archive/ → closed/, removed archive/\n", len(entries))
+			}
+		}
+	}
+	ergBin := filepath.Join(dir, "erg")
+	_, statErr := os.Stat(ergBin)
+	if os.IsNotExist(statErr) {
+		exe, err := os.Executable()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "migrate: cannot locate self: %v\n", err)
+			return 1
+		}
+		data, err := os.ReadFile(exe)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "migrate: cannot read self: %v\n", err)
+			return 1
+		}
+		if err := os.WriteFile(ergBin, data, 0755); err != nil {
+			fmt.Fprintf(os.Stderr, "migrate: cannot write tickets/erg: %v\n", err)
+			return 1
+		}
+		if err := os.Chmod(ergBin, 0755); err != nil {
+			fmt.Fprintf(os.Stderr, "migrate: cannot chmod tickets/erg: %v\n", err)
+			return 1
+		}
+		fmt.Println("migrate: copied binary → tickets/erg")
+	}
+	if code := cmdInit([]string{root}); code != 0 {
+		fmt.Fprintln(os.Stderr, "migrate: init assets refresh failed")
+	}
 	return 0
 }
 
@@ -286,11 +302,7 @@ func migrateFile(path string) (migrateResult, error) {
 // `Status:` header key (case-insensitive on the key itself, since some
 // tickets in the wild may carry quirky casing).
 func isStatusHeaderLine(line string) bool {
-	const key = "Status:"
-	if len(line) < len(key) {
-		return false
-	}
-	return strings.EqualFold(line[:len(key)], key)
+	return hasHeaderKey(line, "Status:", true)
 }
 
 // isTagsHeaderLine reports whether a line begins with the literal
@@ -298,11 +310,7 @@ func isStatusHeaderLine(line string) bool {
 // isStatusHeaderLine). Used to rewrite legacy `Tags:` preamble lines
 // to the singular `Tag:` form.
 func isTagsHeaderLine(line string) bool {
-	const key = "Tags:"
-	if len(line) < len(key) {
-		return false
-	}
-	return strings.EqualFold(line[:len(key)], key)
+	return hasHeaderKey(line, "Tags:", true)
 }
 
 // hasStatusHeader scans dir for any .erg file containing a `Status:` line

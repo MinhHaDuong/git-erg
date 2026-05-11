@@ -2,14 +2,14 @@ package main
 
 import "regexp"
 
-// MagicLine is the required first non-empty line of every %erg v1 ticket.
+// magicLine is the required first non-empty line of every %erg v1 ticket.
 //
 // ABNF production:
 //
 //	magic-line := "%erg v1"
-const MagicLine = "%erg v1"
+const magicLine = "%erg v1"
 
-// ValidTagValues is the closed value set for the Tag: header (%erg v1).
+// validTagValues is the closed value set for the Tag: header (%erg v1).
 // Allowed values: needs-human, deferred, post-talk, post-conference.
 // Any Tag: value suppresses the ticket from `erg ready` output (see
 // skipReadyTags in ready.go).
@@ -17,30 +17,30 @@ const MagicLine = "%erg v1"
 // ABNF production:
 //
 //	tag-value := "needs-human" / "deferred" / "post-talk" / "post-conference"
-var ValidTagValues = map[string]bool{
+var validTagValues = map[string]bool{
 	"needs-human":     true,
 	"deferred":        true,
 	"post-talk":       true,
 	"post-conference": true,
 }
 
-// IsoDateRE matches a valid Created: date value (YYYY-MM-DD, rule 7).
+// isoDateRE matches a valid Created: date value (YYYY-MM-DD, rule 7).
 //
 // ABNF production:
 //
 //	iso-date := 4DIGIT "-" 2DIGIT "-" 2DIGIT
-var IsoDateRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+var isoDateRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
-// FilenameRE matches a valid .erg filename: 4-digit ID, dash, lowercase
+// filenameRE matches a valid .erg filename: 4-digit ID, dash, lowercase
 // kebab slug (rule 8). Pattern: NNNN-word(-word)*.erg
 //
 // ABNF production:
 //
 //	filename := 4DIGIT "-" lc-word *("-" lc-word) ".erg"
 //	lc-word   := 1*(ALPHA / DIGIT)   ; lowercase ASCII alphanumeric
-var FilenameRE = regexp.MustCompile(`^\d{4}-[a-z0-9]+(?:-[a-z0-9]+)*\.erg$`)
+var filenameRE = regexp.MustCompile(`^\d{4}-[a-z0-9]+(?:-[a-z0-9]+)*\.erg$`)
 
-// LogLineRE matches a valid log section line: ISO timestamp, actor, verb,
+// logLineRE matches a valid log section line: ISO timestamp, actor, verb,
 // optional detail (rule 11).
 // Pattern: YYYY-MM-DDThh:mmZ ACTOR VERB [detail...]
 //
@@ -48,7 +48,7 @@ var FilenameRE = regexp.MustCompile(`^\d{4}-[a-z0-9]+(?:-[a-z0-9]+)*\.erg$`)
 //
 //	log-line := iso-datetime SP actor SP verb [SP detail]
 //	iso-datetime := 4DIGIT "-" 2DIGIT "-" 2DIGIT "T" 2DIGIT ":" 2DIGIT "Z"
-var LogLineRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z\s+\S+\s+\S+`)
+var logLineRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z\s+\S+\s+\S+`)
 
 // hostRE matches the host component of a forge ref.
 // Colons and underscores are excluded; must start and end with an

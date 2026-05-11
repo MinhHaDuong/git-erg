@@ -108,7 +108,8 @@ func printReadyJSON(entries []readyEntry) {
 	fmt.Println(string(data))
 }
 
-func printReadyText(totalCount, openCount int, openEntries, ready []readyEntry) {
+func printReadyText(totalCount int, openEntries, ready []readyEntry) {
+	openCount := len(openEntries)
 	if len(ready) == 0 {
 		if totalCount == 0 {
 			fmt.Println("No tickets found.")
@@ -146,6 +147,7 @@ func printReadyText(totalCount, openCount int, openEntries, ready []readyEntry) 
 	}
 }
 
+// summaryReady is the one-liner printed by printUsage via the commands registry.
 const summaryReady = "Show tickets ready for work"
 
 const helpReady = `## erg ready [DIR] [--json]
@@ -282,7 +284,7 @@ func cmdReady(args []string) int {
 	if useJSON {
 		printReadyJSON(openEntries)
 	} else {
-		printReadyText(len(tickets), openCount, openEntries, ready)
+		printReadyText(len(tickets), openEntries, ready)
 	}
 	return 0
 }
