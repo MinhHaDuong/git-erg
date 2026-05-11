@@ -8,6 +8,8 @@ Author: claude-sonnet-4-6
 
 2026-05-11T00:00Z MinhHaDuong note partially reverses 0010 (which added the strict separator-duplicate rule) — this ticket relaxes that to first-occurrence semantics
 
+2026-05-11T00:00Z claude-opus-4-7 note planning pass — added First test (rule 11 relaxation), Implementation order (5 commits, dual-write to keep tests green), corrected call-site count (18 sites across 5 files, not 21 across 6)
+
 --- body ---
 ## Context
 Ticket 0105 left the `Erg` struct storing header values in a
@@ -148,12 +150,21 @@ methods with real logic survive:
 | `t.BlockedByRefs()` | unchanged method, iterates `t.BlockedBys`      |
 
 ## Call-site impact
-21 accessor call sites across 6 files. After this refactor:
-- archive.go: `Closed()` → `IsClosed()`; `BlockedByRefs()` stays; `ClosedHeader()` → `t.Closed != ""`
-- check.go:   `ClosedHeader()` → `t.Closed != ""`; `Closed()` ×2 → `IsClosed()`; `BlockedByRefs()` stays
-- close.go:   `Closed()` ×2 → `IsClosed()`; `BlockedBy()` → `t.BlockedBys`
-- ready.go:   `Closed()` ×2 → `IsClosed()`; `Tag()` → `t.Tags`; `BlockedByRefs()` stays; `Title()` → `t.Title`
-- validate.go: `Created()` → `t.Created`; `BlockedByRefs()` ×2 stays; the 4 direct `t.headers[...]` accesses switch to typed fields on `Erg` and bools on `ParseDiagnostics`
+18 accessor call sites across 5 files (plus 1 internal call inside
+`BlockedByRefs` in erg.go:141). After this refactor:
+- archive.go (3): `Closed()` → `IsClosed()`; `BlockedByRefs()` stays;
+  `ClosedHeader()` → `t.Closed != ""`
+- check.go (4):   `ClosedHeader()` → `t.Closed != ""`; `Closed()` ×2 →
+  `IsClosed()`; `BlockedByRefs()` stays
+- close.go (3):   `Closed()` ×2 → `IsClosed()`; `BlockedBy()` →
+  `t.BlockedBys`
+- ready.go (5):   `Closed()` ×2 → `IsClosed()`; `Tag()` → `t.Tags`;
+  `BlockedByRefs()` stays; `Title()` → `t.Title`
+- validate.go (3): `Created()` → `t.Created`; `BlockedByRefs()` ×2
+  stays; the 4 direct `t.headers[...]` accesses (lines 23, 30, 52, 62)
+  switch to typed fields on `Erg` and bools on `ParseDiagnostics`
+- erg.go (1 internal): `BlockedByRefs` line 141 — `t.BlockedBy()` →
+  `t.BlockedBys` (direct field read)
 
 ## Dead code retirement
 After the refactor, these constants in `ergspecv1.go` (not validate.go —
@@ -178,6 +189,166 @@ the same PR:
   (a) validator accepts the file;
   (b) `erg.Body` preserves the literal lines verbatim (no silent loss);
   (c) `ParseDiagnostics.HasLogSep` and `.HasBodySep` are true.
+
+## First test
+Add to `src/go/validate_test.go` (or `erg_test.go` for the parse-side
+assertions). This test fails on `main` today because validator rule 11
+rejects a duplicate `--- log ---` literal in the body. After the refactor
+(rule 11 relaxed to first-occurrence), it passes.
+
+```go
+func TestSeparatorLiteralInBodyAccepted(t *testing.T) {
+    // A body that quotes the separator literals must validate AND
+    // round-trip through erg.Body byte-for-byte. Pins rule 11 relaxation
+    // plus the parser invariant that HasLogSep/HasBodySep are set on
+    // ANY sighting and that body lines are preserved verbatim.
+    body := "Example of the format:\n--- log ---\n--- body ---\nEnd.\n"
+    content := "%erg v1\n" +
+        "Title: Doc\n" +
+        "Created: 2024-01-01\n" +
+        "Author: test\n" +
+        "\n--- log ---\n--- body ---\n" + body
+    path := writeErg(t, t.TempDir(), "0001-doc.erg", content)
+
+    erg, diag := parseErg(path) // new two-return signature
+
+    // (a) validator accepts the file (rule 11 relaxed)
+    errs := validateErg(&erg, map[string]bool{"0001": true})
+    if len(errs) != 0 {
+        t.Fatalf("expected no validation errors, got: %v", errs)
+    }
+
+    // (b) erg.Body preserves the literal lines verbatim.
+    // Compare byte-exact, not "contains" — catches silent line loss
+    // or extra blank lines from a buggy section transition.
+    wantBody := strings.TrimRight(body, "\n")
+    if erg.Body != wantBody {
+        t.Errorf("erg.Body = %q, want %q", erg.Body, wantBody)
+    }
+
+    // (c) parser flags both separators as seen.
+    if !diag.HasLogSep {
+        t.Error("ParseDiagnostics.HasLogSep = false, want true")
+    }
+    if !diag.HasBodySep {
+        t.Error("ParseDiagnostics.HasBodySep = false, want true")
+    }
+}
+```
+
+**Why this test (not the alternatives):**
+- Candidate A (parser test constructs `Erg{Title: "..."}`) only proves
+  the struct has named fields — a regression guard, not a behavior pin.
+  Trivially satisfied by adding fields without wiring them.
+- Candidate B (`Closed: x\nClosed: ` triggers both errors) **already
+  passes on main today**: validate.go:45 fires the repeated-singleton
+  error (`SingletonHeaders` + `len(vals) > 1`), and validate.go:62-69
+  iterates `vals`, hits the empty second value, and appends the
+  empty-value error. Not a TDD anchor — it's a no-op assertion.
+- Candidate C (this one) **fails on main**: validate.go:118-119 rejects
+  `LogSepCount > 1`. It exercises the full pipeline (parse → validate
+  → field read) and the new two-return signature. Strongest behavior
+  pin per the refactor's identity.
+
+**Antipattern check:** the three assertions are independent and
+specific. `len(errs) != 0` (not `contains "separator"`) catches a buggy
+impl that produces a different bogus error. Byte-exact `erg.Body`
+comparison catches silent line loss. Both `HasLogSep` and `HasBodySep`
+must be true — catches a parser that bails after the second separator.
+
+**Note on the green-at-every-commit constraint:** this test is red on
+`main` and stays red until the commit that lands rule 11 relaxation.
+See `## Implementation order` for sequencing — the test ships in the
+same commit as the rule 11 relaxation, not commit 1.
+
+## Implementation order
+Five commits keep `make test` green at every commit. The advisor pass
+flagged a hazard in a naive order: if you delete the `headers` map
+before rewriting accessors, the build breaks between commits, because
+today's accessors (`Title()`, `Closed()`, …) read `t.headers[...]`.
+Solution: dual-write during the migration, then collapse.
+
+**Commit 1 — Add typed fields + ParseDiagnostics (dual-write parser).**
+- Declare `type Line = string` in erg.go (above `Erg`).
+- Add the new typed fields to `Erg`: `Title, Created, Author, Closed,
+  BlockedBys, Tags`. Keep `headers` map for now.
+- Add `ParseDiagnostics` struct with `Unknown`, `RepeatedSingletons`,
+  `ClosedEmpty`, `ClosedInLog`, `ClosedInBody`, `HasLogSep`,
+  `HasBodySep`.
+- Change `parseErg(path) Erg` → `parseErg(path) (Erg, ParseDiagnostics)`.
+- Parser **dual-writes**: populates both the legacy `headers` map and
+  the new typed fields, and both the legacy `LogSepCount`/`BodySepCount`
+  and the new `HasLogSep`/`HasBodySep`.
+- Update every call site of `parseErg` to use the new two-return form
+  (discard `_` for diagnostics where the validator isn't being run).
+- Tests pass — nothing observable changed yet.
+
+**Commit 2 — Rewrite surviving accessors to read typed fields.**
+- `Title()`, `Created()`, `Author()` → return the typed field directly.
+- `ClosedHeader()` → `return t.Closed != ""`.
+- `BlockedBy()` → `return t.BlockedBys`.
+- `Tag()` → `return t.Tags` (trim/skip-empty now happens in parser when
+  populating `Tags` — see invariants section).
+- `Closed()` → unchanged signature, but body reads `t.Closed` not
+  `t.headers["Closed"]`.
+- Tests still pass — accessors return the same values, just sourced
+  from the typed field.
+
+**Commit 3 — Switch validator to typed fields and ParseDiagnostics.**
+- validate.go: `t.headers[hdr]` (rule 2) → check typed required fields
+  for non-empty (rule 2 tightening lands here — see commit 5 note).
+- `t.headers` range loop (rule 3) → `diag.Unknown` /
+  `diag.RepeatedSingletons`.
+- `t.headers["Tag"]` (rule 3a) → `t.Tags`.
+- `t.headers["Closed"]` (rule 4) → `t.Closed` plus `diag.ClosedEmpty`.
+- `t.LogSepCount`/`t.BodySepCount` → `diag.HasLogSep`/`HasBodySep`
+  (rule 11 relaxation lands here — see commit 5 note).
+- `validateErg(t *Erg, …)` signature gains `diag ParseDiagnostics`.
+  Update every caller (cmdValidate, cmdCheck) to thread the diagnostics
+  through.
+- Tests: rule 2 tightening test (empty `Title:` value rejected) and the
+  `## First test` above (rule 11 relaxation) land **in this commit**
+  with their corresponding behavior changes — they go red→green in one
+  commit. Existing rule-2 fixtures that asserted `Title:` (key present,
+  value empty) was rejected with the *old* error message stay green if
+  they only assert "an error mentioning Title fires"; if they assert
+  the exact "missing required header" string, retarget to the new
+  "Title: header has empty value" string.
+
+**Commit 4 — Delete `headers` map and dead constants.**
+- Drop `headers map[string][]string` from `Erg`.
+- Drop `LogSepCount`, `BodySepCount`, `ClosedInLog`, `ClosedInBody`
+  from `Erg` (now on `ParseDiagnostics`).
+- Parser stops populating the legacy map.
+- Delete `RequiredHeaders` (ergspecv1.go:18), `SingletonHeaders`
+  (ergspecv1.go:26-28), `ValidHeaders` (ergspecv1.go:37-40). Keep
+  `ValidTagValues`.
+- Tests pass — nothing reads the map anymore after commit 3.
+
+**Commit 5 — Inline trivial accessors at call sites; rename
+`Closed()` → `IsClosed()`; spec updates.**
+- Inline `Title()` → `t.Title`, `Author()` → `t.Author`, `Created()` →
+  `t.Created`, `ClosedHeader()` → `t.Closed != ""`, `BlockedBy()` →
+  `t.BlockedBys`, `Tag()` → `t.Tags` at the 18 call sites listed in
+  `## Call-site impact`.
+- Delete the now-unused accessor method bodies on `Erg`.
+- Rename `Closed()` → `IsClosed()`; update the 8 call sites (archive×1,
+  check×2, close×2, ready×2, plus one in ready.go:203).
+- Update `tickets/spec-erg-v1.md` (§Headers prose + Type column, rule 2
+  non-empty requirement, §Structure first-occurrence wording).
+- Update `const helpValidate` (validate.go) rule 4 and rule 12 wording
+  to match.
+- Tests pass — the rename is mechanical and all paths go through the
+  same logic.
+
+**Per-commit green-test rationale:**
+- C1: parser is a superset (writes both old and new); no consumer
+  switched yet.
+- C2: accessors return the same values via a different read path.
+- C3: behavior change + matching test land together (red→green within
+  the commit).
+- C4: dead-code deletion of fields nothing reads.
+- C5: pure inlining + rename; no behavior change.
 
 ## Out of scope
 - Parser/validator merge into one pass — ticket 0117.
