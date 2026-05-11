@@ -1,0 +1,44 @@
+%erg v1
+Title: Add CLI integration tests via TestMain exec pattern
+Created: 2026-05-11
+Author: MinhHaDuong
+Blocked-by: 0130
+
+--- log ---
+2026-05-11T21:10Z claude open — follows 0130 dir/ID extraction; test the public CLI interface
+
+--- body ---
+## Problem
+
+Existing tests (erg_test.go, validate_test.go) exercise parser and
+validator internals. No tests call the compiled binary end-to-end, so
+dispatch errors, --help output, exit codes, and file-writing commands
+(close, log, archive) are untested at the integration level.
+
+## Plan
+
+1. Add cli_test.go with a TestMain that builds the binary once into
+   t.TempDir(). Use the standard Go pattern: exec.Command(binary, args)
+   and assert on stdout, stderr, and exit code.
+
+2. Add testdata fixture directories named after scenarios (check-pass,
+   check-dup-id, close-happy, close-already, log-append, etc.).
+
+3. Table-driven subtests covering at minimum:
+   - erg validate: pass, fail, directory rejection
+   - erg check: pass, duplicate ID, cycle
+   - erg close: happy path, already closed, missing ticket
+   - erg log: happy path, missing separator
+   - erg ready: with and without --json
+   - erg version: smoke (exit 0, prints path)
+   - erg --help: prints usage
+   - erg --help --all: prints all command help
+   - unknown command: exit 1
+
+4. No external dependencies. Use os/exec + testdata fixtures only.
+
+## Exit criteria
+
+- `go test ./...` passes with the new integration tests.
+- Each command has at least one happy-path and one error-path test.
+- Zero new dependencies in go.mod.

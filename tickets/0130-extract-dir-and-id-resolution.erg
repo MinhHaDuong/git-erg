@@ -1,0 +1,39 @@
+%erg v1
+Title: Extract dir-resolution and ID-to-file resolution helpers
+Created: 2026-05-11
+Author: MinhHaDuong
+
+--- log ---
+2026-05-11T21:00Z claude open — identified during explore-go-cli-design session
+
+--- body ---
+## Problem
+
+8 of 12 commands repeat a ~10-line dir-resolution dance (findTicketsDir,
+optional override from args, os.Stat, IsDir check, error print). Three
+commands (close, log, archive) also duplicate a ~10-line ID-to-file glob
+pattern. Error messages are inconsistent across copies.
+
+## Plan
+
+1. Add `resolveDir(explicit string) (string, error)` — calls findTicketsDir
+   when explicit is empty, validates the result is a directory, returns a
+   clean error. Replaces boilerplate in check, close, log, migrate, new,
+   nextid, ready, archive.
+
+2. Add `resolveTicketByID(dir, id string) (string, error)` — globs for
+   NNNN-*.erg, rejects zero or ambiguous matches with consistent messages.
+   Replaces boilerplate in close, log, archive.
+
+3. Update each command to call the helpers. No behavior change — identical
+   exit codes and error messages (or better: unified wording).
+
+4. Add unit tests for both helpers (missing dir, not-a-dir, ambiguous ID,
+   no match, happy path).
+
+## Exit criteria
+
+- `go test ./...` passes.
+- `erg check`, `erg validate` produce identical output on the existing
+  test corpus.
+- Net line count decreases by ≥ 60 lines (conservative; estimate is ~100).
