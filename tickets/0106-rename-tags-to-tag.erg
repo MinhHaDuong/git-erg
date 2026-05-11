@@ -12,6 +12,7 @@ Author: claude-sonnet-4-6
 
 2026-05-11T00:00Z claude-sonnet-4-6 note reimagined+planned — repeatable header uses singular name; add migrate support and a hint diagnostic so old `Tags:` files surface a clear migration path
 
+2026-05-11T08:38Z claude-sonnet-4-6 implemented — see PR
 --- body ---
 ## Context
 The spec marks `Tags` as repeatable — one `Tags:` line per value, like `Blocked-by:`.
