@@ -173,28 +173,6 @@ func TestParseErg(t *testing.T) {
 	})
 }
 
-func TestJsonEscape(t *testing.T) {
-	cases := []struct {
-		input string
-		want  string
-	}{
-		{"hello", "hello"},
-		{`back\slash`, `back\\slash`},
-		{`quote"here`, `quote\"here`},
-		{"tab\there", `tab\there`},
-		{"new\nline", `new\nline`},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.input, func(t *testing.T) {
-			got := jsonEscape(tc.input)
-			if got != tc.want {
-				t.Errorf("jsonEscape(%q) = %q, want %q", tc.input, got, tc.want)
-			}
-		})
-	}
-}
-
 // TestClosedWhitespaceDivergence pins the divergence between
 // parseHeaderLine and isClosedHeaderLine (item 7).
 // parseHeaderLine accepts `Closed : val` (space before colon) as a valid

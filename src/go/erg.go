@@ -389,16 +389,6 @@ func loadErgs(dir string) ([]Erg, []ParseDiagnostics) {
 	return tickets, diags
 }
 
-// jsonEscape escapes a string for inclusion in a double-quoted JSON value.
-func jsonEscape(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, `"`, `\"`)
-	s = strings.ReplaceAll(s, "\n", `\n`)
-	s = strings.ReplaceAll(s, "\r", `\r`)
-	s = strings.ReplaceAll(s, "\t", `\t`)
-	return s
-}
-
 func sortedKeys[V any](m map[string]V) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
