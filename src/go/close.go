@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const summaryClose = "Close a ticket atomically"
+
 const helpClose = `## erg close ID|FILE REASON [DIR]
 
 Atomically close a ticket.
@@ -76,7 +78,7 @@ func cmdClose(args []string) int {
 		return 1
 	}
 
-	ticket, _ := parseErg(ticketPath)
+	ticket, _ := parseErgBytes(data, ticketPath)
 
 	// Idempotent: already closed (Closed: header present or path test fires).
 	if ticket.IsClosed() {
@@ -102,8 +104,8 @@ func cmdClose(args []string) int {
 	}
 
 	// Step 3: remove Blocked-by: <id> lines from dependent open tickets.
-	t2, _ := parseErg(ticketPath)
-	closedID := t2.FilenameID()
+	// Reuse the already-parsed ticket — FilenameID only uses Path.
+	closedID := ticket.FilenameID()
 	if closedID != "" {
 		removeBlockedByRef(ticketDir, closedID, now, author)
 	}
@@ -125,7 +127,12 @@ func removeBlockedByRef(ticketDir, closedID, timestamp, author string) {
 			continue
 		}
 		path := filepath.Join(ticketDir, entry.Name())
-		t, _ := parseErg(path)
+		// Read once, parse from bytes — avoids a second ReadFile.
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		t, _ := parseErgBytes(data, path)
 		if t.IsClosed() {
 			continue
 		}
@@ -135,18 +142,13 @@ func removeBlockedByRef(ticketDir, closedID, timestamp, author string) {
 		}
 		found := false
 		for _, r := range refs {
-			// parseErg already trims Blocked-by values via parseHeaderLine.
+			// parseErgBytes already trims Blocked-by values via parseHeaderLine.
 			if r == closedID {
 				found = true
 				break
 			}
 		}
 		if !found {
-			continue
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "close: warning: cannot read %s: %v\n", path, err)
 			continue
 		}
 		updated := removeBlockedByLine(string(data), closedID)

@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const summaryLog = "Append a timestamped log entry to a ticket"
+
 const helpLog = `## erg log ID LINE [DIR]
 
 Append a timestamped entry to a ticket's log section.

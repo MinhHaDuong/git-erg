@@ -14,6 +14,8 @@ import (
 // location used by `erg update` when the environment variable is unset.
 const updateURL = "https://raw.githubusercontent.com/MinhHaDuong/git-erg/main/tickets/erg"
 
+const summaryUpdate = "Fetch and replace binary from origin"
+
 const helpUpdate = `## erg update
 
 Fetch the upstream binary and replace this executable atomically.

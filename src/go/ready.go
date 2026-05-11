@@ -146,6 +146,8 @@ func printReadyText(totalCount, openCount int, openEntries, ready []readyEntry) 
 	}
 }
 
+const summaryReady = "Show tickets ready for work"
+
 const helpReady = `## erg ready [DIR] [--json]
 
 List tickets ready for work.

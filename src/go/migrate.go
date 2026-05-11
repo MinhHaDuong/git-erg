@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+const summaryMigrate = "Convert legacy Status: headers to Closed: form"
+
 const helpMigrate = `## erg migrate [DIR]
 
 Convert legacy headers to %erg v1 format.

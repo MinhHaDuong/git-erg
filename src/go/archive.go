@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+const summaryArchive = "Move closed tickets to tickets/closed/"
+
 const helpArchive = `## erg archive [ID...] [DIR]
 
 Move closed tickets to DIR/closed/.
@@ -41,6 +43,9 @@ func cmdArchive(args []string) int {
 			ticketDir = a
 		}
 	}
+	// Clean ticketDir so filepath comparisons with loadErgs paths
+	// (which are always cleaned via filepath.Join) work reliably.
+	ticketDir = filepath.Clean(ticketDir)
 
 	info, err := os.Stat(ticketDir)
 	if err != nil {
@@ -74,11 +79,18 @@ func cmdArchive(args []string) int {
 		}
 	}
 
-	// Collect target tickets.
+	// Build path-keyed index from allTickets to avoid re-parsing.
+	ticketByPath := make(map[string]*Erg, len(allTickets))
+	for i := range allTickets {
+		ticketByPath[allTickets[i].Path] = &allTickets[i]
+	}
+
+	// Collect target tickets — reuse allTickets, no second parse.
 	var targets []Erg
 
 	if len(ids) > 0 {
 		// ID mode: resolve each ID to a file in the top-level ticketDir only.
+		// Glob finds the file; the already-loaded corpus provides the parsed Erg.
 		for _, id := range ids {
 			pattern := filepath.Join(ticketDir, fmt.Sprintf("%s-*.erg", id))
 			matches, err := filepath.Glob(pattern)
@@ -90,24 +102,17 @@ func cmdArchive(args []string) int {
 				fmt.Fprintf(os.Stderr, "archive: ambiguous ID %s — matches: %s\n", id, strings.Join(matches, ", "))
 				continue
 			}
-			t, _ := parseErg(matches[0])
-			targets = append(targets, t)
+			if t, ok := ticketByPath[matches[0]]; ok {
+				targets = append(targets, *t)
+			}
 		}
 	} else {
-		// Default mode: scan top-level ticketDir for tickets with a non-empty
-		// Closed: header that are NOT already in a closed/ directory.
-		entries, err := os.ReadDir(ticketDir)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "archive: cannot read %s: %v\n", ticketDir, err)
-			return 1
-		}
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".erg") {
-				continue
+		// Default mode: filter allTickets to top-level entries (not in
+		// subdirectories like closed/).
+		for i := range allTickets {
+			if filepath.Dir(allTickets[i].Path) == ticketDir {
+				targets = append(targets, allTickets[i])
 			}
-			path := filepath.Join(ticketDir, entry.Name())
-			t, _ := parseErg(path)
-			targets = append(targets, t)
 		}
 	}
 

@@ -46,6 +46,8 @@ func nextID(dir string) string {
 	return fmt.Sprintf("%04d", maxID+1)
 }
 
+const summaryNextID = "Print the next available ticket ID"
+
 const helpNextID = `## erg next-id [DIR]
 
 Print the next available ticket ID.
