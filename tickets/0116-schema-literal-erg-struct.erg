@@ -35,34 +35,43 @@ type Erg struct {
 
 ## Proposed shape
 ```go
+// Line is a single-line string: no embedded newlines.
+// Enforced by the parser invariant (header values read up to LF).
+type Line = string
+
 type Erg struct {
-    Path     string
+    Path     Line
     HasMagic bool
 
     // v1 headers — typed fields populated from first occurrence
-    Title      string   // required, non-empty (spec tightened — see below)
-    Created    string   // required, non-empty
-    Author     string   // required, non-empty
-    Closed     string   // optional; non-empty when present
-    BlockedBys []string // possibly empty; one entry per `Blocked-by:` line
-    Tags       []string // possibly empty; one entry per `Tag:` line (after 0106)
+    Title      Line   // required, non-empty (spec tightened — see below)
+    Created    Line   // required, non-empty
+    Author     Line   // required, non-empty
+    Closed     Line   // optional; non-empty when present
+    BlockedBys []Line // possibly empty; one entry per `Blocked-by:` line
+    Tags       []Line // possibly empty; one entry per `Tag:` line (after 0106)
 
-    LogLines   []string
-
-    Body       string
+    LogLines   []Line // structured event per line
+    Body       string // multiline
 
     // Diagnostic trace — TEMPORARY; collapses in the eventual parser/
     // validator merge (a follow-up refactor), at which point parser emits
     // errors directly and these fields disappear.
-    Unknown            []string  // unknown header keys seen
-    RepeatedSingletons []string  // singleton keys seen more than once
-    ClosedEmpty        bool      // `Closed:` line appeared with empty value
+    Unknown            []Line  // unknown header keys seen
+    RepeatedSingletons []Line  // singleton keys seen more than once
+    ClosedEmpty        bool    // `Closed:` line appeared with empty value
     ClosedInLog        bool
     ClosedInBody       bool
-    HasLogSep          bool      // first `--- log ---` was seen
-    HasBodySep         bool      // first `--- body ---` was seen
+    HasLogSep          bool    // first `--- log ---` was seen
+    HasBodySep         bool    // first `--- body ---` was seen
 }
 ```
+
+`Line` is a type alias (not a distinct type) — interchangeable with
+`string` at call sites, but it documents intent at every declaration
+and shows up in godoc/IDE hover. The parser already enforces the
+no-newline invariant by construction (line-based read loop); the alias
+is documentation, not enforcement.
 
 Note plural field names `BlockedBys` and `Tags`: the field is a list of
 lines (possibly empty). Header name in the file remains singular
@@ -77,6 +86,14 @@ Update `tickets/spec-erg-v1.md`: required headers (`Title`, `Created`,
 `Author`) must have a non-empty value. Today the validator passes
 `Title: ` (key present, value empty) because rule 2 only checks key
 presence. After this refactor, empty required headers fail validation.
+
+## Spec clarification (line-string cardinality)
+Update `tickets/spec-erg-v1.md` §Headers: state explicitly that **all
+header values are line-strings — single line, no embedded newlines**.
+Multiline content belongs in the body section. This is already a parser
+invariant (the read loop is line-based) but is not stated in the spec
+today; the "Type" column reads "string" without distinguishing line vs.
+freeform text. Body is multiline; log entries are one event per line.
 
 ## Spec relaxation (separator duplicates)
 Validator rule 12 today requires each separator (`--- log ---`,
@@ -148,19 +165,21 @@ behaviour, not map indirection):
 This ticket plus the two follow-ups land at:
 
 ```go
+type Line = string
+
 type Erg struct {
-    Path     string
+    Path     Line
     HasMagic bool
 
-    Title      string    // required, non-empty
-    Created    time.Time // required, parsed at parse time
-    Author     string    // required, non-empty
-    Closed     string    // optional; non-empty when present
-    BlockedBys []Ref     // possibly empty; each ref parsed at parse time
-    Tags       []string  // possibly empty
+    Title      Line       // required, non-empty
+    Created    time.Time  // required, parsed at parse time
+    Author     Line       // required, non-empty
+    Closed     Line       // optional; non-empty when present
+    BlockedBys []Ref      // possibly empty; each ref parsed at parse time
+    Tags       []Line     // possibly empty
 
-    LogLines []string
-    Body     string
+    LogLines []Line       // one structured event per entry
+    Body     string       // multiline
 }
 
 func parseErg(path string) (Erg, []ParseError)
@@ -179,6 +198,10 @@ struct is a literal projection of the spec.
 - `Erg` struct fields correspond 1-to-1 to the v1 header table.
 - All trivial accessor methods are removed; only `Closed()` and
   `BlockedByRefs()` remain.
+- `type Line = string` alias declared; line-string fields use `Line`,
+  multiline `Body` stays `string`.
+- Spec updated: header values are explicitly line-strings (single line,
+  no embedded newlines); body is multiline; log is one event per line.
 - Spec updated: required headers must be non-empty.
 - Spec updated: separator-duplicates rule relaxed to first-occurrence
   semantics; validator rule 12 trimmed accordingly.
