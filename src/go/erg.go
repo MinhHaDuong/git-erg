@@ -309,7 +309,12 @@ func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
 				case "Closed":
 					// parseHeaderLine already trims val; no re-trim needed.
 					if val == "" {
-						diag.ClosedEmpty = true
+						if !diag.ClosedEmpty {
+							diag.ClosedEmpty = true
+							diag.Errors = append(diag.Errors, fmt.Sprintf(
+								"%s: 'Closed:' header requires a non-empty value (closure reason)",
+								filepath.Base(path)))
+						}
 					} else if closed == "" {
 						closed = val
 					}
