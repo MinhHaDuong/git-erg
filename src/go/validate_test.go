@@ -17,6 +17,18 @@ func writeErg(t *testing.T, dir, name, content string) string {
 	return path
 }
 
+// errsContain reports whether any element of errs contains substr. Used
+// pervasively in parser/validator tests where assertions are on error
+// strings, not positional indices or trace booleans.
+func errsContain(errs []string, substr string) bool {
+	for _, e := range errs {
+		if strings.Contains(e, substr) {
+			return true
+		}
+	}
+	return false
+}
+
 // validErgContent returns a minimal valid .erg ticket body (all rules satisfied).
 func validErgContent() string {
 	return "%erg v1\nTitle: My Ticket\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
@@ -215,8 +227,14 @@ func TestValidateErg(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			path := writeErg(t, dir, tc.filename, tc.content)
-			erg, diag := parseErg(path)
-			errs := validateErg(&erg, diag, map[string]bool{})
+			erg, parseErrs := parseErg(path)
+			// Run the corpus-level rules (10, 13, duplicate IDs) over a
+			// single-ticket "corpus" so rule 10 (local-ref resolution)
+			// still fires when the test fixture asserts on it. Filename
+			// IDs are derived from the file basename; only "NNNN-…"
+			// fixtures will populate the local-id set, matching today's
+			// expectations.
+			errs := validateCorpus([]Erg{erg}, [][]string{parseErrs})
 			if tc.wantErrors && len(errs) == 0 {
 				t.Errorf("expected at least one validation error, got none")
 				return
@@ -225,17 +243,8 @@ func TestValidateErg(t *testing.T) {
 				t.Errorf("expected no validation errors, got: %v", errs)
 				return
 			}
-			if tc.wantSubstr != "" {
-				found := false
-				for _, e := range errs {
-					if strings.Contains(e, tc.wantSubstr) {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected an error containing %q, got: %v", tc.wantSubstr, errs)
-				}
+			if tc.wantSubstr != "" && !errsContain(errs, tc.wantSubstr) {
+				t.Errorf("expected an error containing %q, got: %v", tc.wantSubstr, errs)
 			}
 		})
 	}
@@ -351,8 +360,20 @@ func TestValidateErg_GoldenValid(t *testing.T) {
 	}
 	for _, path := range fixtures {
 		t.Run(filepath.Base(path), func(t *testing.T) {
-			erg, diag := parseErg(path)
-			errs := validateErg(&erg, diag, allIDs)
+			erg, errs := parseErg(path)
+			// Per-file errors must be empty. Rule 10 (local ref resolution)
+			// lives in validateCorpus, but valid fixtures should not have
+			// dangling local refs; re-check inline against the synthesized
+			// allIDs to match the prior validateErg(erg, diag, allIDs) call.
+			refs, refErrs := erg.BlockedByRefs()
+			for j, ref := range refs {
+				if refErrs[j] != nil {
+					continue
+				}
+				if ref.Kind == RefLocal && !allIDs[ref.ID] {
+					errs = append(errs, "unresolved local ref "+ref.ID)
+				}
+			}
 			if len(errs) != 0 {
 				t.Errorf("expected no errors, got: %v", errs)
 			}
@@ -384,8 +405,7 @@ func TestValidateErg_GoldenInvalid(t *testing.T) {
 	fixtures, _ := filepath.Glob("testdata/invalid/*.erg")
 	for _, path := range fixtures {
 		t.Run(filepath.Base(path), func(t *testing.T) {
-			erg, diag := parseErg(path)
-			errs := validateErg(&erg, diag, map[string]bool{})
+			_, errs := parseErg(path)
 			if len(errs) == 0 {
 				t.Fatalf("expected at least one error, got none")
 			}
@@ -393,31 +413,17 @@ func TestValidateErg_GoldenInvalid(t *testing.T) {
 			if !ok {
 				t.Fatalf("no wantSubstr entry for %q — add one to the map", filepath.Base(path))
 			}
-			found := false
-			for _, e := range errs {
-				if strings.Contains(e, want) {
-					found = true
-					break
-				}
-			}
-			if !found {
+			if !errsContain(errs, want) {
 				t.Errorf("expected an error containing %q, got: %v", want, errs)
 			}
 		})
 	}
 }
 
-func TestValidateAll_GoldenDuplicateIDs(t *testing.T) {
-	tickets, diags := loadErgs("testdata/invalid-duplicate")
-	errs := validateAll(tickets, diags)
-	found := false
-	for _, e := range errs {
-		if strings.Contains(e, "duplicate ID") {
-			found = true
-			break
-		}
-	}
-	if !found {
+func TestValidateCorpus_GoldenDuplicateIDs(t *testing.T) {
+	tickets, parseErrs := loadErgs("testdata/invalid-duplicate")
+	errs := validateCorpus(tickets, parseErrs)
+	if !errsContain(errs, "duplicate ID") {
 		t.Errorf("expected at least one 'duplicate ID' error, got: %v", errs)
 	}
 }
@@ -436,10 +442,9 @@ func TestSeparatorLiteralInBodyAccepted(t *testing.T) {
 		"\n--- log ---\n--- body ---\n" + body
 	path := writeErg(t, t.TempDir(), "0001-doc.erg", content)
 
-	erg, diag := parseErg(path)
+	erg, errs := parseErg(path)
 
-	// (a) validator accepts the file (rule 12 relaxed).
-	errs := validateErg(&erg, diag, map[string]bool{"0001": true})
+	// (a) parser accepts the file (rule 12 relaxed).
 	if len(errs) != 0 {
 		t.Fatalf("expected no validation errors, got: %v", errs)
 	}
@@ -453,12 +458,14 @@ func TestSeparatorLiteralInBodyAccepted(t *testing.T) {
 		t.Errorf("erg.Body = %q, want %q", erg.Body, body)
 	}
 
-	// (c) parser flags both separators as seen.
-	if !diag.HasLogSep {
-		t.Error("ParseDiagnostics.HasLogSep = false, want true")
+	// (c) parser counts both separators as seen — the absence of the
+	// missing-separator errors is the post-merge assertion (formerly
+	// diag.HasLogSep / diag.HasBodySep).
+	if errsContain(errs, "missing '--- log ---'") {
+		t.Errorf("expected no missing-log-separator error, got: %v", errs)
 	}
-	if !diag.HasBodySep {
-		t.Error("ParseDiagnostics.HasBodySep = false, want true")
+	if errsContain(errs, "missing '--- body ---'") {
+		t.Errorf("expected no missing-body-separator error, got: %v", errs)
 	}
 }
 
@@ -479,8 +486,7 @@ func TestRequiredHeaderEmptyValueRejected(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			path := writeErg(t, t.TempDir(), "0001-test.erg", tc.content)
-			erg, diag := parseErg(path)
-			errs := validateErg(&erg, diag, map[string]bool{})
+			_, errs := parseErg(path)
 			found := false
 			for _, e := range errs {
 				if strings.Contains(e, tc.want) && strings.Contains(e, "empty") {
@@ -502,8 +508,7 @@ func TestRequiredHeaderEmptyValueRejected(t *testing.T) {
 func TestClosedDuplicateWithEmpty(t *testing.T) {
 	content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nClosed: x\nClosed: \n\n--- log ---\n--- body ---\n"
 	path := writeErg(t, t.TempDir(), "0001-test.erg", content)
-	erg, diag := parseErg(path)
-	errs := validateErg(&erg, diag, map[string]bool{})
+	_, errs := parseErg(path)
 
 	var sawRepeated, sawEmpty bool
 	for _, e := range errs {

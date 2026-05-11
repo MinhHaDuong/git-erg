@@ -7,33 +7,6 @@ import (
 	"strings"
 )
 
-// validateErg returns rule violations for a single ticket. allIDs lists every
-// ticket ID known to the run for Blocked-by resolution. diag carries
-// parser observations (unknown/repeated headers, separator sightings,
-// misplaced `Closed:` lines, empty `Closed:` values).
-func validateErg(t *Erg, diag ParseDiagnostics, allIDs map[string]bool) []string {
-	// All per-file rules (1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12) emit at parse
-	// time (0117 steps 2-6b). Only rule 10 (local-ref resolution against
-	// corpus IDs) remains here — it needs the full corpus's allIDs. This
-	// function is deleted in step 7; rule 10 moves into validateCorpus.
-	errors := append([]string(nil), diag.Errors...)
-	name := t.Filename()
-
-	// Rule 10: local Blocked-by refs point to existing ticket IDs.
-	refs, refErrs := t.BlockedByRefs()
-	for i, ref := range refs {
-		if refErrs[i] != nil {
-			continue // rule 9 (malformed) already reported by parser
-		}
-		if ref.Kind == RefLocal && !allIDs[ref.ID] {
-			errors = append(errors, fmt.Sprintf(
-				"%s: Blocked-by '%s' references unknown ticket ID", name, ref.ID))
-		}
-	}
-
-	return errors
-}
-
 // detectCycles reports any dependency cycles among the tickets' Blocked-by
 // edges. Only RefLocal edges participate; forge refs are terminal from
 // this repo's view and cannot form local cycles.
@@ -50,7 +23,7 @@ func detectCycles(tickets []Erg) []string {
 		refs, errs := tickets[i].BlockedByRefs()
 		for j, ref := range refs {
 			if errs[j] != nil {
-				continue // malformed — already reported by validateErg
+				continue // malformed — already reported by parseErgBytes
 			}
 			if ref.Kind == RefLocal {
 				localRefs = append(localRefs, ref.ID)
@@ -109,12 +82,22 @@ func detectCycles(tickets []Erg) []string {
 	return errors
 }
 
-// validateAll runs every rule across the supplied tickets. diags must be
-// the parallel-by-index slice of ParseDiagnostics emitted by parseErg.
-func validateAll(tickets []Erg, diags []ParseDiagnostics) []string {
+// validateCorpus runs the corpus-level rules across all tickets and
+// folds in the per-file parse errors. parseErrs is the parallel-by-index
+// slice of parse errors emitted by parseErg / loadErgs (already covers
+// rules 1-9, 11, 12). validateCorpus adds:
+//   - duplicate ID detection (no rule number; corpus-level invariant)
+//   - rule 10: local Blocked-by refs resolve to existing ticket IDs
+//   - rule 13: no dependency cycles among local Blocked-by edges
+func validateCorpus(tickets []Erg, parseErrs [][]string) []string {
 	var errors []string
 
-	// Corpus check: no duplicate IDs (not a per-file rule)
+	// Fold in per-file parse errors first (rules 1-9, 11, 12).
+	for _, e := range parseErrs {
+		errors = append(errors, e...)
+	}
+
+	// Corpus check: no duplicate IDs (not a per-file rule).
 	idToFiles := make(map[string][]string)
 	for i := range tickets {
 		id := tickets[i].FilenameID()
@@ -132,22 +115,30 @@ func validateAll(tickets []Erg, diags []ParseDiagnostics) []string {
 		}
 	}
 
-	// Build allIDs for reference checking
+	// Build allIDs for reference checking.
 	allIDs := make(map[string]bool)
 	for id := range idToFiles {
 		allIDs[id] = true
 	}
 
-	// Per-ticket validation
+	// Rule 10: local Blocked-by refs point to existing ticket IDs in the
+	// corpus.
 	for i := range tickets {
-		var diag ParseDiagnostics
-		if i < len(diags) {
-			diag = diags[i]
+		t := &tickets[i]
+		name := t.Filename()
+		refs, refErrs := t.BlockedByRefs()
+		for j, ref := range refs {
+			if refErrs[j] != nil {
+				continue // rule 9 (malformed) already reported by parser
+			}
+			if ref.Kind == RefLocal && !allIDs[ref.ID] {
+				errors = append(errors, fmt.Sprintf(
+					"%s: Blocked-by '%s' references unknown ticket ID", name, ref.ID))
+			}
 		}
-		errors = append(errors, validateErg(&tickets[i], diag, allIDs)...)
 	}
 
-	// Rule 13: dependency cycles
+	// Rule 13: dependency cycles.
 	errors = append(errors, detectCycles(tickets)...)
 	return errors
 }
@@ -233,15 +224,28 @@ func cmdValidate(args []string) int {
 			fmt.Fprintf(os.Stderr, "WARNING: skipping %s (not a .erg file)\n", arg)
 			continue
 		}
-		t, diag := parseErg(arg)
+		t, parseErrs := parseErg(arg)
 		dir := filepath.Dir(arg)
 		localIDs, ok := idCache[dir]
 		if !ok {
 			localIDs = globLocalIDs(dir)
 			idCache[dir] = localIDs
 		}
-		errs := validateErg(&t, diag, localIDs)
-		allErrors = append(allErrors, errs...)
+		allErrors = append(allErrors, parseErrs...)
+		// Rule 10: local Blocked-by refs resolve to a known ticket ID. For
+		// `erg validate` this is the per-directory glob; for `erg check`
+		// (validateCorpus) it's the loaded corpus.
+		name := t.Filename()
+		refs, refErrs := t.BlockedByRefs()
+		for j, ref := range refs {
+			if refErrs[j] != nil {
+				continue // rule 9 already reported by parser
+			}
+			if ref.Kind == RefLocal && !localIDs[ref.ID] {
+				allErrors = append(allErrors, fmt.Sprintf(
+					"%s: Blocked-by '%s' references unknown ticket ID", name, ref.ID))
+			}
+		}
 		count++
 	}
 

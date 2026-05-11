@@ -95,7 +95,7 @@ under DIR recursively and verifies invariants that require a global view:
   - No duplicate ticket IDs across the corpus.
   - All Blocked-by local refs point to tickets that exist in the corpus.
   - No dependency cycles among Blocked-by edges.
-  - All per-ticket format rules (delegates to validateAll).
+  - All per-ticket format rules (delegates to validateCorpus, which folds in parser-emitted errors).
 
 Additionally emits warnings (non-fatal) for:
 
@@ -129,13 +129,13 @@ func cmdCheck(args []string) int {
 		return 1
 	}
 
-	tickets, diags := loadErgs(dir)
+	tickets, parseErrs := loadErgs(dir)
 	if len(tickets) == 0 {
 		fmt.Println("No .erg files found.")
 		return 0
 	}
 
-	errors := validateAll(tickets, diags)
+	errors := validateCorpus(tickets, parseErrs)
 	warnings := folderClosure(tickets)
 	warnings = append(warnings, staleBlockedBy(tickets)...)
 	warnings = append(warnings, strayGoSource(dir)...)

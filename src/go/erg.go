@@ -33,24 +33,6 @@ type Erg struct {
 	Body     string // multiline
 }
 
-// ParseDiagnostics carries parser observations the validator consumes.
-// In 0117 (parse+validate merge) this struct collapses to a plain
-// []string of error messages. Shape (c) transitional: Errors is
-// populated alongside the legacy trace fields, and each subsequent
-// commit migrates one rule from validateErg into parseErgBytes
-// (emitting into Errors and zeroing the corresponding trace field).
-// The struct is deleted once every per-file rule has migrated.
-type ParseDiagnostics struct {
-	Errors             []string // parse-time error messages (filename: msg)
-	Unknown            []Line   // unknown header keys seen
-	RepeatedSingletons []Line   // singleton keys seen more than once
-	ClosedEmpty        bool     // ANY `Closed:` line seen with empty value
-	ClosedInLog        bool
-	ClosedInBody       bool
-	HasLogSep          bool // `--- log ---` seen at least once
-	HasBodySep         bool // `--- body ---` seen at least once
-}
-
 // IsClosed reports whether the ticket is closed under the v1 criterion:
 // either a path component test fires, or a `Closed:` preamble header is
 // present with a non-empty value.
@@ -180,33 +162,37 @@ var v1HeaderKeys = map[string]bool{
 }
 
 // v1SingletonKeys is the subset of v1HeaderKeys that may appear at most
-// once in the preamble. Repeats are reported via ParseDiagnostics.
+// once in the preamble. Repeats are reported as parse errors.
 var v1SingletonKeys = map[string]bool{
 	"Title": true, "Created": true, "Author": true, "Closed": true,
 }
 
-// parseErg parses a single .erg file into an Erg plus parser observations
-// for the validator (ParseDiagnostics). On read error, returns an empty
-// Erg with only Path set so callers can still report a filename.
-func parseErg(path string) (Erg, ParseDiagnostics) {
+// parseErg parses a single .erg file into an Erg plus parse-time errors
+// (per-file rule violations: rules 1-9, 11, 12). On read error, returns
+// an empty Erg with only Path set so callers can still report a filename.
+// Corpus-level rules (rule 10 ref resolution, rule 13 cycles, duplicate
+// IDs) live in validateCorpus.
+func parseErg(path string) (Erg, []string) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return Erg{Path: path}, ParseDiagnostics{}
+		return Erg{Path: path}, nil
 	}
 	return parseErgBytes(data, path)
 }
 
-// parseErgBytes parses raw .erg file content into an Erg plus parser
-// observations. Callers that already hold the file bytes (e.g. after
+// parseErgBytes parses raw .erg file content into an Erg plus parse-time
+// errors. Callers that already hold the file bytes (e.g. after
 // os.ReadFile for rewriting) use this to avoid a second read.
 //
-// Edge case: diag.HasLogSep and diag.HasBodySep are set to true on ANY
-// sighting of the literal "--- log ---" or "--- body ---", including
-// occurrences inside the body section (which are body text, not actual
-// separators). The validator treats these flags as "at least one separator
-// present" and does not distinguish genuine separators from quoted literals.
-func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
-	var diag ParseDiagnostics
+// The parser is lenient: it never bails on a single error. It walks the
+// whole file, accumulates every error it can find, and returns the
+// best-effort Erg alongside the []string.
+//
+// Edge case: a literal "--- log ---" or "--- body ---" line is recognised
+// as a separator only on first sighting; later occurrences inside the
+// body are body text (rule 12 relaxation, ticket 0116).
+func parseErgBytes(data []byte, path string) (Erg, []string) {
+	var errs []string
 	lines := strings.Split(string(data), "\n")
 
 	var logLines, bodyLines []string
@@ -214,7 +200,12 @@ func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
 	var blockedBys, tags []Line
 	section := "magic" // magic | headers | gap | log | body
 	hasMagic := false
+	hasLogSep := false
+	hasBodySep := false
 	bodySepSeen := false
+	closedEmpty := false
+	closedInLog := false
+	closedInBody := false
 	unknownSeen := make(map[string]bool)
 	repeatedSeen := make(map[string]bool)
 	headerCounts := make(map[string]int)
@@ -238,14 +229,14 @@ func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
 		}
 
 		if trimmed == "--- log ---" {
-			diag.HasLogSep = true
+			hasLogSep = true
 			if !bodySepSeen {
 				section = "log"
 				continue
 			}
 		}
 		if trimmed == "--- body ---" {
-			diag.HasBodySep = true
+			hasBodySep = true
 			if !bodySepSeen {
 				bodySepSeen = true
 				section = "body"
@@ -261,32 +252,30 @@ func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
 			}
 			if key, val, ok := parseHeaderLine(line); ok {
 				headerCounts[key]++
-				// Classify header for diagnostics.
+				// Classify header.
 				if v1HeaderKeys[key] {
 					if v1SingletonKeys[key] && headerCounts[key] == 2 {
 						if !repeatedSeen[key] {
-							diag.RepeatedSingletons = append(diag.RepeatedSingletons, key)
 							repeatedSeen[key] = true
-							diag.Errors = append(diag.Errors, fmt.Sprintf(
+							errs = append(errs, fmt.Sprintf(
 								"%s: header '%s' is non-repeatable (appears more than once)",
 								filepath.Base(path), key))
 						}
 					}
 				} else {
 					if !unknownSeen[key] {
-						diag.Unknown = append(diag.Unknown, key)
 						unknownSeen[key] = true
 						switch key {
 						case "Status":
-							diag.Errors = append(diag.Errors, fmt.Sprintf(
+							errs = append(errs, fmt.Sprintf(
 								"%s: 'Status:' header is no longer part of %%erg v1 — run `erg migrate` to convert",
 								filepath.Base(path)))
 						case "Tags":
-							diag.Errors = append(diag.Errors, fmt.Sprintf(
+							errs = append(errs, fmt.Sprintf(
 								"%s: 'Tags:' has been renamed to 'Tag:' — run `erg migrate` to convert",
 								filepath.Base(path)))
 						default:
-							diag.Errors = append(diag.Errors, fmt.Sprintf(
+							errs = append(errs, fmt.Sprintf(
 								"%s: unknown header '%s' (not in v1 closed set) — remove it or run `erg migrate`",
 								filepath.Base(path), key))
 						}
@@ -309,9 +298,9 @@ func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
 				case "Closed":
 					// parseHeaderLine already trims val; no re-trim needed.
 					if val == "" {
-						if !diag.ClosedEmpty {
-							diag.ClosedEmpty = true
-							diag.Errors = append(diag.Errors, fmt.Sprintf(
+						if !closedEmpty {
+							closedEmpty = true
+							errs = append(errs, fmt.Sprintf(
 								"%s: 'Closed:' header requires a non-empty value (closure reason)",
 								filepath.Base(path)))
 						}
@@ -333,17 +322,17 @@ func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
 			if trimmed != "" {
 				logLines = append(logLines, line)
 			}
-			if isClosedHeaderLine(line) && !diag.ClosedInLog {
-				diag.ClosedInLog = true
-				diag.Errors = append(diag.Errors, fmt.Sprintf(
+			if isClosedHeaderLine(line) && !closedInLog {
+				closedInLog = true
+				errs = append(errs, fmt.Sprintf(
 					"%s: 'Closed:' header found in log section — only allowed in header section",
 					filepath.Base(path)))
 			}
 		case "body":
 			bodyLines = append(bodyLines, line)
-			if isClosedHeaderLine(line) && !diag.ClosedInBody {
-				diag.ClosedInBody = true
-				diag.Errors = append(diag.Errors, fmt.Sprintf(
+			if isClosedHeaderLine(line) && !closedInBody {
+				closedInBody = true
+				errs = append(errs, fmt.Sprintf(
 					"%s: 'Closed:' header found in body section — only allowed in header section",
 					filepath.Base(path)))
 			}
@@ -352,61 +341,65 @@ func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
 
 	name := filepath.Base(path)
 
-	// Rule 1: magic first line (migrated from validateErg in 0117 step 2).
+	// End-of-walk per-file rule emissions. Per-line emissions for rules
+	// 3, 4, 6 already fired above; the remaining rules need the finalised
+	// header values or end-of-walk knowledge.
+
+	// Rule 1: magic first line.
 	if !hasMagic {
-		diag.Errors = append(diag.Errors,
+		errs = append(errs,
 			fmt.Sprintf("%s: missing magic first line '%%erg v1'", name))
 	}
 
-	// Rule 2: required headers must be present AND non-empty (0117 step 6b).
+	// Rule 2: required headers must be present AND non-empty.
 	if strings.TrimSpace(title) == "" {
-		diag.Errors = append(diag.Errors, fmt.Sprintf(
+		errs = append(errs, fmt.Sprintf(
 			"%s: missing or empty required header 'Title' — add 'Title: <text>' to the preamble", name))
 	}
 	if strings.TrimSpace(created) == "" {
-		diag.Errors = append(diag.Errors, fmt.Sprintf(
+		errs = append(errs, fmt.Sprintf(
 			"%s: missing or empty required header 'Created' — add 'Created: YYYY-MM-DD' to the preamble", name))
 	}
 	if strings.TrimSpace(author) == "" {
-		diag.Errors = append(diag.Errors, fmt.Sprintf(
+		errs = append(errs, fmt.Sprintf(
 			"%s: missing or empty required header 'Author' — add 'Author: <name>' to the preamble", name))
 	}
 
-	// Rule 5: Tag: values must be from the closed value set (0117 step 6b).
+	// Rule 5: Tag: values must be from the closed value set.
 	for _, v := range tags {
 		if !validTagValues[v] {
-			diag.Errors = append(diag.Errors, fmt.Sprintf(
+			errs = append(errs, fmt.Sprintf(
 				"%s: unknown Tag value '%s' (not in v1 closed set: needs-human, deferred, post-talk, post-conference)",
 				name, v))
 		}
 	}
 
-	// Rule 7: Created is ISO date (0117 step 6b).
+	// Rule 7: Created is ISO date.
 	if created != "" && !isoDateRE.MatchString(created) {
-		diag.Errors = append(diag.Errors, fmt.Sprintf(
+		errs = append(errs, fmt.Sprintf(
 			"%s: Created '%s' is not a valid ISO date (YYYY-MM-DD)", name, created))
 	}
 
-	// Rule 8: filename matches NNNN-slug.erg (0117 step 6b).
+	// Rule 8: filename matches NNNN-slug.erg.
 	if !filenameRE.MatchString(name) {
-		diag.Errors = append(diag.Errors, fmt.Sprintf(
+		errs = append(errs, fmt.Sprintf(
 			"%s: filename does not match NNNN-slug.erg pattern", name))
 	}
 
-	// Rule 9: Blocked-by values parse to one of the two ref forms (0117
-	// step 6b). Rule 10 (local-ref resolution against corpus IDs) stays
-	// corpus-level and lives in validateCorpus.
+	// Rule 9: Blocked-by values parse to one of the two ref forms. Rule
+	// 10 (local-ref resolution against corpus IDs) is corpus-level and
+	// lives in validateCorpus.
 	for _, raw := range blockedBys {
 		if _, err := parseRef(raw); err != nil {
-			diag.Errors = append(diag.Errors, fmt.Sprintf("%s: %v", name, err))
+			errs = append(errs, fmt.Sprintf("%s: %v", name, err))
 		}
 	}
 
-	// Rule 11: log lines match format (0117 step 6b).
+	// Rule 11: log lines match format.
 	for _, line := range logLines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed != "" && !logLineRE.MatchString(trimmed) {
-			diag.Errors = append(diag.Errors, fmt.Sprintf(
+			errs = append(errs, fmt.Sprintf(
 				"%s: malformed log line: %s", name, trimmed))
 		}
 	}
@@ -415,15 +408,15 @@ func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
 	// 12 relaxation from ticket 0116 — quoted "--- log ---" / "--- body ---"
 	// literals inside the body are legitimate body text — lives in the
 	// per-line walk above (the second occurrence of either literal does not
-	// re-transition section because `section != "log"`/`bodySepSeen` is
-	// already true). diag.HasLogSep / diag.HasBodySep stay true on ANY
-	// sighting, mirroring today's parser invariant.
-	if !diag.HasLogSep {
-		diag.Errors = append(diag.Errors,
+	// re-transition section because bodySepSeen is already true). hasLogSep
+	// / hasBodySep go true on ANY sighting; emission fires only when
+	// neither was ever seen.
+	if !hasLogSep {
+		errs = append(errs,
 			fmt.Sprintf("%s: missing '--- log ---' separator", name))
 	}
-	if !diag.HasBodySep {
-		diag.Errors = append(diag.Errors,
+	if !hasBodySep {
+		errs = append(errs,
 			fmt.Sprintf("%s: missing '--- body ---' separator", name))
 	}
 
@@ -438,7 +431,7 @@ func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
 		Tags:       tags,
 		LogLines:   logLines,
 		Body:       strings.Join(bodyLines, "\n"),
-	}, diag
+	}, errs
 }
 
 // hasHeaderKey reports whether line begins with the literal header key
@@ -466,12 +459,12 @@ func isClosedHeaderLine(line string) bool {
 }
 
 // loadErgs parses every .erg file under dir recursively. Returns parallel
-// slices: tickets[i] and diags[i] describe the same file. The pair is
+// slices: tickets[i] and parseErrs[i] describe the same file. The pair is
 // sorted by ticket path. On walk failure, returns (nil, nil).
-func loadErgs(dir string) ([]Erg, []ParseDiagnostics) {
+func loadErgs(dir string) ([]Erg, [][]string) {
 	type pair struct {
 		t Erg
-		d ParseDiagnostics
+		e []string
 	}
 	var pairs []pair
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -481,8 +474,8 @@ func loadErgs(dir string) ([]Erg, []ParseDiagnostics) {
 		if info.IsDir() || !strings.HasSuffix(path, ".erg") {
 			return nil
 		}
-		t, d := parseErg(path)
-		pairs = append(pairs, pair{t, d})
+		t, e := parseErg(path)
+		pairs = append(pairs, pair{t, e})
 		return nil
 	})
 	if err != nil {
@@ -492,12 +485,12 @@ func loadErgs(dir string) ([]Erg, []ParseDiagnostics) {
 		return pairs[i].t.Path < pairs[j].t.Path
 	})
 	tickets := make([]Erg, len(pairs))
-	diags := make([]ParseDiagnostics, len(pairs))
+	parseErrs := make([][]string, len(pairs))
 	for i, p := range pairs {
 		tickets[i] = p.t
-		diags[i] = p.d
+		parseErrs[i] = p.e
 	}
-	return tickets, diags
+	return tickets, parseErrs
 }
 
 func sortedKeys[V any](m map[string]V) []string {
