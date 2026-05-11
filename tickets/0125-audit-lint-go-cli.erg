@@ -164,28 +164,47 @@ Verified: erg.go currently holds declarations that belong with the spec:
 - `Erg` struct definition (lines 15-35)
 - `v1HeaderKeys` map (lines 141-144)
 - `v1SingletonKeys` map (lines 148-150)
+- Separator literals `"--- log ---"` and `"--- body ---"` are inlined
+  at 9 code sites across 4 files (erg.go, migrate.go, close.go, new.go)
 
 ergspecv1.go already holds: magicLine, validTagValues, isoDateRE,
 filenameRE, logLineRE, hostRE, ownerRE/repoRE.
 
-Scope decision: Ref and RefKind already live in ref.go with their
-parser (parseRef). Moving them to ergspecv1.go would gut ref.go. The
-narrower reading is better — move only the declarations from erg.go
-that are spec constants, not types with methods.
+Actions (three sub-steps):
 
-Actions:
-- Move `v1HeaderKeys` and `v1SingletonKeys` from erg.go to ergspecv1.go.
-  (The Erg struct stays in erg.go — it has methods IsClosed,
-  Filename, FilenameID defined there and is a "projection," not a spec
-  production.)
-- No behavior change, no new tests needed.
+A7a. Move `Erg` struct definition from erg.go to ergspecv1.go.
+  Methods (IsClosed, Filename, FilenameID) stay in erg.go — Go allows
+  methods in any file of the same package.
+
+A7b. Move `v1HeaderKeys` and `v1SingletonKeys` from erg.go to
+  ergspecv1.go.
+
+A7c. Define `logSeparator` and `bodySeparator` constants in
+  ergspecv1.go and replace all inline literals. Code sites to update:
+  - erg.go:219   `trimmed == "--- log ---"`
+  - erg.go:226   `trimmed == "--- body ---"`
+  - migrate.go:234  `strings.TrimSpace(line) == "--- log ---"`
+  - migrate.go:271  `strings.TrimSpace(line) == "--- log ---"`
+  - migrate.go:333  `strings.TrimSpace(line) == "--- log ---"`
+  - close.go:176  `strings.TrimSpace(line) == "--- log ---"`
+  - close.go:204  `strings.Index(content, "\n--- body ---")`
+  - log.go:77     `strings.Contains(string(data), "\n--- body ---")`
+  - new.go:88     inline in template string (use constant concat)
+  Test assertions and doc comments that mention the literals stay as-is.
+
+Scope deferral: Ref and RefKind already live in ref.go alongside their
+parser (parseRef). Moving them to ergspecv1.go would gut ref.go into a
+parser-only file with no type context. Deferred — ref.go is already a
+coherent unit.
 
 ### Commit order
 
 1. A2 (remove Line alias) — no dependencies, simplest change.
 2. A1 (remove HasMagic) — includes test rewrites.
 3. A3 (merge ownerRE/repoRE) — standalone.
-4. A7 (move v1HeaderKeys, v1SingletonKeys to ergspecv1.go).
+4. A7 (move Erg struct, v1HeaderKeys, v1SingletonKeys, separator
+   constants to ergspecv1.go) — may split into sub-commits if diff
+   is large.
 5. A4 (filepath.Walk→WalkDir) — standalone.
 6. A5 (named struct fields) — standalone.
 7. A6 (embed) — last because it creates new files and touches init.go.
@@ -216,6 +235,8 @@ Antipattern check — tests to avoid:
 - #9 (migrate.go tests): large scope, separate ticket.
 - #10 (command tests): large scope, separate ticket.
 - #11 (globLocalIDs test): low priority.
+- #14 partial (Ref/RefKind move): ref.go is a coherent unit — type and
+  parser together. Moving Ref/RefKind to ergspecv1.go would gut it.
 
 ## Exit criteria
 
@@ -229,3 +250,5 @@ Antipattern check — tests to avoid:
 - [ ] readyEntry literal uses named fields
 - [ ] bootstrap_assets.go uses //go:embed, no base64 encoding
 - [ ] v1HeaderKeys, v1SingletonKeys live in ergspecv1.go
+- [ ] Erg struct definition lives in ergspecv1.go
+- [ ] logSeparator, bodySeparator constants in ergspecv1.go; no inline literals
