@@ -1,0 +1,135 @@
+%erg v1
+Title: Erg struct: schema-literal fields, drop the headers map bag
+Created: 2026-05-11
+Author: claude-sonnet-4-6
+
+--- log ---
+2026-05-11T00:00Z claude-sonnet-4-6 created
+
+--- body ---
+## Context
+This is the unfinished half of ticket 0105. PR #115 added accessor methods
+and unexported the headers field, but the struct itself still stores values
+in a `map[string][]string` bag and the accessors do runtime string-keyed
+lookups. The struct does not mirror the spec's header table; rule checks
+on a typo like `"Blocked-By"` (capital B) would silently miss values.
+
+The spec defines a closed set of 6 headers (spec-erg-v1.md §Headers):
+Title, Created, Author, Closed, Blocked-by, Tags. Each is fully specified
+(required, repeatable, type). The struct should reflect this directly.
+
+## Current shape (verbatim, erg.go:121-135)
+```go
+type Erg struct {
+    Path     string
+    headers  map[string][]string
+    LogLines []string
+    Body     string
+    HasMagic bool
+    LogSepCount  int
+    BodySepCount int
+    ClosedInLog  bool
+    ClosedInBody bool
+}
+```
+
+The `headers` map does two jobs in tension:
+1. Storing values for the 6 known headers (called by accessors)
+2. Recording trace of all keys seen, for validator rules 2-3 (required,
+   unknown, repeated-singleton)
+
+## Proposed shape
+```go
+type Erg struct {
+    Path     string
+    HasMagic bool
+
+    // v1 headers — typed fields populated from first occurrence
+    Title     string
+    Created   string
+    Author    string
+    Closed    string    // value, may be empty
+    ClosedSet bool      // true if `Closed:` line appeared at all
+    BlockedBy []string  // repeatable
+    Tags      []string  // repeatable
+
+    LogLines []string
+    Body     string
+    LogSepCount  int
+    BodySepCount int
+
+    // Diagnostic trace (validator-only; never read by accessors)
+    Unknown            []string  // unknown header keys seen (e.g. "Status")
+    RepeatedSingletons []string  // singleton keys seen more than once
+    ClosedInLog        bool
+    ClosedInBody       bool
+}
+```
+
+`ClosedSet` is needed because validator rule 4 distinguishes "header
+absent" from "header present with empty value". A `*string` would work
+too but is awkward at call sites.
+
+## Behaviour preservation
+| Today                                          | After                                                  |
+|------------------------------------------------|--------------------------------------------------------|
+| `t.Title()` reads `headers["Title"][0]`        | `t.Title` direct field                                 |
+| `t.BlockedBy()` reads `headers["Blocked-by"]`  | `t.BlockedBy` direct field                             |
+| `t.Tags()` trims and filters                   | parser stores already-trimmed non-empty values         |
+| `t.Closed()` checks path OR header non-empty   | unchanged method body, reads `t.Closed`                |
+| `t.ClosedHeader()` returns `Closed != ""`      | returns `t.ClosedSet && strings.TrimSpace(Closed)!=""` |
+| validate rule 2: `_, ok := headers[hdr]`       | `if t.Title == "" || t.Created == "" || t.Author == ""` (tightens: empty value now also fails — spec implies non-empty) |
+| validate rule 3 unknown: walk map keys         | walk `t.Unknown`                                       |
+| validate rule 3 singleton: `len(vals) > 1`     | walk `t.RepeatedSingletons`                            |
+| validate rule 3a Tags values: walk `headers["Tags"]` | walk `t.Tags`                                    |
+| validate rule 4 Closed empty: walk `headers["Closed"]` | `if t.ClosedSet && strings.TrimSpace(t.Closed) == ""` |
+
+The required-header check changes semantics slightly: currently a
+`Title:` line with empty value passes rule 2 (key present). After
+refactor, empty value also fails. The spec implies non-empty values for
+required headers; tightening is correct. Document in PR body and add a
+test.
+
+## Call sites
+Accessors (Title, Closed, BlockedBy, Tags, ClosedHeader, Created, Author,
+BlockedByRefs) are called from 6 files. Strategy:
+- Keep the accessor methods as-is (one-line readers of typed fields) so
+  call sites do not change. The method shape becomes trivial; we could
+  inline later but doing so expands the diff.
+- The 4 direct `t.headers[...]` accesses in validate.go switch to the
+  new fields.
+
+Accessor call sites (no change to call code):
+- archive.go: Closed, BlockedByRefs, ClosedHeader
+- check.go:   ClosedHeader, Closed (×2), BlockedByRefs
+- close.go:   Closed (×2), BlockedBy
+- ready.go:   Closed (×2), Tags, BlockedByRefs, Title
+- validate.go: Created, BlockedByRefs (×2) — plus 4 direct map accesses to rewrite
+
+## Test impact
+- erg_test.go: parser tests construct Erg literals; update to new shape.
+- validate_test.go: rule 2/3/4 fixtures may need adjustment if they
+  exercise the "present but empty" required-header edge case.
+- Add a test asserting compile-time type safety: a misspelled-key access
+  must be impossible (the file simply does not compile).
+
+## Out of scope
+- Parser/validator merge into a single pass (the secondary 0105 ask).
+  Split into a follow-up ticket if desired — different risk surface.
+- Renaming `Erg.Tags()` → `Erg.Tag()`. That is ticket 0106's territory.
+  If 0106 has landed by the time this is implemented, propagate; otherwise
+  keep `Tags`.
+- Splitting `parseErg` into smaller functions; only struct shape changes.
+
+## Dependencies
+- Soft dep: ticket 0115 (split Ref into ref.go). If 0115 lands first,
+  this ticket touches only the Erg-related portion of erg.go. If this
+  lands first, 0115 needs a trivial rebase.
+- If 0106 has landed: rename Tags field → Tag here too.
+
+## Exit criteria
+- `Erg` struct fields correspond 1-to-1 to the v1 header table.
+- No runtime string-keyed map access in accessors or validator for known
+  headers; only the `Unknown` slice carries unknown-key data.
+- `make test` passes.
+- PR body documents the rule-2 tightening (empty required header rejected).
