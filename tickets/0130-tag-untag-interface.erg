@@ -1,0 +1,50 @@
+%erg v1
+Title: Add erg tag/untag CLI commands for mutable tag management
+Created: 2026-05-11
+Author: MinhHaDuong
+
+--- log ---
+2026-05-11T21:00Z MinhHaDuong created
+
+--- body ---
+## Context
+
+Tags are currently write-once: set when a ticket is created, never changed
+by the binary. There is no CLI to add or remove a tag after creation.
+Downstream consumers (IDH pick-ticket, erg ready) need a way to mark
+tickets with state tags like `claimed` that must be set and cleared during
+a ticket's lifecycle.
+
+The motivating use case is replacing branch-as-claim heuristics with an
+explicit `Tag: claimed` header, but the interface is general-purpose —
+any valid tag can be added or removed.
+
+## Design
+
+Two new subcommands:
+
+```
+erg tag   <id> <tagname>    # add Tag: <tagname> to headers, log the action
+erg untag <id> <tagname>    # remove Tag: <tagname> from headers, log the action
+```
+
+Behavior:
+- `erg tag` inserts a `Tag: <tagname>` header line (after the last existing
+  header, before the blank line). Appends log: `{ts} {actor} tag {tagname}`.
+  Idempotent: if the tag already exists, log "already tagged" and exit 0.
+- `erg untag` removes the matching `Tag: <tagname>` header line.
+  Appends log: `{ts} {actor} untag {tagname}`. Idempotent: if absent,
+  log "not tagged" and exit 0.
+- Tag values are validated against the closed set (spec rule 5).
+  The closed set is extended with `claimed` as part of this ticket.
+- `erg close` should auto-untag `claimed` (a closed+claimed ticket is
+  nonsensical).
+
+## Exit criteria
+
+1. `erg tag 0001 needs-human` adds a `Tag: needs-human` header and a log line.
+2. `erg untag 0001 needs-human` removes that header and appends a log line.
+3. Both commands reject values outside the closed tag set.
+4. Both commands are idempotent (exit 0 on no-op).
+5. `erg close` removes any `Tag: claimed` header.
+6. `claimed` is a valid tag value (added to the closed set).
