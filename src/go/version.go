@@ -54,23 +54,28 @@ func selfHash(path string) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-// cmdVersion implements `erg version` — print self-diagnostic info and discover other erg binaries.
-//
-// Prints the following fields for the running binary:
-//
-//   - path: resolved absolute path (symlinks followed).
-//   - hash: first 12 hex characters of the SHA-256 of the binary file.
-//   - built: build date injected at compile time via -ldflags (or "[unknown]").
-//   - revision: VCS commit hash injected at compile time via -ldflags (if present).
-//   - arch: GOOS/GOARCH of the running binary.
-//
-// After printing the running binary info, the command discovers other erg binaries
-// in well-known locations (./build/erg, ./tickets/erg, ~/.local/bin/erg, and PATH
-// entries). For each discovered binary it compares VCS revisions and build dates
-// to identify outdated copies, printing the update command needed.
-//
-// Set ERG_VERSION_NO_DISCOVER=1 to suppress discovery (used internally by version
-// comparison to avoid recursion).
+const helpVersion = `## erg version
+
+Print self-diagnostic info and discover other erg binaries.
+
+Prints the following fields for the running binary:
+
+  - path:     resolved absolute path (symlinks followed).
+  - hash:     first 12 hex characters of the SHA-256 of the binary file.
+  - built:    build date injected at compile time via -ldflags (or "[unknown]").
+  - revision: VCS commit hash injected at compile time via -ldflags (if present).
+  - arch:     GOOS/GOARCH of the running binary.
+
+After printing the running binary info, ` + "`erg version`" + ` discovers other erg binaries
+in well-known locations (./build/erg, ./tickets/erg, ~/.local/bin/erg, and PATH
+entries), compares VCS revisions and build dates against each discovered copy, and
+prints the update command for any outdated copy it finds.
+
+Set ERG_VERSION_NO_DISCOVER=1 to suppress discovery (used internally by version
+comparison to avoid recursion).
+`
+
+// cmdVersion implements `erg version`. See helpVersion for the user-facing summary.
 func cmdVersion(_ []string) int {
 	self, err := os.Executable()
 	if err != nil {

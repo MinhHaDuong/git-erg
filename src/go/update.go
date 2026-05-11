@@ -12,20 +12,25 @@ import (
 
 const updateURL = "https://raw.githubusercontent.com/MinhHaDuong/git-erg/main/tickets/erg"
 
-// cmdUpdate implements `erg update` — fetch the upstream binary and replace this executable atomically.
-//
-// Downloads the binary from ERG_UPDATE_URL (default: the main branch of the
-// upstream GitHub repo). If the downloaded hash matches the running binary,
-// prints "already up to date" and exits 0. Otherwise replaces the binary via
-// an atomic rename (write to .tmp, then rename over self).
-//
-// Network and HTTP errors exit 0 so that `erg update && erg validate` chains
-// do not fail in offline or isolated environments.
-//
-// After a successful update, checks whether any .erg files in the ticket store
-// still carry legacy Status: headers. If found, prints explicit migration
-// guidance: `erg migrate DIR`, `git diff tickets/`, `git commit`. The update
-// command never mutates ticket files itself — migration is a separate, reviewable step.
+const helpUpdate = `## erg update
+
+Fetch the upstream binary and replace this executable atomically.
+
+Downloads the binary from ERG_UPDATE_URL (default: the main branch of the
+upstream GitHub repo). If the downloaded hash matches the running binary,
+prints "already up to date" and exits 0. Otherwise replaces the binary via
+an atomic rename (write to .tmp, then rename over self).
+
+Network and HTTP errors exit 0 so that 'erg update && erg validate' chains
+do not fail in offline or isolated environments.
+
+After a successful update, checks whether any .erg files in the ticket store
+still carry legacy Status: headers. If found, prints explicit migration
+guidance: 'erg migrate DIR', 'git diff tickets/', 'git commit'. The update
+command never mutates ticket files itself — migration is a separate, reviewable step.
+`
+
+// cmdUpdate implements `erg update`. See helpUpdate for the user-facing summary.
 func cmdUpdate(_ []string) int {
 	self, err := os.Executable()
 	if err != nil {

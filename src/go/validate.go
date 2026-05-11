@@ -257,25 +257,33 @@ func globLocalIDs(dir string) map[string]bool {
 	return ids
 }
 
-// cmdValidate implements `erg validate FILE...` — per-file format and reference checks.
-//
-// Each FILE must be a .erg ticket. For every file the validator enforces:
-//
-//  1. Magic first line is `%erg v1` (rejects unknown versions).
-//  2. All required headers present: Title, Created, Author.
-//  3. No unknown headers (Status: is unknown; run `erg migrate` to convert it).
-//  4. Non-repeatable headers (Title, Created, Author, Closed) appear at most once.
-//  5. Tags: values are from the closed set (needs-human, deferred, post-talk, post-conference).
-//  6. Closed: header has a non-empty value and does not appear in the log or body sections.
-//  7. Created is a valid ISO date (YYYY-MM-DD).
-//  8. Filename matches NNNN-slug.erg (4-digit ID, lowercase ASCII kebab slug).
-//  9. Blocked-by values parse as local-ref (NNNN) or forge-ref (host/owner/repo#N).
-//  10. Local Blocked-by refs point to existing ticket IDs in the same directory.
-//  11. Log lines match `YYYY-MM-DDThh:mmZ actor verb [detail]` format.
-//  12. Each separator (--- log ---, --- body ---) appears exactly once.
-//  13. No dependency cycles among local Blocked-by refs.
-//
-// Exit codes: 0 on pass, 1 on any violation. Directories are rejected — use erg check.
+const helpValidate = `## erg validate FILE...
+
+Validate individual .erg ticket files (format, headers, refs).
+
+Each FILE must be a .erg ticket. For every file the validator enforces:
+
+  1. Magic first line is '%erg v1' (rejects unknown versions).
+  2. All required headers present: Title, Created, Author.
+  3. No unknown headers (Status: is unknown; run 'erg migrate' to convert it).
+  4. Non-repeatable headers (Title, Created, Author, Closed) appear at most once.
+  5. Tags: values are from the closed set (needs-human, deferred, post-talk, post-conference).
+  6. Closed: header has a non-empty value and does not appear in the log or body sections.
+  7. Created is a valid ISO date (YYYY-MM-DD).
+  8. Filename matches NNNN-slug.erg (4-digit ID, lowercase ASCII kebab slug).
+  9. Blocked-by values parse as local-ref (NNNN, exactly 4 digits) or
+     forge-ref (host/owner/repo#N, e.g. github.com/acme/myrepo#42).
+  10. Local Blocked-by refs point to existing ticket IDs in the same directory.
+  11. Log lines match 'YYYY-MM-DDThh:mmZ actor verb [detail]' format.
+  12. Each separator (` + "`--- log ---`" + `, ` + "`--- body ---`" + `) appears exactly once.
+  13. No dependency cycles among local Blocked-by refs.
+
+For corpus-level checks (duplicate IDs, cycles), use: erg check [dir]
+
+Exit codes: 0 on pass, 1 on any violation. Directories are rejected — use erg check.
+`
+
+// cmdValidate implements `erg validate FILE...`. See helpValidate for the user-facing summary.
 func cmdValidate(args []string) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "Usage: erg validate FILE...")

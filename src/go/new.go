@@ -29,19 +29,24 @@ func slugify(title string) string {
 	return s
 }
 
-// cmdNew implements `erg new TITLE [DIR]` — create a new %erg v1 ticket file atomically.
-//
-// Allocates the next available ID by scanning DIR (default: auto-discovered tickets/)
-// for the highest numeric .erg filename prefix, then creates a file named
-// NNNN-{slug}.erg where the slug is the title lowercased and kebab-cased (truncated
-// to 40 characters). Uses O_EXCL to prevent races with concurrent invocations.
-//
-// The new file contains the required preamble headers (Title, Created, Author),
-// an empty log section with a "created" entry, and an empty body section.
-// Author is resolved from the ERG_AUTHOR environment variable, or the git user.name,
-// or the system username — whichever is available first.
-//
-// Prints `CREATED NNNN-slug.erg` on success. Exits non-zero on I/O errors.
+const helpNew = `## erg new TITLE [DIR]
+
+Create a new %erg v1 ticket file atomically.
+
+Allocates the next available ID by scanning DIR (default: auto-discovered tickets/)
+for the highest numeric .erg filename prefix, then creates a file named
+NNNN-{slug}.erg where the slug is the title lowercased and kebab-cased (truncated
+to 40 characters). Uses O_EXCL to prevent races with concurrent invocations.
+
+The new file contains the required preamble headers (Title, Created, Author),
+an empty log section with a "created" entry, and an empty body section.
+Author is resolved from the ERG_AUTHOR environment variable, or the git user.name,
+or the system username — whichever is available first.
+
+Prints 'CREATED NNNN-slug.erg' on success. Exits non-zero on I/O errors.
+`
+
+// cmdNew implements `erg new TITLE [DIR]`. See helpNew for the user-facing summary.
 func cmdNew(args []string) int {
 	if len(args) < 1 || strings.TrimSpace(args[0]) == "" {
 		fmt.Fprintln(os.Stderr, "Usage: erg new TITLE [DIR]")

@@ -7,20 +7,25 @@ import (
 	"strings"
 )
 
-// cmdArchive implements `erg archive [id...] [dir]` — move closed tickets to dir/closed/.
-//
-// With no IDs, scans the top-level of dir (default: tickets/) for tickets that
-// have a non-empty Closed: header and are not already inside a closed/ directory,
-// then moves each eligible ticket to dir/closed/. With IDs given, archives only
-// the named tickets.
-//
-// A ticket is skipped (with a SKIPPED message) if any open ticket in dir still
-// has a Blocked-by: pointing to its ID; archiving would silently break that ref.
-// Run `erg close ID REASON` (which removes Blocked-by refs automatically) before
-// archiving, or manually delete the stale Blocked-by line.
-//
-// The command creates dir/closed/ if it does not exist. It will not overwrite
-// an existing file at the destination.
+const helpArchive = `## erg archive [ID...] [DIR]
+
+Move closed tickets to DIR/closed/.
+
+With no IDs, scans only the direct children of DIR (default: tickets/) — not subdirectories — for tickets that
+have a non-empty Closed: header and are not already inside a closed/ directory,
+then moves each eligible ticket to DIR/closed/. With IDs given, archives only
+the named tickets.
+
+A ticket is skipped (with a SKIPPED message) if any open ticket in DIR still
+has a Blocked-by: pointing to its ID; archiving would silently break that ref.
+Run 'erg close ID REASON' (which removes Blocked-by refs automatically) before
+archiving, or manually delete the stale Blocked-by line.
+
+The command creates DIR/closed/ if it does not exist. It will not overwrite
+an existing file at the destination.
+`
+
+// cmdArchive implements `erg archive [id...] [dir]`. See helpArchive for the user-facing summary.
 func cmdArchive(args []string) int {
 	ticketDir, err := findTicketsDir()
 	if err != nil {

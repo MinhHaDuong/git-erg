@@ -146,36 +146,28 @@ func printReadyText(totalCount, openCount int, openEntries, ready []readyEntry) 
 	}
 }
 
-// cmdReady implements `erg ready [dir] [--json]` — list tickets ready for work.
-//
-// A ticket is ready when all of the following hold:
-//
-//   - Not closed (no Closed: header and not in a closed/ directory).
-//   - No Blocked-by headers pointing to open local tickets.
-//   - No forge-ref Blocked-by lines (forge refs are offline-unknown, treated as blocking).
-//   - No tags from the skip set: needs-human, deferred, post-talk, post-conference.
-//
-// Tickets that pass the readiness test but have a git branch containing the
-// ticket ID are reported as "claimed" (shown separately, not in the ready list).
-//
-// Without --json, prints a human-readable summary. With --json, prints a JSON
-// array where each element has the fields:
-//
-//	{
-//	  "id": "0021",
-//	  "title": "ship feature X",
-//	  "file": "0021-ship-feature-x.erg",
-//	  "ready": false,
-//	  "claimed": false,
-//	  "tags": ["needs-human"],
-//	  "blocked_by": [
-//	    {"kind": "local",  "id": "0017"},
-//	    {"kind": "forge",  "ref": "github.com/org/repo#123"}
-//	  ]
-//	}
-//
-// The JSON output covers all open tickets (not just ready ones), so callers can
-// filter and sort by any field. ready=true implies blocked_by is empty.
+const helpReady = `## erg ready [DIR] [--json]
+
+List tickets ready for work.
+
+A ticket is ready when all of the following hold:
+
+  - Not closed (no Closed: header and not in a closed/ directory).
+  - No Blocked-by headers pointing to open local tickets.
+  - No forge-ref Blocked-by lines (forge refs are offline-unknown, treated as blocking).
+  - No tags from the skip set: needs-human, deferred, post-talk, post-conference.
+
+Tickets that pass the readiness test but have a git branch containing the
+ticket ID are reported as "claimed" (shown separately, not in the ready list).
+
+Without --json, prints a human-readable summary. With --json, prints a JSON
+array where each element has the fields: id, title, file, ready, claimed, tags, blocked_by.
+
+The JSON output covers all open tickets (not just ready ones), so callers can
+filter and sort by any field. ready=true implies blocked_by is empty.
+`
+
+// cmdReady implements `erg ready [dir] [--json]`. See helpReady for the user-facing summary.
 func cmdReady(args []string) int {
 	useJSON := false
 	var rest []string
