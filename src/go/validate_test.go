@@ -107,6 +107,18 @@ func TestValidateErg(t *testing.T) {
 			wantSubstr: "unknown Tag value",
 		},
 		{
+			name:       "Tag post-talk accepted",
+			filename:   "0001-test.erg",
+			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: post-talk\n\n--- log ---\n--- body ---\n",
+			wantErrors: false,
+		},
+		{
+			name:       "Tag post-conference accepted",
+			filename:   "0001-test.erg",
+			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: post-conference\n\n--- log ---\n--- body ---\n",
+			wantErrors: false,
+		},
+		{
 			name:       "Tags header rejected with migration hint",
 			filename:   "0001-test.erg",
 			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTags: needs-human\n\n--- log ---\n--- body ---\n",
@@ -362,7 +374,9 @@ func TestValidateErg_GoldenInvalid(t *testing.T) {
 		"0001-duplicate-title.erg":   "non-repeatable",
 		"0001-missing-body.erg":      "body",
 		"0001-missing-log.erg":       "log",
+		"0001-missing-created.erg":   "Created",
 		"0001-missing-required.erg":  "required header",
+		"0001-missing-title.erg":     "Title",
 		"0001-unknown-header.erg":    "unknown header",
 		"0001-wrong-magic.erg":       "%erg v1",
 		"bad-filename.erg":           "filename",
@@ -506,4 +520,72 @@ func TestClosedDuplicateWithEmpty(t *testing.T) {
 	if !sawEmpty {
 		t.Errorf("expected a Closed empty-value error, got: %v", errs)
 	}
+}
+
+// TestGlobLocalIDs exercises globLocalIDs (validate.go:247).
+// Item 3: verifies non-recursive scan of .erg files and ID extraction.
+func TestGlobLocalIDs(t *testing.T) {
+	t.Run("extracts IDs from NNNN-slug.erg files", func(t *testing.T) {
+		dir := t.TempDir()
+		writeErg(t, dir, "0001-alpha.erg", validErgContent())
+		writeErg(t, dir, "0042-beta.erg", validErgContent())
+
+		ids := globLocalIDs(dir)
+		if !ids["0001"] {
+			t.Error("expected ID '0001' in result")
+		}
+		if !ids["0042"] {
+			t.Error("expected ID '0042' in result")
+		}
+		if len(ids) != 2 {
+			t.Errorf("expected 2 IDs, got %d: %v", len(ids), ids)
+		}
+	})
+
+	t.Run("ignores subdirectories", func(t *testing.T) {
+		dir := t.TempDir()
+		writeErg(t, dir, "0001-alpha.erg", validErgContent())
+		sub := filepath.Join(dir, "closed")
+		if err := os.MkdirAll(sub, 0755); err != nil {
+			t.Fatal(err)
+		}
+		writeErg(t, sub, "0002-beta.erg", validErgContent())
+
+		ids := globLocalIDs(dir)
+		if ids["0002"] {
+			t.Error("globLocalIDs should not recurse into subdirectories")
+		}
+		if len(ids) != 1 {
+			t.Errorf("expected 1 ID, got %d: %v", len(ids), ids)
+		}
+	})
+
+	t.Run("ignores non-erg files", func(t *testing.T) {
+		dir := t.TempDir()
+		writeErg(t, dir, "0001-alpha.erg", validErgContent())
+		// Write a non-.erg file
+		if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("hello"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		ids := globLocalIDs(dir)
+		if len(ids) != 1 {
+			t.Errorf("expected 1 ID, got %d: %v", len(ids), ids)
+		}
+	})
+
+	t.Run("empty directory returns empty map", func(t *testing.T) {
+		dir := t.TempDir()
+		ids := globLocalIDs(dir)
+		if len(ids) != 0 {
+			t.Errorf("expected empty map, got: %v", ids)
+		}
+	})
+
+	t.Run("nonexistent directory returns empty map", func(t *testing.T) {
+		ids := globLocalIDs(filepath.Join(t.TempDir(), "nonexistent"))
+		if len(ids) != 0 {
+			t.Errorf("expected empty map, got: %v", ids)
+		}
+	})
 }

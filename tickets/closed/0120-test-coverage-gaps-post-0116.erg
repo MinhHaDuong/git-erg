@@ -2,10 +2,12 @@
 Title: Fill Go unit test coverage gaps and fixture brittleness
 Created: 2026-05-11
 Author: claude-opus-4-7
+Closed: autoclosed — PR #125
 
 --- log ---
 2026-05-11T00:00Z claude-opus-4-7 created from post-0116 audit (cluster B: test gaps)
 
+2026-05-11T12:49Z MinhHaDuong closed — autoclosed — PR #125
 --- body ---
 ## Context
 Audit after the 0116 merge surfaced 9 Go unit test coverage gaps and

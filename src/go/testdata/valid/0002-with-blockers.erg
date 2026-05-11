@@ -2,11 +2,10 @@
 Title: Ticket With Blockers
 Created: 2024-02-01
 Author: test
-Blocked-by: 0001
 Blocked-by: github.com/foo/bar#1
 Closed: done
 
 --- log ---
 2024-02-01T10:00Z test created
 --- body ---
-This ticket has local and forge blockers.
+This ticket has a forge blocker.

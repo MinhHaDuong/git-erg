@@ -134,6 +134,28 @@ func TestParseErg(t *testing.T) {
 		}
 	})
 
+	t.Run("duplicate Title keeps first value", func(t *testing.T) {
+		// Item 4: singleton "first occurrence wins" — Title is a singleton
+		// header; when duplicated, the parser keeps the first value.
+		content := "%erg v1\nTitle: First\nTitle: Second\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
+		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
+		erg, _ := parseErg(path)
+		if erg.Title != "First" {
+			t.Errorf("Title = %q, want %q (first occurrence wins)", erg.Title, "First")
+		}
+	})
+
+	t.Run("empty Tag value skipped", func(t *testing.T) {
+		// Item 5: empty Tag: values are silently skipped by the parser —
+		// parseHeaderLine trims, and the parser skips empty val for Tag.
+		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: \n\n--- log ---\n--- body ---\n"
+		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
+		erg, _ := parseErg(path)
+		if len(erg.Tags) != 0 {
+			t.Errorf("Tags = %v (len=%d), want empty slice (empty Tag: value skipped)", erg.Tags, len(erg.Tags))
+		}
+	})
+
 	t.Run("file does not exist", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "nonexistent.erg")
 		erg, _ := parseErg(path)
@@ -166,4 +188,161 @@ func TestJsonEscape(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestClosedWhitespaceDivergence pins the divergence between
+// parseHeaderLine and isClosedHeaderLine (item 7).
+// parseHeaderLine accepts `Closed : val` (space before colon) as a valid
+// header, but isClosedHeaderLine requires the exact prefix `Closed:` (no
+// space). When `Closed : merged` appears in the body section, the parser
+// does not set diag.ClosedInBody, so the validator does not reject it.
+// This test pins that current behavior.
+func TestClosedWhitespaceDivergence(t *testing.T) {
+	t.Run("Closed: in body triggers ClosedInBody", func(t *testing.T) {
+		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\nClosed: merged\n"
+		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
+		_, diag := parseErg(path)
+		if !diag.ClosedInBody {
+			t.Error("expected ClosedInBody=true for 'Closed: merged' in body")
+		}
+	})
+
+	t.Run("Closed_space_colon in body does NOT trigger ClosedInBody", func(t *testing.T) {
+		// `Closed : merged` — parseHeaderLine would parse this as key=Closed,
+		// but isClosedHeaderLine does not fire because it expects prefix `Closed:`.
+		// This pins the current divergence; a future ticket may align them.
+		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\nClosed : merged\n"
+		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
+		_, diag := parseErg(path)
+		if diag.ClosedInBody {
+			t.Error("expected ClosedInBody=false for 'Closed : merged' — isClosedHeaderLine requires exact 'Closed:' prefix")
+		}
+	})
+}
+
+// TestPathIsClosed exercises the path-component closure test from erg.go.
+// Item 2: covers directory names, basename prefixes/suffixes, and
+// case-insensitivity as specified in rules/tickets.md.
+func TestPathIsClosed(t *testing.T) {
+	cases := []struct {
+		path string
+		want bool
+	}{
+		// Empty path
+		{"", false},
+
+		// Directory component equals "closed"
+		{"closed/0001-foo.erg", true},
+		{"tickets/closed/0001-foo.erg", true},
+
+		// Directory starts with "closed-"
+		{"closed-2024/0001-foo.erg", true},
+
+		// Directory starts with "closed."
+		{"closed.old/0001-foo.erg", true},
+
+		// Directory ends with "-closed"
+		{"archive-closed/0001-foo.erg", true},
+
+		// Basename (without extension) equals "closed"
+		{"tickets/closed.erg", true},
+
+		// Basename starts with "closed-"
+		{"closed-foo.erg", true},
+
+		// Basename ends with "-closed"
+		{"0001-closed.erg", true},
+
+		// Case insensitivity
+		{"Closed/0001-foo.erg", true},
+		{"CLOSED/0001-foo.erg", true},
+
+		// Open paths — no closure signal
+		{"tickets/0001-foo.erg", false},
+		{"open/0001-foo.erg", false},
+
+		// "disclosed" must not trigger — the implementation checks HasPrefix
+		// on the full component, so "disclosed" does NOT match.
+		{"disclosed/0001-foo.erg", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			got := pathIsClosed(tc.path)
+			if got != tc.want {
+				t.Errorf("pathIsClosed(%q) = %v, want %v", tc.path, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestStaleBlockedBy exercises staleBlockedBy (check.go:33).
+// Item 1: constructs two tickets — one closed blocker, one open ticket
+// referencing it — and asserts the warning fires.
+func TestStaleBlockedBy(t *testing.T) {
+	t.Run("open ticket blocked by closed ticket emits warning", func(t *testing.T) {
+		dir := t.TempDir()
+		// 0001 is closed (has Closed: header)
+		writeErg(t, dir, "0001-blocker.erg",
+			"%erg v1\nTitle: Blocker\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n")
+		// 0002 is open and blocked by 0001
+		writeErg(t, dir, "0002-feature.erg",
+			"%erg v1\nTitle: Feature\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0001\n\n--- log ---\n--- body ---\n")
+
+		tickets, _ := loadErgs(dir)
+		warnings := staleBlockedBy(tickets)
+		if len(warnings) == 0 {
+			t.Fatal("expected a stale Blocked-by warning, got none")
+		}
+		found := false
+		for _, w := range warnings {
+			if strings.Contains(w, "0001") && strings.Contains(w, "already closed") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected warning mentioning '0001' and 'already closed', got: %v", warnings)
+		}
+	})
+
+	t.Run("open ticket blocked by open ticket emits no warning", func(t *testing.T) {
+		dir := t.TempDir()
+		writeErg(t, dir, "0001-blocker.erg",
+			"%erg v1\nTitle: Blocker\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		writeErg(t, dir, "0002-feature.erg",
+			"%erg v1\nTitle: Feature\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0001\n\n--- log ---\n--- body ---\n")
+
+		tickets, _ := loadErgs(dir)
+		warnings := staleBlockedBy(tickets)
+		if len(warnings) != 0 {
+			t.Errorf("expected no warnings, got: %v", warnings)
+		}
+	})
+
+	t.Run("closed ticket blocked by closed ticket emits no warning", func(t *testing.T) {
+		dir := t.TempDir()
+		writeErg(t, dir, "0001-blocker.erg",
+			"%erg v1\nTitle: Blocker\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n")
+		writeErg(t, dir, "0002-feature.erg",
+			"%erg v1\nTitle: Feature\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0001\nClosed: done\n\n--- log ---\n--- body ---\n")
+
+		tickets, _ := loadErgs(dir)
+		warnings := staleBlockedBy(tickets)
+		if len(warnings) != 0 {
+			t.Errorf("expected no warnings for closed-blocked-by-closed, got: %v", warnings)
+		}
+	})
+
+	t.Run("forge ref does not trigger stale warning", func(t *testing.T) {
+		dir := t.TempDir()
+		writeErg(t, dir, "0001-feature.erg",
+			"%erg v1\nTitle: Feature\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: github.com/foo/bar#1\n\n--- log ---\n--- body ---\n")
+
+		tickets, _ := loadErgs(dir)
+		warnings := staleBlockedBy(tickets)
+		if len(warnings) != 0 {
+			t.Errorf("expected no warnings for forge ref, got: %v", warnings)
+		}
+	})
 }
