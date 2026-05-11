@@ -6,6 +6,8 @@ Author: claude-sonnet-4-6
 --- log ---
 2026-05-11T00:00Z claude-sonnet-4-6 created
 
+2026-05-11T00:00Z MinhHaDuong note partially reverses 0010 (which added the strict separator-duplicate rule) — this ticket relaxes that to first-occurrence semantics
+
 --- body ---
 ## Context
 This is the unfinished half of ticket 0105. PR #115 added accessor methods
@@ -34,11 +36,17 @@ type Erg struct {
 ```
 
 ## Proposed shape
+The diagnostic trace becomes a sibling struct returned alongside `Erg`,
+so `Erg` is schema-pure from day 1 (not "TEMPORARY"). In follow-up 0117,
+`ParseDiagnostics` is replaced in-place by `[]ParseError` — the parser
+signature stays "two return values" across the staged refactors.
+
 ```go
 // Line is a single-line string: no embedded newlines.
 // Enforced by the parser invariant (header values read up to LF).
 type Line = string
 
+// Erg is the schema-literal projection of a %erg v1 ticket.
 type Erg struct {
     Path     Line
     HasMagic bool
@@ -51,20 +59,24 @@ type Erg struct {
     BlockedBys []Line // possibly empty; one entry per `Blocked-by:` line
     Tags       []Line // possibly empty; one entry per `Tag:` line (after 0106)
 
-    LogLines   []Line // structured event per line
-    Body       string // multiline
+    LogLines []Line   // one structured event per entry
+    Body     string   // multiline
+}
 
-    // Diagnostic trace — TEMPORARY; collapses in the eventual parser/
-    // validator merge (a follow-up refactor), at which point parser emits
-    // errors directly and these fields disappear.
+// ParseDiagnostics carries parser observations the validator consumes.
+// In 0117 (parse+validate merge) this struct is replaced in-place by
+// []ParseError; until then, validate.go walks these fields.
+type ParseDiagnostics struct {
     Unknown            []Line  // unknown header keys seen
     RepeatedSingletons []Line  // singleton keys seen more than once
-    ClosedEmpty        bool    // `Closed:` line appeared with empty value
+    ClosedEmpty        bool    // ANY `Closed:` line seen with empty value
     ClosedInLog        bool
     ClosedInBody       bool
-    HasLogSep          bool    // first `--- log ---` was seen
-    HasBodySep         bool    // first `--- body ---` was seen
+    HasLogSep          bool    // `--- log ---` was seen at least once
+    HasBodySep         bool    // `--- body ---` was seen at least once
 }
+
+func parseErg(path string) (Erg, ParseDiagnostics)
 ```
 
 `Line` is a type alias (not a distinct type) — interchangeable with
@@ -77,9 +89,25 @@ Note plural field names `BlockedBys` and `Tags`: the field is a list of
 lines (possibly empty). Header name in the file remains singular
 (`Blocked-by:`, `Tag:` after 0106) per the repeatable-header convention.
 
-No `ClosedSet` flag. Empty `Closed:` lines are recorded via `ClosedEmpty`
-which the validator (and later, the merged parse-validate pass) consumes
-as an error signal — no need for a tri-state Closed value.
+## Parser invariants (pinned)
+The implementer must preserve these semantics; they are easy to break
+when moving from the map bag to typed fields.
+
+- **Tags trimming**: today's `Tags()` accessor trims values and drops
+  empty entries (erg.go:202-209). Parser must apply the same when
+  appending to `Tags` — trim, skip empty after trim.
+- **`HasLogSep` / `HasBodySep`**: set to true on **any** sighting of
+  the separator literal, regardless of whether the parser transitions
+  sections on that sighting. Set unconditionally; do not gate behind
+  the first-occurrence transition.
+- **`ClosedEmpty`**: set to true if **any** `Closed:` line appears with
+  an empty (post-trim) value, not only the first occurrence. A
+  `Closed: ok` followed by `Closed: ` must still produce the empty-value
+  error from validator rule 4. (The repeated-singleton rule also fires
+  via `RepeatedSingletons`, but the empty-value signal is independent.)
+- **`Closed` field stores the first non-empty value** (matching today's
+  `Closed()` behavior). If only empty `Closed:` lines appear,
+  `Closed = ""` and `ClosedEmpty = true`.
 
 ## Spec tightening (required headers)
 Update `tickets/spec-erg-v1.md`: required headers (`Title`, `Created`,
@@ -88,35 +116,54 @@ Update `tickets/spec-erg-v1.md`: required headers (`Title`, `Created`,
 presence. After this refactor, empty required headers fail validation.
 
 ## Spec clarification (line-string cardinality)
-Update `tickets/spec-erg-v1.md` §Headers: state explicitly that **all
-header values are line-strings — single line, no embedded newlines**.
-Multiline content belongs in the body section. This is already a parser
-invariant (the read loop is line-based) but is not stated in the spec
-today; the "Type" column reads "string" without distinguishing line vs.
-freeform text. Body is multiline; log entries are one event per line.
+Update `tickets/spec-erg-v1.md`:
+- §Headers (table): add prose immediately after the table noting that
+  **all header values are line-strings — single line, no embedded
+  newlines**. Multiline content belongs in the body section.
+- §Headers Type column: distinguish `line` (single line) from freeform
+  string. Today every header is typed `string` regardless of cardinality.
+- §Log already says "Each line records one event" — no change needed
+  there.
 
 ## Spec relaxation (separator duplicates)
-Validator rule 12 today requires each separator (`--- log ---`,
-`--- body ---`) to appear **exactly once**. This is overstrict: legitimate
-bodies will contain those literals — heredoc examples, format
-documentation, this very ticket's body that quotes the strings. The
-parser already uses first-occurrence semantics for section transitions
-(erg.go:357-369), but the validator rejects the file based on the count.
+Validator rule 11 (numbered rule 12 in some prior drafts; canonical
+numbering is in validate.go) today requires each separator
+(`--- log ---`, `--- body ---`) to appear **exactly once**. This is
+overstrict: legitimate bodies will contain those literals — heredoc
+examples, format documentation, this very ticket's body that quotes the
+strings. The parser already uses first-occurrence semantics for section
+transitions (erg.go:357-369), but the validator rejects the file based
+on the count.
 
 Change:
-- Drop the "appears N times" branch of rule 12; keep only "missing".
-- Spec rewording: "The first `--- log ---` and the first `--- body ---`
-  (in order) are the section separators. Subsequent occurrences inside
-  body are body text."
-- Struct change: replace `LogSepCount`/`BodySepCount` (which existed only
-  to drive the now-deleted overstrict check) with `HasLogSep`/`HasBodySep`
-  bools in the diagnostic trace.
+- Drop the "appears N times" branch of rule 11; keep only "missing".
+- §Structure rewording: "Both separators are required" becomes "The
+  first `--- log ---` and the first `--- body ---` (in order) are the
+  section separators. Subsequent occurrences are body text."
+- §Headers / validator rules text (in the helpText for `erg validate`)
+  updated to match.
+- Struct change: replace `LogSepCount`/`BodySepCount` (which existed
+  only to drive the now-deleted overstrict check) with
+  `HasLogSep`/`HasBodySep` bools in `ParseDiagnostics`.
+- This partially reverses ticket 0010 (logged above) — that ticket
+  added the strict rule; this one relaxes it. The new rule still
+  rejects truly malformed input (separator missing).
+
+Known wart left untouched: `isClosedHeaderLine` (erg.go:416) still
+fires on any body line starting `Closed:` at column 0, even when the
+line is body prose discussing the format. This pre-existed and remains
+out of scope; a body that quotes the separator literals is fine, but
+quoting `Closed: <reason>` flush-left will still be flagged. Worth a
+follow-up ticket if it bites.
 
 ## Accessor methods go away
 All trivial accessors are deleted; call sites read the field directly.
-The two methods with real logic stay (they encapsulate non-trivial
-behaviour, not map indirection):
-- `Closed()` — path-based test OR non-empty header value
+Two methods with real logic survive — but the `Closed()` method is
+**renamed `IsClosed()`** to avoid shadowing the new `Closed` field
+(Go allows it but readers trip; `t.Closed` returns a string, `t.Closed()`
+would return a bool — same identifier, different types).
+
+- `IsClosed()` — path-based test OR non-empty `Closed` field
 - `BlockedByRefs()` — parses every raw ref string
 
 | Today               | After                                          |
@@ -127,24 +174,39 @@ behaviour, not map indirection):
 | `t.ClosedHeader()`  | `t.Closed != ""`                               |
 | `t.BlockedBy()`     | `t.BlockedBys`                                 |
 | `t.Tags()`          | `t.Tags`                                       |
-| `t.Closed()`        | unchanged method body, reads `t.Closed` field  |
+| `t.Closed()`        | `t.IsClosed()` (renamed; same logic)           |
 | `t.BlockedByRefs()` | unchanged method, iterates `t.BlockedBys`      |
 
 ## Call-site impact
 21 accessor call sites across 6 files. After this refactor:
-- archive.go: `Closed()`, `BlockedByRefs()`, `ClosedHeader()` → keep first two; the third becomes `t.Closed != ""`
-- check.go:   `ClosedHeader()`, `Closed()` ×2, `BlockedByRefs()` → similar
-- close.go:   `Closed()` ×2, `BlockedBy()` → `t.BlockedBys`
-- ready.go:   `Closed()` ×2, `Tags()`, `BlockedByRefs()`, `Title()` → field reads where trivial
-- validate.go: `Created()` → `t.Created`; `BlockedByRefs()` ×2 stays; the 4 direct `t.headers[...]` accesses switch to typed fields + trace
+- archive.go: `Closed()` → `IsClosed()`; `BlockedByRefs()` stays; `ClosedHeader()` → `t.Closed != ""`
+- check.go:   `ClosedHeader()` → `t.Closed != ""`; `Closed()` ×2 → `IsClosed()`; `BlockedByRefs()` stays
+- close.go:   `Closed()` ×2 → `IsClosed()`; `BlockedBy()` → `t.BlockedBys`
+- ready.go:   `Closed()` ×2 → `IsClosed()`; `Tags()` → `t.Tags`; `BlockedByRefs()` stays; `Title()` → `t.Title`
+- validate.go: `Created()` → `t.Created`; `BlockedByRefs()` ×2 stays; the 4 direct `t.headers[...]` accesses switch to typed fields on `Erg` and bools on `ParseDiagnostics`
+
+## Dead code retirement
+After the refactor, these constants/maps in `validate.go` become
+unreachable and must be removed in the same PR:
+- `RequiredHeaders` (was driving rule 2 via map lookup)
+- `SingletonHeaders` (was driving rule 3 singleton check)
+- `ValidHeaders` (was driving rule 3 unknown-header check)
+- `ValidTagValues` stays — it backs the Tags closed-set enumeration
+  rule, which still applies.
 
 ## Test impact
-- erg_test.go: parser tests construct `Erg` literals — update to new shape.
-- validate_test.go: rule 2 fixtures may need adjustment for the
-  empty-required-header tightening; add a positive test for it.
-- Compile-time safety test: a misspelled-field access fails to compile
-  (the file simply doesn't build). Add this as a documented assertion
-  in a comment near the struct, since there is nothing to "run."
+- erg_test.go: parser tests construct `Erg` literals — update to new
+  shape. Parser tests now also assert `ParseDiagnostics` content where
+  relevant.
+- validate_test.go: rule 2 fixtures adjusted for empty-required-header
+  tightening; add a positive test for it. Add a `Closed:` duplicate
+  empty-value test (`Closed: x\nClosed: ` must trigger both repeated-
+  singleton AND empty-value errors).
+- New fixture: a body containing `--- log ---` and `--- body ---` as
+  text. Assertions:
+  (a) validator accepts the file;
+  (b) `erg.Body` preserves the literal lines verbatim (no silent loss);
+  (c) `ParseDiagnostics.HasLogSep` and `.HasBodySep` are true.
 
 ## Out of scope (held back from 0105's scope creep)
 - **Parser/validator merge into one pass.** The diagnostic-trace fields
@@ -185,26 +247,42 @@ type Erg struct {
 func parseErg(path string) (Erg, []ParseError)
 ```
 
-Zero accessor methods (`Closed()` survives only because path-OR-header is
-intrinsic — and is a free function or method as taste dictates). The
-struct is a literal projection of the spec.
+Only `IsClosed()` survives as a method (path-OR-header is intrinsic;
+keep as method or convert to free function — taste). `BlockedByRefs()`
+and `ParseDiagnostics` both vanish: refs are pre-parsed at parse time
+(0118), diagnostics become parse errors (0117). The struct is a literal
+projection of the spec.
 
 ## Dependencies
-- Soft dep: ticket 0115 (split Ref into ref.go). If 0115 lands first,
-  this ticket touches only the Erg portion of erg.go. Order is cheap to
-  swap either way.
+- Interleave-tolerant with ticket 0115 (split Ref into ref.go).
+  This ticket keeps `BlockedBys []Line` regardless of 0115's state;
+  Ref pre-parsing happens later in 0118. If 0115 lands first the diff
+  is smaller; if not, both touch erg.go but on disjoint code regions.
+- This ticket bundles three changes deliberately (struct refactor +
+  rule 2 tightening + rule 11 relaxation) so the spec and code stay
+  synced in a single review.
 
 ## Exit criteria
-- `Erg` struct fields correspond 1-to-1 to the v1 header table.
-- All trivial accessor methods are removed; only `Closed()` and
-  `BlockedByRefs()` remain.
+- `Erg` struct contains exactly the schema-pure fields: `Path`,
+  `HasMagic`, `Title`, `Created`, `Author`, `Closed`, `BlockedBys`,
+  `Tags`, `LogLines`, `Body`. Nothing else.
+- `ParseDiagnostics` carries the trace fields; `parseErg` returns
+  `(Erg, ParseDiagnostics)`.
+- All trivial accessor methods are removed; only `IsClosed()` (renamed
+  from `Closed()`) and `BlockedByRefs()` remain.
 - `type Line = string` alias declared; line-string fields use `Line`,
   multiline `Body` stays `string`.
-- Spec updated: header values are explicitly line-strings (single line,
-  no embedded newlines); body is multiline; log is one event per line.
-- Spec updated: required headers must be non-empty.
-- Spec updated: separator-duplicates rule relaxed to first-occurrence
-  semantics; validator rule 12 trimmed accordingly.
-- `make test` passes; new tests assert (a) empty required header is
-  rejected, and (b) a body containing `--- log ---`/`--- body ---` as
-  text is accepted.
+- Dead constants removed: `RequiredHeaders`, `SingletonHeaders`,
+  `ValidHeaders` in validate.go.
+- Spec updates land in the same PR:
+  - §Headers: line-string cardinality stated; Type column distinguishes
+    line vs. freeform.
+  - §Structure: separator-duplicates relaxed to first-occurrence.
+  - §Headers + helpText: required headers (Title, Created, Author) must
+    be non-empty.
+- `make test` passes; new tests assert:
+  (a) empty required header is rejected;
+  (b) body containing `--- log ---`/`--- body ---` literals is accepted
+      AND `erg.Body` preserves them verbatim;
+  (c) `Closed: x\nClosed: ` triggers both repeated-singleton and
+      empty-value errors.
