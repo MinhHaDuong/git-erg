@@ -176,11 +176,15 @@ func parseErg(path string) (Erg, []string) {
 func parseErgBytes(data []byte, path string) (Erg, []string) {
 	var errs []string
 	lines := strings.Split(string(data), "\n")
+	name := filepath.Base(path)
 
 	var logLines, bodyLines []string
+	var logLineNums []int
 	var title, created, author, closed Line
+	var titleLine, createdLine, authorLine int
 	var tags []Line
 	var blockedBys []Ref
+	var blockedByLines, tagLines []int
 	section := "magic" // magic | headers | gap | log | body
 	hasMagic := false
 	hasLogSep := false
@@ -193,7 +197,8 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	repeatedSeen := make(map[string]bool)
 	headerCounts := make(map[string]int)
 
-	for _, line := range lines {
+	for lineIdx, line := range lines {
+		lineNum := lineIdx + 1
 		trimmed := strings.TrimSpace(line)
 
 		// First non-empty line must be the magic line
@@ -241,8 +246,8 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 						if !repeatedSeen[key] {
 							repeatedSeen[key] = true
 							errs = append(errs, fmt.Sprintf(
-								"%s: header '%s' is non-repeatable (appears more than once)",
-								filepath.Base(path), key))
+								"%s:%d: header '%s' is non-repeatable (appears more than once)",
+								name, lineNum, key))
 						}
 					}
 				} else {
@@ -251,30 +256,40 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 						switch key {
 						case "Status":
 							errs = append(errs, fmt.Sprintf(
-								"%s: 'Status:' header is no longer part of %%erg v1 — run `erg migrate` to convert",
-								filepath.Base(path)))
+								"%s:%d: 'Status:' header is no longer part of %%erg v1 — run `erg migrate` to convert",
+								name, lineNum))
 						case "Tags":
 							errs = append(errs, fmt.Sprintf(
-								"%s: 'Tags:' has been renamed to 'Tag:' — run `erg migrate` to convert",
-								filepath.Base(path)))
+								"%s:%d: 'Tags:' has been renamed to 'Tag:' — run `erg migrate` to convert",
+								name, lineNum))
 						default:
 							errs = append(errs, fmt.Sprintf(
-								"%s: unknown header '%s' (not in v1 closed set) — remove it or run `erg migrate`",
-								filepath.Base(path), key))
+								"%s:%d: unknown header '%s' (not in v1 closed set) — remove it or run `erg migrate`",
+								name, lineNum, key))
 						}
 					}
 				}
 				// Populate typed fields. Singletons keep first occurrence.
+				// Track line numbers for end-of-walk emissions.
 				switch key {
 				case "Title":
+					if titleLine == 0 {
+						titleLine = lineNum
+					}
 					if title == "" {
 						title = val
 					}
 				case "Created":
+					if createdLine == 0 {
+						createdLine = lineNum
+					}
 					if created == "" {
 						created = val
 					}
 				case "Author":
+					if authorLine == 0 {
+						authorLine = lineNum
+					}
 					if author == "" {
 						author = val
 					}
@@ -284,8 +299,8 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 						if !closedEmpty {
 							closedEmpty = true
 							errs = append(errs, fmt.Sprintf(
-								"%s: 'Closed:' header requires a non-empty value (closure reason)",
-								filepath.Base(path)))
+								"%s:%d: 'Closed:' header requires a non-empty value (closure reason)",
+								name, lineNum))
 						}
 					} else if closed == "" {
 						closed = val
@@ -293,13 +308,15 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 				case "Blocked-by":
 					ref, refErr := parseRef(val)
 					if refErr != nil {
-						errs = append(errs, fmt.Sprintf("%s: %v", filepath.Base(path), refErr))
+						errs = append(errs, fmt.Sprintf("%s:%d: %v", name, lineNum, refErr))
 					}
 					blockedBys = append(blockedBys, ref)
+					blockedByLines = append(blockedByLines, lineNum)
 				case "Tag":
 					// parseHeaderLine already trims val; skip empties.
 					if val != "" {
 						tags = append(tags, val)
+						tagLines = append(tagLines, lineNum)
 					}
 				}
 			}
@@ -308,25 +325,24 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 		case "log":
 			if trimmed != "" {
 				logLines = append(logLines, line)
+				logLineNums = append(logLineNums, lineNum)
 			}
 			if isClosedHeaderLine(line) && !closedInLog {
 				closedInLog = true
 				errs = append(errs, fmt.Sprintf(
-					"%s: 'Closed:' header found in log section — only allowed in header section",
-					filepath.Base(path)))
+					"%s:%d: 'Closed:' header found in log section — only allowed in header section",
+					name, lineNum))
 			}
 		case "body":
 			bodyLines = append(bodyLines, line)
 			if isClosedHeaderLine(line) && !closedInBody {
 				closedInBody = true
 				errs = append(errs, fmt.Sprintf(
-					"%s: 'Closed:' header found in body section — only allowed in header section",
-					filepath.Base(path)))
+					"%s:%d: 'Closed:' header found in body section — only allowed in header section",
+					name, lineNum))
 			}
 		}
 	}
-
-	name := filepath.Base(path)
 
 	// End-of-walk per-file rule emissions. Per-line emissions for rules
 	// 3, 4, 6 already fired above; the remaining rules need the finalised
@@ -339,32 +355,49 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	}
 
 	// Rule 2: required headers must be present AND non-empty.
+	// When the header was present (line number stored), report the line;
+	// when completely absent (line number is 0), use filename-only format.
 	if strings.TrimSpace(title) == "" {
-		errs = append(errs, fmt.Sprintf(
-			"%s: missing or empty required header 'Title' — add 'Title: <text>' to the preamble", name))
+		if titleLine > 0 {
+			errs = append(errs, fmt.Sprintf(
+				"%s:%d: missing or empty required header 'Title' — add 'Title: <text>' to the preamble", name, titleLine))
+		} else {
+			errs = append(errs, fmt.Sprintf(
+				"%s: missing or empty required header 'Title' — add 'Title: <text>' to the preamble", name))
+		}
 	}
 	if strings.TrimSpace(created) == "" {
-		errs = append(errs, fmt.Sprintf(
-			"%s: missing or empty required header 'Created' — add 'Created: YYYY-MM-DD' to the preamble", name))
+		if createdLine > 0 {
+			errs = append(errs, fmt.Sprintf(
+				"%s:%d: missing or empty required header 'Created' — add 'Created: YYYY-MM-DD' to the preamble", name, createdLine))
+		} else {
+			errs = append(errs, fmt.Sprintf(
+				"%s: missing or empty required header 'Created' — add 'Created: YYYY-MM-DD' to the preamble", name))
+		}
 	}
 	if strings.TrimSpace(author) == "" {
-		errs = append(errs, fmt.Sprintf(
-			"%s: missing or empty required header 'Author' — add 'Author: <name>' to the preamble", name))
+		if authorLine > 0 {
+			errs = append(errs, fmt.Sprintf(
+				"%s:%d: missing or empty required header 'Author' — add 'Author: <name>' to the preamble", name, authorLine))
+		} else {
+			errs = append(errs, fmt.Sprintf(
+				"%s: missing or empty required header 'Author' — add 'Author: <name>' to the preamble", name))
+		}
 	}
 
 	// Rule 5: Tag: values must be from the closed value set.
-	for _, v := range tags {
+	for i, v := range tags {
 		if !validTagValues[v] {
 			errs = append(errs, fmt.Sprintf(
-				"%s: unknown Tag value '%s' (not in v1 closed set: needs-human, deferred, post-talk, post-conference)",
-				name, v))
+				"%s:%d: unknown Tag value '%s' (not in v1 closed set: needs-human, deferred, post-talk, post-conference)",
+				name, tagLines[i], v))
 		}
 	}
 
 	// Rule 7: Created is ISO date.
 	if created != "" && !isoDateRE.MatchString(created) {
 		errs = append(errs, fmt.Sprintf(
-			"%s: Created '%s' is not a valid ISO date (YYYY-MM-DD)", name, created))
+			"%s:%d: Created '%s' is not a valid ISO date (YYYY-MM-DD)", name, createdLine, created))
 	}
 
 	// Rule 8: filename matches NNNN-slug.erg.
@@ -378,11 +411,11 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	// against corpus IDs) is corpus-level and lives in validateCorpus.
 
 	// Rule 11: log lines match format.
-	for _, line := range logLines {
+	for i, line := range logLines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed != "" && !logLineRE.MatchString(trimmed) {
 			errs = append(errs, fmt.Sprintf(
-				"%s: malformed log line: %s", name, trimmed))
+				"%s:%d: malformed log line: %s", name, logLineNums[i], trimmed))
 		}
 	}
 
