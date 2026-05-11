@@ -100,11 +100,11 @@ func TestValidateErg(t *testing.T) {
 			wantSubstr: "non-repeatable",
 		},
 		{
-			name:       "Tags value not in closed set",
+			name:       "Tag value not in closed set",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTags: invalid-tag\n\n--- log ---\n--- body ---\n",
+			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: invalid-tag\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
-			wantSubstr: "unknown Tags value",
+			wantSubstr: "unknown Tag value",
 		},
 		{
 			name:       "Tags header rejected with migration hint",

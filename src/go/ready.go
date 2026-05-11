@@ -221,7 +221,7 @@ func cmdReady(args []string) int {
 		openCount++
 
 		tid := t.FilenameID()
-		tags := t.Tags()
+		tags := t.Tag()
 		blocked := false
 		var blockedBy []blockedByEntry
 		for _, tag := range tags {
