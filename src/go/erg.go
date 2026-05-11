@@ -311,13 +311,19 @@ func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
 			if trimmed != "" {
 				logLines = append(logLines, line)
 			}
-			if isClosedHeaderLine(line) {
+			if isClosedHeaderLine(line) && !diag.ClosedInLog {
 				diag.ClosedInLog = true
+				diag.Errors = append(diag.Errors, fmt.Sprintf(
+					"%s: 'Closed:' header found in log section — only allowed in header section",
+					filepath.Base(path)))
 			}
 		case "body":
 			bodyLines = append(bodyLines, line)
-			if isClosedHeaderLine(line) {
+			if isClosedHeaderLine(line) && !diag.ClosedInBody {
 				diag.ClosedInBody = true
+				diag.Errors = append(diag.Errors, fmt.Sprintf(
+					"%s: 'Closed:' header found in body section — only allowed in header section",
+					filepath.Base(path)))
 			}
 		}
 	}

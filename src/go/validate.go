@@ -60,17 +60,10 @@ func validateErg(t *Erg, diag ParseDiagnostics, allIDs map[string]bool) []string
 	}
 
 	// Rule 6: Closed: header — value required, non-empty; not in log/body.
+	// ClosedInLog/ClosedInBody emissions migrated to parser (0117 step 3).
 	if diag.ClosedEmpty {
 		errors = append(errors, fmt.Sprintf(
 			"%s: 'Closed:' header requires a non-empty value (closure reason)", name))
-	}
-	if diag.ClosedInLog {
-		errors = append(errors, fmt.Sprintf(
-			"%s: 'Closed:' header found in log section — only allowed in header section", name))
-	}
-	if diag.ClosedInBody {
-		errors = append(errors, fmt.Sprintf(
-			"%s: 'Closed:' header found in body section — only allowed in header section", name))
 	}
 
 	// Rule 7: Created is ISO date
