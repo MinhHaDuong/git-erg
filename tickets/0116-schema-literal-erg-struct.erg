@@ -1,5 +1,5 @@
 %erg v1
-Title: Erg struct: schema-literal fields, drop the headers map bag
+Title: Erg struct: schema-literal fields, drop accessors and the headers map
 Created: 2026-05-11
 Author: claude-sonnet-4-6
 
@@ -12,11 +12,11 @@ This is the unfinished half of ticket 0105. PR #115 added accessor methods
 and unexported the headers field, but the struct itself still stores values
 in a `map[string][]string` bag and the accessors do runtime string-keyed
 lookups. The struct does not mirror the spec's header table; rule checks
-on a typo like `"Blocked-By"` (capital B) would silently miss values.
+on a typo like `"Blocked-By"` would silently miss values.
 
-The spec defines a closed set of 6 headers (spec-erg-v1.md §Headers):
-Title, Created, Author, Closed, Blocked-by, Tags. Each is fully specified
-(required, repeatable, type). The struct should reflect this directly.
+The spec defines a closed set of 6 headers; the struct should reflect it
+directly with typed fields, and the trivial accessor methods that exist
+only as map wrappers go away.
 
 ## Current shape (verbatim, erg.go:121-135)
 ```go
@@ -33,11 +33,6 @@ type Erg struct {
 }
 ```
 
-The `headers` map does two jobs in tension:
-1. Storing values for the 6 known headers (called by accessors)
-2. Recording trace of all keys seen, for validator rules 2-3 (required,
-   unknown, repeated-singleton)
-
 ## Proposed shape
 ```go
 type Erg struct {
@@ -45,91 +40,94 @@ type Erg struct {
     HasMagic bool
 
     // v1 headers — typed fields populated from first occurrence
-    Title     string
-    Created   string
-    Author    string
-    Closed    string    // value, may be empty
-    ClosedSet bool      // true if `Closed:` line appeared at all
-    BlockedBy []string  // repeatable
-    Tags      []string  // repeatable
+    Title      string   // required, non-empty (spec tightened — see below)
+    Created    string   // required, non-empty
+    Author     string   // required, non-empty
+    Closed     string   // optional; non-empty when present
+    BlockedBys []string // possibly empty; one entry per `Blocked-by:` line
+    Tags       []string // possibly empty; one entry per `Tag:` line (after 0106)
 
     LogLines []string
     Body     string
     LogSepCount  int
     BodySepCount int
 
-    // Diagnostic trace (validator-only; never read by accessors)
-    Unknown            []string  // unknown header keys seen (e.g. "Status")
+    // Diagnostic trace — TEMPORARY; collapses in the eventual parser/
+    // validator merge (a follow-up refactor), at which point parser emits
+    // errors directly and these fields disappear.
+    Unknown            []string  // unknown header keys seen
     RepeatedSingletons []string  // singleton keys seen more than once
+    ClosedEmpty        bool      // `Closed:` line appeared with empty value
     ClosedInLog        bool
     ClosedInBody       bool
 }
 ```
 
-`ClosedSet` is needed because validator rule 4 distinguishes "header
-absent" from "header present with empty value". A `*string` would work
-too but is awkward at call sites.
+Note plural field names `BlockedBys` and `Tags`: the field is a list of
+lines (possibly empty). Header name in the file remains singular
+(`Blocked-by:`, `Tag:` after 0106) per the repeatable-header convention.
 
-## Behaviour preservation
-| Today                                          | After                                                  |
-|------------------------------------------------|--------------------------------------------------------|
-| `t.Title()` reads `headers["Title"][0]`        | `t.Title` direct field                                 |
-| `t.BlockedBy()` reads `headers["Blocked-by"]`  | `t.BlockedBy` direct field                             |
-| `t.Tags()` trims and filters                   | parser stores already-trimmed non-empty values         |
-| `t.Closed()` checks path OR header non-empty   | unchanged method body, reads `t.Closed`                |
-| `t.ClosedHeader()` returns `Closed != ""`      | returns `t.ClosedSet && strings.TrimSpace(Closed)!=""` |
-| validate rule 2: `_, ok := headers[hdr]`       | `if t.Title == "" || t.Created == "" || t.Author == ""` (tightens: empty value now also fails — spec implies non-empty) |
-| validate rule 3 unknown: walk map keys         | walk `t.Unknown`                                       |
-| validate rule 3 singleton: `len(vals) > 1`     | walk `t.RepeatedSingletons`                            |
-| validate rule 3a Tags values: walk `headers["Tags"]` | walk `t.Tags`                                    |
-| validate rule 4 Closed empty: walk `headers["Closed"]` | `if t.ClosedSet && strings.TrimSpace(t.Closed) == ""` |
+No `ClosedSet` flag. Empty `Closed:` lines are recorded via `ClosedEmpty`
+which the validator (and later, the merged parse-validate pass) consumes
+as an error signal — no need for a tri-state Closed value.
 
-The required-header check changes semantics slightly: currently a
-`Title:` line with empty value passes rule 2 (key present). After
-refactor, empty value also fails. The spec implies non-empty values for
-required headers; tightening is correct. Document in PR body and add a
-test.
+## Spec tightening
+Update `tickets/spec-erg-v1.md`: required headers (`Title`, `Created`,
+`Author`) must have a non-empty value. Today the validator passes
+`Title: ` (key present, value empty) because rule 2 only checks key
+presence. After this refactor, empty required headers fail validation.
 
-## Call sites
-Accessors (Title, Closed, BlockedBy, Tags, ClosedHeader, Created, Author,
-BlockedByRefs) are called from 6 files. Strategy:
-- Keep the accessor methods as-is (one-line readers of typed fields) so
-  call sites do not change. The method shape becomes trivial; we could
-  inline later but doing so expands the diff.
-- The 4 direct `t.headers[...]` accesses in validate.go switch to the
-  new fields.
+## Accessor methods go away
+All trivial accessors are deleted; call sites read the field directly.
+The two methods with real logic stay (they encapsulate non-trivial
+behaviour, not map indirection):
+- `Closed()` — path-based test OR non-empty header value
+- `BlockedByRefs()` — parses every raw ref string
 
-Accessor call sites (no change to call code):
-- archive.go: Closed, BlockedByRefs, ClosedHeader
-- check.go:   ClosedHeader, Closed (×2), BlockedByRefs
-- close.go:   Closed (×2), BlockedBy
-- ready.go:   Closed (×2), Tags, BlockedByRefs, Title
-- validate.go: Created, BlockedByRefs (×2) — plus 4 direct map accesses to rewrite
+| Today               | After                                          |
+|---------------------|------------------------------------------------|
+| `t.Title()`         | `t.Title` (direct read)                        |
+| `t.Created()`       | `t.Created`                                    |
+| `t.Author()`        | `t.Author`                                     |
+| `t.ClosedHeader()`  | `t.Closed != ""`                               |
+| `t.BlockedBy()`     | `t.BlockedBys`                                 |
+| `t.Tags()`          | `t.Tags`                                       |
+| `t.Closed()`        | unchanged method body, reads `t.Closed` field  |
+| `t.BlockedByRefs()` | unchanged method, iterates `t.BlockedBys`      |
+
+## Call-site impact
+21 accessor call sites across 6 files. After this refactor:
+- archive.go: `Closed()`, `BlockedByRefs()`, `ClosedHeader()` → keep first two; the third becomes `t.Closed != ""`
+- check.go:   `ClosedHeader()`, `Closed()` ×2, `BlockedByRefs()` → similar
+- close.go:   `Closed()` ×2, `BlockedBy()` → `t.BlockedBys`
+- ready.go:   `Closed()` ×2, `Tags()`, `BlockedByRefs()`, `Title()` → field reads where trivial
+- validate.go: `Created()` → `t.Created`; `BlockedByRefs()` ×2 stays; the 4 direct `t.headers[...]` accesses switch to typed fields + trace
 
 ## Test impact
-- erg_test.go: parser tests construct Erg literals; update to new shape.
-- validate_test.go: rule 2/3/4 fixtures may need adjustment if they
-  exercise the "present but empty" required-header edge case.
-- Add a test asserting compile-time type safety: a misspelled-key access
-  must be impossible (the file simply does not compile).
+- erg_test.go: parser tests construct `Erg` literals — update to new shape.
+- validate_test.go: rule 2 fixtures may need adjustment for the
+  empty-required-header tightening; add a positive test for it.
+- Compile-time safety test: a misspelled-field access fails to compile
+  (the file simply doesn't build). Add this as a documented assertion
+  in a comment near the struct, since there is nothing to "run."
 
-## Out of scope
-- Parser/validator merge into a single pass (the secondary 0105 ask).
-  Split into a follow-up ticket if desired — different risk surface.
-- Renaming `Erg.Tags()` → `Erg.Tag()`. That is ticket 0106's territory.
-  If 0106 has landed by the time this is implemented, propagate; otherwise
-  keep `Tags`.
-- Splitting `parseErg` into smaller functions; only struct shape changes.
+## Out of scope (held back from 0105's scope creep)
+- **Parser/validator merge into one pass.** The diagnostic-trace fields
+  (`Unknown`, `RepeatedSingletons`, `ClosedEmpty`) are placeholders that
+  disappear in that follow-up. File as a separate ticket when ready.
+- Renaming `Tags` → `Tag` (header rename) is ticket 0106. If 0106 lands
+  first, this ticket reads `Tag:` headers into the `Tags` field.
+- Function-level splits in `parseErg`; only struct shape and the
+  accessor surface change.
 
 ## Dependencies
 - Soft dep: ticket 0115 (split Ref into ref.go). If 0115 lands first,
-  this ticket touches only the Erg-related portion of erg.go. If this
-  lands first, 0115 needs a trivial rebase.
-- If 0106 has landed: rename Tags field → Tag here too.
+  this ticket touches only the Erg portion of erg.go. Order is cheap to
+  swap either way.
 
 ## Exit criteria
 - `Erg` struct fields correspond 1-to-1 to the v1 header table.
-- No runtime string-keyed map access in accessors or validator for known
-  headers; only the `Unknown` slice carries unknown-key data.
-- `make test` passes.
-- PR body documents the rule-2 tightening (empty required header rejected).
+- All trivial accessor methods are removed; only `Closed()` and
+  `BlockedByRefs()` remain.
+- Spec updated: required headers must be non-empty.
+- `make test` passes; new test asserts empty required header is rejected.
