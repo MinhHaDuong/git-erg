@@ -107,6 +107,13 @@ func TestValidateErg(t *testing.T) {
 			wantSubstr: "unknown Tags value",
 		},
 		{
+			name:       "Tags header rejected with migration hint",
+			filename:   "0001-test.erg",
+			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTags: needs-human\n\n--- log ---\n--- body ---\n",
+			wantErrors: true,
+			wantSubstr: "renamed to 'Tag:'",
+		},
+		{
 			name:       "Closed header with empty value",
 			filename:   "0001-test.erg",
 			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nClosed:\n\n--- log ---\n--- body ---\n",
