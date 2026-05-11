@@ -208,7 +208,7 @@ cat > "$FIXTURES/ready/0040-tagged.erg" <<'EOF'
 Title: Needs human triage
 Created: 2026-01-01
 Author: a
-Tags: needs-human
+Tag: needs-human
 
 --- log ---
 2026-01-01T10:00Z a created

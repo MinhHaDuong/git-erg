@@ -156,6 +156,74 @@ else
     pass "no Status: complaint after migration"
 fi
 
+# --- Tags: → Tag: rewrite (preamble-bounded, value preserved) ---
+cat > "$FIXTURES/0010-tags-legacy.erg" <<'EOF'
+%erg v1
+Title: Legacy Tags
+Created: 2026-01-01
+Author: claude
+Tags: needs-human
+Tags: deferred
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+Body code block referencing Tags: should stay literal.
+EOF
+out=$($ERG migrate "$FIXTURES" 2>&1)
+if grep -q "^Tags:" "$FIXTURES/0010-tags-legacy.erg"; then
+    fail "Tags: legacy → preamble rewritten"
+else
+    pass "Tags: legacy → preamble rewritten"
+fi
+if grep -q "^Tag: needs-human$" "$FIXTURES/0010-tags-legacy.erg" \
+    && grep -q "^Tag: deferred$" "$FIXTURES/0010-tags-legacy.erg"; then
+    pass "Tags: → Tag: values preserved (round-trip)"
+else
+    fail "Tags: → Tag: values preserved (round-trip)"
+fi
+# Body code block must NOT be rewritten — the literal "Tags:" stays.
+if grep -q "Body code block referencing Tags: should stay literal." "$FIXTURES/0010-tags-legacy.erg"; then
+    pass "Tags: in body code block preserved verbatim"
+else
+    fail "Tags: in body code block preserved verbatim"
+fi
+if echo "$out" | grep -qE "Tags: . Tag: rewrite: [1-9]"; then
+    pass "summary reports Tags→Tag rewrite count"
+else
+    fail "summary reports Tags→Tag rewrite count (got: $out)"
+fi
+
+# --- Tags: → Tag: rewrite is idempotent ---
+cp "$FIXTURES/0010-tags-legacy.erg" "$FIXTURES/snapshot-0010"
+$ERG migrate "$FIXTURES" >/dev/null
+if cmp -s "$FIXTURES/0010-tags-legacy.erg" "$FIXTURES/snapshot-0010"; then
+    pass "Tags→Tag rewrite is idempotent"
+else
+    fail "Tags→Tag rewrite is idempotent"
+fi
+rm -f "$FIXTURES/snapshot-0010"
+
+# --- erg validate rejects legacy Tags: lines with migration hint ---
+cat > "$FIXTURES/0011-still-tags.erg" <<'EOF'
+%erg v1
+Title: Still has Tags
+Created: 2026-01-01
+Author: claude
+Tags: needs-human
+
+--- log ---
+2026-01-01T10:00Z claude created
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0011-still-tags.erg" 2>&1 || true)
+if echo "$out" | grep -q "renamed to 'Tag:'"; then
+    pass "validate rejects legacy Tags: with migration hint"
+else
+    fail "validate rejects legacy Tags: with migration hint (got: $out)"
+fi
+
 # --- erg validate rejects Status: lines (migrate is the only tolerant cmd) ---
 cat > "$FIXTURES/0009-still-status.erg" <<'EOF'
 %erg v1
