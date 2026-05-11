@@ -12,13 +12,11 @@ import (
 // parser observations (unknown/repeated headers, separator sightings,
 // misplaced `Closed:` lines, empty `Closed:` values).
 func validateErg(t *Erg, diag ParseDiagnostics, allIDs map[string]bool) []string {
-	var errors []string
+	// Rule 1: magic first line — emitted at parse time (0117 step 2).
+	// Subsequent steps migrate further rules; until the merge completes,
+	// the parser's diag.Errors prefix this slice.
+	errors := append([]string(nil), diag.Errors...)
 	name := t.Filename()
-
-	// Rule 1: magic first line
-	if !t.HasMagic {
-		errors = append(errors, fmt.Sprintf("%s: missing magic first line '%%erg v1'", name))
-	}
 
 	// Rule 2: required headers — must be present AND non-empty.
 	if strings.TrimSpace(t.Title) == "" {

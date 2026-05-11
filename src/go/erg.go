@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -319,6 +320,14 @@ func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
 				diag.ClosedInBody = true
 			}
 		}
+	}
+
+	name := filepath.Base(path)
+
+	// Rule 1: magic first line (migrated from validateErg in 0117 step 2).
+	if !hasMagic {
+		diag.Errors = append(diag.Errors,
+			fmt.Sprintf("%s: missing magic first line '%%erg v1'", name))
 	}
 
 	return Erg{
