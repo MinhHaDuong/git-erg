@@ -10,15 +10,10 @@ Author: claude-sonnet-4-6
 
 --- body ---
 ## Context
-This is the unfinished half of ticket 0105. PR #115 added accessor methods
-and unexported the headers field, but the struct itself still stores values
-in a `map[string][]string` bag and the accessors do runtime string-keyed
-lookups. The struct does not mirror the spec's header table; rule checks
-on a typo like `"Blocked-By"` would silently miss values.
-
-The spec defines a closed set of 6 headers; the struct should reflect it
-directly with typed fields, and the trivial accessor methods that exist
-only as map wrappers go away.
+Ticket 0105 left the `Erg` struct storing header values in a
+`map[string][]string` bag with string-keyed lookups. Replace with typed
+fields matching the spec's 6-header closed set; drop the accessor
+methods that exist only as map wrappers.
 
 ## Current shape (verbatim, erg.go:121-135)
 ```go
@@ -36,10 +31,9 @@ type Erg struct {
 ```
 
 ## Proposed shape
-The diagnostic trace becomes a sibling struct returned alongside `Erg`,
-so `Erg` is schema-pure from day 1 (not "TEMPORARY"). In follow-up 0117,
-`ParseDiagnostics` is replaced in-place by `[]ParseError` — the parser
-signature stays "two return values" across the staged refactors.
+`ParseDiagnostics` is a sibling struct returned alongside `Erg`. In 0117
+it is replaced in-place by `[]ParseError`; the two-return-value signature
+stays across both refactors.
 
 ```go
 // Line is a single-line string: no embedded newlines.
@@ -79,16 +73,6 @@ type ParseDiagnostics struct {
 func parseErg(path string) (Erg, ParseDiagnostics)
 ```
 
-`Line` is a type alias (not a distinct type) — interchangeable with
-`string` at call sites, but it documents intent at every declaration
-and shows up in godoc/IDE hover. The parser already enforces the
-no-newline invariant by construction (line-based read loop); the alias
-is documentation, not enforcement.
-
-Note plural field names `BlockedBys` and `Tags`: the field is a list of
-lines (possibly empty). Header name in the file remains singular
-(`Blocked-by:`, `Tag:` after 0106) per the repeatable-header convention.
-
 ## Parser invariants (pinned)
 The implementer must preserve these semantics; they are easy to break
 when moving from the map bag to typed fields.
@@ -126,45 +110,30 @@ Update `tickets/spec-erg-v1.md`:
   there.
 
 ## Spec relaxation (separator duplicates)
-Validator rule 11 (numbered rule 12 in some prior drafts; canonical
-numbering is in validate.go) today requires each separator
-(`--- log ---`, `--- body ---`) to appear **exactly once**. This is
-overstrict: legitimate bodies will contain those literals — heredoc
-examples, format documentation, this very ticket's body that quotes the
-strings. The parser already uses first-occurrence semantics for section
-transitions (erg.go:357-369), but the validator rejects the file based
-on the count.
+Validator rule 11 (validate.go) rejects duplicate `--- log ---` /
+`--- body ---` separators. Relax to first-occurrence; the parser
+already transitions sections that way (erg.go:357-369). Legitimate
+bodies quote the format literals.
 
 Change:
 - Drop the "appears N times" branch of rule 11; keep only "missing".
-- §Structure rewording: "Both separators are required" becomes "The
-  first `--- log ---` and the first `--- body ---` (in order) are the
-  section separators. Subsequent occurrences are body text."
-- Validator rules text in `const helpValidate` (validate.go, since
-  PR #121) updated to match.
-- Struct change: replace `LogSepCount`/`BodySepCount` (which existed
-  only to drive the now-deleted overstrict check) with
-  `HasLogSep`/`HasBodySep` bools in `ParseDiagnostics`.
-- This partially reverses ticket 0010 (logged above) — that ticket
-  added the strict rule; this one relaxes it. The new rule still
-  rejects truly malformed input (separator missing).
+- §Structure: "Both separators are required" → "The first
+  `--- log ---` and the first `--- body ---` (in order) are the section
+  separators. Subsequent occurrences are body text."
+- `const helpValidate` (validate.go) updated to match.
+- Replace `LogSepCount`/`BodySepCount` with `HasLogSep`/`HasBodySep`
+  bools in `ParseDiagnostics`.
 
-Known wart left untouched: `isClosedHeaderLine` (erg.go:416) still
-fires on any body line starting `Closed:` at column 0, even when the
-line is body prose discussing the format. This pre-existed and remains
-out of scope; a body that quotes the separator literals is fine, but
-quoting `Closed: <reason>` flush-left will still be flagged. Worth a
-follow-up ticket if it bites.
+Pre-existing wart (not addressed here): `isClosedHeaderLine`
+(erg.go:416) flags `Closed:` at column 0 anywhere in the body. Worth
+its own ticket if it bites.
 
 ## Accessor methods go away
-All trivial accessors are deleted; call sites read the field directly.
-Two methods with real logic survive — but the `Closed()` method is
-**renamed `IsClosed()`** to avoid shadowing the new `Closed` field
-(Go allows it but readers trip; `t.Closed` returns a string, `t.Closed()`
-would return a bool — same identifier, different types).
-
-- `IsClosed()` — path-based test OR non-empty `Closed` field
-- `BlockedByRefs()` — parses every raw ref string
+Trivial accessors are deleted; call sites read fields directly. Two
+methods with real logic survive:
+- `IsClosed()` — path test OR non-empty `Closed` field (renamed from
+  `Closed()` to avoid shadowing the new `Closed` field).
+- `BlockedByRefs()` — parses every raw ref string.
 
 | Today               | After                                          |
 |---------------------|------------------------------------------------|
@@ -208,76 +177,45 @@ unreachable and must be removed in the same PR:
   (b) `erg.Body` preserves the literal lines verbatim (no silent loss);
   (c) `ParseDiagnostics.HasLogSep` and `.HasBodySep` are true.
 
-## Out of scope (held back from 0105's scope creep)
-- **Parser/validator merge into one pass.** The diagnostic-trace fields
-  (`Unknown`, `RepeatedSingletons`, `ClosedEmpty`, `ClosedInLog`,
-  `ClosedInBody`, `HasLogSep`, `HasBodySep`) are placeholders that
-  disappear in that follow-up. File as a separate ticket when ready.
-- **Type tightening of header fields**: `BlockedBys []string` → `[]Ref`,
-  `Created string` → `time.Time`. These eliminate the surviving
-  `BlockedByRefs()` method and push date parsing into the parser. File
-  as a separate ticket after the merge ticket lands (the merge is the
-  natural place to introduce parse-time type errors).
-- Renaming `Tags:` → `Tag:` (header rename) is ticket 0106 / PR #122.
-  This ticket keeps the Go field name `Tags []Line` (idiomatic plural
-  slice) regardless of which order they merge.
-- Function-level splits in `parseErg`; only struct shape and the
-  accessor surface change.
+## Out of scope
+- Parser/validator merge into one pass — ticket 0117.
+- Type tightening (`BlockedBys []Ref`, `Created time.Time`) — ticket 0118.
+- `Tags:` → `Tag:` header rename — ticket 0106. The Go field stays
+  `Tags []Line` (idiomatic plural slice) regardless of merge order.
+- Function-level splits in `parseErg`.
 
-## Endpoint shape (post-merge, post-type-tightening)
-This ticket plus the two follow-ups land at:
-
+## Endpoint shape (after 0117 and 0118)
 ```go
-type Line = string
-
 type Erg struct {
     Path     Line
     HasMagic bool
 
     Title      Line       // required, non-empty
-    Created    time.Time  // required, parsed at parse time
+    Created    time.Time  // parsed at parse time
     Author     Line       // required, non-empty
     Closed     Line       // optional; non-empty when present
-    BlockedBys []Ref      // possibly empty; each ref parsed at parse time
-    Tags       []Line     // possibly empty
+    BlockedBys []Ref      // each ref parsed at parse time
+    Tags       []Line
 
-    LogLines []Line       // one structured event per entry
-    Body     string       // multiline
+    LogLines []Line
+    Body     string
 }
 
 func parseErg(path string) (Erg, []ParseError)
 ```
 
-Only `IsClosed()` survives as a method (path-OR-header is intrinsic;
-keep as method or convert to free function — taste). `BlockedByRefs()`
-and `ParseDiagnostics` both vanish: refs are pre-parsed at parse time
-(0118), diagnostics become parse errors (0117). The struct is a literal
-projection of the spec.
+`ParseDiagnostics` and `BlockedByRefs()` vanish; only `IsClosed()`
+survives.
 
 ## Dependencies
-- Ticket 0115 (split Ref into ref.go) has **landed** (PR #120). This
-  ticket now touches only the Erg portion of erg.go; `BlockedBys` stays
-  `[]Line` here, with Ref pre-parsing deferred to 0118.
-- Ticket 0114 (help strings into command files) has **landed**
-  (PR #121). The validator help text (rule-11/12 wording) now lives in
-  `const helpValidate` in `validate.go` — NOT in `helptext.go` (which
-  is now a thin registry). Spec/help edits in this ticket target
-  `helpValidate`.
-- Ticket 0106 (rename `Tags:` → `Tag:`) is **open in PR #122**.
-  Resolution depends on merge order:
-  - If 0106 merges first: this ticket reads `Tag:` lines into the
-    `Tags` field (idiomatic Go plural slice). The "Today" column of
-    the accessor-elimination table refers to `t.Tag()` (not `Tags()`).
-  - If this ticket merges first: 0106 is rebased to delete the
-    `Tag:`-vs-`Tags:` map-key constants on top of the schema-literal
-    fields; rename is then a one-liner on the field comment and the
-    parser key string.
-  - PR #122 was branched before PR #120 and currently re-introduces
-    Ref code into erg.go. It will need a rebase against main
-    regardless of 0116's timing.
-- This ticket bundles three changes deliberately (struct refactor +
-  rule 2 tightening + rule 11 relaxation) so the spec and code stay
-  synced in a single review.
+- 0115 landed (PR #120) — Ref is in `ref.go`; this ticket touches only
+  the Erg portion of erg.go.
+- 0114 landed (PR #121) — validator help text lives in
+  `const helpValidate` (validate.go). Edit there, not in `helptext.go`.
+- 0106 (PR #122) sequencing: plan is for #122 to merge first. If 0106
+  merges first, the accessor-elimination table's "Today" column shows
+  `t.Tag()` (post-#122) instead of `t.Tags()`. Field name `Tags []Line`
+  is unaffected by order.
 
 ## Exit criteria
 - `Erg` struct contains exactly the schema-pure fields: `Path`,
