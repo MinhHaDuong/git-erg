@@ -1,5 +1,5 @@
 %erg v1
-Title: Tighten Erg field types: BlockedBys []Ref and Created time.Time
+Title: Tighten Erg.BlockedBys from []string to []Ref
 Created: 2026-05-11
 Author: claude-sonnet-4-6
 Blocked-by: 0117
@@ -7,44 +7,48 @@ Blocked-by: 0117
 --- log ---
 2026-05-11T00:00Z claude-sonnet-4-6 created
 
+2026-05-11T00:00Z MinhHaDuong reimagined — descoped `Created → time.Time` (YAGNI: 1 read site + 1 write site, no consumer benefits from typed date, regex check is cheaper than format+parse). Scope reduced to BlockedBys only; title updated.
+
 --- body ---
 ## Context
 After tickets 0116 (schema-literal struct) and 0117 (validating-parser
-merge), two `Erg` fields still carry raw strings that the parser already
-has enough information to type:
+merge), `Erg.BlockedBys` still carries raw strings that the ref grammar
+can already parse. Lazy parsing via `BlockedByRefs()` is the last
+surviving accessor method after 0116. Push the parse to parse-time;
+delete the accessor.
 
-- `BlockedBys []string` — each entry is a `Blocked-by:` value that the
-  ref grammar can already parse. Lazy parsing via `BlockedByRefs()` is
-  the last surviving accessor method after 0116.
-- `Created string` — a date the validator regex-checks. Parsing to
-  `time.Time` at parse time turns malformed dates into structured
-  parse errors and gives downstream code a real value.
-
-This ticket completes the type alignment.
+## Reimagined: Created descoped
+The original ticket also proposed `Created string → time.Time`. Audit
+found only 1 read site (validate.go regex check) and 1 write site
+(new.go string interpolation). `Created` is never compared, sorted, or
+computed on — it is a display-only field. Converting saves the regex
+but adds a `Format("2006-01-02")` call; net wash, plus zero-value
+gotchas and import weight. Leaving `Created` as `string`.
 
 ## Proposed changes
 1. `BlockedBys []string` → `BlockedBys []Ref`. Each ref is parsed at
-   parse time; malformed values become `ParseError`s from 0117's pass.
-   Delete `BlockedByRefs()`.
-2. `Created string` → `Created time.Time`. ISO date parsed at parse
-   time; malformed value becomes a `ParseError`.
-3. Update all call sites that read these fields (today's accessors are
-   already gone after 0116; call sites just read the typed fields).
-4. Output paths (JSON serialization, log lines) format the typed values
-   back to strings where needed — single conversion point.
+   parse time; malformed values become errors in `parseErg`'s
+   `[]string` return (per 0117). Delete `BlockedByRefs()`.
+2. Update the 5 call sites that use `BlockedByRefs()` to read the typed
+   field directly:
+   - archive.go:63
+   - check.go:48
+   - close.go:129 (uses raw strings for line manipulation — preserved
+     via `Ref.Raw`)
+   - ready.go:243
+   - validate.go: any remaining corpus-level ref users
 
 ## Out of scope
-- Other field types (`Title`, `Author`, `Closed`, `Tags`) remain
-  strings; they have no richer type to graduate to.
+- `Created` field stays `string` (descoped — see log entry).
+- Other field types stay as designed by 0116.
 
 ## Dependencies
-- Hard dep: ticket 0117 (validating-parser merge). The parse-time
-  error channel introduced there is where malformed refs and dates
-  flow as parse errors.
+- Hard dep: ticket 0117 (validating-parser merge). The parse-time error
+  channel from 0117 is where malformed refs flow as errors.
 
 ## Exit criteria
-- `Erg.BlockedBys` is `[]Ref`; `Erg.Created` is `time.Time`.
-- No accessor methods remain on `Erg` for these fields.
-- Malformed refs / dates produce parse errors via 0117's mechanism.
-- `make test` passes; output paths format `time.Time` back to the
-  spec's `YYYY-MM-DD` form.
+- `Erg.BlockedBys` is `[]Ref`.
+- `BlockedByRefs()` method deleted; call sites read `t.BlockedBys`
+  directly.
+- Malformed refs produce parse errors via 0117's mechanism.
+- `make test` passes.

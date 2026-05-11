@@ -15,7 +15,7 @@ Ticket 0105 left the `Erg` struct storing header values in a
 fields matching the spec's 6-header closed set; drop the accessor
 methods that exist only as map wrappers.
 
-## Current shape (verbatim, erg.go:121-135)
+## Current shape (verbatim, erg.go:11-24)
 ```go
 type Erg struct {
     Path     string
@@ -77,9 +77,10 @@ func parseErg(path string) (Erg, ParseDiagnostics)
 The implementer must preserve these semantics; they are easy to break
 when moving from the map bag to typed fields.
 
-- **Tags trimming**: today's `Tags()` accessor trims values and drops
-  empty entries (erg.go:202-209). Parser must apply the same when
-  appending to `Tags` — trim, skip empty after trim.
+- **Tag trimming**: today's `Tag()` accessor (renamed from `Tags()` in
+  PR #122) trims values and drops empty entries (erg.go:88-101). Parser
+  must apply the same when appending to the `Tags` field — trim, skip
+  empty after trim.
 - **`HasLogSep` / `HasBodySep`**: set to true on **any** sighting of
   the separator literal, regardless of whether the parser transitions
   sections on that sighting. Set unconditionally; do not gate behind
@@ -112,7 +113,7 @@ Update `tickets/spec-erg-v1.md`:
 ## Spec relaxation (separator duplicates)
 Validator rule 11 (validate.go) rejects duplicate `--- log ---` /
 `--- body ---` separators. Relax to first-occurrence; the parser
-already transitions sections that way (erg.go:357-369). Legitimate
+already transitions sections that way (erg.go:248-261). Legitimate
 bodies quote the format literals.
 
 Change:
@@ -125,8 +126,8 @@ Change:
   bools in `ParseDiagnostics`.
 
 Pre-existing wart (not addressed here): `isClosedHeaderLine`
-(erg.go:416) flags `Closed:` at column 0 anywhere in the body. Worth
-its own ticket if it bites.
+(erg.go:307-310) flags `Closed:` at column 0 anywhere in the body.
+Worth its own ticket if it bites.
 
 ## Accessor methods go away
 Trivial accessors are deleted; call sites read fields directly. Two
@@ -142,7 +143,7 @@ methods with real logic survive:
 | `t.Author()`        | `t.Author`                                     |
 | `t.ClosedHeader()`  | `t.Closed != ""`                               |
 | `t.BlockedBy()`     | `t.BlockedBys`                                 |
-| `t.Tags()`          | `t.Tags`                                       |
+| `t.Tag()`           | `t.Tags`                                       |
 | `t.Closed()`        | `t.IsClosed()` (renamed; same logic)           |
 | `t.BlockedByRefs()` | unchanged method, iterates `t.BlockedBys`      |
 
@@ -151,17 +152,18 @@ methods with real logic survive:
 - archive.go: `Closed()` → `IsClosed()`; `BlockedByRefs()` stays; `ClosedHeader()` → `t.Closed != ""`
 - check.go:   `ClosedHeader()` → `t.Closed != ""`; `Closed()` ×2 → `IsClosed()`; `BlockedByRefs()` stays
 - close.go:   `Closed()` ×2 → `IsClosed()`; `BlockedBy()` → `t.BlockedBys`
-- ready.go:   `Closed()` ×2 → `IsClosed()`; `Tags()` → `t.Tags`; `BlockedByRefs()` stays; `Title()` → `t.Title`
+- ready.go:   `Closed()` ×2 → `IsClosed()`; `Tag()` → `t.Tags`; `BlockedByRefs()` stays; `Title()` → `t.Title`
 - validate.go: `Created()` → `t.Created`; `BlockedByRefs()` ×2 stays; the 4 direct `t.headers[...]` accesses switch to typed fields on `Erg` and bools on `ParseDiagnostics`
 
 ## Dead code retirement
-After the refactor, these constants/maps in `validate.go` become
-unreachable and must be removed in the same PR:
-- `RequiredHeaders` (was driving rule 2 via map lookup)
-- `SingletonHeaders` (was driving rule 3 singleton check)
-- `ValidHeaders` (was driving rule 3 unknown-header check)
-- `ValidTagValues` stays — it backs the Tags closed-set enumeration
-  rule, which still applies.
+After the refactor, these constants in `ergspecv1.go` (not validate.go —
+validate.go only uses them) become unreachable and must be removed in
+the same PR:
+- `RequiredHeaders` at ergspecv1.go:18 (was driving rule 2 via map lookup)
+- `SingletonHeaders` at ergspecv1.go:26-28 (was driving rule 3 singleton)
+- `ValidHeaders` at ergspecv1.go:37-40 (was driving rule 3 unknown-header)
+- `ValidTagValues` stays — backs the Tag closed-set enumeration rule
+  which still applies.
 
 ## Test impact
 - erg_test.go: parser tests construct `Erg` literals — update to new
@@ -228,7 +230,7 @@ survives.
 - `type Line = string` alias declared; line-string fields use `Line`,
   multiline `Body` stays `string`.
 - Dead constants removed: `RequiredHeaders`, `SingletonHeaders`,
-  `ValidHeaders` in validate.go.
+  `ValidHeaders` in ergspecv1.go.
 - Spec updates land in the same PR:
   - §Headers: line-string cardinality stated; Type column distinguishes
     line vs. freeform.

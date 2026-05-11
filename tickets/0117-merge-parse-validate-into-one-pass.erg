@@ -7,6 +7,8 @@ Blocked-by: 0116
 --- log ---
 2026-05-11T00:00Z claude-sonnet-4-6 created
 
+2026-05-11T00:00Z MinhHaDuong reimagined — corrected per-file/corpus rule split (rule 13 = cycles, corpus); flagged ParseError-as-struct as YAGNI vs. plain []string; recommended incremental migration (one trace field per commit) instead of atomic
+
 --- body ---
 ## Context
 After ticket 0116, the `Erg` struct carries diagnostic-trace fields
@@ -26,27 +28,43 @@ func parseErg(path string) Erg
 func validateErg(t *Erg, allIDs map[string]bool) []string
 
 // After
-func parseErg(path string) (Erg, []ParseError)
-// Corpus-level checks (Blocked-by resolution, cycle detection) stay
-// separate — they need the full corpus, not a single file.
-func validateCorpus(tickets []Erg) []ValidationError
+func parseErg(path string) (Erg, []string)
+// Corpus-level checks stay separate — they need the full corpus.
+func validateCorpus(tickets []Erg) []string
 ```
 
-Per-file rules (1-9, 11-13) move into the parser. Corpus-level rules
-(10: Blocked-by ID resolution; cycle detection) stay in a thin corpus
-walker that consumes already-parsed `Erg` values.
+**Rule split** (using validator's current numbering in helpValidate):
+- Per-file rules into parser: 1, 2, 3, 3a, 4 (Closed empty/misplaced),
+  5, 6, 7 (filename), 8 (single-file Blocked-by parse), 9, 11
+  (separators), 12 (date format).
+- Corpus rules stay: 7-dup (duplicate IDs across corpus), 10 (local
+  Blocked-by ID resolution), 13 (dependency cycles).
 
-## Actions
-1. Define a `ParseError` type with file, line, rule, message fields.
-2. In `parseErg`, emit `ParseError` values as each per-file rule fires
-   (today's rules 1-9, 11-13 plus the relaxed rule 12).
-3. Delete the trace fields from `Erg` (the user of each disappears with
-   the corresponding validator branch).
-4. Delete `validateErg` (per-file rules). Rename or refactor the
-   corpus-level checks into `validateCorpus`.
-5. Update `cmdValidate` and `cmdCheck` to call the new entry points.
-6. Update tests: validate_test.go gets restructured around parser
-   output; new fixtures for error reporting shape.
+`[]string` return matches `validateAll`'s current return type. The
+reimagined ParseError struct (file/line/rule fields) is YAGNI — no
+consumer reads errors programmatically today.
+
+## Actions (incremental migration)
+Change `parseErg` signature to `(Erg, []string)` first (returning nil).
+Then migrate one trace field per commit — each independently testable:
+
+1. Signature change: `parseErg` returns `(Erg, []string)`, initially nil.
+2. Migrate `HasMagic` rule into parser; delete validator branch; delete
+   field from `ParseDiagnostics` (or `Erg` if 0116 chose embed path).
+3. Migrate `ClosedInLog` / `ClosedInBody` similarly.
+4. Migrate `Unknown` / `RepeatedSingletons` similarly.
+5. Migrate `ClosedEmpty` similarly.
+6. Migrate `HasLogSep` / `HasBodySep` similarly.
+7. Delete `validateErg` after all per-file rules have migrated.
+8. Rename corpus-level checker to `validateCorpus`; update `cmdValidate`
+   and `cmdCheck` call sites.
+9. Update `validate_test.go` and parser tests.
+
+## Open question
+Eliminating ~5 trace fields requires coupling error policy into the
+parser. The "duplication" between parse-and-validate may actually be
+cheaper than the merge. Reconsider during execution if the per-commit
+diffs feel forced.
 
 ## Out of scope
 - Type tightening (`BlockedBys []Ref`, `Created time.Time`). Filed
@@ -60,9 +78,11 @@ walker that consumes already-parsed `Erg` values.
 
 ## Exit criteria
 - `Erg` struct contains no diagnostic-trace fields — only schema and
-  body/log content.
-- `parseErg` returns `(Erg, []ParseError)`.
+  body/log content. (Or `ParseDiagnostics` deleted, if 0116 chose that
+  shape.)
+- `parseErg` returns `(Erg, []string)`.
 - Per-file rules emit errors at parse time, not in a separate pass.
-- Corpus-level rules (ref resolution, cycles) live in a clearly-named
-  corpus walker.
-- `make test` passes; error messages preserved or improved.
+- Corpus-level rules (duplicate IDs, ref resolution, cycles) live in a
+  clearly-named `validateCorpus`.
+- `make test` passes; error messages preserved (the existing
+  `name: message` shape is the contract — tests assert it).
