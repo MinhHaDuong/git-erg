@@ -358,6 +358,22 @@ func parseErgBytes(data []byte, path string) (Erg, ParseDiagnostics) {
 			fmt.Sprintf("%s: missing magic first line '%%erg v1'", name))
 	}
 
+	// Rule 12 (separators): only the *missing* case is an error. The rule
+	// 12 relaxation from ticket 0116 — quoted "--- log ---" / "--- body ---"
+	// literals inside the body are legitimate body text — lives in the
+	// per-line walk above (the second occurrence of either literal does not
+	// re-transition section because `section != "log"`/`bodySepSeen` is
+	// already true). diag.HasLogSep / diag.HasBodySep stay true on ANY
+	// sighting, mirroring today's parser invariant.
+	if !diag.HasLogSep {
+		diag.Errors = append(diag.Errors,
+			fmt.Sprintf("%s: missing '--- log ---' separator", name))
+	}
+	if !diag.HasBodySep {
+		diag.Errors = append(diag.Errors,
+			fmt.Sprintf("%s: missing '--- body ---' separator", name))
+	}
+
 	return Erg{
 		Path:       path,
 		HasMagic:   hasMagic,

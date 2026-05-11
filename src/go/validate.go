@@ -79,16 +79,7 @@ func validateErg(t *Erg, diag ParseDiagnostics, allIDs map[string]bool) []string
 		}
 	}
 
-	// Rule 12: the first `--- log ---` and the first `--- body ---` in
-	// order are the section separators; subsequent occurrences are body
-	// text. Only the missing case is an error — a body that quotes the
-	// separator literals is legitimate (rule 12 relaxation, ticket 0116).
-	if !diag.HasLogSep {
-		errors = append(errors, fmt.Sprintf("%s: missing '--- log ---' separator", name))
-	}
-	if !diag.HasBodySep {
-		errors = append(errors, fmt.Sprintf("%s: missing '--- body ---' separator", name))
-	}
+	// Rule 12 (separator presence) emits at parse time (0117 step 6).
 
 	return errors
 }
