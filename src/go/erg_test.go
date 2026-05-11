@@ -50,8 +50,8 @@ func TestParseErg(t *testing.T) {
 	t.Run("minimal valid ticket", func(t *testing.T) {
 		path := writeErg(t, t.TempDir(), "0001-test.erg", ergWithTitle("My Title"))
 		erg, parseErrs := parseErg(path)
-		if !erg.HasMagic {
-			t.Error("expected HasMagic=true")
+		if errsContain(parseErrs, "missing magic first line") {
+			t.Errorf("unexpected magic error for valid ticket: %v", parseErrs)
 		}
 		if erg.Title != "My Title" {
 			t.Errorf("Title = %q, want %q", erg.Title, "My Title")
@@ -67,18 +67,18 @@ func TestParseErg(t *testing.T) {
 	t.Run("missing magic line", func(t *testing.T) {
 		content := "Title: foo\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
-		erg, _ := parseErg(path)
-		if erg.HasMagic {
-			t.Error("expected HasMagic=false")
+		_, parseErrs := parseErg(path)
+		if !errsContain(parseErrs, "missing magic first line") {
+			t.Errorf("expected magic error for missing magic line, got: %v", parseErrs)
 		}
 	})
 
 	t.Run("CRLF line endings", func(t *testing.T) {
 		content := strings.ReplaceAll(ergWithTitle("CRLF Title"), "\n", "\r\n")
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
-		erg, _ := parseErg(path)
-		if !erg.HasMagic {
-			t.Error("expected HasMagic=true with CRLF endings")
+		erg, parseErrs := parseErg(path)
+		if errsContain(parseErrs, "missing magic first line") {
+			t.Errorf("unexpected magic error for CRLF content: %v", parseErrs)
 		}
 		if erg.Title != "CRLF Title" {
 			t.Errorf("Title = %q, want %q", erg.Title, "CRLF Title")
@@ -88,9 +88,9 @@ func TestParseErg(t *testing.T) {
 	t.Run("no trailing newline", func(t *testing.T) {
 		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n--- log ---\n--- body ---"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
-		erg, parseErrs := parseErg(path)
-		if !erg.HasMagic {
-			t.Error("expected HasMagic=true")
+		_, parseErrs := parseErg(path)
+		if errsContain(parseErrs, "missing magic first line") {
+			t.Errorf("unexpected magic error for no-trailing-newline content: %v", parseErrs)
 		}
 		if errsContain(parseErrs, "missing '--- log ---'") {
 			t.Errorf("expected no missing-log-separator error (--- log --- on penultimate line), got: %v", parseErrs)
@@ -121,9 +121,9 @@ func TestParseErg(t *testing.T) {
 		// spaces on the first line must still be accepted as a valid magic marker.
 		content := "  %erg v1  \nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
-		erg, _ := parseErg(path)
-		if !erg.HasMagic {
-			t.Error("expected HasMagic=true for magic line padded with whitespace")
+		_, parseErrs := parseErg(path)
+		if errsContain(parseErrs, "missing magic first line") {
+			t.Errorf("unexpected magic error for whitespace-padded magic line: %v", parseErrs)
 		}
 	})
 
@@ -135,8 +135,8 @@ func TestParseErg(t *testing.T) {
 		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n--- log ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
 		erg, parseErrs := parseErg(path)
-		if !erg.HasMagic {
-			t.Error("expected HasMagic=true")
+		if errsContain(parseErrs, "missing magic first line") {
+			t.Errorf("unexpected magic error: %v", parseErrs)
 		}
 		if errsContain(parseErrs, "missing '--- log ---'") {
 			t.Errorf("expected no missing-log-separator error, got: %v", parseErrs)
@@ -171,9 +171,6 @@ func TestParseErg(t *testing.T) {
 	t.Run("file does not exist", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "nonexistent.erg")
 		erg, _ := parseErg(path)
-		if erg.HasMagic {
-			t.Error("expected HasMagic=false for nonexistent file")
-		}
 		if erg.Path != path {
 			t.Errorf("Path = %q, want %q", erg.Path, path)
 		}

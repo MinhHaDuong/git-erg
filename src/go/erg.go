@@ -15,8 +15,7 @@ import (
 // per-file rule violations alongside the Erg; corpus-level rules
 // (duplicate IDs, ref resolution, cycles) live in validateCorpus.
 type Erg struct {
-	Path     string
-	HasMagic bool
+	Path string
 
 	// v1 headers — typed fields populated from first occurrence
 	Title      string   // required, non-empty (validator rule 2)
@@ -433,7 +432,6 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 
 	return Erg{
 		Path:       path,
-		HasMagic:   hasMagic,
 		Title:      title,
 		Created:    created,
 		Author:     author,
