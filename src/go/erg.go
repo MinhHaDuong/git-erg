@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -442,11 +443,11 @@ func loadErgs(dir string) ([]Erg, [][]string) {
 		e []string
 	}
 	var pairs []pair
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
-		if info.IsDir() || !strings.HasSuffix(path, ".erg") {
+		if d.IsDir() || !strings.HasSuffix(path, ".erg") {
 			return nil
 		}
 		t, e := parseErg(path)
