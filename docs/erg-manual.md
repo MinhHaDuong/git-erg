@@ -1,7 +1,7 @@
 # erg manual
 
 Author: minh.ha-duong@cnrs.fr
-Generated from: erg built 2026-05-11T11:48:06Z rev 5a35fba
+Generated from: erg built 2026-05-11T15:24:54Z rev 537feb6
 
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
@@ -52,7 +52,7 @@ under DIR recursively and verifies invariants that require a global view:
   - No duplicate ticket IDs across the corpus.
   - All Blocked-by local refs point to tickets that exist in the corpus.
   - No dependency cycles among Blocked-by edges.
-  - All per-ticket format rules (delegates to validateAll).
+  - All per-ticket format rules (delegates to validateCorpus, which folds in parser-emitted errors).
 
 Additionally emits warnings (non-fatal) for:
 
@@ -115,7 +115,7 @@ Prints 'CREATED NNNN-slug.erg' on success. Exits non-zero on I/O errors.
 
 Atomically close a ticket.
 
-Closing a ticket is a three-step atomic operation:
+Closing a ticket is a three-step operation:
 
   1. Inserts a Closed: REASON header at the end of the preamble (before `--- log ---`).
   2. Appends a timestamped log line: `TIMESTAMP AUTHOR closed — REASON`.
@@ -124,6 +124,7 @@ Closing a ticket is a three-step atomic operation:
      `TIMESTAMP AUTHOR note blocker ID closed — Blocked-by removed.`
      Already-closed tickets that reference the ID are not modified. If a ticket
      has multiple Blocked-by: ID lines, all are removed in one pass.
+     Step 3 iterates all open tickets; it is idempotent but not atomic.
 
 ID may be a 4-digit ticket ID or a full filename (e.g. 0042-some-title.erg).
 REASON must be non-empty. The operation is idempotent (safe to call twice for

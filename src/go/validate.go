@@ -7,123 +7,6 @@ import (
 	"strings"
 )
 
-// validateErg returns rule violations for a single ticket. allIDs lists every
-// ticket ID known to the run for Blocked-by resolution. diag carries
-// parser observations (unknown/repeated headers, separator sightings,
-// misplaced `Closed:` lines, empty `Closed:` values).
-func validateErg(t *Erg, diag ParseDiagnostics, allIDs map[string]bool) []string {
-	var errors []string
-	name := t.Filename()
-
-	// Rule 1: magic first line
-	if !t.HasMagic {
-		errors = append(errors, fmt.Sprintf("%s: missing magic first line '%%erg v1'", name))
-	}
-
-	// Rule 2: required headers — must be present AND non-empty.
-	if strings.TrimSpace(t.Title) == "" {
-		errors = append(errors, fmt.Sprintf("%s: missing or empty required header 'Title' — add 'Title: <text>' to the preamble", name))
-	}
-	if strings.TrimSpace(t.Created) == "" {
-		errors = append(errors, fmt.Sprintf("%s: missing or empty required header 'Created' — add 'Created: YYYY-MM-DD' to the preamble", name))
-	}
-	if strings.TrimSpace(t.Author) == "" {
-		errors = append(errors, fmt.Sprintf("%s: missing or empty required header 'Author' — add 'Author: <name>' to the preamble", name))
-	}
-
-	// Rule 3: no unknown headers (Status: and Tags: are relics; run `erg
-	// migrate` to convert them).
-	// Rule 4: non-repeatable headers appear at most once.
-	// Unknown keys come from the parser in first-occurrence order.
-	for _, key := range diag.Unknown {
-		switch key {
-		case "Status":
-			errors = append(errors, fmt.Sprintf(
-				"%s: 'Status:' header is no longer part of %%erg v1 — run `erg migrate` to convert", name))
-		case "Tags":
-			errors = append(errors, fmt.Sprintf(
-				"%s: 'Tags:' has been renamed to 'Tag:' — run `erg migrate` to convert", name))
-		default:
-			errors = append(errors, fmt.Sprintf("%s: unknown header '%s' (not in v1 closed set) — remove it or run `erg migrate`", name, key))
-		}
-	}
-	// (Rule 4 cont.) Singleton check: non-repeatable headers must appear at most once.
-	for _, key := range diag.RepeatedSingletons {
-		errors = append(errors, fmt.Sprintf(
-			"%s: header '%s' is non-repeatable (appears more than once)", name, key))
-	}
-
-	// Rule 5: Tag: values must be from the closed value set.
-	for _, v := range t.Tags {
-		if !validTagValues[v] {
-			errors = append(errors, fmt.Sprintf(
-				"%s: unknown Tag value '%s' (not in v1 closed set: needs-human, deferred, post-talk, post-conference)", name, v))
-		}
-	}
-
-	// Rule 6: Closed: header — value required, non-empty; not in log/body.
-	if diag.ClosedEmpty {
-		errors = append(errors, fmt.Sprintf(
-			"%s: 'Closed:' header requires a non-empty value (closure reason)", name))
-	}
-	if diag.ClosedInLog {
-		errors = append(errors, fmt.Sprintf(
-			"%s: 'Closed:' header found in log section — only allowed in header section", name))
-	}
-	if diag.ClosedInBody {
-		errors = append(errors, fmt.Sprintf(
-			"%s: 'Closed:' header found in body section — only allowed in header section", name))
-	}
-
-	// Rule 7: Created is ISO date
-	if c := t.Created; c != "" && !isoDateRE.MatchString(c) {
-		errors = append(errors, fmt.Sprintf(
-			"%s: Created '%s' is not a valid ISO date (YYYY-MM-DD)", name, c))
-	}
-
-	// Rule 8: filename matches NNNN-slug.erg
-	if !filenameRE.MatchString(name) {
-		errors = append(errors, fmt.Sprintf(
-			"%s: filename does not match NNNN-slug.erg pattern", name))
-	}
-
-	// Rule 9: Blocked-by values parse to one of the two ref forms.
-	// Rule 10: local refs point to existing ticket IDs.
-	refs, refErrs := t.BlockedByRefs()
-	for i, ref := range refs {
-		if refErrs[i] != nil {
-			errors = append(errors, fmt.Sprintf("%s: %v", name, refErrs[i]))
-			continue
-		}
-		if ref.Kind == RefLocal && !allIDs[ref.ID] {
-			errors = append(errors, fmt.Sprintf(
-				"%s: Blocked-by '%s' references unknown ticket ID", name, ref.ID))
-		}
-	}
-
-	// Rule 11: log lines match format
-	for _, line := range t.LogLines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed != "" && !logLineRE.MatchString(trimmed) {
-			errors = append(errors, fmt.Sprintf(
-				"%s: malformed log line: %s", name, trimmed))
-		}
-	}
-
-	// Rule 12: the first `--- log ---` and the first `--- body ---` in
-	// order are the section separators; subsequent occurrences are body
-	// text. Only the missing case is an error — a body that quotes the
-	// separator literals is legitimate (rule 12 relaxation, ticket 0116).
-	if !diag.HasLogSep {
-		errors = append(errors, fmt.Sprintf("%s: missing '--- log ---' separator", name))
-	}
-	if !diag.HasBodySep {
-		errors = append(errors, fmt.Sprintf("%s: missing '--- body ---' separator", name))
-	}
-
-	return errors
-}
-
 // detectCycles reports any dependency cycles among the tickets' Blocked-by
 // edges. Only RefLocal edges participate; forge refs are terminal from
 // this repo's view and cannot form local cycles.
@@ -140,7 +23,7 @@ func detectCycles(tickets []Erg) []string {
 		refs, errs := tickets[i].BlockedByRefs()
 		for j, ref := range refs {
 			if errs[j] != nil {
-				continue // malformed — already reported by validateErg
+				continue // malformed — already reported by parseErgBytes
 			}
 			if ref.Kind == RefLocal {
 				localRefs = append(localRefs, ref.ID)
@@ -199,12 +82,22 @@ func detectCycles(tickets []Erg) []string {
 	return errors
 }
 
-// validateAll runs every rule across the supplied tickets. diags must be
-// the parallel-by-index slice of ParseDiagnostics emitted by parseErg.
-func validateAll(tickets []Erg, diags []ParseDiagnostics) []string {
+// validateCorpus runs the corpus-level rules across all tickets and
+// folds in the per-file parse errors. parseErrs is the parallel-by-index
+// slice of parse errors emitted by parseErg / loadErgs (already covers
+// rules 1-9, 11, 12). validateCorpus adds:
+//   - duplicate ID detection (no rule number; corpus-level invariant)
+//   - rule 10: local Blocked-by refs resolve to existing ticket IDs
+//   - rule 13: no dependency cycles among local Blocked-by edges
+func validateCorpus(tickets []Erg, parseErrs [][]string) []string {
 	var errors []string
 
-	// Corpus check: no duplicate IDs (not a per-file rule)
+	// Fold in per-file parse errors first (rules 1-9, 11, 12).
+	for _, e := range parseErrs {
+		errors = append(errors, e...)
+	}
+
+	// Corpus check: no duplicate IDs (not a per-file rule).
 	idToFiles := make(map[string][]string)
 	for i := range tickets {
 		id := tickets[i].FilenameID()
@@ -222,22 +115,30 @@ func validateAll(tickets []Erg, diags []ParseDiagnostics) []string {
 		}
 	}
 
-	// Build allIDs for reference checking
+	// Build allIDs for reference checking.
 	allIDs := make(map[string]bool)
 	for id := range idToFiles {
 		allIDs[id] = true
 	}
 
-	// Per-ticket validation
+	// Rule 10: local Blocked-by refs point to existing ticket IDs in the
+	// corpus.
 	for i := range tickets {
-		var diag ParseDiagnostics
-		if i < len(diags) {
-			diag = diags[i]
+		t := &tickets[i]
+		name := t.Filename()
+		refs, refErrs := t.BlockedByRefs()
+		for j, ref := range refs {
+			if refErrs[j] != nil {
+				continue // rule 9 (malformed) already reported by parser
+			}
+			if ref.Kind == RefLocal && !allIDs[ref.ID] {
+				errors = append(errors, fmt.Sprintf(
+					"%s: Blocked-by '%s' references unknown ticket ID", name, ref.ID))
+			}
 		}
-		errors = append(errors, validateErg(&tickets[i], diag, allIDs)...)
 	}
 
-	// Rule 13: dependency cycles
+	// Rule 13: dependency cycles.
 	errors = append(errors, detectCycles(tickets)...)
 	return errors
 }
@@ -323,15 +224,28 @@ func cmdValidate(args []string) int {
 			fmt.Fprintf(os.Stderr, "WARNING: skipping %s (not a .erg file)\n", arg)
 			continue
 		}
-		t, diag := parseErg(arg)
+		t, parseErrs := parseErg(arg)
 		dir := filepath.Dir(arg)
 		localIDs, ok := idCache[dir]
 		if !ok {
 			localIDs = globLocalIDs(dir)
 			idCache[dir] = localIDs
 		}
-		errs := validateErg(&t, diag, localIDs)
-		allErrors = append(allErrors, errs...)
+		allErrors = append(allErrors, parseErrs...)
+		// Rule 10: local Blocked-by refs resolve to a known ticket ID. For
+		// `erg validate` this is the per-directory glob; for `erg check`
+		// (validateCorpus) it's the loaded corpus.
+		name := t.Filename()
+		refs, refErrs := t.BlockedByRefs()
+		for j, ref := range refs {
+			if refErrs[j] != nil {
+				continue // rule 9 already reported by parser
+			}
+			if ref.Kind == RefLocal && !localIDs[ref.ID] {
+				allErrors = append(allErrors, fmt.Sprintf(
+					"%s: Blocked-by '%s' references unknown ticket ID", name, ref.ID))
+			}
+		}
 		count++
 	}
 

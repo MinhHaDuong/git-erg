@@ -49,18 +49,18 @@ func ergWithTitle(title string) string {
 func TestParseErg(t *testing.T) {
 	t.Run("minimal valid ticket", func(t *testing.T) {
 		path := writeErg(t, t.TempDir(), "0001-test.erg", ergWithTitle("My Title"))
-		erg, diag := parseErg(path)
+		erg, parseErrs := parseErg(path)
 		if !erg.HasMagic {
 			t.Error("expected HasMagic=true")
 		}
 		if erg.Title != "My Title" {
 			t.Errorf("Title = %q, want %q", erg.Title, "My Title")
 		}
-		if !diag.HasLogSep {
-			t.Error("expected ParseDiagnostics.HasLogSep=true")
+		if errsContain(parseErrs, "missing '--- log ---'") {
+			t.Errorf("expected no missing-log-separator error, got: %v", parseErrs)
 		}
-		if !diag.HasBodySep {
-			t.Error("expected ParseDiagnostics.HasBodySep=true")
+		if errsContain(parseErrs, "missing '--- body ---'") {
+			t.Errorf("expected no missing-body-separator error, got: %v", parseErrs)
 		}
 	})
 
@@ -88,15 +88,15 @@ func TestParseErg(t *testing.T) {
 	t.Run("no trailing newline", func(t *testing.T) {
 		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n--- log ---\n--- body ---"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
-		erg, diag := parseErg(path)
+		erg, parseErrs := parseErg(path)
 		if !erg.HasMagic {
 			t.Error("expected HasMagic=true")
 		}
-		if !diag.HasLogSep {
-			t.Error("expected HasLogSep=true (--- log --- on penultimate line)")
+		if errsContain(parseErrs, "missing '--- log ---'") {
+			t.Errorf("expected no missing-log-separator error (--- log --- on penultimate line), got: %v", parseErrs)
 		}
-		if !diag.HasBodySep {
-			t.Error("expected HasBodySep=true (--- body --- as final line, no trailing newline)")
+		if errsContain(parseErrs, "missing '--- body ---'") {
+			t.Errorf("expected no missing-body-separator error (--- body --- as final line, no trailing newline), got: %v", parseErrs)
 		}
 	})
 
@@ -124,15 +124,16 @@ func TestParseErg(t *testing.T) {
 	t.Run("separator inside body section", func(t *testing.T) {
 		// A second '--- log ---' inside the body must not change the
 		// section or cause a panic. The literal becomes body text and
-		// HasLogSep stays true (set on ANY sighting).
+		// the parser counts the separator as present (set on ANY sighting,
+		// so no missing-separator error fires).
 		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n--- log ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
-		erg, diag := parseErg(path)
+		erg, parseErrs := parseErg(path)
 		if !erg.HasMagic {
 			t.Error("expected HasMagic=true")
 		}
-		if !diag.HasLogSep {
-			t.Error("expected ParseDiagnostics.HasLogSep=true")
+		if errsContain(parseErrs, "missing '--- log ---'") {
+			t.Errorf("expected no missing-log-separator error, got: %v", parseErrs)
 		}
 		if !strings.Contains(erg.Body, "--- log ---") {
 			t.Errorf("erg.Body = %q, expected to contain the quoted '--- log ---' literal", erg.Body)
@@ -178,27 +179,27 @@ func TestParseErg(t *testing.T) {
 // parseHeaderLine accepts `Closed : val` (space before colon) as a valid
 // header, but isClosedHeaderLine requires the exact prefix `Closed:` (no
 // space). When `Closed : merged` appears in the body section, the parser
-// does not set diag.ClosedInBody, so the validator does not reject it.
+// does not emit the "found in body section" error.
 // This test pins that current behavior.
 func TestClosedWhitespaceDivergence(t *testing.T) {
-	t.Run("Closed: in body triggers ClosedInBody", func(t *testing.T) {
+	t.Run("Closed: in body triggers body-section error", func(t *testing.T) {
 		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\nClosed: merged\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
-		_, diag := parseErg(path)
-		if !diag.ClosedInBody {
-			t.Error("expected ClosedInBody=true for 'Closed: merged' in body")
+		_, parseErrs := parseErg(path)
+		if !errsContain(parseErrs, "found in body section") {
+			t.Errorf("expected 'found in body section' error for 'Closed: merged' in body, got: %v", parseErrs)
 		}
 	})
 
-	t.Run("Closed_space_colon in body does NOT trigger ClosedInBody", func(t *testing.T) {
+	t.Run("Closed_space_colon in body does NOT trigger body-section error", func(t *testing.T) {
 		// `Closed : merged` — parseHeaderLine would parse this as key=Closed,
 		// but isClosedHeaderLine does not fire because it expects prefix `Closed:`.
 		// This pins the current divergence; a future ticket may align them.
 		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\nClosed : merged\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
-		_, diag := parseErg(path)
-		if diag.ClosedInBody {
-			t.Error("expected ClosedInBody=false for 'Closed : merged' — isClosedHeaderLine requires exact 'Closed:' prefix")
+		_, parseErrs := parseErg(path)
+		if errsContain(parseErrs, "found in body section") {
+			t.Errorf("expected no 'found in body section' error for 'Closed : merged' — isClosedHeaderLine requires exact 'Closed:' prefix, got: %v", parseErrs)
 		}
 	})
 }

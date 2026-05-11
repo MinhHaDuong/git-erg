@@ -2,6 +2,7 @@
 Title: Merge parseErg and validateErg into a single validating-parser pass
 Created: 2026-05-11
 Author: claude-sonnet-4-6
+Closed: autoclosed — PR #129
 
 --- log ---
 2026-05-11T00:00Z claude-sonnet-4-6 created
@@ -13,6 +14,7 @@ Author: claude-sonnet-4-6
 2026-05-11T11:22Z MinhHaDuong note blocker 0116 closed — Blocked-by removed.
 
 2026-05-11T12:00Z claude-opus-4-7 refreshed — re-pinned against current main (post PR #126/#128); resolved 0116 outcome (ParseDiagnostics struct, Erg already clean); retargeted signature discussion to parseErgBytes; redesigned step 1 transitional shape; split format upgrade as orthogonal follow-up; tally of call sites
+2026-05-11T15:37Z MinhHaDuong closed — autoclosed — PR #129
 --- body ---
 ## Current state vs. ticket (2026-05-11 refresh)
 

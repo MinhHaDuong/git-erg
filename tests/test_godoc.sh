@@ -83,9 +83,9 @@ doc_contains helpUpdate "offline" "helpUpdate offline safety"
 doc_contains helpUpdate "migration" "helpUpdate migration hint"
 
 # Format constant doc comments. RequiredHeaders/SingletonHeaders/
-# ValidHeaders were removed in ticket 0116 (parser+validator now drive
-# the closed set off typed fields and ParseDiagnostics); only
-# ValidTagValues remains as a const-backed closed set.
+# ValidHeaders were removed in ticket 0116; ticket 0117 then merged
+# parser and validator into one pass. Only ValidTagValues remains as
+# a const-backed closed set.
 doc_contains validTagValues "needs-human" "validTagValues doc comment"
 doc_contains logLineRE "YYYY-MM-DDThh:mmZ" "logLineRE doc comment"
 
