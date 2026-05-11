@@ -236,9 +236,8 @@ func cmdReady(args []string) int {
 		}
 
 		if !blocked {
-			refs, errs := t.BlockedByRefs()
-			for i, ref := range refs {
-				if errs[i] != nil {
+			for _, ref := range t.BlockedBys {
+				if ref.Kind == RefInvalid {
 					continue // malformed refs are validator territory
 				}
 				if ref.IsForge() {

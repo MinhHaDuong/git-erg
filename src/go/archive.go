@@ -71,9 +71,8 @@ func cmdArchive(args []string) int {
 		if t.IsClosed() {
 			continue
 		}
-		refs, errs := t.BlockedByRefs()
-		for j, ref := range refs {
-			if errs[j] != nil || ref.Kind != RefLocal {
+		for _, ref := range t.BlockedBys {
+			if ref.Kind != RefLocal {
 				continue
 			}
 			blockedBy[ref.ID] = append(blockedBy[ref.ID], t.FilenameID())

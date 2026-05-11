@@ -71,23 +71,6 @@ func pathIsClosed(path string) bool {
 	return false
 }
 
-// BlockedByRefs returns the already-parsed Blocked-by refs alongside a
-// parallel error slice for API compatibility. Since refs are now parsed
-// at parse time, errors are indicated by ref.Kind == RefInvalid.
-// Deprecated: callers should iterate t.BlockedBys directly.
-func (t *Erg) BlockedByRefs() ([]Ref, []error) {
-	if len(t.BlockedBys) == 0 {
-		return nil, nil
-	}
-	errs := make([]error, len(t.BlockedBys))
-	for i, ref := range t.BlockedBys {
-		if ref.Kind == RefInvalid {
-			errs[i] = fmt.Errorf("%s", ref.Raw)
-		}
-	}
-	return t.BlockedBys, errs
-}
-
 // Filename returns the basename of the ticket path. Always non-empty when
 // Path is set (parseErg guarantees Path is set even on read errors).
 func (t *Erg) Filename() string {
