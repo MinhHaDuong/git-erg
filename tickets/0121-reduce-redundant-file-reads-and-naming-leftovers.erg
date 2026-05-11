@@ -1,0 +1,64 @@
+%erg v1
+Title: Reduce redundant file reads and parsing; fix naming leftovers
+Created: 2026-05-11
+Author: claude-opus-4-7
+
+--- log ---
+2026-05-11T00:00Z claude-opus-4-7 created from post-0116 audit (cluster C: code quality)
+
+--- body ---
+## Context
+Audit after the 0116 merge surfaced 7 code-quality items: file/parse
+redundancy in command implementations, and naming leftovers from
+historical refactors.
+
+## File-read / parse redundancy
+1. `cmdClose` reads the ticket file three times (close.go:73, 79, 105):
+   one `ReadFile` plus two `parseErg` calls on the same path.
+2. `removeBlockedByRef` parses each candidate file, then re-reads the
+   same bytes for rewriting (close.go:128, 147).
+3. `cmdArchive` double-parses every target: `loadErgs` walks the
+   directory once (archive.go:57), then `parseErg` is called again on
+   the chosen ticket (archive.go:93, 109).
+4. `globLocalIDs` re-reads the directory once per file when
+   `cmdValidate` is invoked with multiple files from the same dir —
+   validate.go:247, called from cmdValidate at validate.go:320.
+
+For each: refactor to read/parse once and pass the parsed `Erg` down.
+
+## Naming leftovers
+5. `sortedKeys2` (erg.go:366): the trailing "2" is a leftover from a
+   prior refactor; the original `sortedKeys` is gone. Rename to
+   `sortedKeys`.
+6. `commandOrder` (helptext.go:4) + `helpText` (helptext.go:14) are
+   parallel structures listing the same 12 commands. Collapse to a
+   single ordered struct keeping per-command help inline.
+
+## Re-litigation deliberately deferred
+7. `Line` type alias (erg.go:11): audit flagged that as a pure alias
+   it adds no type safety, only documentation. Decision was made in
+   0116 to keep it for godoc/IDE intent signal. NOT changing here;
+   noting for record.
+
+## Actions
+1. For each redundancy item (1-4), trace the call paths and propose a
+   minimal-touch refactor in the PR description. Implement; verify
+   `make test` passes and behavior is unchanged.
+2. Rename `sortedKeys2` → `sortedKeys` (mechanical).
+3. Collapse `commandOrder` + `helpText` into one ordered structure
+   in helptext.go. Update consumers in main.go.
+
+## Out of scope
+- Defer-to-0117 items: `ParseDiagnostics` struct + parallel slice
+  plumbing through loadErgs/validateAll/check; headerCounts +
+  repeatedSeen maps used during parse.
+- Defer-to-0118 items: `BlockedByRefs()` accessor re-parsing across
+  5+ sites; `detectCycles` re-parsing after `validateErg`;
+  `removeBlockedByLine` raw-string ref matching.
+- `IsForge` inlining: minor; one call site. Defer (or skip).
+
+## Exit criteria
+- All 6 items (1-6) addressed.
+- `make test` passes.
+- No behaviour change visible to users; reduced syscall and parse
+  count verifiable by inspection.

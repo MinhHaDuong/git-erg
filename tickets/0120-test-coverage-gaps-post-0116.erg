@@ -1,0 +1,66 @@
+%erg v1
+Title: Fill Go unit test coverage gaps and fixture brittleness
+Created: 2026-05-11
+Author: claude-opus-4-7
+
+--- log ---
+2026-05-11T00:00Z claude-opus-4-7 created from post-0116 audit (cluster B: test gaps)
+
+--- body ---
+## Context
+Audit after the 0116 merge surfaced 9 Go unit test coverage gaps and
+fixture brittleness items. Several behaviours are exercised only via
+shell tests; others have no fixture coverage at all.
+
+## Missing Go unit tests
+1. `staleBlockedBy` (check.go:33): closed-blocker detection has only
+   shell-level coverage (`tests/test_check.sh:436`). Add Go unit test
+   constructing two tickets and asserting the warning fires.
+2. `pathIsClosed` (erg.go:58): path-component closure test exercised
+   only indirectly via shell test_check.sh. Add Go unit test for the
+   path-component cases (`closed/`, `closed-`, `closed.`, `-closed`).
+3. `globLocalIDs` (validate.go:247): no Go unit test for the local-ID
+   glob walker.
+
+## Underspecified tests
+4. Singleton "first occurrence wins" value preservation untested:
+   `TestParseErg` only checks repeated `Blocked-by` count, not that
+   `Title` keeps the first value when duplicated — erg_test.go:44.
+5. Empty `Tag:` silently skipped (parser strips empty tags): untested.
+   Add a fixture asserting `Tag: ` produces no Tag entry — erg.go:273.
+
+## Fixture brittleness
+6. `testdata/valid/0002-with-blockers.erg` references nonexistent
+   blocker; only validates because `TestValidateErg_GoldenValid` builds
+   `allIDs` from fixture filenames. Brittle to fixture rename.
+7. No fixture for `Closed :` (whitespace before colon, which
+   `parseHeaderLine` accepts but `isClosedHeaderLine` does not) —
+   divergence between header parser and Closed-in-log/body detector.
+   Add a fixture pinning the current behaviour, or fix the divergence.
+
+## Coverage-set gaps
+8. `ValidTagValues` closed set: only `needs-human` and `deferred`
+   exercised as accept cases in Go tests. Add accept-cases for
+   `post-talk` and `post-conference`.
+9. `testdata/invalid/0001-missing-required.erg` omits only `Author`.
+   No fixture omits `Title` or `Created`. Add two fixtures to close
+   the golden-invalid coverage gap.
+
+## Actions
+1. Write Go unit tests for items 1-3 (use `testing.T` table-driven
+   patterns; mirror the style of `TestParseErg`).
+2. Extend existing tests for items 4-5.
+3. Decide on items 6-7: either harden the fixture by giving it a real
+   blocker, or document the brittleness explicitly. For item 7, decide
+   whether to align parser and detector or pin the current divergence.
+4. Add fixtures for items 8-9.
+
+## Out of scope
+- Defer-to-0117 items: duplicated required-header tests (Go + shell)
+  and rule-numbering inconsistency — 0117 reorganizes validate.go.
+
+## Exit criteria
+- All 9 items addressed.
+- `make test` passes; new tests fail on a regression (verify by
+  temporarily breaking the relevant code, confirming the test catches
+  it, then unbreaking).

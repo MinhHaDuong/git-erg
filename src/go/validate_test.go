@@ -349,13 +349,45 @@ func TestValidateErg_GoldenValid(t *testing.T) {
 }
 
 func TestValidateErg_GoldenInvalid(t *testing.T) {
+	// Each fixture must produce an error message containing the listed
+	// substring. Without per-fixture matching, a fixture could fail for
+	// any unrelated rule and the test would pass — turning the golden
+	// suite into a tautology.
+	wantSubstr := map[string]string{
+		"0001-bad-created-date.erg":  "Created",
+		"0001-bad-forge-host.erg":    "malformed ref",
+		"0001-bad-log-timestamp.erg": "log line",
+		"0001-bad-log-verb.erg":      "log line",
+		"0001-bad-status.erg":        "Status",
+		"0001-duplicate-title.erg":   "non-repeatable",
+		"0001-missing-body.erg":      "body",
+		"0001-missing-log.erg":       "log",
+		"0001-missing-required.erg":  "required header",
+		"0001-unknown-header.erg":    "unknown header",
+		"0001-wrong-magic.erg":       "%erg v1",
+		"bad-filename.erg":           "filename",
+	}
 	fixtures, _ := filepath.Glob("testdata/invalid/*.erg")
 	for _, path := range fixtures {
 		t.Run(filepath.Base(path), func(t *testing.T) {
 			erg, diag := parseErg(path)
 			errs := validateErg(&erg, diag, map[string]bool{})
 			if len(errs) == 0 {
-				t.Errorf("expected at least one error, got none")
+				t.Fatalf("expected at least one error, got none")
+			}
+			want, ok := wantSubstr[filepath.Base(path)]
+			if !ok {
+				t.Fatalf("no wantSubstr entry for %q — add one to the map", filepath.Base(path))
+			}
+			found := false
+			for _, e := range errs {
+				if strings.Contains(e, want) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected an error containing %q, got: %v", want, errs)
 			}
 		})
 	}

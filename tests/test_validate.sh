@@ -754,7 +754,7 @@ else
     fail "missing body separator rejected (rc=$rc, got: $out)"
 fi
 
-# --- Separator: duplicate --- log --- rejected ---
+# --- Separator: duplicate --- log --- accepted (rule 11 relaxation, ticket 0116) ---
 cat > "$FIXTURES/0116-dup-log-sep.erg" <<'EOF'
 %erg v1
 Title: Duplicate log separator
@@ -777,7 +777,7 @@ else
     fail "duplicate log separator accepted (rc=$rc, got: $out)"
 fi
 
-# --- Separator: duplicate --- body --- rejected ---
+# --- Separator: duplicate --- body --- accepted (rule 11 relaxation, ticket 0116) ---
 cat > "$FIXTURES/0117-dup-body-sep.erg" <<'EOF'
 %erg v1
 Title: Duplicate body separator

@@ -11,7 +11,8 @@ const MagicLine = "%erg v1"
 
 // ValidTagValues is the closed value set for the Tag: header (%erg v1).
 // Allowed values: needs-human, deferred, post-talk, post-conference.
-// Tag: needs-human or deferred suppresses a ticket from erg ready output.
+// Any Tag: value suppresses the ticket from `erg ready` output (see
+// skipReadyTags in ready.go).
 //
 // ABNF production:
 //

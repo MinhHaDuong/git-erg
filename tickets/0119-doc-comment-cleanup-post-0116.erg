@@ -1,0 +1,65 @@
+%erg v1
+Title: Doc-comment cleanup and error-message helpfulness post-0116
+Created: 2026-05-11
+Author: claude-opus-4-7
+
+--- log ---
+2026-05-11T00:00Z claude-opus-4-7 created from post-0116 audit (cluster A: doc cleanup)
+
+--- body ---
+## Context
+Audit after the 0116 merge surfaced 11 small doc/comment issues — none
+breaking, all worth a single cleanup pass. Two themes: stale or thin
+doc comments on Go types and functions, and error messages that say
+what's wrong but not what to do.
+
+## Doc-comment thinness / staleness
+1. `Erg.BlockedBys` field comment says values are stored "verbatim" but
+   `parseHeaderLine` trims them — erg.go:24.
+2. `Erg` struct doc "schema-literal projection" is terse; doesn't
+   state the lenient-parse invariant — erg.go:15.
+3. `FilenameID` returns empty-string for non-numeric stems (callers in
+   close/archive/check guard, but the contract is unstated) — erg.go:106.
+4. `Filename()` doc only restates signature; no non-empty invariant
+   stated — erg.go:101.
+5. `parseHeaderLine` doc one-liner; omits `Key :` (space-before-colon)
+   whitespace handling — erg.go:123.
+6. `v1HeaderKeys` comment references "validate.go data (which 0116
+   commit 4 removes anyway)" — stale historical reference — erg.go:161.
+7. `updateURL` const lacks doc explaining it's the ERG_UPDATE_URL
+   default — update.go:13.
+
+## Error-message helpfulness (what's wrong AND what to do)
+8. Title/Created/Author "missing or empty required header" errors
+   don't say what to do (add the header to the preamble) — validate.go:24-31.
+9. Generic unknown-header error lacks a "remove or run `erg migrate`"
+   hint; Status/Tags paths do — validate.go:46.
+10. Rule-3a "unknown Tag value '%s' (not in v1 closed set)" doesn't
+    list the closed set — validate.go:58.
+
+## Rule-numbering coherence
+11. `validateErg` comments use rule numbers 1, 2, 3, 3a, 4, 5, 6, 7,
+    8, 10, 11 (validate.go:18-122). `helpValidate` uses 1-13. Mapping
+    a user-visible error to a documented rule is harder than it should
+    be. Reconcile the numbering — either renumber the code comments
+    to match helpValidate, or renumber helpValidate. Recommendation:
+    renumber code comments to match user-visible numbering.
+
+## Actions
+1. Apply each fix above; one commit per logical group is fine, or one
+   sweep commit if minor.
+2. Verify `make test` passes (these are docs/strings; should be a
+   no-op for tests except where tests assert on error messages).
+3. Spec/help-text updates: any change to user-visible error wording
+   means updating shell-test fixtures in `tests/test_validate.sh`.
+
+## Out of scope
+- Defer-to-0117 items (rule-numbering will move under 0117 too —
+  coordinate; if 0117 is imminent, fold this ticket's rule-numbering
+  item into 0117 instead).
+
+## Exit criteria
+- All 11 items addressed.
+- `make test` passes.
+- No user-visible error wording regresses (or shell fixtures updated
+  to match).

@@ -83,9 +83,15 @@ func TestParseErg(t *testing.T) {
 	t.Run("no trailing newline", func(t *testing.T) {
 		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n--- log ---\n--- body ---"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
-		erg, _ := parseErg(path)
+		erg, diag := parseErg(path)
 		if !erg.HasMagic {
 			t.Error("expected HasMagic=true")
+		}
+		if !diag.HasLogSep {
+			t.Error("expected HasLogSep=true (--- log --- on penultimate line)")
+		}
+		if !diag.HasBodySep {
+			t.Error("expected HasBodySep=true (--- body --- as final line, no trailing newline)")
 		}
 	})
 
