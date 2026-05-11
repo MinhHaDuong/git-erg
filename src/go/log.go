@@ -8,22 +8,28 @@ import (
 	"time"
 )
 
-// cmdLog implements `erg log ID LINE [DIR]` — append a timestamped entry to a ticket's log section.
-//
-// Resolves the ticket by 4-digit ID in DIR (default: auto-discovered tickets/), then
-// prepends the current UTC timestamp (YYYY-MM-DDThh:mmZ) to LINE and inserts the
-// resulting line at the end of the log section, just before the --- body --- separator.
-//
-// The resulting log entry format is:
-//
-//	YYYY-MM-DDThh:mmZ LINE
-//
-// LINE must be non-empty. It should follow the log-line convention of
-// `actor verb [detail]` (e.g. "claude note retried with narrower scope"), but this
-// is not enforced — only format is validated on read by erg validate.
-//
-// Prints "LOGGED" on success. Exits non-zero if the ticket is not found or has no
-// --- body --- separator (which would indicate a malformed file).
+const helpLog = `## erg log ID LINE [DIR]
+
+Append a timestamped entry to a ticket's log section.
+
+Resolves the ticket by 4-digit ID in DIR (default: auto-discovered tickets/), then
+prepends the current UTC timestamp (YYYY-MM-DDThh:mmZ) to LINE and inserts the
+resulting line at the end of the log section, just before the ` + "`--- body ---`" + ` separator.
+
+The resulting log entry format is:
+
+  ` + "`YYYY-MM-DDThh:mmZ LINE`" + `
+
+LINE must be non-empty. It must follow the format 'actor verb [detail]'
+(e.g. "claude note retried with narrower scope"). The timestamp, actor, and verb
+tokens are required; the detail token is optional. The log-line format is
+enforced by erg validate (rule 11).
+
+Prints "LOGGED" on success. Exits non-zero if the ticket is not found or has no
+` + "`--- body ---`" + ` separator (which would indicate a malformed file).
+`
+
+// cmdLog implements `erg log ID LINE [DIR]`. See helpLog for the user-facing summary.
 func cmdLog(args []string) int {
 	if len(args) < 2 {
 		fmt.Fprintln(os.Stderr, "Usage: erg log ID LINE [DIR]")

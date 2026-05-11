@@ -28,54 +28,59 @@ doc_contains() {
     fi
 }
 
-# cmdValidate: all 13 rules must be listed
-doc_contains cmdValidate "1. Magic first line" "cmdValidate rule 1 present"
-doc_contains cmdValidate "2. All required headers" "cmdValidate rule 2 present"
-doc_contains cmdValidate "3. No unknown headers" "cmdValidate rule 3 present"
-doc_contains cmdValidate "13. No dependency cycles" "cmdValidate rule 13 present"
+# Per-command help is now defined as `const help<Cmd>` in each command file
+# (the cmd* doc comments are one-liners that reference these consts). The
+# checks below target the consts — the single source of truth for the
+# user-facing summary printed by `erg COMMAND --help`.
 
-# cmdClose: three-step atomicity
-doc_contains cmdClose "three-step atomic" "cmdClose three-step semantics"
-doc_contains cmdClose "1. Insert" "cmdClose step 1"
-doc_contains cmdClose "2. Append" "cmdClose step 2"
-doc_contains cmdClose "3. Scan" "cmdClose step 3"
+# helpValidate: all 13 rules must be listed
+doc_contains helpValidate "1. Magic first line" "helpValidate rule 1 present"
+doc_contains helpValidate "2. All required headers" "helpValidate rule 2 present"
+doc_contains helpValidate "3. No unknown headers" "helpValidate rule 3 present"
+doc_contains helpValidate "13. No dependency cycles" "helpValidate rule 13 present"
 
-# cmdReady: readiness criteria
-doc_contains cmdReady "ready when all" "cmdReady readiness criteria"
-doc_contains cmdReady "blocked_by" "cmdReady JSON schema"
+# helpClose: three-step atomicity
+doc_contains helpClose "three-step atomic" "helpClose three-step semantics"
+doc_contains helpClose "1. Insert" "helpClose step 1"
+doc_contains helpClose "2. Append" "helpClose step 2"
+doc_contains helpClose "3. Scan" "helpClose step 3"
 
-# cmdCheck: global invariants
-doc_contains cmdCheck "No duplicate ticket IDs" "cmdCheck duplicate-ID check"
-doc_contains cmdCheck "No dependency cycles" "cmdCheck cycle check"
+# helpReady: readiness criteria
+doc_contains helpReady "ready when all" "helpReady readiness criteria"
+doc_contains helpReady "blocked_by" "helpReady JSON schema"
 
-# cmdArchive: stale-blocker guard
-doc_contains cmdArchive "Blocked-by:" "cmdArchive stale-blocker guard"
+# helpCheck: global invariants
+doc_contains helpCheck "No duplicate ticket IDs" "helpCheck duplicate-ID check"
+doc_contains helpCheck "No dependency cycles" "helpCheck cycle check"
 
-# cmdMigrate: conversion rules
-doc_contains cmdMigrate "Status: closed" "cmdMigrate closed-rule"
-doc_contains cmdMigrate "Idempotent" "cmdMigrate idempotent"
+# helpArchive: stale-blocker guard
+doc_contains helpArchive "Blocked-by:" "helpArchive stale-blocker guard"
 
-# cmdInit: asset list
-doc_contains cmdInit "AGENTS.md" "cmdInit asset AGENTS.md"
-doc_contains cmdInit "spec-erg-v1.md" "cmdInit asset spec"
-doc_contains cmdInit "integration.md" "cmdInit asset integration"
+# helpMigrate: conversion rules
+doc_contains helpMigrate "Status: closed" "helpMigrate closed-rule"
+doc_contains helpMigrate "Idempotent" "helpMigrate idempotent"
 
-# cmdNew: ID allocation and O_EXCL
-doc_contains cmdNew "O_EXCL" "cmdNew atomic creation"
+# helpInit: asset list
+doc_contains helpInit "AGENTS.md" "helpInit asset AGENTS.md"
+doc_contains helpInit "spec-erg-v1.md" "helpInit asset spec"
+doc_contains helpInit "integration.md" "helpInit asset integration"
 
-# cmdLog: format description
-doc_contains cmdLog "YYYY-MM-DDThh:mmZ" "cmdLog timestamp format"
+# helpNew: ID allocation and O_EXCL
+doc_contains helpNew "O_EXCL" "helpNew atomic creation"
 
-# cmdNextID: optimistic allocation note
-doc_contains cmdNextID "optimistic" "cmdNextID optimistic allocation"
+# helpLog: format description
+doc_contains helpLog "YYYY-MM-DDThh:mmZ" "helpLog timestamp format"
 
-# cmdVersion: output fields
-doc_contains cmdVersion "hash" "cmdVersion hash field"
-doc_contains cmdVersion "ERG_VERSION_NO_DISCOVER" "cmdVersion no-discover env"
+# helpNextID: optimistic allocation note
+doc_contains helpNextID "optimistic" "helpNextID optimistic allocation"
 
-# cmdUpdate: offline-safe exit code
-doc_contains cmdUpdate "offline" "cmdUpdate offline safety"
-doc_contains cmdUpdate "migration" "cmdUpdate migration hint"
+# helpVersion: output fields
+doc_contains helpVersion "hash" "helpVersion hash field"
+doc_contains helpVersion "ERG_VERSION_NO_DISCOVER" "helpVersion no-discover env"
+
+# helpUpdate: offline-safe exit code
+doc_contains helpUpdate "offline" "helpUpdate offline safety"
+doc_contains helpUpdate "migration" "helpUpdate migration hint"
 
 # Format constant doc comments
 doc_contains requiredHeaders "mandatory preamble" "requiredHeaders doc comment"

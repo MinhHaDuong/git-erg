@@ -1,7 +1,7 @@
 # erg manual
 
 Author: minh.ha-duong@cnrs.fr
-Generated from: erg built 2026-05-11T07:47:36Z rev 5698b59
+Generated from: erg built 2026-05-11T08:34:39Z rev d9f9ddd
 
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
@@ -186,8 +186,8 @@ project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
 renames archive/ to closed/ if archive/ exists and closed/ does not, then
 refreshes init assets via cmdInit.
 
-Does NOT commit. Always exits 0. Review the diff with 'git diff tickets/' and
-commit manually.
+Does NOT commit. Exits 1 on archive/→closed/ filename collision (both directories are left untouched; the user must resolve manually). Exits 0 otherwise.
+Review the diff with 'git diff tickets/' and commit manually.
 
 ## erg init [DIR]
 

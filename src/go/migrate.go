@@ -7,27 +7,31 @@ import (
 	"strings"
 )
 
-// cmdMigrate implements `erg migrate [dir]` — convert legacy Status: headers to %erg v1 format.
-//
-// Idempotent. For every .erg file under dir (default: tickets/) the migration
-// rules are:
-//
-//   - `Status: closed` (case-insensitive) → drop the line; append
-//     `Closed: migrated from Status: closed` to the preamble.
-//   - `Status: open`, `Status: doing`, or `Status: pending` → drop the line;
-//     the ticket becomes not-closed (the correct new state — there is no open/doing/pending state in v1).
-//   - No `Status:` line → no-op.
-//
-// After migration, erg validate will reject any remaining Status: lines.
-//
-// When dir is named "tickets" (the canonical layout), also performs a one-time
-// project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
-// renames archive/ to closed/ if archive/ exists and closed/ does not, then
-// refreshes init assets via cmdInit.
-//
-// Does NOT commit. Exits 1 on archive/→closed/ filename collision (both directories
-// are left untouched; the user must resolve manually). Exits 0 otherwise.
-// Review the diff with `git diff tickets/` and commit manually.
+const helpMigrate = `## erg migrate [DIR]
+
+Convert legacy Status: headers to %erg v1 format.
+
+Idempotent (safe to run repeatedly: already-migrated files are not modified twice). For every .erg file under DIR (default: tickets/) the migration
+rules are:
+
+  - 'Status: closed' (case-insensitive) → drop the line; append
+    'Closed: migrated from Status: closed' to the preamble.
+  - 'Status: open', 'Status: doing', or 'Status: pending' → drop the line;
+    the ticket becomes not-closed (the correct new state).
+  - No 'Status:' line → no-op.
+
+After migration, erg validate will reject any remaining Status: lines.
+
+When DIR is named "tickets" (the canonical layout), also performs a one-time
+project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
+renames archive/ to closed/ if archive/ exists and closed/ does not, then
+refreshes init assets via cmdInit.
+
+Does NOT commit. Exits 1 on archive/→closed/ filename collision (both directories are left untouched; the user must resolve manually). Exits 0 otherwise.
+Review the diff with 'git diff tickets/' and commit manually.
+`
+
+// cmdMigrate implements `erg migrate [dir]`. See helpMigrate for the user-facing summary.
 func cmdMigrate(args []string) int {
 	var dir string
 	if len(args) > 0 {
