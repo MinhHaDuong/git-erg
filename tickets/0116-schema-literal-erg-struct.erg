@@ -49,8 +49,6 @@ type Erg struct {
 
     LogLines []string
     Body     string
-    LogSepCount  int
-    BodySepCount int
 
     // Diagnostic trace — TEMPORARY; collapses in the eventual parser/
     // validator merge (a follow-up refactor), at which point parser emits
@@ -60,6 +58,8 @@ type Erg struct {
     ClosedEmpty        bool      // `Closed:` line appeared with empty value
     ClosedInLog        bool
     ClosedInBody       bool
+    HasLogSep          bool      // first `--- log ---` was seen
+    HasBodySep         bool      // first `--- body ---` was seen
 }
 ```
 
@@ -71,11 +71,28 @@ No `ClosedSet` flag. Empty `Closed:` lines are recorded via `ClosedEmpty`
 which the validator (and later, the merged parse-validate pass) consumes
 as an error signal — no need for a tri-state Closed value.
 
-## Spec tightening
+## Spec tightening (required headers)
 Update `tickets/spec-erg-v1.md`: required headers (`Title`, `Created`,
 `Author`) must have a non-empty value. Today the validator passes
 `Title: ` (key present, value empty) because rule 2 only checks key
 presence. After this refactor, empty required headers fail validation.
+
+## Spec relaxation (separator duplicates)
+Validator rule 12 today requires each separator (`--- log ---`,
+`--- body ---`) to appear **exactly once**. This is overstrict: legitimate
+bodies will contain those literals — heredoc examples, format
+documentation, this very ticket's body that quotes the strings. The
+parser already uses first-occurrence semantics for section transitions
+(erg.go:357-369), but the validator rejects the file based on the count.
+
+Change:
+- Drop the "appears N times" branch of rule 12; keep only "missing".
+- Spec rewording: "The first `--- log ---` and the first `--- body ---`
+  (in order) are the section separators. Subsequent occurrences inside
+  body are body text."
+- Struct change: replace `LogSepCount`/`BodySepCount` (which existed only
+  to drive the now-deleted overstrict check) with `HasLogSep`/`HasBodySep`
+  bools in the diagnostic trace.
 
 ## Accessor methods go away
 All trivial accessors are deleted; call sites read the field directly.
@@ -130,4 +147,8 @@ behaviour, not map indirection):
 - All trivial accessor methods are removed; only `Closed()` and
   `BlockedByRefs()` remain.
 - Spec updated: required headers must be non-empty.
-- `make test` passes; new test asserts empty required header is rejected.
+- Spec updated: separator-duplicates rule relaxed to first-occurrence
+  semantics; validator rule 12 trimmed accordingly.
+- `make test` passes; new tests assert (a) empty required header is
+  rejected, and (b) a body containing `--- log ---`/`--- body ---` as
+  text is accepted.
