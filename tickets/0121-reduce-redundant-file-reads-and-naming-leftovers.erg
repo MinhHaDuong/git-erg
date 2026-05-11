@@ -30,9 +30,29 @@ For each: refactor to read/parse once and pass the parsed `Erg` down.
 5. `sortedKeys2` (erg.go:366): the trailing "2" is a leftover from a
    prior refactor; the original `sortedKeys` is gone. Rename to
    `sortedKeys`.
-6. `commandOrder` (helptext.go:4) + `helpText` (helptext.go:14) are
-   parallel structures listing the same 12 commands. Collapse to a
-   single ordered struct keeping per-command help inline.
+
+## Help-text source-of-truth cleanup
+PR #121 established the rule "one command, one file" for help text:
+each command file exports `help<Cmd>` and `helptext.go` is a thin
+registry. But two leakages remain in main.go and helptext.go:
+
+6. **`commandOrder` + `helpText` parallel maps** (helptext.go:4, 14):
+   list the same 12 commands. Collapse to a single ordered structure
+   so adding/reordering a command is a one-line change.
+
+7. **`--help --all` preamble inlined in main.go:97-117**: 21 lines of
+   `fmt.Print` calls for the manual header ("# erg manual", author,
+   build stamp, intro paragraph, Store auto-discovery explanation).
+   Should be a `const manualPreamble` (in main.go or a dedicated
+   `manual.go`) — extracts manual-wide prose out of dispatch logic.
+
+8. **`printUsage()` one-liner summaries in main.go:67-83**: each
+   command has a hardcoded one-line description that duplicates the
+   first line of its `help<Cmd>` const. Two sources of truth for
+   "what this command does." Per PR #121's pattern, each command file
+   should export `const summary<Cmd>` (e.g.
+   `const summaryValidate = "Validate individual .erg files..."`).
+   `printUsage()` iterates `commandOrder` and prints `summary<Cmd>`.
 
 ## Re-litigation deliberately deferred
 7. `Line` type alias (erg.go:11): audit flagged that as a pure alias
@@ -47,6 +67,11 @@ For each: refactor to read/parse once and pass the parsed `Erg` down.
 2. Rename `sortedKeys2` → `sortedKeys` (mechanical).
 3. Collapse `commandOrder` + `helpText` into one ordered structure
    in helptext.go. Update consumers in main.go.
+4. Extract `--help --all` preamble (main.go:97-117) to a const.
+5. Add `const summary<Cmd>` to each command file (one per command,
+   ~12 consts). Update `printUsage()` in main.go to iterate
+   `commandOrder` and print `summary<Cmd>` for each. Delete the
+   hardcoded summary lines from main.go:71-82.
 
 ## Out of scope
 - Defer-to-0117 items: `ParseDiagnostics` struct + parallel slice
@@ -58,7 +83,11 @@ For each: refactor to read/parse once and pass the parsed `Erg` down.
 - `IsForge` inlining: minor; one call site. Defer (or skip).
 
 ## Exit criteria
-- All 6 items (1-6) addressed.
+- All 8 items addressed.
 - `make test` passes.
 - No behaviour change visible to users; reduced syscall and parse
   count verifiable by inspection.
+- Single source of truth for each command's summary and full help
+  text (both live next to the command implementation).
+- `--help --all` manual preamble extracted from main.go's dispatch
+  logic.
