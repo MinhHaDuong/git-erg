@@ -1,0 +1,32 @@
+%erg v1
+Title: Split Ref type and parser out of erg.go into ref.go
+Created: 2026-05-11
+Author: claude-sonnet-4-6
+
+--- log ---
+2026-05-11T00:00Z claude-sonnet-4-6 created
+
+--- body ---
+## Context
+After ticket 0113 renamed `ticket.go` → `erg.go`, the file still mixes two
+distinct types: `Erg` (ticket model) and `Ref` (cross-reference, local or forge).
+The Ref code (lines 13-119) has no dependency on Erg and is logically separate:
+
+- `RefKind` enum + constants
+- `Ref` struct + `IsForge()` method
+- `parseRef` parser
+- `allDigits`, `validateIssueNumber` helpers
+
+Splitting follows the Go convention: one dominant type per file.
+
+## Actions
+1. Create `src/go/ref.go` with `RefKind`, `Ref`, `IsForge()`, `parseRef`,
+   `allDigits`, `validateIssueNumber`.
+2. Remove those declarations from `erg.go`.
+3. If any Ref tests live in `erg_test.go`, split them into `ref_test.go`.
+4. Verify `make test` passes.
+
+## Exit criteria
+- `ref.go` contains all Ref-related code; `erg.go` contains only Erg-related code.
+- No cross-file shared helpers were duplicated.
+- `make test` passes.
