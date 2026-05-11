@@ -2,6 +2,7 @@
 Title: Tighten Erg.BlockedBys from []string to []Ref
 Created: 2026-05-11
 Author: claude-sonnet-4-6
+Closed: autoclosed — PR #130
 
 --- log ---
 2026-05-11T00:00Z claude-sonnet-4-6 created
@@ -9,6 +10,7 @@ Author: claude-sonnet-4-6
 2026-05-11T00:00Z MinhHaDuong reimagined — descoped `Created → time.Time` (YAGNI: 1 read site + 1 write site, no consumer benefits from typed date, regex check is cheaper than format+parse). Scope reduced to BlockedBys only; title updated.
 
 2026-05-11T15:37Z MinhHaDuong note blocker 0117 closed — Blocked-by removed.
+2026-05-11T16:02Z MinhHaDuong closed — autoclosed — PR #130
 --- body ---
 ## Context
 After tickets 0116 (schema-literal struct) and 0117 (validating-parser
