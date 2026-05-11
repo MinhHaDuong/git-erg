@@ -2,7 +2,6 @@
 Title: Merge parseErg and validateErg into a single validating-parser pass
 Created: 2026-05-11
 Author: claude-sonnet-4-6
-Blocked-by: 0116
 
 --- log ---
 2026-05-11T00:00Z claude-sonnet-4-6 created
@@ -11,6 +10,7 @@ Blocked-by: 0116
 
 2026-05-11T00:00Z MinhHaDuong scope — error messages MUST include line numbers ("filename:line: msg"); upgrade from today's "filename: msg" format. Expected level of service.
 
+2026-05-11T11:22Z MinhHaDuong note blocker 0116 closed — Blocked-by removed.
 --- body ---
 ## Context
 After ticket 0116, the `Erg` struct carries diagnostic-trace fields

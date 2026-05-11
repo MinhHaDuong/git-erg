@@ -2,6 +2,7 @@
 Title: Erg struct: schema-literal fields, drop accessors and the headers map
 Created: 2026-05-11
 Author: claude-sonnet-4-6
+Closed: autoclosed — PR #123
 
 --- log ---
 2026-05-11T00:00Z claude-sonnet-4-6 created
@@ -10,6 +11,7 @@ Author: claude-sonnet-4-6
 
 2026-05-11T00:00Z claude-opus-4-7 note planning pass — added First test (rule 11 relaxation), Implementation order (5 commits, dual-write to keep tests green), corrected call-site count (18 sites across 5 files, not 21 across 6)
 
+2026-05-11T11:22Z MinhHaDuong closed — autoclosed — PR #123
 --- body ---
 ## Context
 Ticket 0105 left the `Erg` struct storing header values in a
