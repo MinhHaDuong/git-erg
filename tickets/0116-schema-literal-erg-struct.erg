@@ -47,8 +47,9 @@ type Erg struct {
     BlockedBys []string // possibly empty; one entry per `Blocked-by:` line
     Tags       []string // possibly empty; one entry per `Tag:` line (after 0106)
 
-    LogLines []string
-    Body     string
+    LogLines   []string
+
+    Body       string
 
     // Diagnostic trace — TEMPORARY; collapses in the eventual parser/
     // validator merge (a follow-up refactor), at which point parser emits
@@ -130,12 +131,44 @@ behaviour, not map indirection):
 
 ## Out of scope (held back from 0105's scope creep)
 - **Parser/validator merge into one pass.** The diagnostic-trace fields
-  (`Unknown`, `RepeatedSingletons`, `ClosedEmpty`) are placeholders that
+  (`Unknown`, `RepeatedSingletons`, `ClosedEmpty`, `ClosedInLog`,
+  `ClosedInBody`, `HasLogSep`, `HasBodySep`) are placeholders that
   disappear in that follow-up. File as a separate ticket when ready.
+- **Type tightening of header fields**: `BlockedBys []string` → `[]Ref`,
+  `Created string` → `time.Time`. These eliminate the surviving
+  `BlockedByRefs()` method and push date parsing into the parser. File
+  as a separate ticket after the merge ticket lands (the merge is the
+  natural place to introduce parse-time type errors).
 - Renaming `Tags` → `Tag` (header rename) is ticket 0106. If 0106 lands
   first, this ticket reads `Tag:` headers into the `Tags` field.
 - Function-level splits in `parseErg`; only struct shape and the
   accessor surface change.
+
+## Endpoint shape (post-merge, post-type-tightening)
+This ticket plus the two follow-ups land at:
+
+```go
+type Erg struct {
+    Path     string
+    HasMagic bool
+
+    Title      string    // required, non-empty
+    Created    time.Time // required, parsed at parse time
+    Author     string    // required, non-empty
+    Closed     string    // optional; non-empty when present
+    BlockedBys []Ref     // possibly empty; each ref parsed at parse time
+    Tags       []string  // possibly empty
+
+    LogLines []string
+    Body     string
+}
+
+func parseErg(path string) (Erg, []ParseError)
+```
+
+Zero accessor methods (`Closed()` survives only because path-OR-header is
+intrinsic — and is a free function or method as taste dictates). The
+struct is a literal projection of the spec.
 
 ## Dependencies
 - Soft dep: ticket 0115 (split Ref into ref.go). If 0115 lands first,
