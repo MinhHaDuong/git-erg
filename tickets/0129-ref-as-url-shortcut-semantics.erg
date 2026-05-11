@@ -1,0 +1,47 @@
+%erg v1
+Title: Reconsider Ref as URL with shortcut semantics
+Created: 2026-05-11
+Author: MinhHaDuong
+Tag: needs-human
+
+--- log ---
+2026-05-11T20:30Z claude open — design proposal from author during audit lint session
+
+--- body ---
+## Proposal
+
+Reinterpret Blocked-by refs as URLs with progressive locality. The
+shortest form is the most local, longer forms reach further:
+
+| Form | Meaning | Resolution |
+|------|---------|------------|
+| 0042 | Same directory | Current behavior |
+| module/0042 | Sibling directory under tickets/ | Walk up to tickets/, check sibling |
+| path/tickets/0042 | Cross-project, same machine | Absolute or relative path |
+| host/owner/repo#N | Cross-project, cross-machine | Current forge ref behavior |
+
+## Motivation
+
+Supports multi-module monorepos where several subdirectories each have
+their own tickets/ store under a shared root. Currently these cannot
+cross-reference each other without using forge refs (which require a
+remote and are blocking-by-default offline).
+
+## Design questions
+
+1. What is the resolution algorithm? Walk up from current ticket dir
+   to find a common tickets/ ancestor?
+2. Does `module/0042` mean "the tickets/ directory named module" or
+   "the directory module which contains a tickets/ subdirectory"?
+3. How does this interact with erg check cycle detection? Cross-module
+   cycles need a different algorithm than single-directory DFS.
+4. Is this a v1.x addition (additive, unknown forms already rejected)
+   or a v2 change?
+5. Does this need a resolver that walks the filesystem, violating the
+   current "erg never does I/O beyond the ticket store" contract?
+
+## Decision needed
+
+Author decides whether this is worth pursuing and which form the
+shortcut hierarchy takes. The current 4-digit-only local ref is
+simple and well-tested; this would be a significant complexity increase.

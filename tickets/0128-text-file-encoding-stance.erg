@@ -1,0 +1,37 @@
+%erg v1
+Title: Define and enforce text file encoding stance (BOM, EOL, UTF-8)
+Created: 2026-05-11
+Author: MinhHaDuong
+Tag: needs-human
+
+--- log ---
+2026-05-11T20:30Z claude open — surfaced during audit lint session; spec says UTF-8 LF but validator does not enforce
+
+--- body ---
+## Problem
+
+The spec says "UTF-8, LF line endings" but the validator does not
+enforce either. parseErgBytes splits on \n and silently swallows \r\n
+(the \r sticks to the end of header values). No BOM detection. No
+encoding validation.
+
+## Options
+
+A. **Strict**: reject BOM, reject \r\n, reject non-UTF-8 bytes. Catches
+   problems early but breaks Windows-edited files.
+
+B. **Tolerant**: strip BOM if present, normalize \r\n -> \n during
+   parse, accept valid UTF-8 only. Postel's law (which the spec already
+   invokes). erg check warns about BOM and \r\n so user can fix editor
+   settings.
+
+C. **Ignore**: document "UTF-8, LF" and don't enforce. Current de facto
+   behavior. Risk: header values silently carry \r, which breaks string
+   comparisons downstream.
+
+## Decision needed
+
+Author picks a stance. Recommendation: option B (tolerant parse, warn
+on check). The \r-in-header-values bug is real — CRLF files will have
+Title values ending in \r, which means FilenameID comparisons and tag
+matching can silently fail.
