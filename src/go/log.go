@@ -74,8 +74,8 @@ func cmdLog(args []string) int {
 		return 1
 	}
 
-	if !strings.Contains(string(data), "\n--- body ---") {
-		fmt.Fprintf(os.Stderr, "log: %s has no --- body --- separator — refusing to write\n", ticketPath)
+	if !strings.Contains(string(data), "\n"+separatorBody) {
+		fmt.Fprintf(os.Stderr, "log: %s has no %s separator — refusing to write\n", ticketPath, separatorBody)
 		return 1
 	}
 

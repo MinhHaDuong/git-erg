@@ -231,7 +231,7 @@ func migrateFile(path string) (migrateResult, error) {
 	// Bound preamble at the first `--- log ---` separator.
 	logIdx := -1
 	for i, line := range lines {
-		if strings.TrimSpace(line) == "--- log ---" {
+		if strings.TrimSpace(line) == separatorLog {
 			logIdx = i
 			break
 		}
@@ -268,7 +268,7 @@ func migrateFile(path string) (migrateResult, error) {
 		// the Closed header immediately after the last non-blank preamble line.
 		newLogIdx := -1
 		for i, line := range out {
-			if strings.TrimSpace(line) == "--- log ---" {
+			if strings.TrimSpace(line) == separatorLog {
 				newLogIdx = i
 				break
 			}
@@ -330,7 +330,7 @@ func hasStatusHeader(dir string) bool {
 			return nil
 		}
 		for _, line := range strings.Split(string(data), "\n") {
-			if strings.TrimSpace(line) == "--- log ---" {
+			if strings.TrimSpace(line) == separatorLog {
 				return nil
 			}
 			if isStatusHeaderLine(line) {

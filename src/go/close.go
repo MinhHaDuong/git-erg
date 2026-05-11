@@ -173,7 +173,7 @@ func insertClosedHeader(content, headerLine string) (string, error) {
 	lines := strings.Split(content, "\n")
 	logIdx := -1
 	for i, line := range lines {
-		if strings.TrimSpace(line) == "--- log ---" {
+		if strings.TrimSpace(line) == separatorLog {
 			logIdx = i
 			break
 		}
