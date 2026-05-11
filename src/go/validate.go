@@ -204,7 +204,7 @@ func detectCycles(tickets []Erg) []string {
 func validateAll(tickets []Erg, diags []ParseDiagnostics) []string {
 	var errors []string
 
-	// Rule 7: no duplicate IDs
+	// Corpus check: no duplicate IDs (not a per-file rule)
 	idToFiles := make(map[string][]string)
 	for i := range tickets {
 		id := tickets[i].FilenameID()
@@ -237,7 +237,7 @@ func validateAll(tickets []Erg, diags []ParseDiagnostics) []string {
 		errors = append(errors, validateErg(&tickets[i], diag, allIDs)...)
 	}
 
-	// Rule 9: dependency cycles
+	// Rule 13: dependency cycles
 	errors = append(errors, detectCycles(tickets)...)
 	return errors
 }
