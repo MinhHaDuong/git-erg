@@ -7,6 +7,7 @@ Author: claude-sonnet-4-6
 2026-05-11T00:00Z claude-sonnet-4-6 created
 
 2026-05-11T08:28Z claude-sonnet-4-6 note expanding plan with drift bug fixes
+2026-05-11T08:35Z claude-sonnet-4-6 implemented — see PR
 --- body ---
 ## Context
 helptext.go holds a `helpText` map with all command help strings. The doc
