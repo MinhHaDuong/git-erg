@@ -2,6 +2,7 @@
 Title: Rename Tags: to Tag: — repeatable headers use singular names
 Created: 2026-05-07
 Author: claude-sonnet-4-6
+Closed: autoclosed — PR #122
 
 --- log ---
 2026-05-07T00:00Z claude-sonnet-4-6 created
@@ -13,6 +14,7 @@ Author: claude-sonnet-4-6
 2026-05-11T00:00Z claude-sonnet-4-6 note reimagined+planned — repeatable header uses singular name; add migrate support and a hint diagnostic so old `Tags:` files surface a clear migration path
 
 2026-05-11T08:38Z claude-sonnet-4-6 implemented — see PR
+2026-05-11T10:13Z MinhHaDuong closed — autoclosed — PR #122
 --- body ---
 ## Context
 The spec marks `Tags` as repeatable — one `Tags:` line per value, like `Blocked-by:`.
