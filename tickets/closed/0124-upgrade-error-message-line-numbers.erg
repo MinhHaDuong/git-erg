@@ -2,11 +2,13 @@
 Title: Upgrade validator error messages to filename:LINE: msg format
 Created: 2026-05-11
 Author: claude-opus-4-7
+Closed: autoclosed — PR #131
 
 --- log ---
 2026-05-11T00:00Z claude-opus-4-7 created — split out of 0117's original scope; orthogonal to the parser/validator merge, see 0117 imagine pass
 
 2026-05-11T15:37Z MinhHaDuong note blocker 0117 closed — Blocked-by removed.
+2026-05-11T16:06Z MinhHaDuong closed — autoclosed — PR #131
 --- body ---
 ## Context
 Today's validator errors are formatted as `"filename: msg"`. The
