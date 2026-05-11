@@ -54,7 +54,7 @@ func cmdArchive(args []string) int {
 
 	// Load all tickets recursively (includes closed/) for building the
 	// reverse blocker index.
-	allTickets := loadErgs(ticketDir)
+	allTickets, _ := loadErgs(ticketDir)
 
 	// Build reverse index: for each open ticket X, for each local Blocked-by
 	// ref R in X, record that R.ID is blocking X.FilenameID().
@@ -62,7 +62,7 @@ func cmdArchive(args []string) int {
 	blockedBy := make(map[string][]string)
 	for i := range allTickets {
 		t := &allTickets[i]
-		if t.Closed() {
+		if t.IsClosed() {
 			continue
 		}
 		refs, errs := t.BlockedByRefs()
@@ -90,7 +90,7 @@ func cmdArchive(args []string) int {
 				fmt.Fprintf(os.Stderr, "archive: ambiguous ID %s — matches: %s\n", id, strings.Join(matches, ", "))
 				continue
 			}
-			t := parseErg(matches[0])
+			t, _ := parseErg(matches[0])
 			targets = append(targets, t)
 		}
 	} else {
@@ -106,7 +106,7 @@ func cmdArchive(args []string) int {
 				continue
 			}
 			path := filepath.Join(ticketDir, entry.Name())
-			t := parseErg(path)
+			t, _ := parseErg(path)
 			targets = append(targets, t)
 		}
 	}
@@ -116,9 +116,9 @@ func cmdArchive(args []string) int {
 
 	for _, t := range targets {
 		// Skip tickets without a non-empty Closed: header.
-		// We use header-only check (not t.Closed()) to avoid re-processing
+		// We use header-only check (not t.IsClosed()) to avoid re-processing
 		// tickets that are already path-closed.
-		if !t.ClosedHeader() {
+		if t.Closed == "" {
 			continue
 		}
 

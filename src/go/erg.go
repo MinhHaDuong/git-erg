@@ -7,45 +7,48 @@ import (
 	"strings"
 )
 
-// Erg is a parsed %erg v1 ticket file.
+// Line is a single-line string: no embedded newlines.
+// Enforced by the parser invariant (header values read up to LF).
+type Line = string
+
+// Erg is the schema-literal projection of a %erg v1 ticket file.
 type Erg struct {
-	Path     string
-	headers  map[string][]string // repeatable headers (unexported; use accessor methods)
-	LogLines []string
-	Body     string
+	Path     Line
 	HasMagic bool
-	// Separator occurrence counts. A well-formed ticket has exactly 1 of each.
-	LogSepCount  int
-	BodySepCount int
-	// ClosedInLog/ClosedInBody record whether a `Closed:` header-key line
-	// was seen outside the preamble (validator rejects).
-	ClosedInLog  bool
-	ClosedInBody bool
+
+	// v1 headers — typed fields populated from first occurrence
+	Title      Line   // required, non-empty (validator rule 2)
+	Created    Line   // required, non-empty
+	Author     Line   // required, non-empty
+	Closed     Line   // optional; first non-empty Closed: value when present
+	BlockedBys []Line // possibly empty; one entry per `Blocked-by:` line, verbatim
+	Tags       []Line // possibly empty; one entry per `Tag:` line, trimmed; empties skipped
+
+	LogLines []Line // one structured event per entry
+	Body     string // multiline
 }
 
-// Title returns the first Title header value, or "" if absent.
-func (t *Erg) Title() string {
-	if vs, ok := t.headers["Title"]; ok && len(vs) > 0 {
-		return vs[0]
-	}
-	return ""
+// ParseDiagnostics carries parser observations the validator consumes.
+// In 0117 (parse+validate merge) this struct is replaced in-place by
+// []ParseError; until then, validate.go walks these fields.
+type ParseDiagnostics struct {
+	Unknown            []Line // unknown header keys seen
+	RepeatedSingletons []Line // singleton keys seen more than once
+	ClosedEmpty        bool   // ANY `Closed:` line seen with empty value
+	ClosedInLog        bool
+	ClosedInBody       bool
+	HasLogSep          bool // `--- log ---` seen at least once
+	HasBodySep         bool // `--- body ---` seen at least once
 }
 
-// Closed reports whether the ticket is closed under the v1 criterion:
+// IsClosed reports whether the ticket is closed under the v1 criterion:
 // either a path component test fires, or a `Closed:` preamble header is
 // present with a non-empty value.
-func (t *Erg) Closed() bool {
+func (t *Erg) IsClosed() bool {
 	if pathIsClosed(t.Path) {
 		return true
 	}
-	if vs, ok := t.headers["Closed"]; ok {
-		for _, v := range vs {
-			if strings.TrimSpace(v) != "" {
-				return true
-			}
-		}
-	}
-	return false
+	return t.Closed != ""
 }
 
 // pathIsClosed implements the path component test from rules/tickets.md:
@@ -75,62 +78,6 @@ func pathIsClosed(path string) bool {
 	return false
 }
 
-// BlockedBy returns all Blocked-by header values verbatim.
-func (t *Erg) BlockedBy() []string {
-	if vs, ok := t.headers["Blocked-by"]; ok {
-		return vs
-	}
-	return nil
-}
-
-// Tag returns all normalized Tag: header values (repeatable; one value per
-// occurrence).
-func (t *Erg) Tag() []string {
-	vs, ok := t.headers["Tag"]
-	if !ok || len(vs) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(vs))
-	for _, v := range vs {
-		t := strings.TrimSpace(v)
-		if t != "" {
-			out = append(out, t)
-		}
-	}
-	return out
-}
-
-// ClosedHeader reports whether the ticket has a non-empty Closed: header.
-// This is a pure header test — it does NOT check the ticket path.
-// Use Closed() when path-based closure (tickets/closed/ directory) must
-// also be considered.
-func (t *Erg) ClosedHeader() bool {
-	if vs, ok := t.headers["Closed"]; ok {
-		for _, v := range vs {
-			if strings.TrimSpace(v) != "" {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// Created returns the first Created header value, or "" if absent.
-func (t *Erg) Created() string {
-	if vs, ok := t.headers["Created"]; ok && len(vs) > 0 {
-		return vs[0]
-	}
-	return ""
-}
-
-// Author returns the first Author header value, or "" if absent.
-func (t *Erg) Author() string {
-	if vs, ok := t.headers["Author"]; ok && len(vs) > 0 {
-		return vs[0]
-	}
-	return ""
-}
-
 // BlockedByRefs parses every Blocked-by header value and returns refs
 // aligned with parse errors by index. A nil error means a successful
 // parse; a non-nil error means the corresponding ref is RefInvalid and
@@ -138,7 +85,7 @@ func (t *Erg) Author() string {
 // refs as not-yet-known and skip them — by the time tickets are
 // committed, the validator has already rejected any malformed ref.
 func (t *Erg) BlockedByRefs() ([]Ref, []error) {
-	raws := t.BlockedBy()
+	raws := t.BlockedBys
 	if len(raws) == 0 {
 		return nil, nil
 	}
@@ -209,23 +156,40 @@ func parseHeaderLine(line string) (string, string, bool) {
 	return key, val, true
 }
 
-// parseErg parses a single .erg file. On read error, returns an empty Erg with
-// only Path and Headers set so callers can still report a filename.
-func parseErg(path string) Erg {
+// v1HeaderKeys is the closed set of header keys recognised by parseErg.
+// Used to classify header lines as known/unknown without depending on
+// validate.go data (which 0116 commit 4 removes anyway).
+var v1HeaderKeys = map[string]bool{
+	"Title": true, "Created": true, "Author": true,
+	"Closed": true, "Blocked-by": true, "Tag": true,
+}
+
+// v1SingletonKeys is the subset of v1HeaderKeys that may appear at most
+// once in the preamble. Repeats are reported via ParseDiagnostics.
+var v1SingletonKeys = map[string]bool{
+	"Title": true, "Created": true, "Author": true, "Closed": true,
+}
+
+// parseErg parses a single .erg file into an Erg plus parser observations
+// for the validator (ParseDiagnostics). On read error, returns an empty
+// Erg with only Path set so callers can still report a filename.
+func parseErg(path string) (Erg, ParseDiagnostics) {
+	var diag ParseDiagnostics
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return Erg{Path: path, headers: make(map[string][]string)}
+		return Erg{Path: path}, diag
 	}
 	lines := strings.Split(string(data), "\n")
 
-	headers := make(map[string][]string)
 	var logLines, bodyLines []string
+	var title, created, author, closed Line
+	var blockedBys, tags []Line
 	section := "magic" // magic | headers | gap | log | body
 	hasMagic := false
-	logSepCount := 0
-	bodySepCount := 0
-	closedInLog := false
-	closedInBody := false
+	bodySepSeen := false
+	unknownSeen := make(map[string]bool)
+	repeatedSeen := make(map[string]bool)
+	headerCounts := make(map[string]int)
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -246,15 +210,16 @@ func parseErg(path string) Erg {
 		}
 
 		if trimmed == "--- log ---" {
-			logSepCount++
-			if bodySepCount == 0 {
+			diag.HasLogSep = true
+			if !bodySepSeen {
 				section = "log"
 				continue
 			}
 		}
 		if trimmed == "--- body ---" {
-			bodySepCount++
-			if bodySepCount == 1 {
+			diag.HasBodySep = true
+			if !bodySepSeen {
+				bodySepSeen = true
 				section = "body"
 				continue
 			}
@@ -267,7 +232,50 @@ func parseErg(path string) Erg {
 				continue
 			}
 			if key, val, ok := parseHeaderLine(line); ok {
-				headers[key] = append(headers[key], val)
+				headerCounts[key]++
+				// Classify header for diagnostics.
+				if v1HeaderKeys[key] {
+					if v1SingletonKeys[key] && headerCounts[key] == 2 {
+						if !repeatedSeen[key] {
+							diag.RepeatedSingletons = append(diag.RepeatedSingletons, key)
+							repeatedSeen[key] = true
+						}
+					}
+				} else {
+					if !unknownSeen[key] {
+						diag.Unknown = append(diag.Unknown, key)
+						unknownSeen[key] = true
+					}
+				}
+				// Populate typed fields. Singletons keep first occurrence.
+				switch key {
+				case "Title":
+					if title == "" {
+						title = val
+					}
+				case "Created":
+					if created == "" {
+						created = val
+					}
+				case "Author":
+					if author == "" {
+						author = val
+					}
+				case "Closed":
+					// parseHeaderLine already trims val; no re-trim needed.
+					if val == "" {
+						diag.ClosedEmpty = true
+					} else if closed == "" {
+						closed = val
+					}
+				case "Blocked-by":
+					blockedBys = append(blockedBys, val)
+				case "Tag":
+					// parseHeaderLine already trims val; skip empties.
+					if val != "" {
+						tags = append(tags, val)
+					}
+				}
 			}
 		case "gap":
 			// ignore lines between header block and log separator
@@ -276,27 +284,28 @@ func parseErg(path string) Erg {
 				logLines = append(logLines, line)
 			}
 			if isClosedHeaderLine(line) {
-				closedInLog = true
+				diag.ClosedInLog = true
 			}
 		case "body":
 			bodyLines = append(bodyLines, line)
 			if isClosedHeaderLine(line) {
-				closedInBody = true
+				diag.ClosedInBody = true
 			}
 		}
 	}
 
 	return Erg{
-		Path:         path,
-		headers:      headers,
-		LogLines:     logLines,
-		Body:         strings.Join(bodyLines, "\n"),
-		HasMagic:     hasMagic,
-		LogSepCount:  logSepCount,
-		BodySepCount: bodySepCount,
-		ClosedInLog:  closedInLog,
-		ClosedInBody: closedInBody,
-	}
+		Path:       path,
+		HasMagic:   hasMagic,
+		Title:      title,
+		Created:    created,
+		Author:     author,
+		Closed:     closed,
+		BlockedBys: blockedBys,
+		Tags:       tags,
+		LogLines:   logLines,
+		Body:       strings.Join(bodyLines, "\n"),
+	}, diag
 }
 
 // isClosedHeaderLine reports whether a line begins with the literal
@@ -309,9 +318,15 @@ func isClosedHeaderLine(line string) bool {
 	return len(line) >= len(key) && line[:len(key)] == key
 }
 
-// loadErgs parses every .erg file under dir recursively, sorted by path.
-func loadErgs(dir string) []Erg {
-	var tickets []Erg
+// loadErgs parses every .erg file under dir recursively. Returns parallel
+// slices: tickets[i] and diags[i] describe the same file. The pair is
+// sorted by ticket path. On walk failure, returns (nil, nil).
+func loadErgs(dir string) ([]Erg, []ParseDiagnostics) {
+	type pair struct {
+		t Erg
+		d ParseDiagnostics
+	}
+	var pairs []pair
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
@@ -319,16 +334,23 @@ func loadErgs(dir string) []Erg {
 		if info.IsDir() || !strings.HasSuffix(path, ".erg") {
 			return nil
 		}
-		tickets = append(tickets, parseErg(path))
+		t, d := parseErg(path)
+		pairs = append(pairs, pair{t, d})
 		return nil
 	})
 	if err != nil {
-		return nil
+		return nil, nil
 	}
-	sort.Slice(tickets, func(i, j int) bool {
-		return tickets[i].Path < tickets[j].Path
+	sort.Slice(pairs, func(i, j int) bool {
+		return pairs[i].t.Path < pairs[j].t.Path
 	})
-	return tickets
+	tickets := make([]Erg, len(pairs))
+	diags := make([]ParseDiagnostics, len(pairs))
+	for i, p := range pairs {
+		tickets[i] = p.t
+		diags[i] = p.d
+	}
+	return tickets, diags
 }
 
 // jsonEscape escapes a string for inclusion in a double-quoted JSON value.

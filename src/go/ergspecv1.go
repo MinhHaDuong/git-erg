@@ -9,36 +9,6 @@ import "regexp"
 //	magic-line := "%erg v1"
 const MagicLine = "%erg v1"
 
-// RequiredHeaders lists the three mandatory preamble headers for every
-// %erg v1 ticket. A missing header is a validation error (rule 2).
-//
-// ABNF production:
-//
-//	required-header := "Title" / "Created" / "Author"
-var RequiredHeaders = []string{"Title", "Created", "Author"}
-
-// SingletonHeaders names headers that must appear at most once in the
-// preamble. Repeating any of these is a validation error (rule 4).
-//
-// ABNF production:
-//
-//	singleton-header := "Title" / "Created" / "Author" / "Closed"
-var SingletonHeaders = map[string]bool{
-	"Title": true, "Created": true, "Author": true, "Closed": true,
-}
-
-// ValidHeaders is the closed set of header keys for %erg v1.
-// No X- extensions are allowed; unknown keys are rejected (rule 3).
-//
-// ABNF production:
-//
-//	header-key := "Title" / "Created" / "Author" / "Closed" /
-//	              "Blocked-by" / "Tag"
-var ValidHeaders = map[string]bool{
-	"Title": true, "Created": true, "Author": true,
-	"Closed": true, "Blocked-by": true, "Tag": true,
-}
-
 // ValidTagValues is the closed value set for the Tag: header (%erg v1).
 // Allowed values: needs-human, deferred, post-talk, post-conference.
 // Tag: needs-human or deferred suppresses a ticket from erg ready output.

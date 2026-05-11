@@ -149,18 +149,19 @@ func TestValidateErg(t *testing.T) {
 			wantSubstr: "malformed log line",
 		},
 		{
-			name:       "duplicate log separator",
+			// Rule 11 relaxation (ticket 0116): duplicate separators are
+			// no longer an error. The first occurrence transitions sections;
+			// subsequent ones are body text.
+			name:       "duplicate log separator accepted",
 			filename:   "0001-test.erg",
 			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- log ---\n--- body ---\n",
-			wantErrors: true,
-			wantSubstr: "--- log ---",
+			wantErrors: false,
 		},
 		{
-			name:       "duplicate body separator",
+			name:       "duplicate body separator accepted",
 			filename:   "0001-test.erg",
 			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n--- body ---\n",
-			wantErrors: true,
-			wantSubstr: "--- body ---",
+			wantErrors: false,
 		},
 		{
 			name:       "invalid Blocked-by ref (deprecated gh: scheme)",
@@ -202,8 +203,8 @@ func TestValidateErg(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			path := writeErg(t, dir, tc.filename, tc.content)
-			erg := parseErg(path)
-			errs := validateErg(&erg, map[string]bool{})
+			erg, diag := parseErg(path)
+			errs := validateErg(&erg, diag, map[string]bool{})
 			if tc.wantErrors && len(errs) == 0 {
 				t.Errorf("expected at least one validation error, got none")
 				return
@@ -256,7 +257,7 @@ func TestDetectCycles(t *testing.T) {
 		dir := t.TempDir()
 		makeTicket(t, dir, "0001", "0002")
 		makeTicket(t, dir, "0002")
-		tickets := loadErgs(dir)
+		tickets, _ := loadErgs(dir)
 		errs := detectCycles(tickets)
 		if len(errs) != 0 {
 			t.Errorf("expected no errors for DAG, got: %v", errs)
@@ -266,7 +267,7 @@ func TestDetectCycles(t *testing.T) {
 	t.Run("self-loop A blocked-by A", func(t *testing.T) {
 		dir := t.TempDir()
 		makeTicket(t, dir, "0001", "0001")
-		tickets := loadErgs(dir)
+		tickets, _ := loadErgs(dir)
 		errs := detectCycles(tickets)
 		if len(errs) == 0 {
 			t.Error("expected cycle error for self-loop, got none")
@@ -277,7 +278,7 @@ func TestDetectCycles(t *testing.T) {
 		dir := t.TempDir()
 		makeTicket(t, dir, "0001", "0002")
 		makeTicket(t, dir, "0002", "0001")
-		tickets := loadErgs(dir)
+		tickets, _ := loadErgs(dir)
 		errs := detectCycles(tickets)
 		if len(errs) == 0 {
 			t.Error("expected cycle error for 2-node cycle, got none")
@@ -289,7 +290,7 @@ func TestDetectCycles(t *testing.T) {
 		makeTicket(t, dir, "0001", "0002")
 		makeTicket(t, dir, "0002", "0003")
 		makeTicket(t, dir, "0003", "0001")
-		tickets := loadErgs(dir)
+		tickets, _ := loadErgs(dir)
 		errs := detectCycles(tickets)
 		if len(errs) == 0 {
 			t.Error("expected cycle error for 3-node cycle, got none")
@@ -302,7 +303,7 @@ func TestDetectCycles(t *testing.T) {
 		makeTicket(t, dir, "0002", "0004")
 		makeTicket(t, dir, "0003", "0004")
 		makeTicket(t, dir, "0004")
-		tickets := loadErgs(dir)
+		tickets, _ := loadErgs(dir)
 		errs := detectCycles(tickets)
 		if len(errs) != 0 {
 			t.Errorf("expected no errors for branched DAG, got: %v", errs)
@@ -317,7 +318,7 @@ func TestDetectCycles(t *testing.T) {
 		makeTicket(t, dir, "0002", "0001")
 		makeTicket(t, dir, "0003", "0004")
 		makeTicket(t, dir, "0004", "0003")
-		tickets := loadErgs(dir)
+		tickets, _ := loadErgs(dir)
 		errs := detectCycles(tickets)
 		if len(errs) == 0 {
 			t.Error("expected cycle errors for two disjoint cycles, got none")
@@ -338,8 +339,8 @@ func TestValidateErg_GoldenValid(t *testing.T) {
 	}
 	for _, path := range fixtures {
 		t.Run(filepath.Base(path), func(t *testing.T) {
-			erg := parseErg(path)
-			errs := validateErg(&erg, allIDs)
+			erg, diag := parseErg(path)
+			errs := validateErg(&erg, diag, allIDs)
 			if len(errs) != 0 {
 				t.Errorf("expected no errors, got: %v", errs)
 			}
@@ -351,8 +352,8 @@ func TestValidateErg_GoldenInvalid(t *testing.T) {
 	fixtures, _ := filepath.Glob("testdata/invalid/*.erg")
 	for _, path := range fixtures {
 		t.Run(filepath.Base(path), func(t *testing.T) {
-			erg := parseErg(path)
-			errs := validateErg(&erg, map[string]bool{})
+			erg, diag := parseErg(path)
+			errs := validateErg(&erg, diag, map[string]bool{})
 			if len(errs) == 0 {
 				t.Errorf("expected at least one error, got none")
 			}
@@ -361,8 +362,8 @@ func TestValidateErg_GoldenInvalid(t *testing.T) {
 }
 
 func TestValidateAll_GoldenDuplicateIDs(t *testing.T) {
-	tickets := loadErgs("testdata/invalid-duplicate")
-	errs := validateAll(tickets)
+	tickets, diags := loadErgs("testdata/invalid-duplicate")
+	errs := validateAll(tickets, diags)
 	found := false
 	for _, e := range errs {
 		if strings.Contains(e, "duplicate ID") {
@@ -372,5 +373,105 @@ func TestValidateAll_GoldenDuplicateIDs(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("expected at least one 'duplicate ID' error, got: %v", errs)
+	}
+}
+
+// TestSeparatorLiteralInBodyAccepted pins the rule 11 relaxation from
+// ticket 0116: a body that quotes the `--- log ---` / `--- body ---`
+// literals must validate AND round-trip through erg.Body byte-for-byte.
+// Also pins the parser invariants that HasLogSep/HasBodySep are set on
+// ANY sighting and that body lines are preserved verbatim.
+func TestSeparatorLiteralInBodyAccepted(t *testing.T) {
+	body := "Example of the format:\n--- log ---\n--- body ---\nEnd.\n"
+	content := "%erg v1\n" +
+		"Title: Doc\n" +
+		"Created: 2024-01-01\n" +
+		"Author: test\n" +
+		"\n--- log ---\n--- body ---\n" + body
+	path := writeErg(t, t.TempDir(), "0001-doc.erg", content)
+
+	erg, diag := parseErg(path)
+
+	// (a) validator accepts the file (rule 11 relaxed).
+	errs := validateErg(&erg, diag, map[string]bool{"0001": true})
+	if len(errs) != 0 {
+		t.Fatalf("expected no validation errors, got: %v", errs)
+	}
+
+	// (b) erg.Body preserves the literal lines verbatim. Byte-exact
+	// comparison catches silent line loss or extra blank lines. The
+	// parser preserves the trailing newline (one element per "\n"
+	// split, joined back), so the want value matches the input body
+	// exactly.
+	if erg.Body != body {
+		t.Errorf("erg.Body = %q, want %q", erg.Body, body)
+	}
+
+	// (c) parser flags both separators as seen.
+	if !diag.HasLogSep {
+		t.Error("ParseDiagnostics.HasLogSep = false, want true")
+	}
+	if !diag.HasBodySep {
+		t.Error("ParseDiagnostics.HasBodySep = false, want true")
+	}
+}
+
+// TestRequiredHeaderEmptyValueRejected pins the rule 2 tightening from
+// ticket 0116: a required header that is present with an empty value
+// must fail validation. Today's behavior accepted `Title: ` (key present,
+// empty value) because rule 2 only checked key presence.
+func TestRequiredHeaderEmptyValueRejected(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{"empty Title", "%erg v1\nTitle: \nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n", "Title"},
+		{"empty Created", "%erg v1\nTitle: X\nCreated: \nAuthor: test\n\n--- log ---\n--- body ---\n", "Created"},
+		{"empty Author", "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: \n\n--- log ---\n--- body ---\n", "Author"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := writeErg(t, t.TempDir(), "0001-test.erg", tc.content)
+			erg, diag := parseErg(path)
+			errs := validateErg(&erg, diag, map[string]bool{})
+			found := false
+			for _, e := range errs {
+				if strings.Contains(e, tc.want) && strings.Contains(e, "empty") {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected an error mentioning %q with 'empty', got: %v", tc.want, errs)
+			}
+		})
+	}
+}
+
+// TestClosedDuplicateWithEmpty pins that `Closed: x` followed by
+// `Closed: ` triggers both the repeated-singleton error and the
+// empty-value error. Confirms ClosedEmpty is set on ANY empty value,
+// not only the first occurrence.
+func TestClosedDuplicateWithEmpty(t *testing.T) {
+	content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nClosed: x\nClosed: \n\n--- log ---\n--- body ---\n"
+	path := writeErg(t, t.TempDir(), "0001-test.erg", content)
+	erg, diag := parseErg(path)
+	errs := validateErg(&erg, diag, map[string]bool{})
+
+	var sawRepeated, sawEmpty bool
+	for _, e := range errs {
+		if strings.Contains(e, "non-repeatable") && strings.Contains(e, "Closed") {
+			sawRepeated = true
+		}
+		if strings.Contains(e, "Closed:") && strings.Contains(e, "non-empty") {
+			sawEmpty = true
+		}
+	}
+	if !sawRepeated {
+		t.Errorf("expected a 'non-repeatable' Closed error, got: %v", errs)
+	}
+	if !sawEmpty {
+		t.Errorf("expected a Closed empty-value error, got: %v", errs)
 	}
 }

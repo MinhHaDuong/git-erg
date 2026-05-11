@@ -76,10 +76,10 @@ func cmdClose(args []string) int {
 		return 1
 	}
 
-	ticket := parseErg(ticketPath)
+	ticket, _ := parseErg(ticketPath)
 
 	// Idempotent: already closed (Closed: header present or path test fires).
-	if ticket.Closed() {
+	if ticket.IsClosed() {
 		fmt.Println("CLOSED (already)")
 		return 0
 	}
@@ -102,7 +102,7 @@ func cmdClose(args []string) int {
 	}
 
 	// Step 3: remove Blocked-by: <id> lines from dependent open tickets.
-	t2 := parseErg(ticketPath)
+	t2, _ := parseErg(ticketPath)
 	closedID := t2.FilenameID()
 	if closedID != "" {
 		removeBlockedByRef(ticketDir, closedID, now, author)
@@ -125,17 +125,18 @@ func removeBlockedByRef(ticketDir, closedID, timestamp, author string) {
 			continue
 		}
 		path := filepath.Join(ticketDir, entry.Name())
-		t := parseErg(path)
-		if t.Closed() {
+		t, _ := parseErg(path)
+		if t.IsClosed() {
 			continue
 		}
-		refs := t.BlockedBy()
+		refs := t.BlockedBys
 		if refs == nil {
 			continue
 		}
 		found := false
 		for _, r := range refs {
-			if strings.TrimSpace(r) == closedID {
+			// parseErg already trims Blocked-by values via parseHeaderLine.
+			if r == closedID {
 				found = true
 				break
 			}

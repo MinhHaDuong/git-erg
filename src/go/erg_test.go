@@ -44,25 +44,25 @@ func ergWithTitle(title string) string {
 func TestParseErg(t *testing.T) {
 	t.Run("minimal valid ticket", func(t *testing.T) {
 		path := writeErg(t, t.TempDir(), "0001-test.erg", ergWithTitle("My Title"))
-		erg := parseErg(path)
+		erg, diag := parseErg(path)
 		if !erg.HasMagic {
 			t.Error("expected HasMagic=true")
 		}
-		if erg.Title() != "My Title" {
-			t.Errorf("Title() = %q, want %q", erg.Title(), "My Title")
+		if erg.Title != "My Title" {
+			t.Errorf("Title = %q, want %q", erg.Title, "My Title")
 		}
-		if erg.LogSepCount == 0 {
-			t.Error("expected LogSepCount > 0")
+		if !diag.HasLogSep {
+			t.Error("expected ParseDiagnostics.HasLogSep=true")
 		}
-		if erg.BodySepCount == 0 {
-			t.Error("expected BodySepCount > 0")
+		if !diag.HasBodySep {
+			t.Error("expected ParseDiagnostics.HasBodySep=true")
 		}
 	})
 
 	t.Run("missing magic line", func(t *testing.T) {
 		content := "Title: foo\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
-		erg := parseErg(path)
+		erg, _ := parseErg(path)
 		if erg.HasMagic {
 			t.Error("expected HasMagic=false")
 		}
@@ -71,19 +71,19 @@ func TestParseErg(t *testing.T) {
 	t.Run("CRLF line endings", func(t *testing.T) {
 		content := strings.ReplaceAll(ergWithTitle("CRLF Title"), "\n", "\r\n")
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
-		erg := parseErg(path)
+		erg, _ := parseErg(path)
 		if !erg.HasMagic {
 			t.Error("expected HasMagic=true with CRLF endings")
 		}
-		if erg.Title() != "CRLF Title" {
-			t.Errorf("Title() = %q, want %q", erg.Title(), "CRLF Title")
+		if erg.Title != "CRLF Title" {
+			t.Errorf("Title = %q, want %q", erg.Title, "CRLF Title")
 		}
 	})
 
 	t.Run("no trailing newline", func(t *testing.T) {
 		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n--- log ---\n--- body ---"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
-		erg := parseErg(path)
+		erg, _ := parseErg(path)
 		if !erg.HasMagic {
 			t.Error("expected HasMagic=true")
 		}
@@ -92,10 +92,10 @@ func TestParseErg(t *testing.T) {
 	t.Run("repeated Blocked-by header", func(t *testing.T) {
 		content := "%erg v1\nTitle: A\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0002\nBlocked-by: 0003\n\n--- log ---\n--- body ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
-		erg := parseErg(path)
-		bb := erg.BlockedBy()
+		erg, _ := parseErg(path)
+		bb := erg.BlockedBys
 		if len(bb) != 2 {
-			t.Errorf("BlockedBy() = %v (len=%d), want 2 values", bb, len(bb))
+			t.Errorf("BlockedBys = %v (len=%d), want 2 values", bb, len(bb))
 		}
 	})
 
@@ -104,29 +104,33 @@ func TestParseErg(t *testing.T) {
 		// spaces on the first line must still be accepted as a valid magic marker.
 		content := "  %erg v1  \nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
-		erg := parseErg(path)
+		erg, _ := parseErg(path)
 		if !erg.HasMagic {
 			t.Error("expected HasMagic=true for magic line padded with whitespace")
 		}
 	})
 
 	t.Run("separator inside body section", func(t *testing.T) {
-		// A second '--- log ---' inside the body increments LogSepCount but must
-		// not change the section or cause a panic.
+		// A second '--- log ---' inside the body must not change the
+		// section or cause a panic. The literal becomes body text and
+		// HasLogSep stays true (set on ANY sighting).
 		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n--- log ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
-		erg := parseErg(path)
+		erg, diag := parseErg(path)
 		if !erg.HasMagic {
 			t.Error("expected HasMagic=true")
 		}
-		if erg.LogSepCount != 2 {
-			t.Errorf("LogSepCount = %d, want 2 (separator counted even inside body)", erg.LogSepCount)
+		if !diag.HasLogSep {
+			t.Error("expected ParseDiagnostics.HasLogSep=true")
+		}
+		if !strings.Contains(erg.Body, "--- log ---") {
+			t.Errorf("erg.Body = %q, expected to contain the quoted '--- log ---' literal", erg.Body)
 		}
 	})
 
 	t.Run("file does not exist", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "nonexistent.erg")
-		erg := parseErg(path)
+		erg, _ := parseErg(path)
 		if erg.HasMagic {
 			t.Error("expected HasMagic=false for nonexistent file")
 		}
