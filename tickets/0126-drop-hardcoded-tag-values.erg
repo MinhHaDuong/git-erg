@@ -1,37 +1,77 @@
 %erg v1
-Title: Drop post-talk and post-conference from hardcoded tag vocabulary
+Title: Configurable tag vocabulary from tickets/.erg-tags
 Created: 2026-05-11
 Author: MinhHaDuong
 
 --- log ---
 2026-05-11T14:30Z claude open — surfaced during audit lint review of ergspecv1.go
+2026-05-11T14:45Z claude reimagine — configurable vocabulary via tickets/.erg-tags, sensible defaults, created by erg init
 
 --- body ---
 ## Problem
 
-The v1 tag vocabulary hardcodes four values: needs-human, deferred,
-post-talk, post-conference. The first two are generic workflow states.
-The last two are personal calendar labels that leaked into a reusable
-spec. No live ticket has ever used post-talk or post-conference.
+The v1 tag vocabulary hardcodes four values in Go source: needs-human,
+deferred, post-talk, post-conference. The first two are generic workflow
+states. The last two are personal calendar labels that leaked into a
+reusable spec. No live ticket has ever used post-talk or post-conference.
 
 Affected code:
-- ergspecv1.go: validTagValues map
-- ready.go: skipReadyTags map (duplicate of validTagValues)
-- validate_test.go: test fixtures referencing post-talk/post-conference
+- ergspecv1.go: validTagValues map (compile-time)
+- ready.go: skipReadyTags map (duplicate, also compile-time)
+- bootstrap_assets.go: AGENTS.md and spec-erg-v1.md mention the values
+- validate_test.go: test fixtures reference post-talk/post-conference
 
-## Options
+## Design
 
-A. Drop post-talk and post-conference from the closed set. Keep
-   needs-human and deferred. Simplest fix, nothing breaks in practice.
+Tag vocabulary comes from a configuration file `tickets/.erg-tags`,
+one value per line. Lines starting with `#` are comments, blank lines
+are ignored.
 
-B. Make the tag vocabulary user-configurable (e.g. .erg-tags file or
-   env var). Solves the root cause — the spec should not hardcode
-   workflow-specific labels. More work.
+Default file created by `erg init`:
 
-C. Do A now, B later if needed.
+```
+# Tag vocabulary for this project.
+# One tag per line. Remove or add lines to fit your workflow.
+# All tags suppress the ticket from `erg ready` output.
+needs-human
+deferred
+```
 
-## Origin
+### Lookup order
 
-Ticket 0015 designed Tags as a closed value set with the rationale that
-unknown values fail validation rather than parsing silently. That
-rationale holds for A — the set just gets smaller.
+1. `$ERG_TICKET_DIR/.erg-tags` (or discovered ticket dir)
+2. If missing, fall back to built-in defaults: needs-human, deferred
+
+### Validator behavior
+
+- If `.erg-tags` exists and is readable, its contents are the closed set.
+- If `.erg-tags` is absent, fall back to built-in defaults.
+- Empty `.erg-tags` (no non-comment lines) means no tags are valid.
+- Unknown tag values still fail validation (closed-set contract preserved).
+
+### erg ready behavior
+
+All tags in the vocabulary suppress readiness (current behavior for
+skipReadyTags). The two maps collapse into one: the vocabulary IS the
+skip set.
+
+## Actions
+
+1. Add `.erg-tags` to initAssetPaths and bootstrap_assets.go
+2. Add loadTagVocabulary(dir string) -> map[string]bool function
+3. Replace validTagValues with runtime-loaded vocabulary in parseErgBytes
+4. Replace skipReadyTags with same vocabulary in ready.go
+5. Remove post-talk and post-conference from built-in defaults
+6. Update spec-erg-v1.md: Tag values come from .erg-tags
+7. Update AGENTS.md: mention .erg-tags
+8. Update test fixtures
+
+## Exit criteria
+
+- [ ] `erg init` creates tickets/.erg-tags with needs-human and deferred
+- [ ] Validator reads .erg-tags when present, falls back to defaults
+- [ ] `erg ready` uses same vocabulary (one source of truth)
+- [ ] post-talk and post-conference removed from defaults
+- [ ] Existing tests updated, new tests cover: custom .erg-tags,
+      missing .erg-tags fallback, empty .erg-tags
+- [ ] `make check` passes
