@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+// updateURL is the default value for ERG_UPDATE_URL: the upstream binary
+// location used by `erg update` when the environment variable is unset.
 const updateURL = "https://raw.githubusercontent.com/MinhHaDuong/git-erg/main/tickets/erg"
 
 const helpUpdate = `## erg update
