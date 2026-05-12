@@ -1,7 +1,7 @@
 # Ticket format spec — %erg v1
 
 Author: Minh Ha-Duong <minh.ha-duong@cnrs.fr>
-Last modified: 2026-05-08
+Last modified: 2026-05-12
 Status: Working draft
 
 ## Introduction
@@ -62,7 +62,7 @@ format literals.
 | `Author` | yes | no | line | Agent or human identifier (non-empty) |
 | `Closed` | no | no | line | Closure reason (PR ref, supersession note, etc.); non-empty |
 | `Blocked-by` | no | yes | ref | Local `NNNN` or forge ref `host/owner/repo#N` (see grammar) |
-| `Tag` | no | yes | enum | `needs-human`, `deferred`, `post-talk`, `post-conference` |
+| `Tag` | no | yes | enum | `needs-human`, `deferred` |
 
 **All header values are line-strings — single line, no embedded newlines.**
 The type column distinguishes `line` (single-line text) from `date` /
@@ -109,9 +109,12 @@ A ticket is **closed** if at least one of these holds:
 2. **Header test.** A preamble line begins with `Closed:`
    (header-key match at line start; value required, non-empty).
 
-Otherwise the ticket is **not-closed** (open). There is no other state.
+Otherwise the ticket is **not-closed** (open).
 
 `erg check` emits a corpus hygiene **warning** (non-fatal) when a ticket's folder placement and `Closed:` header disagree. This mismatch does not make the ticket invalid — the disjunctive criterion above is authoritative for the closed/not-closed decision.
+
+There is no `pending` or `claimed` tag by design, external state must not be encoded in ticket description.
+`erg ready` looks at existing branches names to see if work is already happening on the ticket.
 
 ### ID assignment
 

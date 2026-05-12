@@ -1,7 +1,7 @@
 # erg manual
 
 Author: minh.ha-duong@cnrs.fr
-Generated from: erg built 2026-05-11T15:24:54Z rev 537feb6
+Generated from: erg built 2026-05-12T04:05:45Z rev 20ab71d
 
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
@@ -37,6 +37,10 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
       the first occurrence of each is the section separator, subsequent
       occurrences are body text (legitimate bodies may quote the literals).
   13. No dependency cycles among local Blocked-by refs.
+
+Error format: 'filename:LINE: message' when a specific line applies
+(rules 1-7, 9, 11); 'filename: message' when no line applies (rules 8, 12).
+Line numbers are 1-indexed.
 
 For corpus-level checks (duplicate IDs, cycles), use: erg check [dir]
 
