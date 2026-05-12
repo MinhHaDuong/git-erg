@@ -63,7 +63,7 @@ format literals.
 | `Created` | yes | no | date | `YYYY-MM-DD` |
 | `Author` | yes | no | line | Agent or human identifier (non-empty) |
 | `Closed` | no | no | line | Closure reason (PR ref, supersession note, etc.); non-empty |
-| `Blocked-by` | no | yes | ref | Local `NNNN` or forge ref `host/owner/repo#N` (see grammar) |
+| `Blocked-by` | no | yes | ref | Local `NNNN`, path-ref `module/NNNN`, or forge ref `host/owner/repo#N` (see grammar) |
 | `Tag` | no | yes | enum | Configurable via `.ergrc [tags]`; defaults: `needs-human`, `deferred` |
 
 **All header values are line-strings — single line, no embedded newlines.**
@@ -82,21 +82,38 @@ No other headers are valid in v1. No `X-` extensions.
 Forbidden in the log and body sections (header-key match at line start; substrings in prose are fine).
 Example: `Closed: completed in PR #5`
 
-**`Blocked-by` references** take one of two forms:
+**`Blocked-by` references** take one of three forms:
 
 ```
-ref        := local-ref | forge-ref
-local-ref  := [0-9]{4}
-forge-ref  := host "/" owner "/" repo "#" number
-host       := [A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?
-owner      := [A-Za-z0-9_.-]+
-repo       := [A-Za-z0-9_.-]+
-number     := [1-9][0-9]*
+ref            := local-ref | path-ref | forge-ref
+local-ref      := [0-9]{4}
+path-ref       := path-component ("/" path-component)* "/" [0-9]{4}
+path-component := [A-Za-z0-9_.-]+
+forge-ref      := host "/" owner "/" repo "#" number
+host           := [A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?
+owner          := [A-Za-z0-9_.-]+
+repo           := [A-Za-z0-9_.-]+
+number         := [1-9][0-9]*
 ```
 
-Local refs (`0042`) point to tickets in `tickets/`. Forge refs (`github.com/owner/repo#N`) name
-issues on any code forge. `erg` never makes network calls; unknown forge refs are blocking by default.
-One `Blocked-by:` line per dependency; remove the line once the dependency is resolved.
+| Form | Example | Resolution |
+|------|---------|------------|
+| `local-ref` | `Blocked-by: 0042` | `tickets/0042.erg` in the same store |
+| `path-ref` | `Blocked-by: auth/0012` | `auth/tickets/0012.erg` from repo root |
+| `path-ref` | `Blocked-by: libs/auth/0042` | `libs/auth/tickets/0042.erg` from repo root |
+| `forge-ref` | `Blocked-by: github.com/foo/bar#1` | Issue N on a remote code forge |
+
+The `path-component` grammar `[A-Za-z0-9_.-]+` also matches four-digit strings; disambiguation
+relies on position: a `path-ref` must end with a `"/"` followed by exactly four digits, while a
+`forge-ref` ends with `"#"` followed by a positive integer. The two forms are unambiguous.
+
+Local refs (`0042`) point to tickets in `tickets/`. Path-refs (`module/0042`) name a ticket in
+another module's `tickets/` directory relative to the repo root. Forge refs (`github.com/owner/repo#N`)
+name issues on any code forge. `erg` never makes network calls; unknown forge refs are blocking by
+default. One `Blocked-by:` line per dependency; remove the line once the dependency is resolved.
+
+**Resolution and cycle detection** for path-refs are deferred to a follow-up implementation ticket.
+Tools that cannot resolve a path-ref treat it as blocking (same behaviour as offline forge refs).
 
 There is no pending or doing header. If two agents need to avoid stepping on each other, they should
 coordinate via out-of-band signals — typically a git branch whose name contains the ticket ID.
