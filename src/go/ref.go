@@ -76,7 +76,7 @@ func allDigits(s string) bool {
 	return true
 }
 
-// validateIssueNumber enforces the [1-9][0-9]* rule from rules/tickets.md
+// validateIssueNumber enforces the [1-9][0-9]* rule from tickets/spec-erg-v1.md
 // (positive integer, no leading zero).
 func validateIssueNumber(num string) error {
 	if num == "" {
