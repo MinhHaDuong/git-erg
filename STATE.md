@@ -18,13 +18,9 @@ _(none)_
 
 ## Notes
 
-- **0116 chain plan**: 0116 → 0117 → 0118. Each delivers value standalone. Endpoint: schema-pure `Erg` with `Created time.Time`, `BlockedBys []Ref`, zero accessor methods except `IsClosed()`. All three closed.
 - **erg validate vs erg check**: validate is per-file; check is corpus-level.
 - **CI**: bootstrap binary rebuilt automatically on every push to main changing `src/go/`.
 - **Testing policy**: Go unit tests own pure-function correctness; shell integration tests own CLI black-box behavior. Test fixture IDs ≥9000 reserved for unclaimed-ticket tests.
-- **Blocked-by grammar**: now supports `path-ref` (e.g. `module/0042`) for cross-module refs in multi-module monorepos; resolver implementation deferred.
-
-Autonomous-run policy is maintained in `AGENTS.md`.
 
 ## Status
 <!-- generated 2026-05-12T13:52Z -->
