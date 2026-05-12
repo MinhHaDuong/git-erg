@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Erg struct: schema-literal fields, drop accessors and the headers map
 Created: 2026-05-11
 Author: claude-sonnet-4-6

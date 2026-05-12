@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Add Tags header for revocable triage labels (needs-human, deferred, …)
 Created: 2026-05-01
 Author: claude
@@ -19,7 +19,7 @@ terminal and one-way. Triage labels are revocable annotations on
 otherwise-open tickets.
 
 ```
-%erg v1
+%erg 0.1
 Title: ...
 Tags: needs-human          # repeatable, optional
 Tags: deferred

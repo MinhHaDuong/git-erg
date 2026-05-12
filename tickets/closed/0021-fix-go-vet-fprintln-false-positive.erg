@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Fix go vet false-positive: fmt.Fprintln with %erg misread as Printf directive
 Created: 2026-05-02
 Author: claude

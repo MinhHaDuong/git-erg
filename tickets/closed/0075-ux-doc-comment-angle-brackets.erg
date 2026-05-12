@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Fix angle brackets in Go doc-comments for close, log, and new commands
 Created: 2026-05-05
 Author: haduong

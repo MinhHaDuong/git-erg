@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Implement erg validate <files> and erg check [dir] — split validation commands
 Created: 2026-05-04
 Author: claude

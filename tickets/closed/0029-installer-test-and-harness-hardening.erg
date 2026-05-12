@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: add init/uninstall round-trip test and harden shell test harness
 Created: 2026-05-03
 Author: claude

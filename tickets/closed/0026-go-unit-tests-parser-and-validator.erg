@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: introduce Go unit tests for parser, validator, and helpers
 Created: 2026-05-03
 Author: claude

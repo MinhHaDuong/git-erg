@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Remove vestigial mv calls in test_close.sh suffix-closed fixtures
 Created: 2026-05-05
 Author: claude

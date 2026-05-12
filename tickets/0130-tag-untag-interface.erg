@@ -1,8 +1,7 @@
-%erg v1
+%erg 0.1
 Title: Add erg tag/untag CLI commands for mutable tag management
 Created: 2026-05-11
 Author: MinhHaDuong
-Blocked-by: 0126
 
 --- log ---
 2026-05-11T21:00Z MinhHaDuong created

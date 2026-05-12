@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Pre-commit hook: reject staged tickets/erg binary on feature branches
 Created: 2026-05-06
 Author: claude

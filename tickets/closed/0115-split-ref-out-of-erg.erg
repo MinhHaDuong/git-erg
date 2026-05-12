@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Split Ref type and parser out of erg.go into ref.go
 Created: 2026-05-11
 Author: claude-sonnet-4-6

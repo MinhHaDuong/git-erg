@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Fix test_ready.sh hygiene: stale comment and fragile JSON extraction
 Created: 2026-05-05
 Author: claude

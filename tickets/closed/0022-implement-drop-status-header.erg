@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Implement 0012 — drop Status header, add Closed: marker, erg migrate
 Created: 2026-05-03
 Author: claude

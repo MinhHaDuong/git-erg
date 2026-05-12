@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Add erg claim/release/close commands, modularize Go source, add godoc
 Created: 2026-04-29
 Author: user

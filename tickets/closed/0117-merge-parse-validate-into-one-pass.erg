@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Merge parseErg and validateErg into a single validating-parser pass
 Created: 2026-05-11
 Author: claude-sonnet-4-6

@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: check: warn when open ticket has Blocked-by pointing to a closed ticket
 Created: 2026-05-08
 Author: MinhHaDuong
