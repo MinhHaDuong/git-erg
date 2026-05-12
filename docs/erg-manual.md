@@ -25,7 +25,7 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
   2. All required headers present AND non-empty: Title, Created, Author.
   3. No unknown headers (Status: is unknown; run 'erg migrate' to convert it).
   4. Non-repeatable headers (Title, Created, Author, Closed) appear at most once.
-  5. Tag: values are from the closed set (needs-human, deferred, post-talk, post-conference).
+  5. Tag: values are from the vocabulary (default: needs-human, deferred; see tickets/.ergrc [tags]).
   6. Closed: header has a non-empty value and does not appear in the log or body sections.
   7. Created is a valid ISO date (YYYY-MM-DD).
   8. Filename matches NNNN-slug.erg (4-digit ID, lowercase ASCII kebab slug).
@@ -74,7 +74,7 @@ A ticket is ready when all of the following hold:
   - Not closed (no Closed: header and not in a closed/ directory).
   - No Blocked-by headers pointing to open local tickets.
   - No forge-ref Blocked-by lines (forge refs are offline-unknown, treated as blocking).
-  - No tags from the skip set: needs-human, deferred, post-talk, post-conference.
+  - No tags from the vocabulary (default: needs-human, deferred; see tickets/.ergrc [tags]).
 
 Tickets that pass the readiness test but have a git branch containing the
 ticket ID are reported as "claimed" (shown separately, not in the ready list).
@@ -202,8 +202,9 @@ Review the diff with 'git diff tickets/' and commit manually.
 
 Unpack embedded bootstrap assets into the project.
 
-Writes (or refreshes) three files relative to DIR (default: current directory):
+Writes (or refreshes) four files relative to DIR (default: current directory):
 
+  - tickets/.ergrc — project configuration (tag vocabulary, update URL).
   - tickets/AGENTS.md — agent operating instructions for the ticket workflow.
   - tickets/spec-erg-v1.md — the %erg v1 format specification.
   - tickets/integration.md — setup guide for the pre-commit hook and CI integration.

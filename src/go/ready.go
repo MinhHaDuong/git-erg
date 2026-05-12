@@ -23,12 +23,6 @@ type readyEntry struct {
 	blockedBy       []blockedByEntry
 }
 
-var skipReadyTags = map[string]bool{
-	"needs-human":     true,
-	"deferred":        true,
-	"post-talk":       true,
-	"post-conference": true,
-}
 
 // loadBranchNames returns all local and remote branch names in one git
 // invocation. Remote names carry a "remotes/" prefix which is harmless
@@ -159,7 +153,7 @@ A ticket is ready when all of the following hold:
   - Not closed (no Closed: header and not in a closed/ directory).
   - No Blocked-by headers pointing to open local tickets.
   - No forge-ref Blocked-by lines (forge refs are offline-unknown, treated as blocking).
-  - No tags from the skip set: needs-human, deferred, post-talk, post-conference.
+  - No tags from the vocabulary (default: needs-human, deferred; see tickets/.ergrc [tags]).
 
 Tickets that pass the readiness test but have a git branch containing the
 ticket ID are reported as "claimed" (shown separately, not in the ready list).
@@ -198,6 +192,13 @@ func cmdReady(args []string) int {
 		return 1
 	}
 
+	cfg, cfgErr := loadConfig(ticketDir)
+	if cfgErr != nil {
+		fmt.Fprintf(os.Stderr, "ready: cannot read .ergrc: %v\n", cfgErr)
+		return 1
+	}
+	skipTags := effectiveTagSet(cfg)
+
 	tickets, _ := loadErgs(ticketDir)
 	closedByID := make(map[string]bool)
 	knownID := make(map[string]bool)
@@ -229,7 +230,7 @@ func cmdReady(args []string) int {
 		blocked := false
 		var blockedBy []blockedByEntry
 		for _, tag := range tags {
-			if skipReadyTags[tag] {
+			if skipTags[tag] {
 				blocked = true
 				break
 			}

@@ -51,7 +51,20 @@ func cmdUpdate(_ []string) int {
 
 	url := os.Getenv("ERG_UPDATE_URL")
 	if url == "" {
-		url = updateURL
+		ticketDir := os.Getenv("ERG_TICKET_DIR")
+		if ticketDir == "" {
+			if d, findErr := findTicketsDir(); findErr == nil {
+				ticketDir = d
+			}
+		}
+		if ticketDir != "" {
+			if cfg, cfgErr := loadConfig(ticketDir); cfgErr == nil && cfg != nil && cfg.UpdateURL != "" {
+				url = cfg.UpdateURL
+			}
+		}
+		if url == "" {
+			url = updateURL
+		}
 	}
 
 	client := &http.Client{Timeout: 120 * time.Second}

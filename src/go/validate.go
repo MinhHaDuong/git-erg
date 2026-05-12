@@ -78,6 +78,25 @@ func detectCycles(tickets []Erg) []string {
 	return errors
 }
 
+// validateTagVocabulary checks that all tags on a ticket belong to the
+// effective vocabulary, returning error strings for any that don't.
+func validateTagVocabulary(t *Erg, tagSet map[string]bool, validList []string) []string {
+	var errs []string
+	name := t.Filename()
+	for j, v := range t.Tags {
+		if !tagSet[v] {
+			lineInfo := ""
+			if j < len(t.TagLines) {
+				lineInfo = fmt.Sprintf(":%d", t.TagLines[j])
+			}
+			errs = append(errs, fmt.Sprintf(
+				"%s%s: unknown Tag value '%s' (valid tags: %s)",
+				name, lineInfo, v, strings.Join(validList, ", ")))
+		}
+	}
+	return errs
+}
+
 // validateCorpus runs the corpus-level rules across all tickets and
 // folds in the per-file parse errors. parseErrs is the parallel-by-index
 // slice of parse errors emitted by parseErg / loadErgs (already covers
@@ -85,12 +104,19 @@ func detectCycles(tickets []Erg) []string {
 //   - duplicate ID detection (no rule number; corpus-level invariant)
 //   - rule 10: local Blocked-by refs resolve to existing ticket IDs
 //   - rule 13: no dependency cycles among local Blocked-by edges
-func validateCorpus(tickets []Erg, parseErrs [][]string) []string {
+func validateCorpus(tickets []Erg, parseErrs [][]string, cfg *Config) []string {
 	var errors []string
 
 	// Fold in per-file parse errors first (rules 1-9, 11, 12).
 	for _, e := range parseErrs {
 		errors = append(errors, e...)
+	}
+
+	// Rule 5: Tag values must be from the effective vocabulary.
+	tagSet := effectiveTagSet(cfg)
+	validList := sortedKeys(tagSet)
+	for i := range tickets {
+		errors = append(errors, validateTagVocabulary(&tickets[i], tagSet, validList)...)
 	}
 
 	// Corpus check: no duplicate IDs (not a per-file rule).
@@ -169,7 +195,7 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
   2. All required headers present AND non-empty: Title, Created, Author.
   3. No unknown headers (Status: is unknown; run 'erg migrate' to convert it).
   4. Non-repeatable headers (Title, Created, Author, Closed) appear at most once.
-  5. Tag: values are from the closed set (needs-human, deferred, post-talk, post-conference).
+  5. Tag: values are from the vocabulary (default: needs-human, deferred; see tickets/.ergrc [tags]).
   6. Closed: header has a non-empty value and does not appear in the log or body sections.
   7. Created is a valid ISO date (YYYY-MM-DD).
   8. Filename matches NNNN-slug.erg (4-digit ID, lowercase ASCII kebab slug).
@@ -203,9 +229,9 @@ func cmdValidate(args []string) int {
 
 	var allErrors []string
 	count := 0
-	// Cache globLocalIDs per directory — avoids re-reading the same dir
-	// when multiple files from the same directory are validated together.
+	// Cache globLocalIDs and Config per directory.
 	idCache := make(map[string]map[string]bool)
+	cfgCache := make(map[string]*Config)
 	for _, arg := range args {
 		info, err := os.Stat(arg)
 		if err != nil {
@@ -227,10 +253,18 @@ func cmdValidate(args []string) int {
 			localIDs = globLocalIDs(dir)
 			idCache[dir] = localIDs
 		}
+		cfg, cfgOk := cfgCache[dir]
+		if !cfgOk {
+			var cfgErr error
+			cfg, cfgErr = loadConfig(dir)
+			if cfgErr != nil {
+				fmt.Fprintf(os.Stderr, "validate: cannot read .ergrc in %s: %v\n", dir, cfgErr)
+				return 1
+			}
+			cfgCache[dir] = cfg
+		}
 		allErrors = append(allErrors, parseErrs...)
-		// Rule 10: local Blocked-by refs resolve to a known ticket ID. For
-		// `erg validate` this is the per-directory glob; for `erg check`
-		// (validateCorpus) it's the loaded corpus.
+		// Rule 10: local Blocked-by refs resolve to a known ticket ID.
 		name := t.Filename()
 		for _, ref := range t.BlockedBys {
 			if ref.Kind == RefLocal && !localIDs[ref.ID] {
@@ -238,6 +272,10 @@ func cmdValidate(args []string) int {
 					"%s: Blocked-by '%s' references unknown ticket ID", name, ref.ID))
 			}
 		}
+		// Rule 5: Tag values from effective vocabulary.
+		tagSet := effectiveTagSet(cfg)
+		validList := sortedKeys(tagSet)
+		allErrors = append(allErrors, validateTagVocabulary(&t, tagSet, validList)...)
 		count++
 	}
 
