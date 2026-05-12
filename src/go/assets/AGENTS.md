@@ -16,7 +16,7 @@ Blocked-by: 0007
 
 --- log ---
 2026-05-04T09:00Z alice created
-2026-05-04T14:22Z bob status open Was blocked, 0007 now merged
+2026-05-04T14:22Z bob note Was blocked, 0007 now merged
 
 --- body ---
 ## Context
