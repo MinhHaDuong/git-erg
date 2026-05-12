@@ -23,9 +23,11 @@ Encoding: UTF-8, LF line endings.
 ```
 
 Every `.erg` file starts with this line. It declares the format version
-and enables file-type detection without relying on the extension. A future
-`%erg v2` adds headers without breaking v1 validators (they reject
-unknown versions rather than silently misparsing).
+and enables file-type detection without relying on the extension. The
+version follows a MAJOR.MINOR scheme (no `v` prefix): pre-1.0 signals
+instability, post-1.0 minor bumps are backward-compatible. A future
+version bump extends the format without breaking 0.1 validators (they
+reject unknown versions rather than silently misparsing).
 
 ### Structure
 
