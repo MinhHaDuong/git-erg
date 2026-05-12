@@ -183,7 +183,7 @@ func cmdReady(args []string) int {
 	}
 	ticketDir, err := resolveDir(explicit)
 	if err != nil {
-		fmt.Printf("Directory not found: %s\n", explicit)
+		fmt.Printf("Directory not found: %v\n", err)
 		return 1
 	}
 

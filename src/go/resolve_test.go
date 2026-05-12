@@ -60,8 +60,10 @@ func TestResolveTicketByID(t *testing.T) {
 	})
 
 	t.Run("ambiguous", func(t *testing.T) {
-		os.WriteFile(filepath.Join(tmp, "0042-other.erg"), []byte("%erg v1\n"), 0644)
-		_, err := resolveTicketByID(tmp, "0042")
+		ambiguous := t.TempDir()
+		os.WriteFile(filepath.Join(ambiguous, "0042-fix-bug.erg"), []byte("%erg v1\n"), 0644)
+		os.WriteFile(filepath.Join(ambiguous, "0042-other.erg"), []byte("%erg v1\n"), 0644)
+		_, err := resolveTicketByID(ambiguous, "0042")
 		if err == nil || !strings.Contains(err.Error(), "ambiguous") {
 			t.Fatalf("expected 'ambiguous' error, got: %v", err)
 		}

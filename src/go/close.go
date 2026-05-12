@@ -47,7 +47,7 @@ func cmdClose(args []string) int {
 	}
 	ticketDir, err := resolveDir(explicit)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintf(os.Stderr, "close: %v\n", err)
 		return 1
 	}
 

@@ -109,7 +109,11 @@ func cmdCheck(args []string) int {
 	}
 	dir, err := resolveDir(explicit)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %v; use 'erg validate' for individual files\n", err)
+		hint := ""
+		if strings.Contains(err.Error(), "not a directory") {
+			hint = "; use 'erg validate' for individual files"
+		}
+		fmt.Fprintf(os.Stderr, "ERROR: %v%s\n", err, hint)
 		return 1
 	}
 

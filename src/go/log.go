@@ -46,7 +46,7 @@ func cmdLog(args []string) int {
 	}
 	ticketDir, err := resolveDir(explicit)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintf(os.Stderr, "log: %v\n", err)
 		return 1
 	}
 
