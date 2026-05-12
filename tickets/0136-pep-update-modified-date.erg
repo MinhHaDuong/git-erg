@@ -1,0 +1,25 @@
+%erg 0.1
+Title: PEP: update Modified date
+Created: 2026-05-12
+Author: MinhHaDuong
+
+--- log ---
+2026-05-12T11:48Z MinhHaDuong created
+
+--- body ---
+## Context
+
+Audit 0127 drift D: PEP metadata reads `Modified: 2026-04-04`. The
+spec was last edited 2026-05-12. The PEP Modified date should track
+the most recent substantive edit.
+
+## Actions
+
+- Update `Modified:` in pep-erg-v1.md to the date of the last
+  substantive edit (currently 2026-05-12, but use the actual date
+  at execution time).
+
+## Exit criteria
+
+- PEP Modified date reflects last substantive edit.
+- `make test` passes (no code changes).

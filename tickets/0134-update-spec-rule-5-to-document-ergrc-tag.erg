@@ -1,0 +1,28 @@
+%erg 0.1
+Title: Update spec rule 5 to document ergrc tag override
+Created: 2026-05-12
+Author: MinhHaDuong
+
+--- log ---
+2026-05-12T11:47Z MinhHaDuong created
+
+--- body ---
+## Context
+
+Audit 0127 drift A: the spec header table (row for Tag) hardcodes the
+values `needs-human, deferred`. The code defers to `.ergrc [tags]` via
+`effectiveTagSet`, falling back to `defaultTags` when no `.ergrc` exists.
+The manual already documents the `.ergrc` override. The spec does not.
+
+## Actions
+
+- In `tickets/spec-erg-v1.md`, header table row for `Tag`, update the
+  Values column to note that the vocabulary is configurable via
+  `.ergrc [tags]`, with the listed values as defaults.
+- Add a sentence after the header table or in the Tag description
+  explaining the override mechanism.
+
+## Exit criteria
+
+- Spec header table mentions `.ergrc [tags]` configurability.
+- `make test` passes (no code changes).

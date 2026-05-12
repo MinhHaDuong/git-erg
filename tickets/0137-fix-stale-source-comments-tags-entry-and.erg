@@ -1,0 +1,35 @@
+%erg 0.1
+Title: Fix stale source comments: Tags entry and rules/tickets.md refs
+Created: 2026-05-12
+Author: MinhHaDuong
+
+--- log ---
+2026-05-12T11:48Z MinhHaDuong created
+
+--- body ---
+## Context
+
+Audit 0127 drifts E and F, grouped to avoid ticket spam.
+
+**Drift E** — `ergspecv1.go:34` comment reads `each Tags entry` but
+the header is now `Tag:` (singular). Should read `each Tag entry`.
+
+**Drift F** — Four source comments reference `rules/tickets.md` which
+no longer exists. The content now lives in `tickets/spec-erg-v1.md`.
+Affected files:
+- `src/go/erg.go:22` — pathIsClosed doc comment
+- `src/go/erg_test.go:250` — test comment
+- `src/go/ergspecv1.go:41` — RefKind doc comment
+- `src/go/ref.go:79` — validateIssueNumber doc comment
+
+## Actions
+
+- Fix `ergspecv1.go:34`: `Tags entry` -> `Tag entry`.
+- Replace all `rules/tickets.md` references with
+  `tickets/spec-erg-v1.md` (or just `spec-erg-v1.md`).
+
+## Exit criteria
+
+- No source comment references `rules/tickets.md`.
+- `ergspecv1.go` comment uses `Tag` singular.
+- `make test` passes.
