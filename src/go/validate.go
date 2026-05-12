@@ -78,6 +78,25 @@ func detectCycles(tickets []Erg) []string {
 	return errors
 }
 
+// validateTagVocabulary checks that all tags on a ticket belong to the
+// effective vocabulary, returning error strings for any that don't.
+func validateTagVocabulary(t *Erg, tagSet map[string]bool, validList []string) []string {
+	var errs []string
+	name := t.Filename()
+	for j, v := range t.Tags {
+		if !tagSet[v] {
+			lineInfo := ""
+			if j < len(t.TagLines) {
+				lineInfo = fmt.Sprintf(":%d", t.TagLines[j])
+			}
+			errs = append(errs, fmt.Sprintf(
+				"%s%s: unknown Tag value '%s' (valid tags: %s)",
+				name, lineInfo, v, strings.Join(validList, ", ")))
+		}
+	}
+	return errs
+}
+
 // validateCorpus runs the corpus-level rules across all tickets and
 // folds in the per-file parse errors. parseErrs is the parallel-by-index
 // slice of parse errors emitted by parseErg / loadErgs (already covers
@@ -97,19 +116,7 @@ func validateCorpus(tickets []Erg, parseErrs [][]string, cfg *Config) []string {
 	tagSet := effectiveTagSet(cfg)
 	validList := sortedKeys(tagSet)
 	for i := range tickets {
-		t := &tickets[i]
-		name := t.Filename()
-		for j, v := range t.Tags {
-			if !tagSet[v] {
-				lineInfo := ""
-				if j < len(t.TagLines) {
-					lineInfo = fmt.Sprintf(":%d", t.TagLines[j])
-				}
-				errors = append(errors, fmt.Sprintf(
-					"%s%s: unknown Tag value '%s' (valid tags: %s)",
-					name, lineInfo, v, strings.Join(validList, ", ")))
-			}
-		}
+		errors = append(errors, validateTagVocabulary(&tickets[i], tagSet, validList)...)
 	}
 
 	// Corpus check: no duplicate IDs (not a per-file rule).
@@ -268,17 +275,7 @@ func cmdValidate(args []string) int {
 		// Rule 5: Tag values from effective vocabulary.
 		tagSet := effectiveTagSet(cfg)
 		validList := sortedKeys(tagSet)
-		for j, v := range t.Tags {
-			if !tagSet[v] {
-				lineInfo := ""
-				if j < len(t.TagLines) {
-					lineInfo = fmt.Sprintf(":%d", t.TagLines[j])
-				}
-				allErrors = append(allErrors, fmt.Sprintf(
-					"%s%s: unknown Tag value '%s' (valid tags: %s)",
-					name, lineInfo, v, strings.Join(validList, ", ")))
-			}
-		}
+		allErrors = append(allErrors, validateTagVocabulary(&t, tagSet, validList)...)
 		count++
 	}
 

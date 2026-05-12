@@ -202,8 +202,9 @@ Review the diff with 'git diff tickets/' and commit manually.
 
 Unpack embedded bootstrap assets into the project.
 
-Writes (or refreshes) three files relative to DIR (default: current directory):
+Writes (or refreshes) four files relative to DIR (default: current directory):
 
+  - tickets/.ergrc — project configuration (tag vocabulary, update URL).
   - tickets/AGENTS.md — agent operating instructions for the ticket workflow.
   - tickets/spec-erg-v1.md — the %erg v1 format specification.
   - tickets/integration.md — setup guide for the pre-commit hook and CI integration.

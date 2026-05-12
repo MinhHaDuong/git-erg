@@ -181,7 +181,7 @@ func TestConfig_Precedence_UpdateURL(t *testing.T) {
 	}
 }
 
-func TestLoadConfig_ParseError(t *testing.T) {
+func TestLoadConfig_MinimalTagsSection(t *testing.T) {
 	dir := t.TempDir()
 	content := strings.Repeat("[tags]\n", 1)
 	if err := os.WriteFile(filepath.Join(dir, ".ergrc"), []byte(content), 0644); err != nil {
@@ -196,5 +196,32 @@ func TestLoadConfig_ParseError(t *testing.T) {
 	}
 	if !cfg.TagsSection {
 		t.Error("expected TagsSection true")
+	}
+}
+
+func TestUpdateURL_EnvVarOverridesConfig(t *testing.T) {
+	dir := t.TempDir()
+	ergrc := "[update]\nurl = https://from-config.example.com/erg\n"
+	if err := os.WriteFile(filepath.Join(dir, ".ergrc"), []byte(ergrc), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := loadConfig(dir)
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	if cfg.UpdateURL != "https://from-config.example.com/erg" {
+		t.Fatalf("config URL not loaded: %q", cfg.UpdateURL)
+	}
+
+	envURL := "https://from-env.example.com/erg"
+	t.Setenv("ERG_UPDATE_URL", envURL)
+
+	got := os.Getenv("ERG_UPDATE_URL")
+	if got == "" {
+		got = cfg.UpdateURL
+	}
+	if got != envURL {
+		t.Errorf("env var should override config: got %q, want %q", got, envURL)
 	}
 }

@@ -33,7 +33,7 @@ fi
 
 touch "$REPO/tickets/erg"
 
-# --- init unpacks exactly 3 files ---
+# --- init unpacks exactly 4 files ---
 
 OUT=$($ERG init "$REPO" 2>&1)
 
@@ -53,6 +53,12 @@ if [ -f "$REPO/tickets/integration.md" ]; then
     pass "init creates integration.md"
 else
     fail "init creates integration.md"
+fi
+
+if [ -f "$REPO/tickets/.ergrc" ]; then
+    pass "init creates .ergrc"
+else
+    fail "init creates .ergrc"
 fi
 
 # --- no integration/ directory created ---
@@ -87,10 +93,10 @@ fi
 
 OUT2=$($ERG init "$REPO" 2>&1)
 
-if echo "$OUT2" | grep -q "0 created, 0 refreshed, 3 unchanged"; then
-    pass "re-init is idempotent (3 unchanged)"
+if echo "$OUT2" | grep -q "0 created, 0 refreshed, 4 unchanged"; then
+    pass "re-init is idempotent (4 unchanged)"
 else
-    fail "re-init is idempotent (expected '0 created, 0 refreshed, 3 unchanged', got: $OUT2)"
+    fail "re-init is idempotent (expected '0 created, 0 refreshed, 4 unchanged', got: $OUT2)"
 fi
 
 # --- output mentions integration.md ---
