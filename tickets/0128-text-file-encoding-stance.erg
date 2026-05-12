@@ -6,6 +6,7 @@ Author: MinhHaDuong
 --- log ---
 2026-05-11T20:30Z claude open — surfaced during audit lint session; spec says UTF-8 LF but validator does not enforce
 2026-05-12T08:00Z MinhHaDuong decide — option B (tolerant parse, warn on check); normalize CRLF→LF, strip BOM during parse, warn in erg check
+2026-05-12T13:00Z claude execute — implemented BOM strip + CRLF normalization in parseErgBytes, added encoding warnings in cmdCheck
 
 --- body ---
 ## Problem

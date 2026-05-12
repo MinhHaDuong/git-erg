@@ -168,6 +168,38 @@ func TestParseErg(t *testing.T) {
 		}
 	})
 
+	t.Run("CRLF body lines retain no carriage return", func(t *testing.T) {
+		content := "%erg 0.1\r\nTitle: X\r\nCreated: 2024-01-01\r\nAuthor: test\r\n\r\n--- log ---\r\n--- body ---\r\nhello world\r\n"
+		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
+		erg, _ := parseErg(path)
+		if strings.Contains(erg.Body, "\r") {
+			t.Errorf("Body contains \\r: %q", erg.Body)
+		}
+	})
+
+	t.Run("CRLF log lines retain no carriage return", func(t *testing.T) {
+		content := "%erg 0.1\r\nTitle: X\r\nCreated: 2024-01-01\r\nAuthor: test\r\n\r\n--- log ---\r\n2024-01-01T10:00Z author note\r\n--- body ---\r\n"
+		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
+		erg, _ := parseErg(path)
+		for i, l := range erg.LogLines {
+			if strings.Contains(l, "\r") {
+				t.Errorf("LogLines[%d] contains \\r: %q", i, l)
+			}
+		}
+	})
+
+	t.Run("UTF-8 BOM stripped", func(t *testing.T) {
+		bom := "\xEF\xBB\xBF"
+		content := bom + "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
+		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
+		_, parseErrs := parseErg(path)
+		for _, e := range parseErrs {
+			if strings.Contains(e, "missing magic first line") {
+				t.Errorf("BOM caused magic line mismatch: %v", parseErrs)
+			}
+		}
+	})
+
 	t.Run("file does not exist", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "nonexistent.erg")
 		erg, _ := parseErg(path)
@@ -581,6 +613,84 @@ func TestStrayGoSource(t *testing.T) {
 		warnings := strayGoSource(filepath.Join(t.TempDir(), "nonexistent"))
 		if len(warnings) != 0 {
 			t.Errorf("expected no warnings, got: %v", warnings)
+		}
+	})
+}
+
+// TestEncodingWarnings exercises encodingWarnings (check.go).
+func TestEncodingWarnings(t *testing.T) {
+	t.Run("CRLF file warns", func(t *testing.T) {
+		dir := t.TempDir()
+		content := "%erg 0.1\r\nTitle: X\r\nCreated: 2024-01-01\r\nAuthor: test\r\n\r\n--- log ---\r\n--- body ---\r\n"
+		writeErg(t, dir, "0001-test.erg", content)
+		warnings := encodingWarnings(dir)
+		found := false
+		for _, w := range warnings {
+			if strings.Contains(w, "CRLF") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected CRLF warning, got: %v", warnings)
+		}
+	})
+
+	t.Run("BOM file warns", func(t *testing.T) {
+		dir := t.TempDir()
+		bom := "\xEF\xBB\xBF"
+		content := bom + "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
+		writeErg(t, dir, "0001-test.erg", content)
+		warnings := encodingWarnings(dir)
+		found := false
+		for _, w := range warnings {
+			if strings.Contains(w, "BOM") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected BOM warning, got: %v", warnings)
+		}
+	})
+
+	t.Run("BOM and CRLF file warns both", func(t *testing.T) {
+		dir := t.TempDir()
+		bom := "\xEF\xBB\xBF"
+		content := bom + "%erg 0.1\r\nTitle: X\r\nCreated: 2024-01-01\r\nAuthor: test\r\n\r\n--- log ---\r\n--- body ---\r\n"
+		writeErg(t, dir, "0001-test.erg", content)
+		warnings := encodingWarnings(dir)
+		if len(warnings) < 2 {
+			t.Errorf("expected 2 warnings (BOM + CRLF), got %d: %v", len(warnings), warnings)
+		}
+	})
+
+	t.Run("clean LF file no warnings", func(t *testing.T) {
+		dir := t.TempDir()
+		content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
+		writeErg(t, dir, "0001-test.erg", content)
+		warnings := encodingWarnings(dir)
+		if len(warnings) != 0 {
+			t.Errorf("expected no warnings for clean LF file, got: %v", warnings)
+		}
+	})
+
+	t.Run("non-erg files ignored", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("hello\r\nworld\r\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		warnings := encodingWarnings(dir)
+		if len(warnings) != 0 {
+			t.Errorf("expected no warnings for non-erg file, got: %v", warnings)
+		}
+	})
+
+	t.Run("empty dir returns nil", func(t *testing.T) {
+		dir := t.TempDir()
+		warnings := encodingWarnings(dir)
+		if len(warnings) != 0 {
+			t.Errorf("expected no warnings for empty dir, got: %v", warnings)
 		}
 	})
 }

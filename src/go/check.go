@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -79,6 +81,33 @@ func strayGoSource(dir string) []string {
 	return nil
 }
 
+// encodingWarnings scans .erg files for BOM and CRLF line endings.
+// These are non-fatal warnings: parseErgBytes normalises both during parse,
+// but the file on disk should be clean UTF-8 LF.
+func encodingWarnings(dir string) []string {
+	var warnings []string
+	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".erg") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		name := filepath.Base(path)
+		if len(data) >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF {
+			warnings = append(warnings, fmt.Sprintf(
+				"WARNING: %s: file starts with UTF-8 BOM — remove the BOM (editor setting)", name))
+		}
+		if bytes.Contains(data, []byte("\r\n")) {
+			warnings = append(warnings, fmt.Sprintf(
+				"WARNING: %s: file contains CRLF line endings — convert to LF (editor setting)", name))
+		}
+		return nil
+	})
+	return warnings
+}
+
 // summaryCheck is the one-liner printed by printUsage via the commands registry.
 const summaryCheck = "Corpus-level checks (duplicate IDs, cycles, refs)"
 
@@ -134,6 +163,7 @@ func cmdCheck(args []string) int {
 	warnings := folderClosure(tickets)
 	warnings = append(warnings, staleBlockedBy(tickets)...)
 	warnings = append(warnings, strayGoSource(dir)...)
+	warnings = append(warnings, encodingWarnings(dir)...)
 
 	hasErrors := len(errors) > 0
 	if hasErrors {

@@ -524,6 +524,54 @@ else
     fail "forge ref stale check exits 0"
 fi
 
+# --- Encoding warning: CRLF file warns ---
+mkdir -p "$FIXTURES/enc-crlf"
+printf '%%erg 0.1\r\nTitle: x\r\nCreated: 2026-01-01\r\nAuthor: x\r\n\r\n--- log ---\r\n--- body ---\r\n' > "$FIXTURES/enc-crlf/0001-crlf.erg"
+rc=0; out=$($ERG check "$FIXTURES/enc-crlf" 2>&1) || rc=$?
+if echo "$out" | grep -q "WARNING.*CRLF"; then
+    pass "CRLF encoding warning emitted"
+else
+    fail "CRLF encoding warning emitted (got: $out)"
+fi
+if [ $rc -eq 0 ]; then
+    pass "CRLF encoding warning exits 0"
+else
+    fail "CRLF encoding warning exits 0"
+fi
+
+# --- Encoding warning: BOM file warns ---
+mkdir -p "$FIXTURES/enc-bom"
+printf '\357\273\277%%erg 0.1\nTitle: x\nCreated: 2026-01-01\nAuthor: x\n\n--- log ---\n--- body ---\n' > "$FIXTURES/enc-bom/0001-bom.erg"
+rc=0; out=$($ERG check "$FIXTURES/enc-bom" 2>&1) || rc=$?
+if echo "$out" | grep -q "WARNING.*BOM"; then
+    pass "BOM encoding warning emitted"
+else
+    fail "BOM encoding warning emitted (got: $out)"
+fi
+if [ $rc -eq 0 ]; then
+    pass "BOM encoding warning exits 0"
+else
+    fail "BOM encoding warning exits 0"
+fi
+
+# --- Encoding warning: clean file no warning ---
+mkdir -p "$FIXTURES/enc-clean"
+cat > "$FIXTURES/enc-clean/0001-clean.erg" <<'EOF'
+%erg 0.1
+Title: Clean
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG check "$FIXTURES/enc-clean" 2>&1)
+if echo "$out" | grep -q "WARNING.*BOM\|WARNING.*CRLF"; then
+    fail "clean file has no encoding warning (got: $out)"
+else
+    pass "clean file has no encoding warning"
+fi
+
 # live-corpus check moved to: make validate
 
 echo "check: $PASS passed, $FAIL failed"
