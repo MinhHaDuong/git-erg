@@ -279,7 +279,7 @@ func TestClosedWhitespaceDivergence(t *testing.T) {
 
 // TestPathIsClosed exercises the path-component closure test from erg.go.
 // Item 2: covers directory names, basename prefixes/suffixes, and
-// case-insensitivity as specified in rules/tickets.md.
+// case-insensitivity as specified in tickets/spec-erg-v1.md.
 func TestPathIsClosed(t *testing.T) {
 	cases := []struct {
 		path string

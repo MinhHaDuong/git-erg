@@ -19,7 +19,7 @@ func (t *Erg) IsClosed() bool {
 	return t.Closed != ""
 }
 
-// pathIsClosed implements the path component test from rules/tickets.md:
+// pathIsClosed implements the path component test from tickets/spec-erg-v1.md:
 // any path component (directory name or basename without extension) that
 // equals "closed", starts with "closed-"/"closed.", or ends with "-closed"
 // (case-insensitive) marks the ticket closed.

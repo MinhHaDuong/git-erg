@@ -31,14 +31,14 @@ type Erg struct {
 	Closed     string   // optional; first non-empty Closed: value when present
 	BlockedBys []Ref    // possibly empty; one entry per `Blocked-by:` line, parsed at parse time
 	Tags     []string // possibly empty; one entry per `Tag:` line, trimmed; empties skipped
-	TagLines []int    // 1-indexed line numbers for each Tags entry
+	TagLines []int    // 1-indexed line numbers for each Tag entry
 
 	LogLines []string // one structured event per entry
 	Body     string   // multiline
 }
 
 // RefKind discriminates the two Blocked-by reference forms defined in
-// rules/tickets.md.
+// tickets/spec-erg-v1.md.
 type RefKind int
 
 const (
