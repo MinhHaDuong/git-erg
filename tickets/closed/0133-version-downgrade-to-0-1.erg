@@ -2,10 +2,12 @@
 Title: Downgrade format version from v1 to 0.1 with MAJOR.MINOR scheme
 Created: 2026-05-12
 Author: user
+Closed: autoclosed — PR #137
 
 --- log ---
 2026-05-12T12:00Z user created
 
+2026-05-12T11:42Z MinhHaDuong closed — autoclosed — PR #137
 --- body ---
 ## Context
 
