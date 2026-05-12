@@ -87,6 +87,43 @@ func findTicketsDir() (string, error) {
 		tried, cwd)
 }
 
+type notADirError struct{ Path string }
+
+func (e *notADirError) Error() string { return e.Path + " is not a directory" }
+
+// Callers that need MkdirAll semantics (cmdNew) should not use resolveDir.
+func resolveDir(explicit string) (string, error) {
+	dir := explicit
+	if dir == "" {
+		var err error
+		dir, err = findTicketsDir()
+		if err != nil {
+			return "", err
+		}
+	}
+	dir = filepath.Clean(dir)
+	info, err := os.Stat(dir)
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", &notADirError{Path: dir}
+	}
+	return dir, nil
+}
+
+func resolveTicketByID(dir, id string) (string, error) {
+	pattern := filepath.Join(dir, fmt.Sprintf("%s-*.erg", id))
+	matches, err := filepath.Glob(pattern)
+	if err != nil || len(matches) == 0 {
+		return "", fmt.Errorf("no ticket found for ID %s in %s", id, dir)
+	}
+	if len(matches) > 1 {
+		return "", fmt.Errorf("ambiguous ID %s — matches: %s", id, strings.Join(matches, ", "))
+	}
+	return matches[0], nil
+}
+
 func printUsage() {
 	fmt.Fprintln(os.Stdout, "Usage: erg COMMAND [--help] [args...]")
 	fmt.Fprintln(os.Stdout)

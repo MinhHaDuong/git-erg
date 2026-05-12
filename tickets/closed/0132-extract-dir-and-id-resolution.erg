@@ -2,10 +2,12 @@
 Title: Extract dir-resolution and ID-to-file resolution helpers
 Created: 2026-05-11
 Author: MinhHaDuong
+Closed: autoclosed — PR #136
 
 --- log ---
 2026-05-11T21:00Z claude open — identified during explore-go-cli-design session
 
+2026-05-12T10:34Z MinhHaDuong closed — autoclosed — PR #136
 --- body ---
 ## Problem
 

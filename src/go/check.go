@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -103,25 +104,17 @@ Exit codes: 0 on pass (warnings are printed but do not affect exit code), 1 on a
 
 // cmdCheck implements `erg check [dir]`. See helpCheck for the user-facing summary.
 func cmdCheck(args []string) int {
-	var dir string
+	var explicit string
 	if len(args) > 0 {
-		dir = args[0]
-	} else {
-		var err error
-		dir, err = findTicketsDir()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return 1
-		}
+		explicit = args[0]
 	}
-
-	info, err := os.Stat(dir)
+	dir, err := resolveDir(explicit)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %s: %v\n", dir, err)
-		return 1
-	}
-	if !info.IsDir() {
-		fmt.Fprintf(os.Stderr, "ERROR: %s is not a directory; use 'erg validate' for individual files\n", dir)
+		hint := ""
+		if errors.As(err, new(*notADirError)) {
+			hint = "; use 'erg validate' for individual files"
+		}
+		fmt.Fprintf(os.Stderr, "ERROR: %v%s\n", err, hint)
 		return 1
 	}
 
