@@ -20,6 +20,8 @@ var commands = []commandEntry{
 	{"new", "TITLE [DIR]", summaryNew, helpNew},
 	{"close", "ID|FILE REASON [DIR]", summaryClose, helpClose},
 	{"log", "ID LINE [DIR]", summaryLog, helpLog},
+	{"tag", "ID TAGNAME [DIR]", summaryTag, helpTag},
+	{"untag", "ID TAGNAME [DIR]", summaryUntag, helpUntag},
 	{"archive", "[ID...] [DIR]", summaryArchive, helpArchive},
 	{"migrate", "[DIR]", summaryMigrate, helpMigrate},
 	{"init", "[DIR]", summaryInit, helpInit},

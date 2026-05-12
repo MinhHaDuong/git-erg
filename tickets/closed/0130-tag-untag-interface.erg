@@ -2,11 +2,14 @@
 Title: Add erg tag/untag CLI commands for mutable tag management
 Created: 2026-05-11
 Author: MinhHaDuong
+Closed: autoclosed — PR #140
 
 --- log ---
 2026-05-11T21:00Z MinhHaDuong created
 2026-05-12T08:00Z MinhHaDuong redesign — drop claimed tag entirely (branch-as-claim stays); rewrite as general-purpose tag mutation CLI validated against .ergrc vocabulary from 0126
+2026-05-12T10:46Z claude implement tag/untag commands with Go unit tests and shell integration tests
 
+2026-05-12T12:19Z MinhHaDuong closed — autoclosed — PR #140
 --- body ---
 ## Context
 

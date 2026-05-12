@@ -2,11 +2,11 @@
 Title: Add CLI integration tests via TestMain exec pattern
 Created: 2026-05-11
 Author: MinhHaDuong
-Blocked-by: 0130
 
 --- log ---
 2026-05-11T21:10Z claude open — follows 0130 dir/ID extraction; test the public CLI interface
 
+2026-05-12T12:19Z MinhHaDuong note blocker 0130 closed — Blocked-by removed.
 --- body ---
 ## Problem
 

@@ -10,6 +10,8 @@
 //	erg new      TITLE [DIR]
 //	erg close    ID|FILE REASON [DIR]
 //	erg log      ID LINE [DIR]
+//	erg tag      ID TAGNAME [DIR]
+//	erg untag    ID TAGNAME [DIR]
 //	erg archive  [id...] [dir]
 //	erg migrate  [dir]
 //	erg init     [dir]
@@ -195,6 +197,10 @@ func main() {
 		exitCode = cmdClose(rest)
 	case "log":
 		exitCode = cmdLog(rest)
+	case "tag":
+		exitCode = cmdTag(rest)
+	case "untag":
+		exitCode = cmdUntag(rest)
 	case "archive":
 		exitCode = cmdArchive(rest)
 	case "migrate":
