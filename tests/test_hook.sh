@@ -86,7 +86,7 @@ fi
 git checkout -q -b feature/ticket
 mkdir -p tickets
 cat > tickets/0001-test-ticket.erg << 'ERG'
-%erg v1
+%erg 0.1
 Title: Test ticket
 Created: 2026-05-06
 Author: test

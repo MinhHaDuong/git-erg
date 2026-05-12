@@ -43,7 +43,7 @@ func TestParseHeaderLine(t *testing.T) {
 // ergWithTitle returns a minimal valid ticket with the given title.
 // Uses the same base as validErgContent but with a parameterised title.
 func ergWithTitle(title string) string {
-	return "%erg v1\nTitle: " + title + "\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
+	return "%erg 0.1\nTitle: " + title + "\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
 }
 
 func TestParseErg(t *testing.T) {
@@ -86,7 +86,7 @@ func TestParseErg(t *testing.T) {
 	})
 
 	t.Run("no trailing newline", func(t *testing.T) {
-		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n--- log ---\n--- body ---"
+		content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n--- log ---\n--- body ---"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
 		_, parseErrs := parseErg(path)
 		if errsContain(parseErrs, "missing magic first line") {
@@ -101,7 +101,7 @@ func TestParseErg(t *testing.T) {
 	})
 
 	t.Run("repeated Blocked-by header", func(t *testing.T) {
-		content := "%erg v1\nTitle: A\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0002\nBlocked-by: 0003\n\n--- log ---\n--- body ---\n"
+		content := "%erg 0.1\nTitle: A\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0002\nBlocked-by: 0003\n\n--- log ---\n--- body ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
 		erg, _ := parseErg(path)
 		bb := erg.BlockedBys
@@ -119,7 +119,7 @@ func TestParseErg(t *testing.T) {
 	t.Run("magic line padded with whitespace", func(t *testing.T) {
 		// parseErg uses TrimSpace before comparing to MagicLine, so leading/trailing
 		// spaces on the first line must still be accepted as a valid magic marker.
-		content := "  %erg v1  \nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
+		content := "  %erg 0.1  \nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
 		_, parseErrs := parseErg(path)
 		if errsContain(parseErrs, "missing magic first line") {
@@ -132,7 +132,7 @@ func TestParseErg(t *testing.T) {
 		// section or cause a panic. The literal becomes body text and
 		// the parser counts the separator as present (set on ANY sighting,
 		// so no missing-separator error fires).
-		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n--- log ---\n"
+		content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n--- log ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
 		erg, parseErrs := parseErg(path)
 		if errsContain(parseErrs, "missing magic first line") {
@@ -149,7 +149,7 @@ func TestParseErg(t *testing.T) {
 	t.Run("duplicate Title keeps first value", func(t *testing.T) {
 		// Item 4: singleton "first occurrence wins" — Title is a singleton
 		// header; when duplicated, the parser keeps the first value.
-		content := "%erg v1\nTitle: First\nTitle: Second\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
+		content := "%erg 0.1\nTitle: First\nTitle: Second\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
 		erg, _ := parseErg(path)
 		if erg.Title != "First" {
@@ -160,7 +160,7 @@ func TestParseErg(t *testing.T) {
 	t.Run("empty Tag value skipped", func(t *testing.T) {
 		// Item 5: empty Tag: values are silently skipped by the parser —
 		// parseHeaderLine trims, and the parser skips empty val for Tag.
-		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: \n\n--- log ---\n--- body ---\n"
+		content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: \n\n--- log ---\n--- body ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
 		erg, _ := parseErg(path)
 		if len(erg.Tags) != 0 {
@@ -177,6 +177,44 @@ func TestParseErg(t *testing.T) {
 	})
 }
 
+// TestMagicLineDowngrade verifies that a file with the legacy "%erg v1"
+// magic line is rejected with a migrate hint, not a generic "missing
+// magic" error, and that "%erg v2" (unknown) still gets the generic error.
+func TestMagicLineDowngrade(t *testing.T) {
+	t.Run("legacy v1 emits migrate hint", func(t *testing.T) {
+		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
+		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
+		_, errs := parseErg(path)
+		if !errsContain(errs, "erg migrate") {
+			t.Errorf("expected 'erg migrate' hint for legacy v1, got: %v", errs)
+		}
+		if errsContain(errs, "missing magic first line") {
+			t.Errorf("legacy v1 should NOT emit generic missing-magic error, got: %v", errs)
+		}
+	})
+
+	t.Run("unknown v2 emits generic missing-magic error", func(t *testing.T) {
+		content := "%erg v2\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
+		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
+		_, errs := parseErg(path)
+		if !errsContain(errs, "missing magic first line") {
+			t.Errorf("expected generic missing-magic error for v2, got: %v", errs)
+		}
+		if errsContain(errs, "erg migrate") {
+			t.Errorf("v2 should NOT emit migrate hint, got: %v", errs)
+		}
+	})
+
+	t.Run("current 0.1 accepted", func(t *testing.T) {
+		content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
+		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
+		_, errs := parseErg(path)
+		if errsContain(errs, "magic") || errsContain(errs, "migrate") {
+			t.Errorf("expected no magic/migrate errors for current format, got: %v", errs)
+		}
+	})
+}
+
 // TestClosedWhitespaceDivergence pins the divergence between
 // parseHeaderLine and isClosedHeaderLine (item 7).
 // parseHeaderLine accepts `Closed : val` (space before colon) as a valid
@@ -186,7 +224,7 @@ func TestParseErg(t *testing.T) {
 // This test pins that current behavior.
 func TestClosedWhitespaceDivergence(t *testing.T) {
 	t.Run("Closed: in body triggers body-section error", func(t *testing.T) {
-		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\nClosed: merged\n"
+		content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\nClosed: merged\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
 		_, parseErrs := parseErg(path)
 		if !errsContain(parseErrs, "found in body section") {
@@ -198,7 +236,7 @@ func TestClosedWhitespaceDivergence(t *testing.T) {
 		// `Closed : merged` — parseHeaderLine would parse this as key=Closed,
 		// but isClosedHeaderLine does not fire because it expects prefix `Closed:`.
 		// This pins the current divergence; a future ticket may align them.
-		content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\nClosed : merged\n"
+		content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\nClosed : merged\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
 		_, parseErrs := parseErg(path)
 		if errsContain(parseErrs, "found in body section") {
@@ -271,10 +309,10 @@ func TestStaleBlockedBy(t *testing.T) {
 		dir := t.TempDir()
 		// 0001 is closed (has Closed: header)
 		writeErg(t, dir, "0001-blocker.erg",
-			"%erg v1\nTitle: Blocker\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n")
+			"%erg 0.1\nTitle: Blocker\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n")
 		// 0002 is open and blocked by 0001
 		writeErg(t, dir, "0002-feature.erg",
-			"%erg v1\nTitle: Feature\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0001\n\n--- log ---\n--- body ---\n")
+			"%erg 0.1\nTitle: Feature\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0001\n\n--- log ---\n--- body ---\n")
 
 		tickets, _ := loadErgs(dir)
 		warnings := staleBlockedBy(tickets)
@@ -296,9 +334,9 @@ func TestStaleBlockedBy(t *testing.T) {
 	t.Run("open ticket blocked by open ticket emits no warning", func(t *testing.T) {
 		dir := t.TempDir()
 		writeErg(t, dir, "0001-blocker.erg",
-			"%erg v1\nTitle: Blocker\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+			"%erg 0.1\nTitle: Blocker\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
 		writeErg(t, dir, "0002-feature.erg",
-			"%erg v1\nTitle: Feature\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0001\n\n--- log ---\n--- body ---\n")
+			"%erg 0.1\nTitle: Feature\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0001\n\n--- log ---\n--- body ---\n")
 
 		tickets, _ := loadErgs(dir)
 		warnings := staleBlockedBy(tickets)
@@ -310,9 +348,9 @@ func TestStaleBlockedBy(t *testing.T) {
 	t.Run("closed ticket blocked by closed ticket emits no warning", func(t *testing.T) {
 		dir := t.TempDir()
 		writeErg(t, dir, "0001-blocker.erg",
-			"%erg v1\nTitle: Blocker\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n")
+			"%erg 0.1\nTitle: Blocker\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n")
 		writeErg(t, dir, "0002-feature.erg",
-			"%erg v1\nTitle: Feature\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0001\nClosed: done\n\n--- log ---\n--- body ---\n")
+			"%erg 0.1\nTitle: Feature\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0001\nClosed: done\n\n--- log ---\n--- body ---\n")
 
 		tickets, _ := loadErgs(dir)
 		warnings := staleBlockedBy(tickets)
@@ -324,7 +362,7 @@ func TestStaleBlockedBy(t *testing.T) {
 	t.Run("forge ref does not trigger stale warning", func(t *testing.T) {
 		dir := t.TempDir()
 		writeErg(t, dir, "0001-feature.erg",
-			"%erg v1\nTitle: Feature\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: github.com/foo/bar#1\n\n--- log ---\n--- body ---\n")
+			"%erg 0.1\nTitle: Feature\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: github.com/foo/bar#1\n\n--- log ---\n--- body ---\n")
 
 		tickets, _ := loadErgs(dir)
 		warnings := staleBlockedBy(tickets)
@@ -409,7 +447,7 @@ func TestFolderClosure(t *testing.T) {
 		}
 		// Open ticket (no Closed: header) placed inside closed/
 		writeErg(t, closedDir, "0001-misplaced.erg",
-			"%erg v1\nTitle: Misplaced\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+			"%erg 0.1\nTitle: Misplaced\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
 		tickets, _ := loadErgs(dir)
 		warnings := folderClosure(tickets)
 		if len(warnings) == 0 {
@@ -431,7 +469,7 @@ func TestFolderClosure(t *testing.T) {
 		dir := t.TempDir()
 		// Closed ticket (has Closed: header) placed in top-level, not in closed/
 		writeErg(t, dir, "0001-stale.erg",
-			"%erg v1\nTitle: Stale\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n")
+			"%erg 0.1\nTitle: Stale\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n")
 		tickets, _ := loadErgs(dir)
 		warnings := folderClosure(tickets)
 		if len(warnings) == 0 {
@@ -452,7 +490,7 @@ func TestFolderClosure(t *testing.T) {
 	t.Run("open ticket in open dir no warning", func(t *testing.T) {
 		dir := t.TempDir()
 		writeErg(t, dir, "0001-normal.erg",
-			"%erg v1\nTitle: Normal\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+			"%erg 0.1\nTitle: Normal\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
 		tickets, _ := loadErgs(dir)
 		warnings := folderClosure(tickets)
 		if len(warnings) != 0 {
@@ -467,7 +505,7 @@ func TestFolderClosure(t *testing.T) {
 			t.Fatal(err)
 		}
 		writeErg(t, closedDir, "0001-archived.erg",
-			"%erg v1\nTitle: Archived\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n")
+			"%erg 0.1\nTitle: Archived\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n")
 		tickets, _ := loadErgs(dir)
 		warnings := folderClosure(tickets)
 		if len(warnings) != 0 {

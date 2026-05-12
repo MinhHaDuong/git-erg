@@ -1,4 +1,4 @@
-# Ticket format spec — %erg v1
+# Ticket format spec — %erg 0.1
 
 Author: Minh Ha-Duong <minh.ha-duong@cnrs.fr>
 Last modified: 2026-05-12
@@ -6,7 +6,7 @@ Status: Working draft
 
 ## Introduction
 
-`git-erg` is an agent-friendly local ticket system for development in disconnected environments. Tickets are committed to git and travel with the repo. This file is normative and defines the format for valid `%erg v1` files. Command documentation is available via `erg COMMAND --help` and `erg --help --all`.
+`git-erg` is an agent-friendly local ticket system for development in disconnected environments. Tickets are committed to git and travel with the repo. This file is normative and defines the format for valid `%erg 0.1` files. Command documentation is available via `erg COMMAND --help` and `erg --help --all`.
 
 Any divergence between this document and the `erg` binary must be resolved by aligning the specification with the behavior. Rationale is in `pep-erg-v1.md`.
 
@@ -19,7 +19,7 @@ Encoding: UTF-8, LF line endings.
 ### Magic first line
 
 ```
-%erg v1
+%erg 0.1
 ```
 
 Every `.erg` file starts with this line. It declares the format version
@@ -30,7 +30,7 @@ unknown versions rather than silently misparsing).
 ### Structure
 
 ```
-%erg v1
+%erg 0.1
 Title: Short imperative description
 Created: 2026-03-27
 Author: claude
@@ -160,7 +160,7 @@ Not enforced by the validator.
 
 ## Postel's Law
 
-The validator enforces %erg v1 on commit (strict on write).
+The validator enforces %erg 0.1 on commit (strict on write).
 
-Agents may interpret non-conforming input, but must produce valid %erg v1
+Agents may interpret non-conforming input, but must produce valid %erg 0.1
 when creating or modifying tickets. Non-conforming files are rejected by the validator.

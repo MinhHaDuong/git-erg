@@ -13,7 +13,7 @@ const summaryMigrate = "Convert legacy Status: headers to Closed: form"
 
 const helpMigrate = `## erg migrate [DIR]
 
-Convert legacy headers to %erg v1 format.
+Convert legacy headers to %erg 0.1 format.
 
 Idempotent (safe to run repeatedly: already-migrated files are not modified twice). For every .erg file under DIR (default: tickets/) the migration
 rules are:
@@ -52,6 +52,7 @@ func cmdMigrate(args []string) int {
 	migratedClosed := 0
 	migratedOther := 0
 	migratedTags := 0
+	migratedMagic := 0
 	alreadyClean := 0
 
 	err = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
@@ -79,6 +80,9 @@ func cmdMigrate(args []string) int {
 		if res.tagsRenamed {
 			migratedTags++
 		}
+		if res.magicRewritten {
+			migratedMagic++
+		}
 		return nil
 	})
 	if err != nil {
@@ -90,6 +94,7 @@ func cmdMigrate(args []string) int {
 	fmt.Printf("migrated: %d tickets (%d closed, %d open/doing/pending stripped)\n",
 		total, migratedClosed, migratedOther)
 	fmt.Printf("Tags: → Tag: rewrite: %d tickets\n", migratedTags)
+	fmt.Printf("%%erg v1 → %%erg 0.1 rewrite: %d tickets\n", migratedMagic)
 	fmt.Printf("already clean: %d tickets\n", alreadyClean)
 
 	// Layout migration: only run when dir is named "tickets" (canonical layout).
@@ -198,6 +203,7 @@ type migrateResult struct {
 	wasClosed      bool // at least one removed Status: line carried value "closed"
 	statusStripped bool // at least one Status: line was removed (closed or open/doing/pending)
 	tagsRenamed    bool // at least one preamble `Tags:` line was renamed to `Tag:`
+	magicRewritten bool // legacy `%erg v1` magic line was rewritten to `%erg 0.1`
 }
 
 // migrateFile rewrites a single .erg file in place. The rewrite is preamble-bounded
@@ -215,6 +221,19 @@ func migrateFile(path string) (migrateResult, error) {
 	lines := strings.Split(original, "\n")
 	if hadTrailingNewline {
 		lines = lines[:len(lines)-1]
+	}
+
+	// Rewrite legacy `%erg v1` magic line to `%erg 0.1`.
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if trimmed == "%erg v1" {
+			lines[i] = "%erg 0.1"
+			res.magicRewritten = true
+		}
+		break // only check first non-empty line
 	}
 
 	// Bound preamble at the first `--- log ---` separator.

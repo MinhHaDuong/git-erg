@@ -23,7 +23,7 @@ echo "=== erg ready ==="
 
 # --- Open (not-closed) ticket with no blockers is ready ---
 cat > "$FIXTURES/ready/0001-open.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Open
 Created: 2026-01-01
 Author: a
@@ -40,7 +40,7 @@ fi
 
 # --- Closed ticket (via Closed: header) not in ready list ---
 cat > "$FIXTURES/ready/0001-open.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Closed
 Created: 2026-01-01
 Author: a
@@ -59,7 +59,7 @@ fi
 # --- Closed via path component (closed/ subdirectory) excluded ---
 mkdir -p "$FIXTURES/ready/closed"
 cat > "$FIXTURES/ready/closed/0099-archived.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Closed by path
 Created: 2026-01-01
 Author: a
@@ -77,7 +77,7 @@ rm -rf "$FIXTURES/ready/closed"
 
 # --- Closed via -closed.erg suffix excluded ---
 cat > "$FIXTURES/ready/0001-foo-closed.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Suffix closed
 Created: 2026-01-01
 Author: a
@@ -95,7 +95,7 @@ rm -f "$FIXTURES/ready/0001-foo-closed.erg"
 
 # --- 'disclosed' in basename does NOT trigger close ---
 cat > "$FIXTURES/ready/0001-disclosed-bug.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Disclosed (false-positive bait)
 Created: 2026-01-01
 Author: a
@@ -114,7 +114,7 @@ rm -f "$FIXTURES/ready/0001-disclosed-bug.erg"
 # --- Blocked by open ticket: not ready ---
 rm -f "$FIXTURES/ready/"*.erg
 cat > "$FIXTURES/ready/0001-blocker.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Blocker
 Created: 2026-01-01
 Author: a
@@ -123,7 +123,7 @@ Author: a
 --- body ---
 EOF
 cat > "$FIXTURES/ready/0002-blocked.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Blocked
 Created: 2026-01-01
 Author: a
@@ -146,7 +146,7 @@ fi
 
 # --- Blocked by closed ticket: ready ---
 cat > "$FIXTURES/ready/0001-blocker.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Blocker
 Created: 2026-01-01
 Author: a
@@ -166,7 +166,7 @@ fi
 rm -f "$FIXTURES/ready/"*.erg
 mkdir -p "$FIXTURES/ready/closed"
 cat > "$FIXTURES/ready/closed/0001-blocker.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Archived blocker
 Created: 2026-01-01
 Author: a
@@ -176,7 +176,7 @@ Closed: done
 --- body ---
 EOF
 cat > "$FIXTURES/ready/0002-blocked.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Blocked by archived ticket
 Created: 2026-01-01
 Author: a
@@ -204,7 +204,7 @@ fi
 # --- Ready excludes tickets carrying skip tags ---
 rm -f "$FIXTURES/ready/"*.erg
 cat > "$FIXTURES/ready/0040-tagged.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Needs human triage
 Created: 2026-01-01
 Author: a
@@ -225,7 +225,7 @@ fi
 # --- JSON output includes tags array for ready entries ---
 rm -f "$FIXTURES/ready/"*.erg
 cat > "$FIXTURES/ready/0041-untagged.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Untagged ready ticket
 Created: 2026-01-01
 Author: a
@@ -244,7 +244,7 @@ fi
 
 # --- JSON output includes blocked_by for forge blockers ---
 cat > "$FIXTURES/ready/0042-forge-blocked-json.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Forge blocked for JSON
 Created: 2026-01-01
 Author: a
@@ -264,7 +264,7 @@ fi
 
 # --- JSON output includes blocked_by for local blockers ---
 cat > "$FIXTURES/ready/0043-local-blocker.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Local blocker
 Created: 2026-01-01
 Author: a
@@ -275,7 +275,7 @@ Author: a
 --- body ---
 EOF
 cat > "$FIXTURES/ready/0044-local-blocked.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Local blocked for JSON
 Created: 2026-01-01
 Author: a
@@ -296,7 +296,7 @@ fi
 rm -f "$FIXTURES/ready/"*.erg
 # --- Forge-ref blocker is blocking ---
 cat > "$FIXTURES/ready/0030-forge-blocked.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Blocked by forge
 Created: 2026-01-01
 Author: a
@@ -327,7 +327,7 @@ fi
 # --- Unknown blocker ID: ticket appears in ready list and WARNING on stderr ---
 rm -f "$FIXTURES/ready/"*.erg
 cat > "$FIXTURES/ready/0050-unknown-blocker.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Blocked by unknown ticket
 Created: 2026-01-01
 Author: a
@@ -351,7 +351,7 @@ fi
 # --- Unclaimed ticket has claimed=false in JSON ---
 rm -f "$FIXTURES/ready/"*.erg
 cat > "$FIXTURES/ready/9991-unclaimed.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Unclaimed ticket
 Created: 2026-01-01
 Author: a
@@ -369,7 +369,7 @@ fi
 # --- Claimed ticket (local branch exists) has claimed=true, ready=false ---
 rm -f "$FIXTURES/ready/"*.erg
 cat > "$FIXTURES/ready/0098-claimable.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Claimable ticket
 Created: 2026-01-01
 Author: a
@@ -410,7 +410,7 @@ tmpdir=$(mktemp -d)
 (
     cd "$tmpdir" && git init -q && mkdir tickets && \
     cat > tickets/0001-foo.erg <<'EOF'
-%erg v1
+%erg 0.1
 Title: Offline test
 Created: 2026-01-01
 Author: a

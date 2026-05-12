@@ -2,12 +2,12 @@ package main
 
 import "regexp"
 
-// magicLine is the required first non-empty line of every %erg v1 ticket.
+// magicLine is the required first non-empty line of every %erg 0.1 ticket.
 //
 // ABNF production:
 //
-//	magic-line := "%erg v1"
-const magicLine = "%erg v1"
+//	magic-line := "%erg 0.1"
+const magicLine = "%erg 0.1"
 
 // separatorLog is the log section delimiter.
 const separatorLog = "--- log ---"
@@ -15,7 +15,7 @@ const separatorLog = "--- log ---"
 // separatorBody is the body section delimiter.
 const separatorBody = "--- body ---"
 
-// Erg is the schema-literal projection of a %erg v1 ticket file.
+// Erg is the schema-literal projection of a %erg 0.1 ticket file.
 // Lenient-parse invariant: parseErg always returns a usable Erg (at
 // minimum with Path set) so callers can report a filename even when the
 // file is unreadable or malformed. parseErg also returns a []string of

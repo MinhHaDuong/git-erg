@@ -28,7 +28,7 @@ Status: Working draft
 ```bash
 # Create a ticket (or just write the file — agents do)
 cat > tickets/0001-add-auth.erg <<'EOF'
-%erg v1
+%erg 0.1
 Title: Add authentication flow
 Created: 2026-03-27
 Author: claude

@@ -9,7 +9,7 @@ import (
 
 func TestTDDAnchor_PostTalkRejectedWithoutErgrc(t *testing.T) {
 	dir := t.TempDir()
-	content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: post-talk\n\n--- log ---\n--- body ---\n"
+	content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: post-talk\n\n--- log ---\n--- body ---\n"
 	writeErg(t, dir, "0001-test.erg", content)
 
 	tickets, parseErrs := loadErgs(dir)
@@ -30,7 +30,7 @@ func TestConfig_CustomErgrc(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, ".ergrc"), []byte(ergrc), 0644); err != nil {
 		t.Fatal(err)
 	}
-	content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: my-tag\n\n--- log ---\n--- body ---\n"
+	content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: my-tag\n\n--- log ---\n--- body ---\n"
 	writeErg(t, dir, "0001-test.erg", content)
 
 	tickets, parseErrs := loadErgs(dir)
@@ -46,7 +46,7 @@ func TestConfig_CustomErgrc(t *testing.T) {
 
 func TestConfig_MissingErgrcFallback(t *testing.T) {
 	dir := t.TempDir()
-	content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: needs-human\n\n--- log ---\n--- body ---\n"
+	content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: needs-human\n\n--- log ---\n--- body ---\n"
 	writeErg(t, dir, "0001-test.erg", content)
 
 	tickets, parseErrs := loadErgs(dir)
@@ -66,7 +66,7 @@ func TestConfig_EmptyTagsSection(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, ".ergrc"), []byte(ergrc), 0644); err != nil {
 		t.Fatal(err)
 	}
-	content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: needs-human\n\n--- log ---\n--- body ---\n"
+	content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: needs-human\n\n--- log ---\n--- body ---\n"
 	writeErg(t, dir, "0001-test.erg", content)
 
 	tickets, parseErrs := loadErgs(dir)
@@ -86,7 +86,7 @@ func TestConfig_TagsAbsentUpdatePresent(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, ".ergrc"), []byte(ergrc), 0644); err != nil {
 		t.Fatal(err)
 	}
-	content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: needs-human\n\n--- log ---\n--- body ---\n"
+	content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: needs-human\n\n--- log ---\n--- body ---\n"
 	writeErg(t, dir, "0001-test.erg", content)
 
 	tickets, parseErrs := loadErgs(dir)

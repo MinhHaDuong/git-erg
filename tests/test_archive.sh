@@ -17,7 +17,7 @@ echo "=== erg archive ==="
 # Helper: write a minimal closed ticket.
 write_closed() {
     cat > "$1" <<EOF
-%erg v1
+%erg 0.1
 Title: $2
 Created: 2026-01-01
 Author: claude
@@ -34,7 +34,7 @@ EOF
 # Helper: write a minimal open ticket.
 write_open() {
     cat > "$1" <<EOF
-%erg v1
+%erg 0.1
 Title: $2
 Created: 2026-01-01
 Author: claude
@@ -49,7 +49,7 @@ EOF
 # Helper: write an open ticket blocked by another.
 write_open_blocked_by() {
     cat > "$1" <<EOF
-%erg v1
+%erg 0.1
 Title: $2
 Created: 2026-01-01
 Author: claude

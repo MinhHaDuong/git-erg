@@ -16,7 +16,7 @@ echo "=== erg close ==="
 
 # --- Close an open ticket by ID ---
 cat > "$FIXTURES/9001-closable.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Closable ticket
 Created: 2026-01-01
 Author: claude
@@ -52,7 +52,7 @@ fi
 
 # --- Close already-closed ticket (idempotent) ---
 cat > "$FIXTURES/9002-already-closed.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Already closed
 Created: 2026-01-01
 Author: claude
@@ -75,7 +75,7 @@ fi
 
 # --- Close-by-path ticket lacking a Closed: header gets one ---
 cat > "$FIXTURES/9003-by-path.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Close by path
 Created: 2026-01-01
 Author: claude
@@ -100,7 +100,7 @@ fi
 
 # --- Closed: in body must NOT be honoured for closure detection ---
 cat > "$FIXTURES/9004-body-mention.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Body mentions closed in prose
 Created: 2026-01-01
 Author: claude
@@ -119,7 +119,7 @@ EOF
 # Move the offending body line out so the validator wouldn't reject
 # (we're testing close, not validate). Replace the body section first.
 cat > "$FIXTURES/9004-body-mention.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Body mentions closed in prose
 Created: 2026-01-01
 Author: claude
@@ -144,7 +144,7 @@ fi
 
 # --- Empty reason rejected ---
 cat > "$FIXTURES/9005-empty.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Empty reason test
 Created: 2026-01-01
 Author: claude
@@ -162,7 +162,7 @@ fi
 
 # --- File path ending with "-closed.erg" treated as already closed ---
 cat > "$FIXTURES/9006-suffix-closed.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Path-closed ticket
 Created: 2026-01-01
 Author: claude
@@ -181,7 +181,7 @@ fi
 
 # --- "disclosed" path component must NOT trigger closed ---
 cat > "$FIXTURES/9007-disclosed-mention.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Disclosed in name should not match
 Created: 2026-01-01
 Author: claude
@@ -221,7 +221,7 @@ fi
 
 # --- Close removes Blocked-by refs from dependent open tickets ---
 cat > "$FIXTURES/8001-target.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Target ticket to close
 Created: 2026-01-01
 Author: claude
@@ -232,7 +232,7 @@ Author: claude
 --- body ---
 EOF
 cat > "$FIXTURES/8002-dependent-a.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Dependent A
 Created: 2026-01-01
 Author: claude
@@ -244,7 +244,7 @@ Blocked-by: 8001
 --- body ---
 EOF
 cat > "$FIXTURES/8003-dependent-b.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Dependent B
 Created: 2026-01-01
 Author: claude
@@ -279,7 +279,7 @@ fi
 
 # --- Close ticket with no dependents: other files untouched ---
 cat > "$FIXTURES/8010-solo.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Solo ticket
 Created: 2026-01-01
 Author: claude
@@ -290,7 +290,7 @@ Author: claude
 --- body ---
 EOF
 cat > "$FIXTURES/8011-unrelated.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Unrelated ticket
 Created: 2026-01-01
 Author: claude
@@ -311,7 +311,7 @@ fi
 
 # --- Dependent write failure warns but close succeeds ---
 cat > "$FIXTURES/8020-target.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Target with unwritable dependent
 Created: 2026-01-01
 Author: claude
@@ -322,7 +322,7 @@ Author: claude
 --- body ---
 EOF
 cat > "$FIXTURES/8021-dependent-unwritable.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Unwritable dependent
 Created: 2026-01-01
 Author: claude
@@ -349,7 +349,7 @@ fi
 
 # --- Ambiguous ID (two files match) exits 1 with "ambiguous" ---
 cat > "$FIXTURES/0042-alpha.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Alpha
 Created: 2026-01-01
 Author: claude
@@ -360,7 +360,7 @@ Author: claude
 --- body ---
 EOF
 cat > "$FIXTURES/0042-beta.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Beta
 Created: 2026-01-01
 Author: claude
@@ -380,7 +380,7 @@ rm -f "$FIXTURES/0042-alpha.erg" "$FIXTURES/0042-beta.erg"
 
 # --- Missing '--- log ---' separator exits 1 with error message ---
 cat > "$FIXTURES/0043-no-sep.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: No log separator
 Created: 2026-01-01
 Author: claude
@@ -397,7 +397,7 @@ rm -f "$FIXTURES/0043-no-sep.erg"
 
 # ERG_AUTHOR: close log line uses the override
 cat > "$FIXTURES/9100-author-override.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Author override test
 Created: 2026-01-01
 Author: haduong

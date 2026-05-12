@@ -21,7 +21,7 @@ Validate individual .erg ticket files (format, headers, refs).
 
 Each FILE must be a .erg ticket. For every file the validator enforces:
 
-  1. Magic first line is '%erg v1' (rejects unknown versions).
+  1. Magic first line is '%erg 0.1' (rejects unknown versions).
   2. All required headers present AND non-empty: Title, Created, Author.
   3. No unknown headers (Status: is unknown; run 'erg migrate' to convert it).
   4. Non-repeatable headers (Title, Created, Author, Closed) appear at most once.
@@ -101,7 +101,7 @@ renames its ticket with a new ID from a fresh invocation.
 
 ## erg new TITLE [DIR]
 
-Create a new %erg v1 ticket file atomically.
+Create a new %erg 0.1 ticket file atomically.
 
 Allocates the next available ID by scanning DIR (default: auto-discovered tickets/)
 for the highest numeric .erg filename prefix, then creates a file named
@@ -175,7 +175,7 @@ an existing file at the destination.
 
 ## erg migrate [DIR]
 
-Convert legacy headers to %erg v1 format.
+Convert legacy headers to %erg 0.1 format.
 
 Idempotent (safe to run repeatedly: already-migrated files are not modified twice). For every .erg file under DIR (default: tickets/) the migration
 rules are:
@@ -206,7 +206,7 @@ Writes (or refreshes) four files relative to DIR (default: current directory):
 
   - tickets/.ergrc — project configuration (tag vocabulary, update URL).
   - tickets/AGENTS.md — agent operating instructions for the ticket workflow.
-  - tickets/spec-erg-v1.md — the %erg v1 format specification.
+  - tickets/spec-erg-v1.md — the %erg 0.1 format specification.
   - tickets/integration.md — setup guide for the pre-commit hook and CI integration.
 
 Requires tickets/erg (the binary) to already exist in the project; the command
