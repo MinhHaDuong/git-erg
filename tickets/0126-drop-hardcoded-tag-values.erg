@@ -2,7 +2,6 @@
 Title: Project config file tickets/.ergrc with [tags] section
 Created: 2026-05-11
 Author: MinhHaDuong
-Tag: needs-human
 
 --- log ---
 2026-05-11T14:30Z claude open — surfaced during audit lint review of ergspecv1.go

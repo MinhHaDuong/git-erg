@@ -2,7 +2,6 @@
 Title: Define and enforce text file encoding stance (BOM, EOL, UTF-8)
 Created: 2026-05-11
 Author: MinhHaDuong
-Tag: needs-human
 
 --- log ---
 2026-05-11T20:30Z claude open — surfaced during audit lint session; spec says UTF-8 LF but validator does not enforce

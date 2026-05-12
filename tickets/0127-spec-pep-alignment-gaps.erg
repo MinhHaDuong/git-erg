@@ -2,7 +2,6 @@
 Title: Audit spec/PEP/code alignment for post-0096 drift
 Created: 2026-05-11
 Author: MinhHaDuong
-Tag: needs-human
 
 --- log ---
 2026-05-11T20:30Z claude open — surfaced during audit lint session; umbrella 0096 closed 2026-05-08 but later changes may have introduced new gaps
