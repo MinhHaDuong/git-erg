@@ -2,10 +2,12 @@
 Title: PEP section 12: fix Tags-to-Tag rename drift
 Created: 2026-05-12
 Author: MinhHaDuong
+Closed: autoclosed — PR #143
 
 --- log ---
 2026-05-12T11:48Z MinhHaDuong created
 
+2026-05-12T13:11Z MinhHaDuong closed — autoclosed — PR #143
 --- body ---
 ## Context
 
