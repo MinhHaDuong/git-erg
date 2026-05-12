@@ -64,7 +64,7 @@ format literals.
 | `Author` | yes | no | line | Agent or human identifier (non-empty) |
 | `Closed` | no | no | line | Closure reason (PR ref, supersession note, etc.); non-empty |
 | `Blocked-by` | no | yes | ref | Local `NNNN` or forge ref `host/owner/repo#N` (see grammar) |
-| `Tag` | no | yes | enum | `needs-human`, `deferred` |
+| `Tag` | no | yes | enum | Configurable via `.ergrc [tags]`; defaults: `needs-human`, `deferred` |
 
 **All header values are line-strings — single line, no embedded newlines.**
 The type column distinguishes `line` (single-line text) from `date` /
@@ -76,7 +76,7 @@ value; an empty value is a validation error.
 
 No other headers are valid in v1. No `X-` extensions.
 
-`Tag:` is repeatable; each occurrence adds one tag value. The validator enforces the closed value set per occurrence; see the validate rules.
+`Tag:` is repeatable; each occurrence adds one tag value. The validator enforces the vocabulary defined in `tickets/.ergrc` `[tags]` section (falls back to built-in defaults when absent); see the validate rules.
 
 **`Closed:` header:** optional, non-repeatable, preamble only. Value is required and non-empty.
 Forbidden in the log and body sections (header-key match at line start; substrings in prose are fine).
