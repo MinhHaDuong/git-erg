@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -110,7 +111,7 @@ func cmdCheck(args []string) int {
 	dir, err := resolveDir(explicit)
 	if err != nil {
 		hint := ""
-		if strings.Contains(err.Error(), "not a directory") {
+		if errors.As(err, new(*notADirError)) {
 			hint = "; use 'erg validate' for individual files"
 		}
 		fmt.Fprintf(os.Stderr, "ERROR: %v%s\n", err, hint)

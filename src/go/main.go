@@ -87,6 +87,10 @@ func findTicketsDir() (string, error) {
 		tried, cwd)
 }
 
+type notADirError struct{ Path string }
+
+func (e *notADirError) Error() string { return e.Path + " is not a directory" }
+
 // Callers that need MkdirAll semantics (cmdNew) should not use resolveDir.
 func resolveDir(explicit string) (string, error) {
 	dir := explicit
@@ -100,10 +104,10 @@ func resolveDir(explicit string) (string, error) {
 	dir = filepath.Clean(dir)
 	info, err := os.Stat(dir)
 	if err != nil {
-		return "", fmt.Errorf("%s: %v", dir, err)
+		return "", err
 	}
 	if !info.IsDir() {
-		return "", fmt.Errorf("%s is not a directory", dir)
+		return "", &notADirError{Path: dir}
 	}
 	return dir, nil
 }
