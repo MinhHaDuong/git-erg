@@ -6,6 +6,7 @@ Tag: needs-human
 
 --- log ---
 2026-05-11T20:30Z claude open — design proposal from author during audit lint session
+2026-05-12T08:00Z MinhHaDuong decide — yes, pursue; principle is "URL to a ticket" with shortcuts; focus on spec first, resolver rewrite is a followup
 
 --- body ---
 ## Proposal

@@ -2,11 +2,13 @@
 Title: Project config file tickets/.ergrc with [tags] section
 Created: 2026-05-11
 Author: MinhHaDuong
+Tag: needs-human
 
 --- log ---
 2026-05-11T14:30Z claude open — surfaced during audit lint review of ergspecv1.go
 2026-05-11T14:45Z claude reimagine — configurable vocabulary via tickets/.erg-tags, sensible defaults, created by erg init
 2026-05-11T15:00Z claude reimagine — general config file tickets/.ergrc with [tags] section, not a single-purpose file
+2026-05-12T08:00Z MinhHaDuong approve — per-project configurable tags via .ergrc; built-in defaults needs-human + deferred only; no claimed tag; 0130 depends on this
 
 --- body ---
 ## Problem
