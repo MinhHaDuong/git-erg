@@ -137,7 +137,14 @@ func parseErg(path string) (Erg, []string) {
 // body are body text (rule 12 relaxation, ticket 0116).
 func parseErgBytes(data []byte, path string) (Erg, []string) {
 	var errs []string
-	lines := strings.Split(string(data), "\n")
+	// Strip UTF-8 BOM if present
+	raw := data
+	if len(raw) >= 3 && raw[0] == 0xEF && raw[1] == 0xBB && raw[2] == 0xBF {
+		raw = raw[3:]
+	}
+	// Normalize CRLF to LF
+	s := strings.ReplaceAll(string(raw), "\r\n", "\n")
+	lines := strings.Split(s, "\n")
 	name := filepath.Base(path)
 
 	var logLines, bodyLines []string
