@@ -1,10 +1,10 @@
 # State — git-erg
 
-_Last updated: 2026-05-12T15:30Z — Raid closed 0 open tickets (0129, 0131 deferred→0, 0134, 0135, 0136, 0137). PRs #141-#144 merged. 1 deferred remains._
+_Last updated: 2026-05-12T14:00Z — Closed 0131 (YAGNI). All tickets closed. 0 open, 0 deferred._
 
 ## Stats
 
-- Tickets: 135 closed, 1 open (deferred)
+- Tickets: 137 closed, 0 open
 - Tests: green — ok git-erg (37.3% coverage)
 - Open PRs: none
 
@@ -14,7 +14,7 @@ _(none)_
 
 ## Deferred
 
-- **0131** — Add CLI integration tests via TestMain exec pattern. YAGNI: 19 shell test suites already cover CLI surface. Revisit if specific debugging gap arises.
+_(none)_
 
 ## Notes
 
@@ -27,12 +27,11 @@ _(none)_
 Autonomous-run policy is maintained in `AGENTS.md`.
 
 ## Status
-<!-- generated 2026-05-12T15:30Z -->
+<!-- generated 2026-05-12T13:52Z -->
 
-**Tickets:** 0 ready · 1 deferred — `erg ready tickets/` for full list
 **Recent commits:**
+  d1dcb0d docs: update erg-manual.md Generated-from header to current binary
+  c1881d3 chore(0131): close — YAGNI, shell test suites already cover CLI surface
+  759df32 chore: refresh STATE.md — 135 closed, 1 deferred, 0 open
+  9d05413 chore: archive 0136 (closed via Closed: header in earlier commit)
   2377a8b docs(0129): document URL-shortcut Blocked-by ref grammar (spec-only) (#144)
-  ef6419b docs(0135,0136): fix PEP section 12 Tags→Tag drift and update Modified date (#143)
-  d5c3d60 chore(0137): fix stale source comments (Tags→Tag, rules/tickets.md refs) (#142)
-  a45cf8f docs(0134): reconcile src/go/assets/spec-erg-v1.md with tickets copy (#141)
-  39b19ed feat(0130): add erg tag/untag CLI commands (#140)
