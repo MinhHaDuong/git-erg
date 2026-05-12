@@ -6,6 +6,7 @@ Author: MinhHaDuong
 --- log ---
 2026-05-11T21:00Z MinhHaDuong created
 2026-05-12T08:00Z MinhHaDuong redesign — drop claimed tag entirely (branch-as-claim stays); rewrite as general-purpose tag mutation CLI validated against .ergrc vocabulary from 0126
+2026-05-12T10:46Z claude implement tag/untag commands with Go unit tests and shell integration tests
 
 --- body ---
 ## Context

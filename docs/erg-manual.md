@@ -1,7 +1,7 @@
 # erg manual
 
 Author: minh.ha-duong@cnrs.fr
-Generated from: erg built 2026-05-12T11:19:19Z rev b4cdec0
+Generated from: erg built 2026-05-12T11:49:21Z rev 9e28105
 
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
@@ -155,6 +155,25 @@ enforced by erg validate (rule 11).
 
 Prints "LOGGED" on success. Exits non-zero if the ticket is not found or has no
 `--- body ---` separator (which would indicate a malformed file).
+
+## erg tag ID TAGNAME [DIR]
+
+Add a Tag: header to the ticket's preamble and append a log line.
+
+The tag value must be in the project vocabulary (tickets/.ergrc [tags]
+section; default: needs-human, deferred). If the ticket already has the
+tag, prints "TAGGED (already)" and exits 0 without modifying the file.
+
+Exits non-zero if the tag is not in the vocabulary or the ticket is not found.
+
+## erg untag ID TAGNAME [DIR]
+
+Remove a Tag: header from the ticket's preamble and append a log line.
+
+The tag value must be in the project vocabulary. If the ticket does not
+have the tag, prints "NOT TAGGED" and exits 0 without modifying the file.
+
+Exits non-zero if the tag is not in the vocabulary or the ticket is not found.
 
 ## erg archive [ID...] [DIR]
 
