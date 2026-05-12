@@ -149,6 +149,7 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	var blockedByLines, tagLines []int
 	section := "magic" // magic | headers | gap | log | body
 	hasMagic := false
+	legacyV1 := false
 	hasLogSep := false
 	hasBodySep := false
 	bodySepSeen := false
@@ -172,6 +173,11 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 				hasMagic = true
 				section = "headers"
 				continue
+			}
+			// Detect legacy "%erg v1" magic line (exact match only —
+			// must not match "%erg v2" or other unknown versions).
+			if trimmed == "%erg v1" {
+				legacyV1 = true
 			}
 			// No magic line — try to parse as old format
 			section = "headers"
@@ -218,7 +224,7 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 						switch key {
 						case "Status":
 							errs = append(errs, fmt.Sprintf(
-								"%s:%d: 'Status:' header is no longer part of %%erg v1 — run `erg migrate` to convert",
+								"%s:%d: 'Status:' header is no longer part of %%erg 0.1 — run `erg migrate` to convert",
 								name, lineNum))
 						case "Tags":
 							errs = append(errs, fmt.Sprintf(
@@ -312,8 +318,13 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 
 	// Rule 1: magic first line.
 	if !hasMagic {
-		errs = append(errs,
-			fmt.Sprintf("%s: missing magic first line '%%erg v1'", name))
+		if legacyV1 {
+			errs = append(errs,
+				fmt.Sprintf("%s: legacy '%%erg v1' magic line — run `erg migrate` to convert to '%%erg 0.1'", name))
+		} else {
+			errs = append(errs,
+				fmt.Sprintf("%s: missing magic first line '%%erg 0.1'", name))
+		}
 	}
 
 	// Rule 2: required headers must be present AND non-empty.

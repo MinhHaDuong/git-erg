@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Add Go unit tests for insertClosedHeader and removeBlockedByLine
 Created: 2026-05-05
 Author: claude

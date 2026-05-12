@@ -121,7 +121,7 @@ rm -f "$FIXTURES/snapshot-0001" "$FIXTURES/snapshot-0002"
 
 # --- File without Status: is unchanged (no-op, counted as already clean) ---
 cat > "$FIXTURES/0005-already-clean.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Already clean
 Created: 2026-01-01
 Author: claude
@@ -304,9 +304,9 @@ rm -rf "$BDIR"
 MDIR2=$(mktemp -d)
 mkdir -p "$MDIR2/tickets"
 mkdir -p "$MDIR2/archive"
-printf '%%erg v1\nTitle: Old\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n' > "$MDIR2/archive/0001-alpha.erg"
+printf '%%erg 0.1\nTitle: Old\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n' > "$MDIR2/archive/0001-alpha.erg"
 mkdir -p "$MDIR2/closed"
-printf '%%erg v1\nTitle: Existing\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n' > "$MDIR2/closed/0002-beta.erg"
+printf '%%erg 0.1\nTitle: Existing\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n' > "$MDIR2/closed/0002-beta.erg"
 cp "$ERG" "$MDIR2/tickets/erg"
 "$ERG" migrate "$MDIR2/tickets" >/dev/null 2>&1
 if [ ! -d "$MDIR2/archive" ] && [ -f "$MDIR2/closed/0001-alpha.erg" ]; then

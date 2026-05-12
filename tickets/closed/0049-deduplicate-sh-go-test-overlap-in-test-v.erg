@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Deduplicate sh/go test overlap in test_validate.sh
 Created: 2026-05-05
 Author: claude

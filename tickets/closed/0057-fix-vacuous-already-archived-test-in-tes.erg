@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Fix test_archive.sh vacuous test, fixture guard, and test_check.sh live-corpus coupling
 Created: 2026-05-05
 Author: claude

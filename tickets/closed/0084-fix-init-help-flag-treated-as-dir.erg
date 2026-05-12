@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Fix erg subcommands treating --help/-h as a directory path
 Created: 2026-05-06
 Author: claude

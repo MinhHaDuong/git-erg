@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Serve per-command --help text from Go doc comments
 Created: 2026-05-06
 Author: claude

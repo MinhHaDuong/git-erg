@@ -8,7 +8,7 @@
 ## Abstract
 
 An agent-friendly file-based ticket system designed for development in disconnected environments. Tickets are plain-text files with a
-versioned format (`%erg v1`), committed to git, and validated by a
+versioned format (`%erg 0.1`), committed to git, and validated by a
 pre-commit hook. The system complements (not replaces) GitHub Issues.
 
 The source of truth is the specification in `tickets/spec-erg-v1.md`.
@@ -40,14 +40,20 @@ The format was inspired by Internet Message Format (email) RFC 5322.
 
 ## Design choices and rationale
 
-### 1. Magic first line: `%erg v1`
+### 1. Magic first line: `%erg 0.1`
 
-**Choice:** Every ticket file starts with `%erg v1`.
+**Choice:** Every ticket file starts with `%erg 0.1`.
 
 **Rationale:** Enables file-type detection without relying on the `.erg`
-extension. Provides a schema version for forward compatibility — a `v2`
-that adds headers won't break v1 validators (they reject unknown versions
-rather than silently misparsing).
+extension. The version follows a MAJOR.MINOR scheme (no `v` prefix),
+matching conventions used by PDF (`%PDF-1.7`) and YAML (`%YAML 1.2`).
+Pre-1.0 signals that the format is still evolving; minor bumps may still
+introduce breaking changes. Post-1.0, minor bumps add features
+backward-compatibly and major bumps signal breaking changes.
+
+Provides a schema version for forward compatibility — a future `%erg 1.0`
+that stabilizes the header set won't break 0.1 validators (they reject
+unknown versions rather than silently misparsing).
 
 **Alternatives considered:**
 - YAML front matter (`---`/`---`): ambiguous, could be confused with log
@@ -58,13 +64,13 @@ rather than silently misparsing).
 
 ### 2. Closed header set (no X- extensions)
 
-**Choice:** v1 defines exactly 6 headers: Title, Closed, Created, Author,
-Blocked-by, Tags. No `X-` extensions are allowed.
+**Choice:** 0.1 defines exactly 6 headers: Title, Closed, Created, Author,
+Blocked-by, Tag. No `X-` extensions are allowed.
 
 **Rationale:** Agents work best with rigid schemas where there's exactly
 one right way to write a file. Open extension headers invite creative
-variations that break tooling. If v2 needs new headers (Priority, Labels,
-Assignee), it declares `%ticket v2` and extends the closed set.
+variations that break tooling. If a future version needs new headers (Priority, Labels,
+Assignee), it bumps the version and extends the closed set.
 
 **Alternatives considered:**
 - Open `X-` headers (as in PR #385): caused proliferation of
@@ -135,9 +141,9 @@ On top of doing/pending status, the original proposal included a `.git/ticket-wi
 2. **Observable out of band.** A git branch whose name contains the
    ticket ID is a sufficient deconfliction signal; no side file needed.
 3. **Workflow, not spec.** Branch-naming conventions are choices between
-   agents/humans, not properties of the `%erg v1` format.
+   agents/humans, not properties of the `%erg 0.1` format.
 
-%erg v1 describes what a ticket is, not how concurrent agents or worktrees
+%erg 0.1 describes what a ticket is, not how concurrent agents or worktrees
 share access to one. There is no claim file, no lock, no doing-but-mine state.
 If two agents need to avoid stepping on each other, they observe out-of-band
 signals — typically a git branch whose name contains the ticket ID — and
@@ -251,15 +257,15 @@ Supporting other architectures is a design goal for final v1. It involves
 
 ### 11. Postel's Law: tolerant on read, strict on write
 
-**Choice:** Nothing prevents an agent to parse a free-form text file as a ticket. The validator enforces `%erg v1` strictly on commit for `.erg` files.
+**Choice:** Nothing prevents an agent to parse a free-form text file as a ticket. The validator enforces `%erg 0.1` strictly on commit for `.erg` files.
 
 **Rationale:** An agent may receive ticket-like information in any form:
 raw `gh issue view --json` output, a sentence in conversation, a markdown
 sketch, a paste from a PR comment. Requiring the agent to first convert
-this into `%erg v1` before it can reason about it would be a barrier.
+this into `%erg 0.1` before it can reason about it would be a barrier.
 
 Instead: the agent reads whatever it finds, understands the intent, and
-writes clean `%erg v1`. The pre-commit hook catches any formatting
+writes clean `%erg 0.1`. The pre-commit hook catches any formatting
 mistakes.
 
 This keeps the tooling simple (one format to parse, one format to

@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: extend CI to run `go test` and report coverage
 Created: 2026-05-03
 Author: claude

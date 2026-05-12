@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: migrate: merge archive/ into closed/ when both directories exist
 Created: 2026-05-08
 Author: MinhHaDuong

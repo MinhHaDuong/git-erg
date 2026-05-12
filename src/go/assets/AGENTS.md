@@ -8,7 +8,7 @@ To get it: check `tickets/erg` (committed bootstrap binary, Linux x86-64 only).
 As a fallback, agents can read/write directly using the example template:
 
 ```text
-%erg v1
+%erg 0.1
 Title: Add retry logic for failed API requests
 Created: 2026-05-04
 Author: alice
@@ -31,7 +31,7 @@ We need exponential backoff with jitter, capped at 3 retries.
 ```
 
 Rules agents must know:
-- No `Status:` header in %erg v1 (use `erg migrate` for legacy files)
+- No `Status:` header in %erg 0.1 (use `erg migrate` for legacy files)
 - Closed/not-closed is inferred from path conventions or a non-empty `Closed:` header
 - `Tag:` is optional and repeatable; accepted values are defined in `tickets/.ergrc` (defaults: `needs-human`, `deferred`)
 - Log entries are append-only: `YYYY-MM-DDTHH:MMZ author verb detail`

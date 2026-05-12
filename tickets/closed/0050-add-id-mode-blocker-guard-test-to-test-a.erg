@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Add ID-mode blocker-guard test to test_archive.sh and missing-separator test to test_log.sh
 Created: 2026-05-05
 Author: claude

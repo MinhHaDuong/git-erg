@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: erg init: simplify to unpack-only, drop integration/ directory
 Created: 2026-05-06
 Author: MinhHaDuong

@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Fix erg help: replace <arg> with UPPER_CASE and add completeness regression test
 Created: 2026-05-05
 Author: haduong

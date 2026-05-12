@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Reduce redundant file reads and parsing; fix naming leftovers
 Created: 2026-05-11
 Author: claude-opus-4-7

@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: make erg migrate explicit instead of update-time side effect
 Created: 2026-05-04
 Author: copilot

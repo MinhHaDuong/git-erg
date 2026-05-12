@@ -31,7 +31,7 @@ fi
 
 # Fixture reused by "multiple file args pass" and "blocked-by sibling" cases
 cat > "$FIXTURES/0001-valid.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Valid ticket
 Created: 2026-01-01
 Author: claude
@@ -45,7 +45,7 @@ EOF
 
 # --- Multiple file args ---
 cat > "$FIXTURES/0002-second.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Second ticket
 Created: 2026-01-01
 Author: claude
@@ -63,7 +63,7 @@ fi
 
 # --- Status: header rejected with migrate hint ---
 cat > "$FIXTURES/0005-status-header.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Has Status header
 Status: open
 Created: 2026-01-01
@@ -81,7 +81,7 @@ fi
 
 # --- Closed: with non-empty value passes ---
 cat > "$FIXTURES/0006-closed-ok.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Closed ticket
 Created: 2026-01-01
 Author: a
@@ -99,7 +99,7 @@ fi
 
 # --- Closed: appearing twice rejected (non-repeatable) ---
 cat > "$FIXTURES/0010-closed-twice.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Two closed headers
 Created: 2026-01-01
 Author: a
@@ -118,7 +118,7 @@ fi
 
 # --- Blocked-by ref to sibling file in same dir passes ---
 cat > "$FIXTURES/0013-ref-sibling.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Refs sibling
 Created: 2026-01-01
 Author: a
@@ -135,7 +135,7 @@ fi
 
 # --- Forge-agnostic host/owner/repo#N reference passes ---
 cat > "$FIXTURES/0016-forge-ref.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Forge-agnostic ref
 Created: 2026-01-01
 Author: a
@@ -152,7 +152,7 @@ fi
 
 # --- GitLab forge ref passes ---
 cat > "$FIXTURES/0017-gitlab-ref.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: GitLab ref
 Created: 2026-01-01
 Author: a
@@ -169,7 +169,7 @@ fi
 
 # --- gh: with no owner/repo#N rejected ---
 cat > "$FIXTURES/0018-gh-bare-colon.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Bare gh: colon
 Created: 2026-01-01
 Author: a
@@ -187,7 +187,7 @@ fi
 
 # --- gh:owner/repo without #number rejected ---
 cat > "$FIXTURES/0019-gh-no-number.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: gh: missing number
 Created: 2026-01-01
 Author: a
@@ -205,7 +205,7 @@ fi
 
 # --- Malformed forge ref (missing host/owner/repo) rejected ---
 cat > "$FIXTURES/0020-bad-forge.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Bad forge
 Created: 2026-01-01
 Author: a
@@ -223,7 +223,7 @@ fi
 
 # --- Forge ref with zero issue number rejected ---
 cat > "$FIXTURES/0021-forge-zero-num.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Forge zero number
 Created: 2026-01-01
 Author: a
@@ -241,7 +241,7 @@ fi
 
 # --- gh: with invalid owner (leading dash) rejected (deprecated) ---
 cat > "$FIXTURES/0022-gh-bad-owner.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Bad owner
 Created: 2026-01-01
 Author: a
@@ -259,7 +259,7 @@ fi
 
 # --- gh: with invalid repo (..) rejected (deprecated) ---
 cat > "$FIXTURES/0023-gh-bad-repo.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Bad repo
 Created: 2026-01-01
 Author: a
@@ -277,7 +277,7 @@ fi
 
 # --- Mixed-case scheme (GH#) rejected (case-sensitive) ---
 cat > "$FIXTURES/0024-gh-case.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Wrong case
 Created: 2026-01-01
 Author: a
@@ -295,7 +295,7 @@ fi
 
 # --- Mixed-case gh: variant with extra path rejected (case-sensitive) ---
 cat > "$FIXTURES/0025-gh-case-colon-extra.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Wrong case with colon
 Created: 2026-01-01
 Author: a
@@ -313,7 +313,7 @@ fi
 
 # --- Leading-zero issue number in forge ref rejected ---
 cat > "$FIXTURES/0026-forge-zero.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Leading-zero number
 Created: 2026-01-01
 Author: a
@@ -331,7 +331,7 @@ fi
 
 # --- Tag: valid value accepted ---
 cat > "$FIXTURES/0030-tags-valid.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Tag valid
 Created: 2026-01-01
 Author: a
@@ -351,7 +351,7 @@ fi
 
 # --- Legacy Tags: header rejected with migration hint ---
 cat > "$FIXTURES/0031-tags-legacy.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Tags legacy
 Created: 2026-01-01
 Author: a
@@ -403,7 +403,7 @@ fi
 
 # --- Plural: 1 error singular ---
 cat > "$FIXTURES/0090-bad-date.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Bad date
 Created: not-a-date
 Author: a
@@ -425,7 +425,7 @@ fi
 
 # --- Plural: 2 errors plural ---
 cat > "$FIXTURES/0091-bad-date2.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Bad date two
 Created: also-not-a-date
 Author: a
@@ -477,7 +477,7 @@ fi
 
 # --- Required header: missing Title rejected ---
 cat > "$FIXTURES/0102-no-title.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Created: 2026-01-01
 Author: a
 
@@ -493,7 +493,7 @@ fi
 
 # --- Required header: missing Created rejected ---
 cat > "$FIXTURES/0103-no-created.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: No created
 Author: a
 
@@ -509,7 +509,7 @@ fi
 
 # --- Required header: missing Author rejected ---
 cat > "$FIXTURES/0104-no-author.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: No author
 Created: 2026-01-01
 
@@ -525,7 +525,7 @@ fi
 
 # --- Singleton: Title repeated rejected ---
 cat > "$FIXTURES/0105-title-twice.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: First
 Title: Second
 Created: 2026-01-01
@@ -543,7 +543,7 @@ fi
 
 # --- Singleton: Created repeated rejected ---
 cat > "$FIXTURES/0106-created-twice.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Two creates
 Created: 2026-01-01
 Created: 2026-01-02
@@ -561,7 +561,7 @@ fi
 
 # --- Singleton: Author repeated rejected ---
 cat > "$FIXTURES/0107-author-twice.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Two authors
 Created: 2026-01-01
 Author: a
@@ -579,7 +579,7 @@ fi
 
 # --- Closed: empty value rejected ---
 cat > "$FIXTURES/0108-closed-empty.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Empty closed
 Created: 2026-01-01
 Author: a
@@ -597,7 +597,7 @@ fi
 
 # --- Closed: line in log section rejected ---
 cat > "$FIXTURES/0109-closed-in-log.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Closed in log
 Created: 2026-01-01
 Author: a
@@ -617,7 +617,7 @@ fi
 
 # --- Closed: line in body section rejected ---
 cat > "$FIXTURES/0110-closed-in-body.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Closed in body
 Created: 2026-01-01
 Author: a
@@ -636,7 +636,7 @@ fi
 
 # --- Closed: substring in body prose accepted (line-start match required) ---
 cat > "$FIXTURES/0111-closed-in-prose.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Closed in prose
 Created: 2026-01-01
 Author: a
@@ -655,7 +655,7 @@ fi
 
 # --- Filename: 3-digit ID rejected ---
 cat > "$FIXTURES/001-three-digit.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Three digit ID
 Created: 2026-01-01
 Author: a
@@ -672,7 +672,7 @@ fi
 
 # --- Filename: 5-digit ID rejected ---
 cat > "$FIXTURES/12345-five-digit.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Five digit ID
 Created: 2026-01-01
 Author: a
@@ -689,7 +689,7 @@ fi
 
 # --- Filename: uppercase slug rejected ---
 cat > "$FIXTURES/0112-Foo.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Uppercase slug
 Created: 2026-01-01
 Author: a
@@ -706,7 +706,7 @@ fi
 
 # --- Filename: underscore in slug rejected ---
 cat > "$FIXTURES/0113-foo_bar.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Underscore slug
 Created: 2026-01-01
 Author: a
@@ -723,7 +723,7 @@ fi
 
 # --- Separator: missing --- log --- rejected ---
 cat > "$FIXTURES/0114-no-log-sep.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: No log separator
 Created: 2026-01-01
 Author: a
@@ -739,7 +739,7 @@ fi
 
 # --- Separator: missing --- body --- rejected ---
 cat > "$FIXTURES/0115-no-body-sep.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: No body separator
 Created: 2026-01-01
 Author: a
@@ -756,7 +756,7 @@ fi
 
 # --- Separator: duplicate --- log --- accepted (rule 12 relaxation, ticket 0116) ---
 cat > "$FIXTURES/0116-dup-log-sep.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Duplicate log separator
 Created: 2026-01-01
 Author: a
@@ -779,7 +779,7 @@ fi
 
 # --- Separator: duplicate --- body --- accepted (rule 12 relaxation, ticket 0116) ---
 cat > "$FIXTURES/0117-dup-body-sep.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Duplicate body separator
 Created: 2026-01-01
 Author: a
@@ -800,7 +800,7 @@ fi
 
 # --- Log line: missing verb rejected ---
 cat > "$FIXTURES/0118-log-missing-verb.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Log missing verb
 Created: 2026-01-01
 Author: a
@@ -819,7 +819,7 @@ fi
 
 # --- Log line: timestamp with seconds rejected ---
 cat > "$FIXTURES/0119-log-with-seconds.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Log with seconds
 Created: 2026-01-01
 Author: a
@@ -838,7 +838,7 @@ fi
 
 # --- Log line: bad timestamp format rejected ---
 cat > "$FIXTURES/0120-log-bad-ts.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Bad timestamp
 Created: 2026-01-01
 Author: a
@@ -857,7 +857,7 @@ fi
 
 # --- Unknown header: Priority rejected ---
 cat > "$FIXTURES/0121-priority.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Unknown header
 Created: 2026-01-01
 Author: a
@@ -875,7 +875,7 @@ fi
 
 # --- Unknown header: X-Foo rejected ---
 cat > "$FIXTURES/0122-x-foo.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: X-Foo header
 Created: 2026-01-01
 Author: a
@@ -893,7 +893,7 @@ fi
 
 # --- Tag: invalid value rejected (per-file validate) ---
 cat > "$FIXTURES/0123-bad-tag.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Bad tag
 Created: 2026-01-01
 Author: a
@@ -912,7 +912,7 @@ fi
 # --- Blocked-by: unknown local ID rejected (isolated dir — no 9999 fixture) ---
 mkdir -p "$FIXTURES/blocked-unknown"
 cat > "$FIXTURES/blocked-unknown/0124-blocked-unknown.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Blocked by unknown
 Created: 2026-01-01
 Author: a
@@ -930,7 +930,7 @@ fi
 
 # --- Maximally complete ticket (kitchen sink) accepted ---
 cat > "$FIXTURES/0125-kitchen-sink.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Kitchen sink
 Created: 2026-01-01
 Author: claude
@@ -956,6 +956,26 @@ if $ERG validate "$FIXTURES/0125-kitchen-sink.erg" >/dev/null 2>&1; then
     pass "kitchen-sink ticket (all optional headers) accepted"
 else
     fail "kitchen-sink ticket (all optional headers) accepted"
+fi
+
+# --- Legacy %erg v1 magic line rejected with migrate hint ---
+cat > "$FIXTURES/0200-legacy-v1.erg" <<'EOF'
+%erg v1
+Title: Legacy V1 ticket
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T09:00Z claude created
+
+--- body ---
+EOF
+rc=0
+out=$($ERG validate "$FIXTURES/0200-legacy-v1.erg" 2>&1) || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "erg migrate"; then
+    pass "legacy %%erg v1 rejected with migrate hint"
+else
+    fail "legacy %%erg v1 rejected with migrate hint (rc=$rc, got: $out)"
 fi
 
 echo "validate: $PASS passed, $FAIL failed"

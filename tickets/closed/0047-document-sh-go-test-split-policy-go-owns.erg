@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Document sh/go test split policy: Go owns logic, sh owns CLI contracts
 Created: 2026-05-05
 Author: claude

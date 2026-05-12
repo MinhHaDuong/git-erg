@@ -24,7 +24,7 @@ fi
 # --- Explicit dir passes ---
 mkdir -p "$FIXTURES/ok"
 cat > "$FIXTURES/ok/0001-one.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: One
 Created: 2026-01-01
 Author: a
@@ -49,7 +49,7 @@ fi
 # --- Duplicate IDs fail ---
 mkdir -p "$FIXTURES/dup"
 cat > "$FIXTURES/dup/0001-one.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: One
 Created: 2026-01-01
 Author: a
@@ -58,7 +58,7 @@ Author: a
 --- body ---
 EOF
 cat > "$FIXTURES/dup/0001-two.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Two
 Created: 2026-01-01
 Author: a
@@ -75,7 +75,7 @@ fi
 # --- Dependency cycle fails ---
 mkdir -p "$FIXTURES/cycle"
 cat > "$FIXTURES/cycle/0001-one.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: One
 Created: 2026-01-01
 Author: a
@@ -85,7 +85,7 @@ Blocked-by: 0002
 --- body ---
 EOF
 cat > "$FIXTURES/cycle/0002-two.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Two
 Created: 2026-01-01
 Author: a
@@ -103,7 +103,7 @@ fi
 # --- Cross-dir ref resolution (closed subdir) passes ---
 mkdir -p "$FIXTURES/cross/closed"
 cat > "$FIXTURES/cross/closed/0001-closed-ref.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Closed ref target
 Created: 2026-01-01
 Author: a
@@ -113,7 +113,7 @@ Closed: done
 --- body ---
 EOF
 cat > "$FIXTURES/cross/0002-refs-closed.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Ref to closed subdir ticket
 Created: 2026-01-01
 Author: a
@@ -131,7 +131,7 @@ fi
 # --- Forge ref does not cause local errors ---
 mkdir -p "$FIXTURES/forge"
 cat > "$FIXTURES/forge/0001-forge-ref.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Forge ref
 Created: 2026-01-01
 Author: a
@@ -149,7 +149,7 @@ fi
 # --- Folder closure: open ticket in closed/ warns ---
 mkdir -p "$FIXTURES/closure/closed"
 cat > "$FIXTURES/closure/closed/0001-open-in-closed.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Open but in closed dir
 Created: 2026-01-01
 Author: a
@@ -172,7 +172,7 @@ fi
 # --- Folder closure: closed ticket at top level warns ---
 mkdir -p "$FIXTURES/closure2"
 cat > "$FIXTURES/closure2/0001-closed-top.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Closed at top level
 Created: 2026-01-01
 Author: a
@@ -206,7 +206,7 @@ fi
 # --- Stray Go source warns ---
 mkdir -p "$FIXTURES/stray/tools/go"
 cat > "$FIXTURES/stray/0001-x.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: x
 Created: 2026-01-01
 Author: x
@@ -231,7 +231,7 @@ fi
 # --- Stray Go source at tickets root (top-level scan) warns ---
 mkdir -p "$FIXTURES/stray-toplevel"
 cat > "$FIXTURES/stray-toplevel/0001-x.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: x
 Created: 2026-01-01
 Author: x
@@ -256,7 +256,7 @@ fi
 # --- go.mod in tools/go/ warns regardless of module name (no exception) ---
 mkdir -p "$FIXTURES/gomod/tools/go"
 cat > "$FIXTURES/gomod/0001-x.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: x
 Created: 2026-01-01
 Author: x
@@ -285,7 +285,7 @@ fi
 # --- Plural: 1 warning singular form ---
 mkdir -p "$FIXTURES/warn1/closed"
 cat > "$FIXTURES/warn1/closed/0001-open-in-closed-sing.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Open but in closed dir
 Created: 2026-01-01
 Author: a
@@ -308,7 +308,7 @@ fi
 # --- Plural: 2 warnings plural form ---
 mkdir -p "$FIXTURES/warn2/closed"
 cat > "$FIXTURES/warn2/closed/0001-open-in-closed-pl.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Open but in closed dir A
 Created: 2026-01-01
 Author: a
@@ -317,7 +317,7 @@ Author: a
 --- body ---
 EOF
 cat > "$FIXTURES/warn2/0002-closed-top-pl.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Closed at top level B
 Created: 2026-01-01
 Author: a
@@ -336,7 +336,7 @@ fi
 # --- Plural: 1 error singular form ---
 mkdir -p "$FIXTURES/err1"
 cat > "$FIXTURES/err1/0001-bad-date.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Bad date
 Created: not-a-date
 Author: a
@@ -359,7 +359,7 @@ fi
 # --- Plural: 2 errors plural form ---
 mkdir -p "$FIXTURES/err2"
 cat > "$FIXTURES/err2/0001-bad-date2.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Bad date
 Created: not-a-date
 Author: a
@@ -378,7 +378,7 @@ fi
 # --- Self-reference cycle (length 1) detected ---
 mkdir -p "$FIXTURES/self-cycle"
 cat > "$FIXTURES/self-cycle/0001-self.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Self reference
 Created: 2026-01-01
 Author: a
@@ -397,7 +397,7 @@ fi
 # --- Length-3 cycle (A->B->C->A) detected ---
 mkdir -p "$FIXTURES/cycle3"
 cat > "$FIXTURES/cycle3/0001-a.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: A
 Created: 2026-01-01
 Author: a
@@ -407,7 +407,7 @@ Blocked-by: 0002
 --- body ---
 EOF
 cat > "$FIXTURES/cycle3/0002-b.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: B
 Created: 2026-01-01
 Author: a
@@ -417,7 +417,7 @@ Blocked-by: 0003
 --- body ---
 EOF
 cat > "$FIXTURES/cycle3/0003-c.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: C
 Created: 2026-01-01
 Author: a
@@ -436,7 +436,7 @@ fi
 # --- Stale Blocked-by: open ticket refs closed ticket warns (Case A) ---
 mkdir -p "$FIXTURES/stale-blocked/closed"
 cat > "$FIXTURES/stale-blocked/closed/0001-blocker.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Blocker closed
 Created: 2026-01-01
 Author: a
@@ -446,7 +446,7 @@ Closed: done
 --- body ---
 EOF
 cat > "$FIXTURES/stale-blocked/0002-stale.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Stale blocked-by
 Created: 2026-01-01
 Author: a
@@ -470,7 +470,7 @@ fi
 # --- Stale Blocked-by: both open — no stale warn (Case B) ---
 mkdir -p "$FIXTURES/no-stale"
 cat > "$FIXTURES/no-stale/0001-open.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Open blocker
 Created: 2026-01-01
 Author: a
@@ -479,7 +479,7 @@ Author: a
 --- body ---
 EOF
 cat > "$FIXTURES/no-stale/0002-blocked.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Blocked by open
 Created: 2026-01-01
 Author: a
@@ -503,7 +503,7 @@ fi
 # --- Stale Blocked-by: forge ref skipped — no stale warn (Case C) ---
 mkdir -p "$FIXTURES/stale-forge"
 cat > "$FIXTURES/stale-forge/0001-forge-only.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Forge blocked only
 Created: 2026-01-01
 Author: a

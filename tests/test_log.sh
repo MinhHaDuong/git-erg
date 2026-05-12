@@ -16,7 +16,7 @@ echo "=== erg log ==="
 
 # --- Log a line into an open ticket by ID ---
 cat > "$FIXTURES/0042-smoke.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Smoke test ticket
 Created: 2026-01-01
 Author: claude
@@ -81,7 +81,7 @@ fi
 
 # --- Empty line rejected ---
 cat > "$FIXTURES/0043-empty-line.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Empty line test
 Created: 2026-01-01
 Author: claude
@@ -106,7 +106,7 @@ fi
 
 # --- Ambiguous ID exits non-zero with 'ambiguous' ---
 cat > "$FIXTURES/0044-alpha.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Alpha
 Created: 2026-01-01
 Author: claude
@@ -117,7 +117,7 @@ Author: claude
 --- body ---
 EOF
 cat > "$FIXTURES/0044-beta.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: Beta
 Created: 2026-01-01
 Author: claude
@@ -137,7 +137,7 @@ rm -f "$FIXTURES/0044-alpha.erg" "$FIXTURES/0044-beta.erg"
 
 # --- Missing body separator: exits non-zero with error ---
 cat > "$FIXTURES/0045-no-body-sep.erg" <<'EOF'
-%erg v1
+%erg 0.1
 Title: No body separator
 Created: 2026-01-01
 Author: claude

@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Align Erg struct on schema literally; explore merging parser and validator
 Created: 2026-05-07
 Author: claude-sonnet-4-6

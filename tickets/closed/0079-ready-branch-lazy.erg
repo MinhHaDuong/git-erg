@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Make loadBranchNames lazy — only call when unblocked ticket exists
 Created: 2026-05-05
 Author: claude

@@ -191,7 +191,7 @@ Validate individual .erg ticket files (format, headers, refs).
 
 Each FILE must be a .erg ticket. For every file the validator enforces:
 
-  1. Magic first line is '%erg v1' (rejects unknown versions).
+  1. Magic first line is '%erg 0.1' (rejects unknown versions).
   2. All required headers present AND non-empty: Title, Created, Author.
   3. No unknown headers (Status: is unknown; run 'erg migrate' to convert it).
   4. Non-repeatable headers (Title, Created, Author, Closed) appear at most once.

@@ -1,4 +1,4 @@
-%erg v1
+%erg 0.1
 Title: Fix dead grep and missing trap cleanup in test_ready.sh claimed tests
 Created: 2026-05-04
 Author: claude

@@ -31,7 +31,7 @@ func errsContain(errs []string, substr string) bool {
 
 // validErgContent returns a minimal valid .erg ticket body (all rules satisfied).
 func validErgContent() string {
-	return "%erg v1\nTitle: My Ticket\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
+	return "%erg 0.1\nTitle: My Ticket\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
 }
 
 func TestValidateErg(t *testing.T) {
@@ -58,119 +58,119 @@ func TestValidateErg(t *testing.T) {
 		{
 			name:       "missing required Title header",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "Title",
 		},
 		{
 			name:       "Status header present",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nStatus: open\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nStatus: open\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "Status",
 		},
 		{
 			name:       "unknown header",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nFoo: bar\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nFoo: bar\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "unknown header",
 		},
 		{
 			name:       "Created not a valid ISO date",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: not-a-date\nAuthor: test\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: not-a-date\nAuthor: test\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "ISO date",
 		},
 		{
 			name:       "Blocked-by unknown ID",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0042\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0042\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "unknown ticket ID",
 		},
 		{
 			name:       "missing log separator",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "log",
 		},
 		{
 			name:       "missing body separator",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n",
 			wantErrors: true,
 			wantSubstr: "body",
 		},
 		{
 			name:       "singleton header appears twice",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: First\nTitle: Again\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: First\nTitle: Again\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "non-repeatable",
 		},
 		{
 			name:       "Tag value not in closed set",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: invalid-tag\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: invalid-tag\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "unknown Tag value",
 		},
 		{
 			name:       "Tag post-talk rejected (not in defaults)",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: post-talk\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: post-talk\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "unknown Tag value",
 		},
 		{
 			name:       "Tag post-conference rejected (not in defaults)",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: post-conference\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: post-conference\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "unknown Tag value",
 		},
 		{
 			name:       "Tags header rejected with migration hint",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTags: needs-human\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTags: needs-human\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "renamed to 'Tag:'",
 		},
 		{
 			name:       "Closed header with empty value",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nClosed:\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nClosed:\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "non-empty",
 		},
 		{
 			name:       "Closed header in log section",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\nClosed: merged\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\nClosed: merged\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "log section",
 		},
 		{
 			name:       "Closed header in body section",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\nClosed: merged\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\nClosed: merged\n",
 			wantErrors: true,
 			wantSubstr: "body section",
 		},
 		{
 			name:       "filename does not match NNNN-slug pattern",
 			filename:   "badname.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "NNNN-slug",
 		},
 		{
 			name:       "malformed log line",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\nnot-a-valid-log-line\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\nnot-a-valid-log-line\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "malformed log line",
 		},
@@ -180,47 +180,47 @@ func TestValidateErg(t *testing.T) {
 			// subsequent ones are body text.
 			name:       "duplicate log separator accepted",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- log ---\n--- body ---\n",
 			wantErrors: false,
 		},
 		{
 			name:       "duplicate body separator accepted",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n--- body ---\n",
 			wantErrors: false,
 		},
 		{
 			name:       "invalid Blocked-by ref (deprecated gh: scheme)",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: gh:foo/bar#1\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: gh:foo/bar#1\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "deprecated",
 		},
 		{
 			name:       "missing required Created header",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nAuthor: test\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nAuthor: test\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "Created",
 		},
 		{
 			name:       "missing required Author header",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "Author",
 		},
 		{
 			name:       "invalid Blocked-by ref (deprecated bare gh# scheme)",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: gh#42\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: gh#42\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "deprecated",
 		},
 		{
 			name:       "Closed header with non-empty value accepted",
 			filename:   "0001-test.erg",
-			content:    "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n",
 			wantErrors: false,
 		},
 	}
@@ -257,7 +257,7 @@ func TestDetectCycles(t *testing.T) {
 	makeTicket := func(t *testing.T, dir, id string, blockedBy ...string) {
 		t.Helper()
 		var sb strings.Builder
-		sb.WriteString("%erg v1\n")
+		sb.WriteString("%erg 0.1\n")
 		sb.WriteString("Title: ticket " + id + "\n")
 		sb.WriteString("Created: 2024-01-01\n")
 		sb.WriteString("Author: test\n")
@@ -397,7 +397,8 @@ func TestValidateErg_GoldenInvalid(t *testing.T) {
 		"0001-missing-author.erg":    "Author",
 		"0001-missing-title.erg":     "Title",
 		"0001-unknown-header.erg":    "unknown header",
-		"0001-wrong-magic.erg":       "%erg v1",
+		"0001-wrong-magic.erg":       "%erg 0.1",
+		"0001-legacy-v1.erg":         "erg migrate",
 		"bad-filename.erg":           "filename",
 	}
 	fixtures, _ := filepath.Glob("testdata/invalid/*.erg")
@@ -433,7 +434,7 @@ func TestValidateCorpus_GoldenDuplicateIDs(t *testing.T) {
 // ANY sighting and that body lines are preserved verbatim.
 func TestSeparatorLiteralInBodyAccepted(t *testing.T) {
 	body := "Example of the format:\n--- log ---\n--- body ---\nEnd.\n"
-	content := "%erg v1\n" +
+	content := "%erg 0.1\n" +
 		"Title: Doc\n" +
 		"Created: 2024-01-01\n" +
 		"Author: test\n" +
@@ -477,9 +478,9 @@ func TestRequiredHeaderEmptyValueRejected(t *testing.T) {
 		content string
 		want    string
 	}{
-		{"empty Title", "%erg v1\nTitle: \nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n", "Title"},
-		{"empty Created", "%erg v1\nTitle: X\nCreated: \nAuthor: test\n\n--- log ---\n--- body ---\n", "Created"},
-		{"empty Author", "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: \n\n--- log ---\n--- body ---\n", "Author"},
+		{"empty Title", "%erg 0.1\nTitle: \nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n", "Title"},
+		{"empty Created", "%erg 0.1\nTitle: X\nCreated: \nAuthor: test\n\n--- log ---\n--- body ---\n", "Created"},
+		{"empty Author", "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: \n\n--- log ---\n--- body ---\n", "Author"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -504,7 +505,7 @@ func TestRequiredHeaderEmptyValueRejected(t *testing.T) {
 // empty-value error. Confirms ClosedEmpty is set on ANY empty value,
 // not only the first occurrence.
 func TestClosedDuplicateWithEmpty(t *testing.T) {
-	content := "%erg v1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nClosed: x\nClosed: \n\n--- log ---\n--- body ---\n"
+	content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nClosed: x\nClosed: \n\n--- log ---\n--- body ---\n"
 	path := writeErg(t, t.TempDir(), "0001-test.erg", content)
 	_, errs := parseErg(path)
 

@@ -1,4 +1,4 @@
-// Command erg validates and operates on %erg v1 ticket files. It depends only
+// Command erg validates and operates on %erg 0.1 ticket files. It depends only
 // on the Go standard library.
 //
 // Usage:
