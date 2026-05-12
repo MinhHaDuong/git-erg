@@ -1,0 +1,49 @@
+%erg v1
+Title: Downgrade format version from v1 to 0.1 with MAJOR.MINOR scheme
+Created: 2026-05-12
+Author: user
+
+--- log ---
+2026-05-12T12:00Z user created
+
+--- body ---
+## Context
+
+The magic line `%erg v1` implies a stable, released format. The format is
+still evolving (header set changed post-deployment, Tag renamed, etc.).
+Following common magic-line conventions (PDF `%PDF-1.7`, YAML `%YAML 1.2`),
+pre-1.0 signals instability and MAJOR.MINOR (no `v` prefix) is standard.
+
+## Actions
+
+1. **Magic line**: `%erg v1` becomes `%erg 0.1`.
+2. **Version scheme**: adopt MAJOR.MINOR (two components, no patch).
+   Minor bumps add features backward-compatibly; major bump = breaking.
+   Pre-1.0 means format may still have breaking minor bumps.
+3. **Code changes**:
+   - `ergspecv1.go`: rename `magicLine` constant to `%erg 0.1`.
+   - `erg.go` (parser): accept `%erg 0.1` as the valid magic line.
+     Recognize `%erg v1` as legacy and emit a migration hint.
+   - `migrate.go`: extend `migrateFile` to rewrite `%erg v1` first
+     lines to `%erg 0.1`. Idempotent, same pattern as Status/Tags.
+   - `validate.go` help text: update references.
+4. **Doc changes**: update magic line references in `spec-erg-v1.md`,
+   `pep-erg-v1.md`, `docs/erg-manual.md`, `README.md`,
+   `src/go/assets/spec-erg-v1.md`, `src/go/assets/AGENTS.md`.
+   Rename spec/pep files if the naming convention changes.
+5. **Corpus migration**: `erg migrate tickets/` rewrites all 140+ `.erg`
+   files. One commit for the tooling, one for the corpus rewrite.
+
+## Test
+
+- `erg validate` accepts `%erg 0.1` files, rejects `%erg v1`.
+- `erg migrate` rewrites `%erg v1` to `%erg 0.1` idempotently.
+- `erg new` creates files with `%erg 0.1` magic line.
+- Existing integration tests updated to use new magic line.
+
+## Exit criteria
+
+- No occurrence of `%erg v1` as a live magic line in code or docs
+  (quoted references in rationale/history sections are fine).
+- `erg migrate` handles v1-to-0.1 rewrite alongside existing Status/Tags rules.
+- Spec and PEP document the MAJOR.MINOR versioning convention.
