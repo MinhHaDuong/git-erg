@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -42,13 +41,14 @@ func cmdClose(args []string) int {
 
 	idOrFile := args[0]
 	reason := args[1]
-	ticketDir, err := findTicketsDir()
+	var explicit string
+	if len(args) >= 3 {
+		explicit = args[2]
+	}
+	ticketDir, err := resolveDir(explicit)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
-	}
-	if len(args) >= 3 {
-		ticketDir = args[2]
 	}
 
 	if strings.TrimSpace(reason) == "" {
@@ -61,17 +61,11 @@ func cmdClose(args []string) int {
 	if strings.HasSuffix(idOrFile, ".erg") {
 		ticketPath = idOrFile
 	} else {
-		pattern := filepath.Join(ticketDir, fmt.Sprintf("%s-*.erg", idOrFile))
-		matches, err := filepath.Glob(pattern)
-		if err != nil || len(matches) == 0 {
-			fmt.Fprintf(os.Stderr, "close: no ticket found for ID %s in %s\n", idOrFile, ticketDir)
+		ticketPath, err = resolveTicketByID(ticketDir, idOrFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "close: %v\n", err)
 			return 1
 		}
-		if len(matches) > 1 {
-			fmt.Fprintf(os.Stderr, "close: ambiguous ID %s — matches: %s\n", idOrFile, strings.Join(matches, ", "))
-			return 1
-		}
-		ticketPath = matches[0]
 	}
 
 	data, err := os.ReadFile(ticketPath)

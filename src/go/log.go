@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -41,13 +40,14 @@ func cmdLog(args []string) int {
 
 	id := args[0]
 	line := args[1]
-	ticketDir, err := findTicketsDir()
+	var explicit string
+	if len(args) >= 3 {
+		explicit = args[2]
+	}
+	ticketDir, err := resolveDir(explicit)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
-	}
-	if len(args) >= 3 {
-		ticketDir = args[2]
 	}
 
 	if strings.TrimSpace(line) == "" {
@@ -55,18 +55,11 @@ func cmdLog(args []string) int {
 		return 1
 	}
 
-	// Resolve to file path.
-	pattern := filepath.Join(ticketDir, fmt.Sprintf("%s-*.erg", id))
-	matches, err := filepath.Glob(pattern)
-	if err != nil || len(matches) == 0 {
-		fmt.Fprintf(os.Stderr, "log: no ticket found for ID %s in %s\n", id, ticketDir)
+	ticketPath, err := resolveTicketByID(ticketDir, id)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "log: %v\n", err)
 		return 1
 	}
-	if len(matches) > 1 {
-		fmt.Fprintf(os.Stderr, "log: ambiguous ID %s — matches: %s\n", id, strings.Join(matches, ", "))
-		return 1
-	}
-	ticketPath := matches[0]
 
 	data, err := os.ReadFile(ticketPath)
 	if err != nil {

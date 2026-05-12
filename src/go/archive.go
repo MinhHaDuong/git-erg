@@ -30,31 +30,20 @@ an existing file at the destination.
 
 // cmdArchive implements `erg archive [id...] [dir]`. See helpArchive for the user-facing summary.
 func cmdArchive(args []string) int {
-	ticketDir, err := findTicketsDir()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
 	var ids []string
+	var explicit string
 
 	for _, a := range args {
 		if len(a) == 4 && allDigits(a) {
 			ids = append(ids, a)
 		} else if !strings.HasPrefix(a, "-") {
-			ticketDir = a
+			explicit = a
 		}
 	}
-	// Clean ticketDir so filepath comparisons with loadErgs paths
-	// (which are always cleaned via filepath.Join) work reliably.
-	ticketDir = filepath.Clean(ticketDir)
 
-	info, err := os.Stat(ticketDir)
+	ticketDir, err := resolveDir(explicit)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "archive: %v\n", err)
-		return 1
-	}
-	if !info.IsDir() {
-		fmt.Fprintf(os.Stderr, "archive: %s is not a directory\n", ticketDir)
 		return 1
 	}
 
@@ -91,21 +80,14 @@ func cmdArchive(args []string) int {
 
 	if len(ids) > 0 {
 		// ID mode: resolve each ID to a file in the top-level ticketDir only.
-		// Glob finds the file; the already-loaded corpus provides the parsed Erg.
 		for _, id := range ids {
-			pattern := filepath.Join(ticketDir, fmt.Sprintf("%s-*.erg", id))
-			matches, err := filepath.Glob(pattern)
-			if err != nil || len(matches) == 0 {
-				fmt.Fprintf(os.Stderr, "archive: no ticket found for ID %s in %s\n", id, ticketDir)
+			path, err := resolveTicketByID(ticketDir, id)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "archive: %v\n", err)
 				exitCode = 1
 				continue
 			}
-			if len(matches) > 1 {
-				fmt.Fprintf(os.Stderr, "archive: ambiguous ID %s — matches: %s\n", id, strings.Join(matches, ", "))
-				exitCode = 1
-				continue
-			}
-			if t, ok := ticketByPath[matches[0]]; ok {
+			if t, ok := ticketByPath[path]; ok {
 				targets = append(targets, *t)
 			}
 		}

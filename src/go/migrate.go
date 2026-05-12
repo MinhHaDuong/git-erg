@@ -39,25 +39,13 @@ Review the diff with 'git diff tickets/' and commit manually.
 
 // cmdMigrate implements `erg migrate [dir]`. See helpMigrate for the user-facing summary.
 func cmdMigrate(args []string) int {
-	var dir string
+	var explicit string
 	if len(args) > 0 {
-		dir = args[0]
-	} else {
-		var err error
-		dir, err = findTicketsDir()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return 1
-		}
+		explicit = args[0]
 	}
-
-	info, err := os.Stat(dir)
+	dir, err := resolveDir(explicit)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "migrate: %s: %v\n", dir, err)
-		return 1
-	}
-	if !info.IsDir() {
-		fmt.Fprintf(os.Stderr, "migrate: not a directory: %s\n", dir)
+		fmt.Fprintf(os.Stderr, "migrate: %v\n", err)
 		return 1
 	}
 

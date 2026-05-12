@@ -60,7 +60,7 @@ func cmdNew(args []string) int {
 	title := args[0]
 	var ticketDir string
 	if len(args) >= 2 {
-		ticketDir = args[1]
+		ticketDir = filepath.Clean(args[1])
 	} else {
 		var err error
 		ticketDir, err = findTicketsDir()

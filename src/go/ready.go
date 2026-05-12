@@ -177,18 +177,13 @@ func cmdReady(args []string) int {
 		}
 	}
 
-	ticketDir, err := findTicketsDir()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
+	var explicit string
 	if len(rest) > 0 {
-		ticketDir = rest[0]
+		explicit = rest[0]
 	}
-
-	info, err := os.Stat(ticketDir)
-	if err != nil || !info.IsDir() {
-		fmt.Printf("Directory not found: %s\n", ticketDir)
+	ticketDir, err := resolveDir(explicit)
+	if err != nil {
+		fmt.Printf("Directory not found: %s\n", explicit)
 		return 1
 	}
 
