@@ -1,0 +1,25 @@
+%erg 0.1
+Title: Add 'erg list' command to show all open tickets
+Created: 2026-05-20
+Author: MinhHaDuong
+
+--- log ---
+2026-05-20T09:05Z MinhHaDuong created
+
+--- body ---
+## Context
+
+`erg ready` shows only unblocked tickets. There is no command to list ALL open tickets
+(with or without blockers), their titles, and basic metadata (created date, tags, blocked-by).
+
+The `ready` command is useful for agents picking work, but humans and raid scripts need
+to see the full picture: blocked tickets, tagged tickets, everything that's still open.
+
+## Exit criteria
+
+- [ ] `erg list [DIR]` prints all open tickets (one line each): ID, title, tags, blocked-by
+- [ ] `erg list --json [DIR]` outputs JSON array for script consumption
+- [ ] `erg list --all [DIR]` includes closed tickets (default: open only)
+- [ ] Tickets sorted by ID ascending
+- [ ] `erg list --help` documents the command
+- [ ] Integration test covering open-only, --all, and --json modes
