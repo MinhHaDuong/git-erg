@@ -1,0 +1,67 @@
+%erg 0.1
+Title: migrate: also rewrite hook erg_bin path
+Created: 2026-05-20
+Author: MinhHaDuong
+
+--- log ---
+2026-05-20T09:51Z MinhHaDuong created
+
+--- body ---
+
+## Context
+
+When migrating from the legacy layout (binary at `tickets/tools/go/erg`,
+plus `tickets/tools/go/main.go` source) to the new bootstrap layout
+(binary at `tickets/erg`, no in-repo Go sources), `erg migrate`
+correctly:
+
+- Rewrites ticket files (`%erg v1` → `%erg 0.1`, drops `Status:`, etc.)
+- Moves the binary to the new path
+- Updates `tickets/AGENTS.md` and `tickets/spec-erg-v1.md`
+
+But it does NOT rewrite `.git/hooks/pre-commit`, which still contains:
+
+```sh
+erg_bin="tickets/tools/go/erg"
+...
+if ! "$erg_bin" validate tickets/; then
+```
+
+Two things are stale:
+
+1. **Binary path**: `tickets/tools/go/erg` no longer exists; the new
+   bootstrap binary lives at `tickets/erg`. The hook fails with
+   `ERROR: erg binary not found. Run 'make build' first.` — but there
+   is no Makefile any more either.
+2. **CLI surface**: the hook calls `erg validate tickets/` (directory
+   form), which the new binary rejects with
+   `ERROR: tickets/ is a directory; use 'erg check tickets/' for
+   directory validation`. Corpus checks are now `erg check [DIR]`.
+
+Observed today (2026-05-20) on padme after migrating: the user could
+not commit any ticket-bearing change without manually patching the
+hook between the `# --- git-erg ---` markers.
+
+## Actions
+
+1. In `erg migrate`, detect a managed pre-commit hook (presence of
+   `# --- git-erg --- begin/end` markers) and rewrite the fragment in
+   place:
+   - `erg_bin="tickets/tools/go/erg"` → `erg_bin="tickets/erg"`
+   - `"$erg_bin" validate tickets/` → `"$erg_bin" check tickets/`
+2. If the hook fragment is missing (user removed it) or unmanaged
+   (markers absent), don't touch the hook; print a clear notice
+   suggesting `erg init` or a manual update.
+3. Add a regression test: a fixture repo with the legacy hook, run
+   `erg migrate`, assert the hook now references the new paths and
+   passes a sample commit.
+4. Document the hook auto-update in the migration changelog so users
+   know to re-stage the hook if they had local edits.
+
+## Exit criteria
+
+- [ ] `erg migrate` rewrites managed pre-commit hooks to the new
+      binary path and corpus-check CLI form.
+- [ ] Regression test covers the rewrite.
+- [ ] A user who upgrades from the legacy layout can `git commit
+      tickets/...` without touching `.git/hooks/pre-commit`.
