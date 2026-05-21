@@ -1,0 +1,136 @@
+%erg 0.1
+Title: erg next-id must scan tickets across all worktrees to avoid ID collisions
+Created: 2026-05-20
+Author: HDMX-coding-agent
+
+--- log ---
+2026-05-20T23:35Z HDMX-coding-agent created
+2026-05-21T07:32Z claude note re-filed from aedist-technical-report/tickets/0186 — this is upstream git-erg work, not project work
+
+--- body ---
+## Context
+
+`./tickets/erg next-id tickets/` returns the next free ID by scanning
+the **current worktree**'s `tickets/` directory. When other worktrees of
+the same repo have uncommitted/unpushed tickets at higher IDs, those
+slots look free here — and `next-id` hands them out.
+
+Live incident 2026-05-20 in raid-sota-adapters worktree:
+- `erg next-id tickets/` → `0181`.
+- Sibling worktree `agent-abeb2c877ac0b4075` had drafted (not yet
+  committed) tickets 0180-0184.
+- The new ticket was created as 0181 → collision.
+- Manual scan across worktrees + rename to 0185 + amend commit.
+
+Recovery cost was small here (one rename, one amend), but the cost
+scales: any time a raid spawns parallel agents that each create
+tickets, every agent risks the same ID. Pre-commit validator catches
+duplicate IDs only **after** both files are committed to the same
+branch — between worktrees on different branches, both commits are
+valid until the merge.
+
+The skill `tickets-new` says "Always use `erg next-id` — never compute
+or guess the ID manually." That guidance is currently a footgun in
+worktree-heavy workflows.
+
+## Relevant files
+
+- `tickets/tools/go/cmd/next-id` (or equivalent in the `erg` source
+  tree under `tickets/tools/go/`) — the command that needs to broaden
+  its scan.
+- `tickets/erg` — committed binary (Linux x86-64) that gets rebuilt
+  from the Go source.
+- `~/.claude/skills/ticket-new/SKILL.md` (user-level git-erg skill
+  package) — pour ajuster la doc une fois le fix livré.
+- `.claude/rules/tickets.md` — project ticket spec, may want to
+  mention cross-worktree behaviour.
+
+## Actions
+
+1. Extend `erg next-id <dir>` to enumerate ticket IDs across all
+   worktrees of the current repo, not just `<dir>` in the current
+   worktree. The natural source is `git worktree list --porcelain` →
+   for each worktree path, scan `<path>/<dir>` (typically
+   `<path>/tickets/`) for `NNNN-*.erg` files.
+2. Also include the union of ticket IDs visible on **all local branches**
+   (so a previously-committed ticket on an unrelated branch doesn't get
+   recycled). Implementation: `git ls-tree -r --name-only $(git
+   for-each-ref --format='%(refname)' refs/heads/) | grep -oE
+   'tickets/[0-9]{4}-' | sort -u`. Cap at 200ms — bail to current
+   behaviour with a warning if the scan times out.
+3. Optionally include `git ls-remote origin 'refs/heads/t*'` to catch
+   IDs reserved by branch names (e.g. `t0181` on origin without a
+   corresponding ticket file). Off by default; enable with
+   `--include-remote-branches`.
+4. Update `next-id`'s help text + the `ticket-new` skill instructions
+   to mention the cross-worktree guarantee.
+5. Add an integration test (or smoke test in the Go suite) that
+   creates a second worktree, drops a fake ticket, runs `next-id`,
+   asserts the returned ID skips past it.
+
+## Test
+
+`tickets/tools/go/internal/nextid/nextid_test.go` (or wherever the
+existing `next-id` tests live):
+
+```go
+func TestNextID_SkipsIDsInOtherWorktrees(t *testing.T) {
+    repo := setupTempRepo(t)
+    worktreeAdd(t, repo, "wt2", "feature-branch")
+    writeTicket(t, repo+"/wt2/tickets", "0123-other-worktree.erg")
+    got := NextID(repo + "/tickets")
+    if got <= "0123" {
+        t.Fatalf("next-id %s did not skip past 0123 in sibling worktree", got)
+    }
+}
+```
+
+First failing test: drop a `0123-x.erg` file in a sibling worktree's
+`tickets/`, run `next-id` from the main worktree, expect ≥`0124`.
+Today's implementation returns `0001` (or whatever is local-max+1),
+demonstrating the bug.
+
+## Verification
+
+- [ ] `erg next-id` in worktree A returns an ID greater than any
+      ticket present in worktree B's tree.
+- [ ] `erg next-id` in a fresh worktree returns an ID greater than any
+      ticket on any local branch's tip.
+- [ ] Live regression: in this raid scenario, `erg next-id` would
+      have returned `0185` (or higher) rather than `0181`.
+- [ ] Integration test green.
+- [ ] Help text updated.
+
+## Invariants
+
+- Behaviour in a single-worktree repo unchanged.
+- Performance: total `next-id` runtime stays sub-second on a 200-ticket
+  repo with up to 10 worktrees. (Current implementation is O(N tickets);
+  cross-worktree scan adds O(N tickets × M worktrees) — acceptable at
+  these scales.)
+- No new dependencies on shell commands beyond `git`.
+- `--include-remote-branches` opt-in only — default never makes a
+  network call.
+
+## Exit criteria
+
+- `next-id` honours cross-worktree IDs by default.
+- Test covering the cross-worktree case lands green.
+- Rebuilt binary committed at `tickets/erg`.
+- `ticket-new` skill prose updated to drop the "be careful in
+  worktrees" caveat (since the tool now does it).
+- This ticket closes after the patch lands and the local repo's
+  bootstrap binary is refreshed.
+
+## Notes
+
+- This bug is upstream to `git-erg` itself, not specific to any one
+  consumer project. The fix lands here and gets pulled into consumer
+  repos via binary refresh.
+- Adjacent improvement (out of scope, separate ticket if needed):
+  `erg claim <id>` (or similar) to reserve an ID atomically across
+  worktrees via a tiny lockfile — would close the residual race
+  between two simultaneous `next-id` calls in different worktrees.
+- The pre-commit validator catching duplicate IDs **on the same
+  branch** is already correct; this ticket is only about the
+  inter-branch / inter-worktree case.
