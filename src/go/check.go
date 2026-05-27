@@ -108,6 +108,29 @@ func encodingWarnings(dir string) []string {
 	return warnings
 }
 
+// headerBlankWarnings scans .erg files for blank lines inside the header
+// block. Non-fatal: the parser tolerates interior blanks, but a corpus scan
+// should surface files that need a cleanup pass (`erg migrate`) even when no
+// command has touched them (ticket 0141).
+func headerBlankWarnings(dir string) []string {
+	var warnings []string
+	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".erg") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		if hasInteriorHeaderBlank(data) {
+			warnings = append(warnings, fmt.Sprintf(
+				"WARN %s: blank line inside header block — run `erg migrate` to normalise", filepath.Base(path)))
+		}
+		return nil
+	})
+	return warnings
+}
+
 // summaryCheck is the one-liner printed by printUsage via the commands registry.
 const summaryCheck = "Corpus-level checks (duplicate IDs, cycles, refs)"
 
@@ -127,6 +150,8 @@ Additionally emits warnings (non-fatal) for:
 
   - Folder/header mismatch: open ticket in closed/ or closed ticket not in closed/.
   - Stray Go source files (*.go, go.mod, go.sum) inside the ticket store directory.
+  - Interior header blank: a blank line inside the header block (tolerated on
+    read; run 'erg migrate' to normalise).
 
 Exit codes: 0 on pass (warnings are printed but do not affect exit code), 1 on any violation.
 `
@@ -164,6 +189,7 @@ func cmdCheck(args []string) int {
 	warnings = append(warnings, staleBlockedBy(tickets)...)
 	warnings = append(warnings, strayGoSource(dir)...)
 	warnings = append(warnings, encodingWarnings(dir)...)
+	warnings = append(warnings, headerBlankWarnings(dir)...)
 
 	hasErrors := len(errors) > 0
 	if hasErrors {

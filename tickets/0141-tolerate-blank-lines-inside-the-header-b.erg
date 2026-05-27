@@ -1,0 +1,219 @@
+%erg 0.1
+Title: Tolerate blank lines inside the header block
+Created: 2026-05-27
+Author: Claude
+
+--- log ---
+2026-05-27T19:31Z Claude created
+
+--- body ---
+## Context
+
+The spec says "A blank line ends the header block" (`spec-erg-v1.md`).
+The parser implements this literally: in `parseErgBytes` the `case
+"headers"` arm transitions `section = "gap"` on the first blank line,
+and every line in `gap` is silently discarded until `--- log ---`. So a
+single stray blank line *inside* the header block makes every header
+below it vanish.
+
+This is a footgun, not a feature. `tickets/AGENTS.md` explicitly invites
+agents to write `.erg` files by hand, and the natural instinct is to
+visually group headers — a blank line after `Title:`, or before a
+`Tag:`/`Blocked-by:` cluster. The tooling itself never emits such a
+blank (verified: `insertClosedHeader` inserts after the last non-blank
+preamble line; `removeTagLine`/`removeBlockedByLine` only delete lines).
+The blank lines come from humans and LLMs authoring tickets directly.
+
+Two observed failure modes, both reproduced against the committed
+binary (2026-05-27):
+
+1. **Silent data loss that masks real errors.** A ticket with
+
+   ```
+   %erg 0.1
+   Title: demo
+   Created: 2026-05-27
+   Author: claude
+
+   Tag: needs-human
+   Blocked-by: 0002
+   ```
+
+   passes `erg validate` clean — the `Blocked-by: 0002` is dropped into
+   `gap`, so rule 10 (unknown-ref) never fires even though `0002` does
+   not exist. `Tag:`, `Blocked-by:`, and `Closed:` placed after a blank
+   line are all swallowed this way; a stray `Closed:` after a blank
+   would silently fail to close the ticket.
+
+2. **Misleading "missing required header" errors.** A blank line after
+   `Title:` makes `Created:` and `Author:` land in `gap`, so validate
+   reports them missing — pointing the author at the wrong problem,
+   since the headers are plainly right there in the file.
+
+## Decision: three strictness tiers
+
+Apply the Robustness Principle (already invoked in spec-erg-v1.md
+"Postel's Law"), but split it three ways for an interior header blank:
+
+- **Accept on read.** The parser tolerates blank lines within the header
+  block: a blank line no longer terminates header parsing while
+  subsequent lines still look like headers. Headers below the blank are
+  parsed normally instead of being discarded. This fixes both failure
+  modes above — refs/tags/closed are seen, required headers are found.
+- **Autofix on write.** Any command that rewrites a ticket (`close`,
+  `tag`, `untag`, and the `Blocked-by` removal in `close` step 3) strips
+  stray blank lines from inside the header block as part of its edit, so
+  files self-heal on the next mutation.
+- **Sweep on migrate.** Autofix only fires on the *next* mutation, so
+  hand-authored files would linger dirty indefinitely. `erg migrate`
+  therefore normalises interior header blanks across the whole corpus in
+  one pass — same preamble-bounded rewrite it already does for
+  `Status:`/`Tags:`. This is the one command that proactively cleans
+  every file, giving a corpus a single "make it clean now" lever.
+- **Shout on validate.** `erg validate` (per-file, the pre-commit gate)
+  does **not** stay silent: it prints a non-fatal warning to stderr for
+  an interior header blank and still exits 0. Validate runs in the hook,
+  so this is where an author actually sees the nudge at commit time.
+  Precedent: validate already prints `WARNING:` lines to stderr (skipped
+  files) without affecting the exit code.
+- **Warn on check.** `erg check` emits a non-fatal warning (alongside
+  `encodingWarnings`, `folderClosure`, etc.) when a ticket has a blank
+  line inside its header block, so a corpus scan surfaces files that need
+  a cleanup pass even if no command has touched them.
+
+The blank stays a *hygiene* issue, not a hard format violation — accept
+on read keeps `validate`/`check` at exit 0, consistent with how BOM/CRLF
+are handled (normalised on read, surfaced as warnings, never fatal). The
+difference from BOM/CRLF: validate shouts here too, not only check.
+
+## Relevant files
+
+- `src/go/erg.go` — `parseErgBytes`: the `case "headers"` / `case "gap"`
+  state machine. The read-tolerance change lives here. Care needed: the
+  blank line that *legitimately* ends the header block (the one before
+  `--- log ---`) must still end it; only blanks followed by more header
+  lines are absorbed. Distinguish "blank then header-shaped line" (tolerate)
+  from "blank then separator / end of preamble" (terminate).
+- `src/go/close.go` — `insertClosedHeader`; the close/untag rewrite path.
+- `src/go/tag.go` — `removeTagLine`, tag insert path.
+- `src/go/migrate.go` — `migrateFile` preamble rewrite: add interior-blank
+  collapsing to the per-file rewrite so `erg migrate` sweeps the corpus
+  clean in one pass (mark it a `changed` reason in `migrateResult`).
+- `src/go/check.go` — add a `headerBlankLine` warning function, wire it
+  into `cmdCheck` alongside the existing warnings.
+- `src/go/validate.go` — `cmdValidate` must shout: detect the interior
+  blank and print a non-fatal `WARNING:` line to stderr, keeping exit 0.
+- A shared helper — one `collapseHeaderBlanks([]byte) []byte` plus one
+  `hasInteriorHeaderBlank([]byte) bool` detector — feeds every tier
+  (autofix paths, migrate sweep, validate shout, check warn) so the
+  definition of "interior blank" lives in exactly one place.
+- `spec-erg-v1.md` — the "A blank line ends the header block" sentence
+  needs a clause: the first blank line *followed by a non-header line*
+  ends the block; interior blanks are tolerated on read, normalised on
+  write, warned on check.
+- `tests/test_check.sh`, `tests/test_validate.sh`, `src/go/erg_test.go`,
+  `src/go/validate_test.go` — coverage.
+
+## Test
+
+First failing test (read tolerance), Go:
+
+```go
+func TestParse_BlankLineInsideHeaderBlock(t *testing.T) {
+    src := "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\n\n" +
+        "Tag: needs-human\nBlocked-by: 0002\n\n" +
+        "--- log ---\n2026-05-27T10:00Z a created\n\n--- body ---\n"
+    e, _ := parseErgBytes([]byte(src), "0001-x.erg")
+    if len(e.Tags) != 1 || e.Tags[0] != "needs-human" {
+        t.Fatalf("Tag after interior blank was dropped: %v", e.Tags)
+    }
+    if len(e.BlockedBys) != 1 {
+        t.Fatalf("Blocked-by after interior blank was dropped: %v", e.BlockedBys)
+    }
+}
+```
+
+Today this fails: `Tags` and `BlockedBys` are empty because both lines
+landed in `gap`.
+
+Shell (warn on check): a fixture with an interior header blank makes
+`erg check` print a `WARN ...: blank line inside header block` line and
+still exit 0.
+
+Shell (shout on validate): `erg validate` on the same fixture prints a
+`WARNING:` line to stderr **and exits 0** — assert both (the warning is
+present, the exit code is 0, validate did not start failing).
+
+Shell (sweep on migrate): `erg migrate <dir>` on a corpus containing a
+ticket with an interior header blank rewrites that file so the blank is
+gone, reports it in the migrate summary, and is idempotent (a second run
+changes nothing).
+
+Shell (autofix on write): `erg tag <id> needs-human` on a ticket with an
+interior header blank produces a file whose header block has no interior
+blank line afterwards.
+
+## Spec sync (required — not optional)
+
+This change alters parser-observable behaviour, so the docs must move in
+the same PR. Per `spec-erg-v1.md`: "Any divergence between this document
+and the `erg` binary must be resolved by aligning the specification with
+the behavior." Landing the code without the doc update is a divergence
+and must not merge. Three artifacts to keep in lockstep:
+
+1. **`spec-erg-v1.md`** (normative) — the sentence "A blank line ends the
+   header block" (§ Structure) is now wrong as written. Replace it with:
+   the header block ends at the first blank line that is *not* followed
+   by another header line; an interior blank (blank followed by more
+   header-shaped lines before `--- log ---`) is tolerated on read,
+   normalised on write, swept by `erg migrate`, and surfaced as a
+   non-fatal warning by both `erg validate` and `erg check`. Also extend
+   the "Postel's Law" section to name these tiers explicitly, since it
+   currently reads "strict on write" without qualification.
+2. **`pep-erg-v1.md`** (rationale) — record *why* the literal
+   "blank-ends-header" rule was relaxed (silent dropping of
+   `Blocked-by`/`Closed` masked validation errors), so the decision is
+   traceable and a future reader does not "fix" it back.
+3. **`docs/erg-manual.md`** — update the `erg check` warnings list to
+   include the interior-header-blank warning, and bump the
+   "Generated-from" binary header to the rebuilt binary (the manual
+   carries a binary-hash provenance line, cf. commit d1dcb0d).
+
+Acceptance: a reviewer reading only `spec-erg-v1.md` must be able to
+predict the parser's behaviour on an interior header blank without
+reading the Go source. The closed tickets 0096 ("align spec/pep/manual")
+and 0127 ("spec/pep alignment gaps") establish that these three move
+together — do not break that.
+
+## Exit criteria
+
+- [ ] Headers below an interior blank line are parsed (read tolerance);
+      both failure modes from Context are gone — rule 10 fires on the
+      dropped `Blocked-by`, required headers are found.
+- [ ] `close`/`tag`/`untag` strip interior header blanks when they
+      rewrite a file.
+- [ ] `erg migrate` sweeps interior header blanks across the whole
+      corpus in one pass, reports them, and is idempotent.
+- [ ] `erg check` warns (non-fatal) on interior header blanks.
+- [ ] `erg validate` shouts: prints a non-fatal `WARNING:` to stderr on
+      an interior header blank but still exits 0 (accepts the file).
+- [ ] **Spec sync done in the same PR**: `spec-erg-v1.md` sentence +
+      Postel's-Law section updated, `pep-erg-v1.md` rationale recorded,
+      `docs/erg-manual.md` warnings list + Generated-from header bumped.
+      Spec and binary must not diverge on merge.
+- [ ] Go + shell tests green; rebuilt binary committed at `tickets/erg`.
+
+## Notes
+
+- "Interior blank" = a blank line that appears before the header block
+  has otherwise ended (i.e. there are still header-shaped lines before
+  `--- log ---`). The single intended blank between the last header and
+  `--- log ---` is normal and stays.
+- Scope is the *header* block only. Blank lines in the log section are
+  already skipped; blank lines in the body are meaningful markdown and
+  untouched.
+- Feature-freeze note: this is filed as a correctness fix (silent
+  dropping of `Blocked-by`/`Closed` masks validation errors and can
+  leave a ticket falsely "open"), which the current milestone allows.
+  The autofix/warn tiers are the minimal, consistent way to land the
+  read fix without a format-breaking change.

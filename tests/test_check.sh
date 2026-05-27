@@ -572,6 +572,50 @@ else
     pass "clean file has no encoding warning"
 fi
 
+# --- Interior header blank: check warns (non-fatal) and exits 0 ---
+mkdir -p "$FIXTURES/hdr-blank"
+cat > "$FIXTURES/hdr-blank/0001-interior.erg" <<'EOF'
+%erg 0.1
+Title: Interior blank
+Created: 2026-01-01
+Author: a
+
+Tag: needs-human
+
+--- log ---
+--- body ---
+EOF
+rc=0
+out=$($ERG check "$FIXTURES/hdr-blank" 2>&1) || rc=$?
+if echo "$out" | grep -q "WARN .*: blank line inside header block"; then
+    pass "check warns on interior header blank"
+else
+    fail "check warns on interior header blank (got: $out)"
+fi
+if [ "$rc" -eq 0 ]; then
+    pass "check exits 0 on interior header blank"
+else
+    fail "check exits 0 on interior header blank (rc=$rc)"
+fi
+
+# --- Clean file: no interior-blank warning ---
+mkdir -p "$FIXTURES/hdr-clean"
+cat > "$FIXTURES/hdr-clean/0001-clean.erg" <<'EOF'
+%erg 0.1
+Title: Clean
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG check "$FIXTURES/hdr-clean" 2>&1)
+if echo "$out" | grep -q "blank line inside header block"; then
+    fail "clean file must not warn on interior header blank (got: $out)"
+else
+    pass "clean file has no interior-header-blank warning"
+fi
+
 # live-corpus check moved to: make validate
 
 echo "check: $PASS passed, $FAIL failed"

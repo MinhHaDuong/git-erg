@@ -97,6 +97,7 @@ func cmdTag(args []string) int {
 	author := resolveAuthor()
 	logLine := fmt.Sprintf("%s %s tag %s", now, author, tagname)
 	content = appendLogLine(content, logLine)
+	content = string(collapseHeaderBlanks([]byte(content)))
 
 	if err := os.WriteFile(ticketPath, []byte(content), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "tag: cannot write %s: %v\n", ticketPath, err)
@@ -171,6 +172,7 @@ func cmdUntag(args []string) int {
 	author := resolveAuthor()
 	logLine := fmt.Sprintf("%s %s untag %s", now, author, tagname)
 	content = appendLogLine(content, logLine)
+	content = string(collapseHeaderBlanks([]byte(content)))
 
 	if err := os.WriteFile(ticketPath, []byte(content), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "untag: cannot write %s: %v\n", ticketPath, err)

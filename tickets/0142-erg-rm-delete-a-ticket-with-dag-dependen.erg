@@ -1,0 +1,120 @@
+%erg 0.1
+Title: erg rm: delete a ticket with DAG dependency verification
+Created: 2026-05-27
+Author: Claude
+
+--- log ---
+2026-05-27T20:36Z Claude created
+
+--- body ---
+## Context
+
+There is no `erg rm` command. The only ways to retire a ticket are `erg
+close` (keeps the file, adds a `Closed:` header, clears dependents) and
+`erg archive` (moves it under `closed/`). Both preserve a record — which
+is correct for work that was done or abandoned with history worth keeping.
+
+But some tickets should simply *disappear*: a duplicate, a typo-titled
+file created by mistake, a draft an agent fat-fingered, spam. Closing or
+archiving these leaves clutter in the corpus and in `erg list --all`. Today
+the user `rm`s the file by hand, which skips every safety check the tool
+otherwise enforces.
+
+The danger of a bare `rm` is the dependency graph. `Blocked-by:` edges form
+a DAG (rule 13 already forbids cycles). If ticket B has `Blocked-by: 0007`
+and someone deletes 0007, B is left pointing at a ticket that no longer
+exists: `erg check` rule 10 (unknown-ref) starts firing, and `erg ready`
+silently treats the missing blocker as satisfied (see the WARNING path in
+`cmdReady`) — so B may be reported ready when its real prerequisite was
+deleted, not done. A safe delete must verify the DAG first.
+
+## Decision
+
+Add `erg rm ID|FILE [DIR]` that deletes a ticket file, but only after
+verifying nothing in the corpus depends on it:
+
+- **Refuse by default if dependents exist.** Scan every ticket (open and
+  closed) for a `Blocked-by:` ref resolving to the target ID. If any
+  exist, print each dependent (`<file>: Blocked-by: <id>`) and exit
+  non-zero without touching the filesystem. Deletion is destructive and
+  irreversible from the tool's side; the safe default is to stop, not to
+  silently rewrite other people's tickets.
+- **`--force` overrides the guard and clears the edges.** With `--force`,
+  delete the target and strip the now-dangling `Blocked-by:` lines from
+  dependents, appending a log entry to each — exactly the step-3 machinery
+  `close` already runs. Reuse `removeBlockedByRef` / `removeBlockedByLine`
+  (close.go) rather than duplicating the rewrite. Log verb suggestion:
+  `note blocker <id> removed — ticket deleted.`
+- **Idempotent / clear on miss.** `erg rm 9999` on a non-existent ID exits
+  non-zero with the same "no ticket found for ID" message `resolveTicketByID`
+  already produces. Ambiguous-ID handling is inherited from
+  `resolveTicketByID` too.
+- **Scope: deletion only.** No archive, no Closed: header. If the caller
+  wanted a record they should use `close`/`archive`; `rm` is the "this
+  should never have existed" path.
+
+## Relevant files
+
+- `src/go/rm.go` (new) — `cmdRm`, `summaryRm`, `helpRm`. Dispatch wired in
+  `main.go`; registry entry in `helptext.go` (single-line add, like every
+  other command).
+- `src/go/close.go` — reuse `removeBlockedByRef` and `removeBlockedByLine`
+  for the `--force` edge-clearing path. May need to lift the timestamp/
+  author resolution helper close uses so rm logs dependents the same way.
+- `src/go/main.go` — `resolveDir`, `resolveTicketByID` give the same
+  ID/FILE resolution and error messages the other mutating commands use.
+- `src/go/ref.go`, `Erg.BlockedBys` — the parsed `Blocked-by` refs to scan
+  for dependents (match `ref.Kind == RefLocal && ref.ID == target`; forge
+  refs never point at local tickets).
+- `tests/test_rm.sh` (new) + `Makefile` `TEST_SUITES` += `rm`.
+- `docs/erg-manual.md` regenerated via `make docs`; bootstrap binary
+  `tickets/erg` refreshed per repo policy.
+
+## Test
+
+First failing test (the DAG guard), shell:
+
+1. Fixture: `0001-blocker.erg` (open) and `0002-blocked.erg` with
+   `Blocked-by: 0001`.
+2. `erg rm 0001 <dir>` exits non-zero, prints `0002` as a dependent, and
+   `0001-blocker.erg` still exists afterward.
+3. `erg rm --force 0001 <dir>` exits 0, deletes `0001-blocker.erg`, and
+   `0002-blocked.erg` no longer has a `Blocked-by: 0001` line (and gained a
+   log entry).
+4. `erg rm 0002 <dir>` (no dependents) exits 0 and deletes the file with no
+   `--force` needed.
+5. `erg rm 9999 <dir>` exits non-zero with a "no ticket found" message.
+6. After every case, `erg check <dir>` is clean (rule 10 never fires on a
+   dangling ref left behind).
+
+## Exit criteria
+
+- [ ] `erg rm ID|FILE [DIR]` deletes a ticket with no open or closed
+      dependents.
+- [ ] With dependents present, `erg rm` refuses (exit non-zero), names the
+      dependents, and leaves the filesystem untouched.
+- [ ] `erg rm --force` deletes the target and clears dangling `Blocked-by:`
+      lines from dependents, logging the removal on each (reusing close's
+      machinery, not a copy).
+- [ ] Non-existent / ambiguous ID handled with the existing resolver
+      messages.
+- [ ] `erg rm --help` documents the command; `--help --all` section count
+      bumped in `test_docs.sh` / `test_help.sh`.
+- [ ] `tests/test_rm.sh` covers delete, refuse-on-dependent, --force
+      cascade, and missing-ID; corpus stays `erg check`-clean throughout.
+- [ ] Go + shell tests green; `docs/erg-manual.md` and `tickets/erg`
+      refreshed.
+
+## Notes
+
+- Relationship to existing commands: `close` = "done/abandoned, keep the
+  record"; `archive` = "move the record out of the active set"; `rm` =
+  "remove the record entirely". Only `rm` needs the destructive-delete
+  guard, because close/archive leave the ID resolvable so dependents never
+  dangle.
+- Out of scope: multi-ID `erg rm 0001 0002 ...` batch deletion and an
+  interactive confirmation prompt. Could be a follow-up once the single-ID
+  path and DAG guard are solid.
+- The guard scans closed tickets too: a closed ticket may legitimately carry
+  a historical `Blocked-by:` line, and deleting its blocker would still
+  introduce an unknown-ref the corpus check flags.

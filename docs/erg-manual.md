@@ -1,7 +1,7 @@
 # erg manual
 
 Author: minh.ha-duong@cnrs.fr
-Generated from: erg built 2026-05-12T13:53:49Z rev 10bd3fe
+Generated from: erg built 2026-05-27T21:00:11Z rev ae843bd
 
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
@@ -62,8 +62,45 @@ Additionally emits warnings (non-fatal) for:
 
   - Folder/header mismatch: open ticket in closed/ or closed ticket not in closed/.
   - Stray Go source files (*.go, go.mod, go.sum) inside the ticket store directory.
+  - Interior header blank: a blank line inside the header block (tolerated on
+    read; run 'erg migrate' to normalise).
 
 Exit codes: 0 on pass (warnings are printed but do not affect exit code), 1 on any violation.
+
+## erg list [DIR] [TAG...] [not TAG...] [--all] [--json]
+
+List tickets, one per line: ID, title, tags, and blocked-by refs.
+
+Tag arguments filter the list as a conjunction: a bare TAG keeps only tickets
+carrying it, and "not TAG" drops tickets carrying it. Beyond the literal Tag:
+vocabulary, three computed pseudo-tags are accepted:
+
+  - closed   — the ticket is closed (Closed: header or closed/ path).
+  - open     — the ticket is not closed.
+  - blocked  — the ticket has an unsatisfied blocker (a forge ref, or a
+               Blocked-by pointing at an open local ticket).
+
+Open is the default: with no open/closed term and without --all, only open
+tickets are shown. --all drops that default so closed tickets appear too
+(marked [closed]). Tickets are sorted by ID ascending.
+
+DIR selects the ticket store: an argument naming an existing directory (or one
+containing '/'), e.g. 'erg ls tickets/'. The pseudo-tags closed/open/blocked are
+always filter terms, so 'erg ls closed' lists closed tickets even from inside a
+store that contains a closed/ directory.
+
+Without --json, prints a human-readable line per ticket. With --json, prints a
+JSON array where each element has the fields: id, title, file, closed, tags,
+blocked_by.
+
+Alias: erg ls.
+
+Examples:
+  erg ls                      open tickets
+  erg ls needs-human          open tickets tagged needs-human
+  erg ls not deferred         open tickets not tagged deferred
+  erg ls closed               closed tickets
+  erg ls --all blocked        all blocked tickets, open or closed
 
 ## erg ready [DIR] [--json]
 

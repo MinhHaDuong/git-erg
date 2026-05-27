@@ -978,5 +978,69 @@ else
     fail "legacy %%erg v1 rejected with migrate hint (rc=$rc, got: $out)"
 fi
 
+# --- Interior header blank: validate shouts on stderr but still exits 0 ---
+cat > "$FIXTURES/0300-interior-blank.erg" <<'EOF'
+%erg 0.1
+Title: Interior blank
+Created: 2026-01-01
+Author: claude
+
+Tag: needs-human
+
+--- log ---
+2026-01-01T09:00Z claude created
+--- body ---
+EOF
+rc=0
+stderr_out=$($ERG validate "$FIXTURES/0300-interior-blank.erg" 2>&1 >/dev/null) || rc=$?
+if echo "$stderr_out" | grep -q "WARNING:.*blank line inside header block"; then
+    pass "validate shouts WARNING on interior header blank"
+else
+    fail "validate shouts WARNING on interior header blank (got: $stderr_out)"
+fi
+if [ "$rc" -eq 0 ]; then
+    pass "validate still exits 0 on interior header blank"
+else
+    fail "validate still exits 0 on interior header blank (rc=$rc)"
+fi
+
+# --- Interior header blank does not mask a bad Blocked-by ref (read tolerance) ---
+cat > "$FIXTURES/0301-blank-masks-ref.erg" <<'EOF'
+%erg 0.1
+Title: Blank masks ref
+Created: 2026-01-01
+Author: claude
+
+Blocked-by: 9999
+--- log ---
+2026-01-01T09:00Z claude created
+--- body ---
+EOF
+rc=0
+out=$($ERG validate "$FIXTURES/0301-blank-masks-ref.erg" 2>&1) || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "references unknown ticket ID"; then
+    pass "Blocked-by below interior blank is now seen (rule 10 fires)"
+else
+    fail "Blocked-by below interior blank is now seen (rc=$rc, got: $out)"
+fi
+
+# --- Clean file: no interior-blank warning ---
+cat > "$FIXTURES/0302-clean.erg" <<'EOF'
+%erg 0.1
+Title: Clean
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T09:00Z claude created
+--- body ---
+EOF
+stderr_out=$($ERG validate "$FIXTURES/0302-clean.erg" 2>&1 >/dev/null)
+if echo "$stderr_out" | grep -q "blank line inside header block"; then
+    fail "clean file must not emit interior-blank warning (got: $stderr_out)"
+else
+    pass "clean file emits no interior-blank warning"
+fi
+
 echo "validate: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

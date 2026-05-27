@@ -202,5 +202,32 @@ else
     fail "round-trip tag/untag leaves valid ticket"
 fi
 
+# --- Autofix on write: tag strips a pre-existing interior header blank ---
+cat > "$FIXTURES/7010-interior-blank.erg" <<'EOF'
+%erg 0.1
+Title: Interior blank
+Created: 2026-01-01
+Author: claude
+
+Blocked-by: 0001
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+$ERG tag 7010 needs-human "$FIXTURES" > /dev/null
+# The blank between Author: and Blocked-by: must be gone after the write.
+if awk '/^Author: claude$/{getline n; if(n==""){found=1}} END{exit !found}' "$FIXTURES/7010-interior-blank.erg"; then
+    fail "tag autofix removes interior header blank"
+else
+    pass "tag autofix removes interior header blank"
+fi
+if $ERG check "$FIXTURES" 2>&1 | grep -q "7010-interior-blank.*blank line inside header block"; then
+    fail "tagged file no longer warns on interior header blank"
+else
+    pass "tagged file no longer warns on interior header blank"
+fi
+
 echo "tag: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

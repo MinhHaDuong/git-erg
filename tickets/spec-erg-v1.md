@@ -49,7 +49,14 @@ Three sections, in order:
 2. **Log** — append-only ledger, after `--- log ---` separator.
 3. **Body** — free-form markdown, after `--- body ---` separator.
 
-A blank line ends the header block. Both separators are required (the
+The header block ends at the first blank line that is *not* followed by
+another header line. A blank line that still has header-shaped lines below
+it (before `--- log ---`) is an **interior blank**: it is tolerated on read
+(the headers below it are parsed normally, not discarded), normalised on
+write (`close`, `tag`, and `untag` strip it), swept across the corpus by
+`erg migrate`, and surfaced as a non-fatal warning by both `erg validate`
+and `erg check`. An interior blank is a hygiene issue, never a hard format
+error — validate and check stay at exit 0. Both separators are required (the
 validator rejects files missing either one). The first `--- log ---` and
 the first `--- body ---` (in order) are the section separators;
 subsequent occurrences are body text — legitimate bodies may quote the
@@ -183,3 +190,21 @@ The validator enforces %erg 0.1 on commit (strict on write).
 
 Agents may interpret non-conforming input, but must produce valid %erg 0.1
 when creating or modifying tickets. Non-conforming files are rejected by the validator.
+
+Tolerance is graded, not all-or-nothing. The interior header blank (see
+*Structure*) is the worked example, handled across five tiers:
+
+- **Accept on read** — the parser extracts the headers below the blank
+  instead of discarding them.
+- **Autofix on write** — `close`, `tag`, and `untag` strip the blank when
+  they rewrite a ticket, so a file self-heals on its next mutation.
+- **Sweep on migrate** — `erg migrate` normalises every file in one pass,
+  the single "make it clean now" lever for files no command has touched.
+- **Shout on validate** — the pre-commit gate prints a non-fatal `WARNING:`
+  (still exit 0), so an author sees the nudge at commit time.
+- **Warn on check** — a corpus scan surfaces files that need a cleanup pass.
+
+UTF-8 BOM and CRLF line endings are a lighter precedent: accepted on read
+and warned by `erg check`, but never autofixed, swept, or shouted. In every
+case the tooling itself emits canonical %erg 0.1 — "strict on write" is a
+*write contract*, not a license to reject recoverable input on read.

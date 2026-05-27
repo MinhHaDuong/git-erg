@@ -210,7 +210,15 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 		switch section {
 		case "headers":
 			if trimmed == "" {
-				section = "gap"
+				// A blank line ends the header block only when it is not
+				// followed (skipping further blanks) by another header line
+				// before the log/body separator. An interior blank — one with
+				// more header-shaped lines still below it — is tolerated:
+				// headers under it are parsed normally instead of dropped into
+				// the discarded gap (ticket 0141).
+				if blankEndsHeaderBlock(lines, lineIdx) {
+					section = "gap"
+				}
 				continue
 			}
 			if key, val, ok := parseHeaderLine(line); ok {
@@ -418,6 +426,116 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 		LogLines:   logLines,
 		Body:       strings.Join(bodyLines, "\n"),
 	}, errs
+}
+
+// blankEndsHeaderBlock reports whether the blank line at lines[idx] (the
+// caller has already established it is blank) terminates the header block.
+// Scanning forward past any further blank lines, the block ends unless the
+// next non-blank line is another header-shaped line: a separator, a
+// non-header line, or end-of-input ends the block; a header line means the
+// blank is *interior* and the block continues (ticket 0141).
+func blankEndsHeaderBlock(lines []string, idx int) bool {
+	for j := idx + 1; j < len(lines); j++ {
+		t := strings.TrimSpace(lines[j])
+		if t == "" {
+			continue
+		}
+		if t == separatorLog || t == separatorBody {
+			return true
+		}
+		if _, _, ok := parseHeaderLine(lines[j]); ok {
+			return false
+		}
+		return true
+	}
+	return true
+}
+
+// interiorHeaderBlanks returns the 0-based indices of blank lines that fall
+// inside the header block — the blanks the parser tolerates rather than
+// treating as the block terminator. The single blank that legitimately ends
+// the header block (the one before `--- log ---`) is never included. This is
+// the one definition of "interior blank", shared by the read path
+// (parseErgBytes), the write-time autofix (collapseHeaderBlanks), the migrate
+// sweep, and the validate/check warnings (ticket 0141).
+func interiorHeaderBlanks(lines []string) []int {
+	var idxs []int
+	inHeaders := false
+	for i := 0; i < len(lines); i++ {
+		t := strings.TrimSpace(lines[i])
+		if !inHeaders {
+			if t == "" {
+				continue // leading blank before the magic / first header line
+			}
+			// First non-empty line is the magic line (or, in legacy files
+			// with no magic, the first header). The header block proper begins
+			// on the line below it.
+			if t == separatorLog || t == separatorBody {
+				return idxs // no header block at all
+			}
+			inHeaders = true
+			continue
+		}
+		if t == separatorLog || t == separatorBody {
+			break // header block region is over
+		}
+		if t == "" {
+			if blankEndsHeaderBlock(lines, i) {
+				break
+			}
+			idxs = append(idxs, i)
+		}
+	}
+	return idxs
+}
+
+// splitLines splits content on "\n", dropping the empty trailing element a
+// final newline produces. The bool reports whether that trailing newline was
+// present so callers can restore it after rejoining.
+func splitLines(content string) ([]string, bool) {
+	hadTrailingNewline := strings.HasSuffix(content, "\n")
+	lines := strings.Split(content, "\n")
+	if hadTrailingNewline {
+		lines = lines[:len(lines)-1]
+	}
+	return lines, hadTrailingNewline
+}
+
+// collapseHeaderBlanks removes interior blank lines from the header block,
+// leaving the rest of the file — the terminating blank before `--- log ---`,
+// the log, and the body — byte-for-byte unchanged. Returns data unmodified
+// when there is no interior blank. Feeds the write-time autofix paths
+// (close/tag/untag) and the migrate sweep (ticket 0141).
+func collapseHeaderBlanks(data []byte) []byte {
+	lines, hadTrailingNewline := splitLines(string(data))
+	interior := interiorHeaderBlanks(lines)
+	if len(interior) == 0 {
+		return data
+	}
+	drop := make(map[int]bool, len(interior))
+	for _, i := range interior {
+		drop[i] = true
+	}
+	out := make([]string, 0, len(lines))
+	for i, line := range lines {
+		if drop[i] {
+			continue
+		}
+		out = append(out, line)
+	}
+	rejoined := strings.Join(out, "\n")
+	if hadTrailingNewline {
+		rejoined += "\n"
+	}
+	return []byte(rejoined)
+}
+
+// hasInteriorHeaderBlank reports whether data has at least one blank line
+// inside its header block. Feeds the non-fatal warnings emitted by
+// `erg validate` (shout) and `erg check` (warn) (ticket 0141).
+func hasInteriorHeaderBlank(data []byte) bool {
+	lines, _ := splitLines(string(data))
+	return len(interiorHeaderBlanks(lines)) > 0
 }
 
 // hasHeaderKey reports whether line begins with the literal header key

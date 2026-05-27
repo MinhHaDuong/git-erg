@@ -333,18 +333,24 @@ Blocked-by: 8020
 
 --- body ---
 EOF
-chmod 444 "$FIXTURES/8021-dependent-unwritable.erg"
-OUT=$($ERG close 8020 "done" "$FIXTURES" 2>&1) && rc=0 || rc=$?
-chmod 644 "$FIXTURES/8021-dependent-unwritable.erg"
-if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q "CLOSED"; then
-    pass "close: dependent write failure keeps close success"
+if [ "$(id -u)" -eq 0 ]; then
+    # chmod 444 does not block writes for root; this failure path can only be
+    # exercised as an unprivileged user.
+    echo "  SKIP (root): close dependent write-failure assertions"
 else
-    fail "close: dependent write failure keeps close success (rc=$rc, got: $OUT)"
-fi
-if echo "$OUT" | grep -q "warning: cannot write"; then
-    pass "close: dependent write failure emits warning"
-else
-    fail "close: dependent write failure emits warning (got: $OUT)"
+    chmod 444 "$FIXTURES/8021-dependent-unwritable.erg"
+    OUT=$($ERG close 8020 "done" "$FIXTURES" 2>&1) && rc=0 || rc=$?
+    chmod 644 "$FIXTURES/8021-dependent-unwritable.erg"
+    if [ "$rc" -eq 0 ] && echo "$OUT" | grep -q "CLOSED"; then
+        pass "close: dependent write failure keeps close success"
+    else
+        fail "close: dependent write failure keeps close success (rc=$rc, got: $OUT)"
+    fi
+    if echo "$OUT" | grep -q "warning: cannot write"; then
+        pass "close: dependent write failure emits warning"
+    else
+        fail "close: dependent write failure emits warning (got: $OUT)"
+    fi
 fi
 
 # --- Ambiguous ID (two files match) exits 1 with "ambiguous" ---
