@@ -127,6 +127,37 @@ Shell (autofix on write): `erg tag <id> needs-human` on a ticket with an
 interior header blank produces a file whose header block has no interior
 blank line afterwards.
 
+## Spec sync (required — not optional)
+
+This change alters parser-observable behaviour, so the docs must move in
+the same PR. Per `spec-erg-v1.md`: "Any divergence between this document
+and the `erg` binary must be resolved by aligning the specification with
+the behavior." Landing the code without the doc update is a divergence
+and must not merge. Three artifacts to keep in lockstep:
+
+1. **`spec-erg-v1.md`** (normative) — the sentence "A blank line ends the
+   header block" (§ Structure) is now wrong as written. Replace it with:
+   the header block ends at the first blank line that is *not* followed
+   by another header line; an interior blank (blank followed by more
+   header-shaped lines before `--- log ---`) is tolerated on read,
+   normalised on write, and warned by `erg check`. Also extend the
+   "Postel's Law" section to name the three tiers explicitly, since it
+   currently reads "strict on write" without qualification.
+2. **`pep-erg-v1.md`** (rationale) — record *why* the literal
+   "blank-ends-header" rule was relaxed (silent dropping of
+   `Blocked-by`/`Closed` masked validation errors), so the decision is
+   traceable and a future reader does not "fix" it back.
+3. **`docs/erg-manual.md`** — update the `erg check` warnings list to
+   include the interior-header-blank warning, and bump the
+   "Generated-from" binary header to the rebuilt binary (the manual
+   carries a binary-hash provenance line, cf. commit d1dcb0d).
+
+Acceptance: a reviewer reading only `spec-erg-v1.md` must be able to
+predict the parser's behaviour on an interior header blank without
+reading the Go source. The closed tickets 0096 ("align spec/pep/manual")
+and 0127 ("spec/pep alignment gaps") establish that these three move
+together — do not break that.
+
 ## Exit criteria
 
 - [ ] Headers below an interior blank line are parsed (read tolerance);
@@ -136,7 +167,10 @@ blank line afterwards.
       they rewrite a file.
 - [ ] `erg check` warns (non-fatal) on interior header blanks.
 - [ ] `erg validate` still passes such files (hygiene, not violation).
-- [ ] Spec sentence updated to describe the tolerant behaviour.
+- [ ] **Spec sync done in the same PR**: `spec-erg-v1.md` sentence +
+      Postel's-Law section updated, `pep-erg-v1.md` rationale recorded,
+      `docs/erg-manual.md` warnings list + Generated-from header bumped.
+      Spec and binary must not diverge on merge.
 - [ ] Go + shell tests green; rebuilt binary committed at `tickets/erg`.
 
 ## Notes
