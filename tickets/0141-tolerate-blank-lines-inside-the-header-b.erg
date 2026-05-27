@@ -61,18 +61,30 @@ Apply the Robustness Principle (already invoked in spec-erg-v1.md
   parsed normally instead of being discarded. This fixes both failure
   modes above — refs/tags/closed are seen, required headers are found.
 - **Autofix on write.** Any command that rewrites a ticket (`close`,
-  `tag`, `untag`, `migrate`, and the `Blocked-by` removal in `close`
-  step 3) strips stray blank lines from inside the header block as part
-  of its edit, so files self-heal on the next mutation.
+  `tag`, `untag`, and the `Blocked-by` removal in `close` step 3) strips
+  stray blank lines from inside the header block as part of its edit, so
+  files self-heal on the next mutation.
+- **Sweep on migrate.** Autofix only fires on the *next* mutation, so
+  hand-authored files would linger dirty indefinitely. `erg migrate`
+  therefore normalises interior header blanks across the whole corpus in
+  one pass — same preamble-bounded rewrite it already does for
+  `Status:`/`Tags:`. This is the one command that proactively cleans
+  every file, giving a corpus a single "make it clean now" lever.
+- **Shout on validate.** `erg validate` (per-file, the pre-commit gate)
+  does **not** stay silent: it prints a non-fatal warning to stderr for
+  an interior header blank and still exits 0. Validate runs in the hook,
+  so this is where an author actually sees the nudge at commit time.
+  Precedent: validate already prints `WARNING:` lines to stderr (skipped
+  files) without affecting the exit code.
 - **Warn on check.** `erg check` emits a non-fatal warning (alongside
   `encodingWarnings`, `folderClosure`, etc.) when a ticket has a blank
-  line inside its header block, so the corpus surfaces files that need a
-  cleanup pass even if no command has touched them.
+  line inside its header block, so a corpus scan surfaces files that need
+  a cleanup pass even if no command has touched them.
 
-`erg validate` (per-file, strict) keeps passing these files — the blank
-is a hygiene issue, not a format violation, consistent with how BOM/CRLF
-are handled (normalised on read, warned in check, never a validate
-error).
+The blank stays a *hygiene* issue, not a hard format violation — accept
+on read keeps `validate`/`check` at exit 0, consistent with how BOM/CRLF
+are handled (normalised on read, surfaced as warnings, never fatal). The
+difference from BOM/CRLF: validate shouts here too, not only check.
 
 ## Relevant files
 
@@ -84,12 +96,17 @@ error).
   from "blank then separator / end of preamble" (terminate).
 - `src/go/close.go` — `insertClosedHeader`; the close/untag rewrite path.
 - `src/go/tag.go` — `removeTagLine`, tag insert path.
-- `src/go/migrate.go` — `migrateFile` preamble rewrite.
+- `src/go/migrate.go` — `migrateFile` preamble rewrite: add interior-blank
+  collapsing to the per-file rewrite so `erg migrate` sweeps the corpus
+  clean in one pass (mark it a `changed` reason in `migrateResult`).
 - `src/go/check.go` — add a `headerBlankLine` warning function, wire it
   into `cmdCheck` alongside the existing warnings.
-- A shared helper to collapse interior header blanks (used by both the
-  autofix-on-write paths and, conceptually, mirrored by the read path)
-  keeps the three tiers consistent.
+- `src/go/validate.go` — `cmdValidate` must shout: detect the interior
+  blank and print a non-fatal `WARNING:` line to stderr, keeping exit 0.
+- A shared helper — one `collapseHeaderBlanks([]byte) []byte` plus one
+  `hasInteriorHeaderBlank([]byte) bool` detector — feeds every tier
+  (autofix paths, migrate sweep, validate shout, check warn) so the
+  definition of "interior blank" lives in exactly one place.
 - `spec-erg-v1.md` — the "A blank line ends the header block" sentence
   needs a clause: the first blank line *followed by a non-header line*
   ends the block; interior blanks are tolerated on read, normalised on
@@ -123,6 +140,15 @@ Shell (warn on check): a fixture with an interior header blank makes
 `erg check` print a `WARN ...: blank line inside header block` line and
 still exit 0.
 
+Shell (shout on validate): `erg validate` on the same fixture prints a
+`WARNING:` line to stderr **and exits 0** — assert both (the warning is
+present, the exit code is 0, validate did not start failing).
+
+Shell (sweep on migrate): `erg migrate <dir>` on a corpus containing a
+ticket with an interior header blank rewrites that file so the blank is
+gone, reports it in the migrate summary, and is idempotent (a second run
+changes nothing).
+
 Shell (autofix on write): `erg tag <id> needs-human` on a ticket with an
 interior header blank produces a file whose header block has no interior
 blank line afterwards.
@@ -140,8 +166,9 @@ and must not merge. Three artifacts to keep in lockstep:
    the header block ends at the first blank line that is *not* followed
    by another header line; an interior blank (blank followed by more
    header-shaped lines before `--- log ---`) is tolerated on read,
-   normalised on write, and warned by `erg check`. Also extend the
-   "Postel's Law" section to name the three tiers explicitly, since it
+   normalised on write, swept by `erg migrate`, and surfaced as a
+   non-fatal warning by both `erg validate` and `erg check`. Also extend
+   the "Postel's Law" section to name these tiers explicitly, since it
    currently reads "strict on write" without qualification.
 2. **`pep-erg-v1.md`** (rationale) — record *why* the literal
    "blank-ends-header" rule was relaxed (silent dropping of
@@ -163,10 +190,13 @@ together — do not break that.
 - [ ] Headers below an interior blank line are parsed (read tolerance);
       both failure modes from Context are gone — rule 10 fires on the
       dropped `Blocked-by`, required headers are found.
-- [ ] `close`/`tag`/`untag`/`migrate` strip interior header blanks when
-      they rewrite a file.
+- [ ] `close`/`tag`/`untag` strip interior header blanks when they
+      rewrite a file.
+- [ ] `erg migrate` sweeps interior header blanks across the whole
+      corpus in one pass, reports them, and is idempotent.
 - [ ] `erg check` warns (non-fatal) on interior header blanks.
-- [ ] `erg validate` still passes such files (hygiene, not violation).
+- [ ] `erg validate` shouts: prints a non-fatal `WARNING:` to stderr on
+      an interior header blank but still exits 0 (accepts the file).
 - [ ] **Spec sync done in the same PR**: `spec-erg-v1.md` sentence +
       Postel's-Law section updated, `pep-erg-v1.md` rationale recorded,
       `docs/erg-manual.md` warnings list + Generated-from header bumped.
