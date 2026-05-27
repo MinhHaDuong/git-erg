@@ -249,6 +249,27 @@ fi
 
 rm -f "$FIXTURES/store/0005-forge-blocked.erg"
 
+# An absolute path to the binary, so the cd-based cases below still find it.
+ERG_ABS=$ERG
+case "$ERG_ABS" in /*) ;; *) ERG_ABS="$(pwd)/$ERG_ABS" ;; esac
+
+# --- Bare existing-directory name resolves as the store (no slash needed) ---
+out_slash=$($ERG list "$FIXTURES/store")
+out_bare=$(cd "$FIXTURES" && "$ERG_ABS" list store)
+if [ "$out_slash" = "$out_bare" ]; then
+    pass "list: bare existing-dir name resolves as store"
+else
+    fail "list: bare existing-dir name resolves as store (slash: $out_slash) (bare: $out_bare)"
+fi
+
+# --- 'closed' stays a filter even from inside a store with a closed/ subdir ---
+out=$(cd "$FIXTURES/store" && "$ERG_ABS" list closed)
+if echo "$out" | grep -qE '^  0003' && echo "$out" | grep -qE '^  0004' && ! echo "$out" | grep -qE '^  0001'; then
+    pass "list: 'closed' is a filter, not the closed/ directory"
+else
+    fail "list: 'closed' is a filter, not the closed/ directory (output: $out)"
+fi
+
 # --- Empty store handled ---
 mkdir -p "$FIXTURES/empty"
 output=$($ERG list "$FIXTURES/empty")

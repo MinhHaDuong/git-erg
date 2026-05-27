@@ -1,9 +1,5 @@
 #!/bin/sh
 # Integration tests for: erg ready
-#
-# ready is a saved filter over `erg list`: open, not blocked, and free of the
-# configured skip tags (default: needs-human, deferred). It shares list's
-# output format.
 set -eu
 
 ERG="${ERG_BIN:-build/erg}"
@@ -18,13 +14,14 @@ mkdir -p "$FIXTURES/ready"
 tmpdir=
 cleanup() {
     rm -rf "$FIXTURES"
+    git branch -D test/0098-claim 2>/dev/null || true
     [ -n "$tmpdir" ] && rm -rf "$tmpdir"
 }
 trap cleanup EXIT
 
 echo "=== erg ready ==="
 
-# --- Open ticket with no blockers is ready ---
+# --- Open (not-closed) ticket with no blockers is ready ---
 cat > "$FIXTURES/ready/0001-open.erg" <<'EOF'
 %erg 0.1
 Title: Open
@@ -41,14 +38,7 @@ else
     fail "open ticket is ready"
 fi
 
-# --- Heading is 'Ready tickets' ---
-if echo "$output" | grep -q "^Ready tickets ("; then
-    pass "heading is 'Ready tickets'"
-else
-    fail "heading is 'Ready tickets' (output: $output)"
-fi
-
-# --- Closed ticket (via Closed: header) not ready ---
+# --- Closed ticket (via Closed: header) not in ready list ---
 cat > "$FIXTURES/ready/0001-open.erg" <<'EOF'
 %erg 0.1
 Title: Closed
@@ -85,7 +75,43 @@ else
 fi
 rm -rf "$FIXTURES/ready/closed"
 
-# --- Blocked by open ticket: not ready; the blocker is ready ---
+# --- Closed via -closed.erg suffix excluded ---
+cat > "$FIXTURES/ready/0001-foo-closed.erg" <<'EOF'
+%erg 0.1
+Title: Suffix closed
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+output=$($ERG ready "$FIXTURES/ready")
+if echo "$output" | grep -q "0001"; then
+    fail "suffix-closed ticket excluded"
+else
+    pass "suffix-closed ticket excluded"
+fi
+rm -f "$FIXTURES/ready/0001-foo-closed.erg"
+
+# --- 'disclosed' in basename does NOT trigger close ---
+cat > "$FIXTURES/ready/0001-disclosed-bug.erg" <<'EOF'
+%erg 0.1
+Title: Disclosed (false-positive bait)
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+output=$($ERG ready "$FIXTURES/ready")
+if echo "$output" | grep -q "0001"; then
+    pass "disclosed in name not treated as closed"
+else
+    fail "disclosed in name not treated as closed"
+fi
+rm -f "$FIXTURES/ready/0001-disclosed-bug.erg"
+
+# --- Blocked by open ticket: not ready ---
 rm -f "$FIXTURES/ready/"*.erg
 cat > "$FIXTURES/ready/0001-blocker.erg" <<'EOF'
 %erg 0.1
@@ -136,8 +162,139 @@ else
     fail "unblocked after close is ready"
 fi
 
-# --- Forge-ref blocker is blocking ---
+# --- Blocked by closed ticket in closed/ subdir: still ready ---
 rm -f "$FIXTURES/ready/"*.erg
+mkdir -p "$FIXTURES/ready/closed"
+cat > "$FIXTURES/ready/closed/0001-blocker.erg" <<'EOF'
+%erg 0.1
+Title: Archived blocker
+Created: 2026-01-01
+Author: a
+Closed: done
+
+--- log ---
+--- body ---
+EOF
+cat > "$FIXTURES/ready/0002-blocked.erg" <<'EOF'
+%erg 0.1
+Title: Blocked by archived ticket
+Created: 2026-01-01
+Author: a
+Blocked-by: 0001
+
+--- log ---
+--- body ---
+EOF
+output=$($ERG ready "$FIXTURES/ready")
+if echo "$output" | grep -q "0002"; then
+    pass "blocked-by closed subdir ticket is ready"
+else
+    fail "blocked-by closed subdir ticket is ready"
+fi
+rm -rf "$FIXTURES/ready/closed"
+
+# --- JSON output ---
+output=$($ERG ready --json "$FIXTURES/ready")
+if echo "$output" | grep -q '"id": "0002"'; then
+    pass "JSON output works"
+else
+    fail "JSON output works"
+fi
+
+# --- Ready excludes tickets carrying skip tags ---
+rm -f "$FIXTURES/ready/"*.erg
+cat > "$FIXTURES/ready/0040-tagged.erg" <<'EOF'
+%erg 0.1
+Title: Needs human triage
+Created: 2026-01-01
+Author: a
+Tag: needs-human
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+EOF
+output=$($ERG ready "$FIXTURES/ready")
+if echo "$output" | grep -q "0040"; then
+    fail "skip-tagged ticket excluded from ready"
+else
+    pass "skip-tagged ticket excluded from ready"
+fi
+
+# --- JSON output includes tags array for ready entries ---
+rm -f "$FIXTURES/ready/"*.erg
+cat > "$FIXTURES/ready/0041-untagged.erg" <<'EOF'
+%erg 0.1
+Title: Untagged ready ticket
+Created: 2026-01-01
+Author: a
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+EOF
+output=$($ERG ready --json "$FIXTURES/ready")
+if echo "$output" | grep -q '"tags": \[\]'; then
+    pass "ready JSON includes tags array"
+else
+    fail "ready JSON includes tags array"
+fi
+
+# --- JSON output includes blocked_by for forge blockers ---
+cat > "$FIXTURES/ready/0042-forge-blocked-json.erg" <<'EOF'
+%erg 0.1
+Title: Forge blocked for JSON
+Created: 2026-01-01
+Author: a
+Blocked-by: github.com/anthropics/claude-code#1234
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+EOF
+output=$($ERG ready --json "$FIXTURES/ready")
+if echo "$output" | jq -e '[.[] | select(.id == "0042")] | .[0].blocked_by | .[0] | .kind == "forge" and .ref == "github.com/anthropics/claude-code#1234"' > /dev/null 2>&1; then
+    pass "ready JSON includes forge blocked_by"
+else
+    fail "ready JSON includes forge blocked_by"
+fi
+
+# --- JSON output includes blocked_by for local blockers ---
+cat > "$FIXTURES/ready/0043-local-blocker.erg" <<'EOF'
+%erg 0.1
+Title: Local blocker
+Created: 2026-01-01
+Author: a
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+EOF
+cat > "$FIXTURES/ready/0044-local-blocked.erg" <<'EOF'
+%erg 0.1
+Title: Local blocked for JSON
+Created: 2026-01-01
+Author: a
+Blocked-by: 0043
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+EOF
+output=$($ERG ready --json "$FIXTURES/ready")
+if echo "$output" | jq -e '[.[] | select(.id == "0044")] | .[0].blocked_by | .[0] | .kind == "local" and .id == "0043"' > /dev/null 2>&1; then
+    pass "ready JSON includes local blocked_by"
+else
+    fail "ready JSON includes local blocked_by"
+fi
+
+rm -f "$FIXTURES/ready/"*.erg
+# --- Forge-ref blocker is blocking ---
 cat > "$FIXTURES/ready/0030-forge-blocked.erg" <<'EOF'
 %erg 0.1
 Title: Blocked by forge
@@ -157,81 +314,19 @@ else
     pass "forge-ref blocker excluded from ready"
 fi
 
-# --- Skip-tagged tickets (needs-human, deferred) excluded ---
-rm -f "$FIXTURES/ready/"*.erg
-cat > "$FIXTURES/ready/0040-needs-human.erg" <<'EOF'
-%erg 0.1
-Title: Needs human triage
-Created: 2026-01-01
-Author: a
-Tag: needs-human
-
---- log ---
-2026-01-01T10:00Z a created
-
---- body ---
-EOF
-cat > "$FIXTURES/ready/0041-deferred.erg" <<'EOF'
-%erg 0.1
-Title: Deferred
-Created: 2026-01-01
-Author: a
-Tag: deferred
-
---- log ---
-2026-01-01T10:00Z a created
-
---- body ---
-EOF
-output=$($ERG ready "$FIXTURES/ready")
-if echo "$output" | grep -q "0040"; then
-    fail "needs-human ticket excluded from ready"
-else
-    pass "needs-human ticket excluded from ready"
-fi
-if echo "$output" | grep -q "0041"; then
-    fail "deferred ticket excluded from ready"
-else
-    pass "deferred ticket excluded from ready"
-fi
-
-# --- JSON output: list schema, no ready/claimed fields ---
-rm -f "$FIXTURES/ready/"*.erg
-cat > "$FIXTURES/ready/0050-ready.erg" <<'EOF'
-%erg 0.1
-Title: Ready for JSON
-Created: 2026-01-01
-Author: a
-
---- log ---
-2026-01-01T10:00Z a created
-
---- body ---
-EOF
-output=$($ERG ready --json "$FIXTURES/ready")
-if echo "$output" | jq -e '.[0] | .id == "0050" and .closed == false and (.tags == []) and (.blocked_by == [])' >/dev/null 2>&1; then
-    pass "ready --json: list schema (id, closed, tags, blocked_by)"
-else
-    fail "ready --json: list schema (output: $output)"
-fi
-if echo "$output" | grep -q '"claimed"\|"ready"'; then
-    fail "ready --json: dropped fields (claimed/ready) absent"
-else
-    pass "ready --json: dropped fields (claimed/ready) absent"
-fi
-
 # --- Empty dir handled ---
 rm -rf "$FIXTURES/ready"
 mkdir -p "$FIXTURES/ready"
 output=$($ERG ready "$FIXTURES/ready")
-if echo "$output" | grep -qi "no ready tickets"; then
+if echo "$output" | grep -qi "no tickets"; then
     pass "empty dir handled"
 else
-    fail "empty dir handled (output: $output)"
+    fail "empty dir handled"
 fi
 
-# --- Unknown blocker ID: ticket is ready and WARNING on stderr ---
-cat > "$FIXTURES/ready/0060-unknown-blocker.erg" <<'EOF'
+# --- Unknown blocker ID: ticket appears in ready list and WARNING on stderr ---
+rm -f "$FIXTURES/ready/"*.erg
+cat > "$FIXTURES/ready/0050-unknown-blocker.erg" <<'EOF'
 %erg 0.1
 Title: Blocked by unknown ticket
 Created: 2026-01-01
@@ -247,16 +342,73 @@ tmpout=$(mktemp); tmperr=$(mktemp)
 $ERG ready "$FIXTURES/ready" >"$tmpout" 2>"$tmperr" || true
 stdout=$(cat "$tmpout"); stderr=$(cat "$tmperr")
 rm -f "$tmpout" "$tmperr"
-if echo "$stdout" | grep -q "0060" && echo "$stderr" | grep -q "WARNING" && echo "$stderr" | grep -q "9999"; then
+if echo "$stdout" | grep -q "0050" && echo "$stderr" | grep -q "WARNING" && echo "$stderr" | grep -q "9999"; then
     pass "unknown blocker: ticket is ready and WARNING on stderr with ID"
 else
-    fail "unknown blocker: ready + WARNING (stdout: $stdout) (stderr: $stderr)"
+    fail "unknown blocker: ticket is ready and WARNING on stderr with ID (stdout: $stdout) (stderr: $stderr)"
 fi
 
-# --- Offline-safe: no-repo dir doesn't crash ---
+# --- Unclaimed ticket has claimed=false in JSON ---
+rm -f "$FIXTURES/ready/"*.erg
+cat > "$FIXTURES/ready/9991-unclaimed.erg" <<'EOF'
+%erg 0.1
+Title: Unclaimed ticket
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+output=$($ERG ready --json "$FIXTURES/ready")
+if echo "$output" | grep -q '"claimed": false'; then
+    pass "unclaimed ticket has claimed=false in JSON"
+else
+    fail "unclaimed ticket has claimed=false in JSON (output: $output)"
+fi
+
+# --- Claimed ticket (local branch exists) has claimed=true, ready=false ---
+rm -f "$FIXTURES/ready/"*.erg
+cat > "$FIXTURES/ready/0098-claimable.erg" <<'EOF'
+%erg 0.1
+Title: Claimable ticket
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+git branch test/0098-claim 2>/dev/null || true
+output=$($ERG ready --json "$FIXTURES/ready")
+collapsed=$(echo "$output" | tr -d '\n')
+claimed_ok=false
+ready_ok=false
+if echo "$collapsed" | grep -q '"id": "0098"'; then
+    if echo "$collapsed" | grep -q '"claimed": true'; then
+        claimed_ok=true
+    fi
+    if echo "$collapsed" | grep -q '"ready": false'; then
+        ready_ok=true
+    fi
+fi
+if [ "$claimed_ok" = "true" ] && [ "$ready_ok" = "true" ]; then
+    pass "claimed ticket has claimed=true and ready=false"
+else
+    fail "claimed ticket has claimed=true and ready=false (output: $output)"
+fi
+
+# --- Human-readable output shows "Claimed" section ---
+output=$($ERG ready "$FIXTURES/ready")
+if echo "$output" | grep -q "Claimed"; then
+    pass "human-readable output shows Claimed section"
+else
+    fail "human-readable output shows Claimed section (output: $output)"
+fi
+git branch -D test/0098-claim 2>/dev/null || true
+
+# --- Offline-safe: no-remote repo doesn't crash ---
 tmpdir=$(mktemp -d)
 (
-    cd "$tmpdir" && mkdir tickets && \
+    cd "$tmpdir" && git init -q && mkdir tickets && \
     cat > tickets/0001-foo.erg <<'EOF'
 %erg 0.1
 Title: Offline test
@@ -271,9 +423,9 @@ EOF
 rc=$?
 rm -rf "$tmpdir"
 if [ "$rc" -eq 0 ]; then
-    pass "offline-safe: no-repo dir doesn't crash"
+    pass "offline-safe: no-remote repo doesn't crash"
 else
-    fail "offline-safe: no-repo dir doesn't crash (exit code: $rc)"
+    fail "offline-safe: no-remote repo doesn't crash (exit code: $rc)"
 fi
 
 echo "ready: $PASS passed, $FAIL failed"

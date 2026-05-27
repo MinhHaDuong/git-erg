@@ -8,13 +8,8 @@ import (
 	"strings"
 )
 
-// blockedByEntry describes one unsatisfied blocker of a ticket: a forge ref
-// (offline-unknown, always blocking) or an open local ticket.
-type blockedByEntry struct {
-	kind string
-	id   string
-	ref  string
-}
+// blockedByEntry (defined in ready.go) describes one unsatisfied blocker: a
+// forge ref (offline-unknown, always blocking) or an open local ticket.
 
 type listEntry struct {
 	id, title, file string
@@ -143,9 +138,10 @@ Open is the default: with no open/closed term and without --all, only open
 tickets are shown. --all drops that default so closed tickets appear too
 (marked [closed]). Tickets are sorted by ID ascending.
 
-DIR (a path argument containing '/', or '.') selects the ticket store; every
-other bare word is a filter term, so 'erg ls closed' lists closed tickets while
-'erg ls tickets/' lists the store at tickets/.
+DIR selects the ticket store: an argument naming an existing directory (or one
+containing '/'), e.g. 'erg ls tickets/'. The pseudo-tags closed/open/blocked are
+always filter terms, so 'erg ls closed' lists closed tickets even from inside a
+store that contains a closed/ directory.
 
 Without --json, prints a human-readable line per ticket. With --json, prints a
 JSON array where each element has the fields: id, title, file, closed, tags,
@@ -161,12 +157,24 @@ Examples:
   erg ls --all blocked        all blocked tickets, open or closed
 `
 
+// pseudoTagSet holds the computed filter terms. They are always filters, never
+// directory arguments — so `erg ls closed` filters even from inside a store
+// that happens to contain a closed/ subdirectory.
+var pseudoTagSet = map[string]bool{"closed": true, "open": true, "blocked": true}
+
 // isDirArg reports whether a bare argument denotes the ticket store directory
-// rather than a filter term. A term is a directory when it contains a path
-// separator or is the current/parent directory, which keeps slash-less words
-// (including the pseudo-tags closed/open/blocked) as filter terms.
+// rather than a filter term. An argument is a directory when it names an
+// existing directory, contains a path separator, or is the current/parent
+// directory. The pseudo-tags closed/open/blocked are reserved as filter terms.
 func isDirArg(arg string) bool {
-	return strings.Contains(arg, "/") || arg == "." || arg == ".."
+	if pseudoTagSet[arg] {
+		return false
+	}
+	if strings.Contains(arg, "/") || arg == "." || arg == ".." {
+		return true
+	}
+	info, err := os.Stat(arg)
+	return err == nil && info.IsDir()
 }
 
 // cmdList implements `erg list [dir] [tag...] [not tag...] [--all] [--json]`.
