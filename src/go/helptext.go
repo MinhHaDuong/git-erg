@@ -15,7 +15,7 @@ type commandEntry struct {
 var commands = []commandEntry{
 	{"validate", "FILES...", summaryValidate, helpValidate},
 	{"check", "[DIR]", summaryCheck, helpCheck},
-	{"list", "[DIR] [--all] [--json]", summaryList, helpList},
+	{"list", "[DIR] [TAG...] [not TAG...] [--all] [--json]", summaryList, helpList},
 	{"ready", "[DIR] [--json]", summaryReady, helpReady},
 	{"next-id", "[DIR]", summaryNextID, helpNextID},
 	{"new", "TITLE [DIR]", summaryNew, helpNew},

@@ -5,7 +5,7 @@
 //
 //	erg validate FILE...
 //	erg check    [dir]
-//	erg list     [dir] [--all] [--json]
+//	erg list     [dir] [tag...] [not tag...] [--all] [--json]
 //	erg ready    [dir] [--json]
 //	erg next-id  [dir]
 //	erg new      TITLE [DIR]

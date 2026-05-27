@@ -160,6 +160,95 @@ else
     fail "ls --help: shows list help"
 fi
 
+# --- Forge-blocked ticket (offline-unknown ref counts as blocked) ---
+cat > "$FIXTURES/store/0005-forge-blocked.erg" <<'EOF'
+%erg 0.1
+Title: Blocked by a forge issue
+Created: 2026-01-01
+Author: a
+Blocked-by: github.com/anthropics/claude-code#1234
+
+--- log ---
+--- body ---
+EOF
+
+# IDs are matched anchored to the line-start column (^  NNNN) so a ticket's
+# "(blocked-by: NNNN)" suffix never counts as a hit for ticket NNNN.
+
+# --- Positive tag filter: only tickets carrying the tag ---
+output=$($ERG list needs-human "$FIXTURES/store")
+if echo "$output" | grep -qE '^  0002' && ! echo "$output" | grep -qE '^  0001'; then
+    pass "list TAG: keeps only tagged tickets"
+else
+    fail "list TAG: keeps only tagged tickets (output: $output)"
+fi
+
+# --- Negative tag filter: drops tickets carrying the tag ---
+output=$($ERG list not needs-human "$FIXTURES/store")
+if echo "$output" | grep -qE '^  0001' && ! echo "$output" | grep -qE '^  0002'; then
+    pass "list not TAG: drops tagged tickets"
+else
+    fail "list not TAG: drops tagged tickets (output: $output)"
+fi
+
+# --- blocked pseudo-tag: local open blocker and forge ref both count ---
+output=$($ERG list blocked "$FIXTURES/store")
+if echo "$output" | grep -qE '^  0002' && echo "$output" | grep -qE '^  0005' && ! echo "$output" | grep -qE '^  0001'; then
+    pass "list blocked: local + forge blockers included, unblocked excluded"
+else
+    fail "list blocked: local + forge blockers included, unblocked excluded (output: $output)"
+fi
+
+# --- not blocked: drops blocked tickets ---
+output=$($ERG list not blocked "$FIXTURES/store")
+if echo "$output" | grep -qE '^  0001' && ! echo "$output" | grep -qE '^  0002' && ! echo "$output" | grep -qE '^  0005'; then
+    pass "list not blocked: drops blocked tickets"
+else
+    fail "list not blocked: drops blocked tickets (output: $output)"
+fi
+
+# --- closed pseudo-tag overrides the implicit open default ---
+output=$($ERG list closed "$FIXTURES/store")
+if echo "$output" | grep -qE '^  0003' && echo "$output" | grep -qE '^  0004' && ! echo "$output" | grep -qE '^  0001'; then
+    pass "list closed: shows closed tickets only"
+else
+    fail "list closed: shows closed tickets only (output: $output)"
+fi
+
+# --- contradictory open + closed yields nothing ---
+output=$($ERG list open closed "$FIXTURES/store")
+if echo "$output" | grep -qi "no tickets found"; then
+    pass "list open closed: empty (mutually exclusive)"
+else
+    fail "list open closed: empty (output: $output)"
+fi
+
+# --- conjunction of positive and negative terms ---
+output=$($ERG list open not blocked "$FIXTURES/store")
+if echo "$output" | grep -qE '^  0001' && ! echo "$output" | grep -qE '^  0002' && ! echo "$output" | grep -qE '^  0003'; then
+    pass "list open not blocked: conjunction filters correctly"
+else
+    fail "list open not blocked: conjunction filters correctly (output: $output)"
+fi
+
+# --- trailing 'not' with no tag is an error ---
+if $ERG list "$FIXTURES/store" not >/dev/null 2>&1; then
+    fail "list: dangling 'not' should error"
+else
+    pass "list: dangling 'not' errors"
+fi
+
+# --- JSON respects filters ---
+output=$($ERG list --json blocked "$FIXTURES/store")
+if echo "$output" | jq -e 'all(.[]; .blocked_by | length > 0)' >/dev/null 2>&1 \
+    && echo "$output" | jq -e 'any(.[]; .id == "0005")' >/dev/null 2>&1; then
+    pass "list --json blocked: every entry has a blocker"
+else
+    fail "list --json blocked: every entry has a blocker (output: $output)"
+fi
+
+rm -f "$FIXTURES/store/0005-forge-blocked.erg"
+
 # --- Empty store handled ---
 mkdir -p "$FIXTURES/empty"
 output=$($ERG list "$FIXTURES/empty")
