@@ -1,7 +1,7 @@
 # erg manual
 
 Author: minh.ha-duong@cnrs.fr
-Generated from: erg built 2026-05-27T20:55:47Z rev 90403c0
+Generated from: erg built 2026-05-27T21:00:11Z rev ae843bd
 
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
@@ -84,9 +84,10 @@ Open is the default: with no open/closed term and without --all, only open
 tickets are shown. --all drops that default so closed tickets appear too
 (marked [closed]). Tickets are sorted by ID ascending.
 
-DIR (a path argument containing '/', or '.') selects the ticket store; every
-other bare word is a filter term, so 'erg ls closed' lists closed tickets while
-'erg ls tickets/' lists the store at tickets/.
+DIR selects the ticket store: an argument naming an existing directory (or one
+containing '/'), e.g. 'erg ls tickets/'. The pseudo-tags closed/open/blocked are
+always filter terms, so 'erg ls closed' lists closed tickets even from inside a
+store that contains a closed/ directory.
 
 Without --json, prints a human-readable line per ticket. With --json, prints a
 JSON array where each element has the fields: id, title, file, closed, tags,
@@ -103,19 +104,23 @@ Examples:
 
 ## erg ready [DIR] [--json]
 
-List tickets ready for work — a saved filter over 'erg list'.
+List tickets ready for work.
 
 A ticket is ready when all of the following hold:
 
-  - Open (not closed).
-  - Not blocked: no Blocked-by pointing at an open local ticket, and no forge-ref
-    Blocked-by (forge refs are offline-unknown, treated as blocking).
-  - Carries none of the skip tags (default: needs-human, deferred; configurable
-    via tickets/.ergrc [tags]).
+  - Not closed (no Closed: header and not in a closed/ directory).
+  - No Blocked-by headers pointing to open local tickets.
+  - No forge-ref Blocked-by lines (forge refs are offline-unknown, treated as blocking).
+  - No tags from the vocabulary (default: needs-human, deferred; see tickets/.ergrc [tags]).
 
-Equivalent to 'erg list open not blocked not needs-human not deferred', and
-shares its output: a human-readable line per ticket, or --json for a JSON array
-with the fields id, title, file, closed, tags, blocked_by.
+Tickets that pass the readiness test but have a git branch containing the
+ticket ID are reported as "claimed" (shown separately, not in the ready list).
+
+Without --json, prints a human-readable summary. With --json, prints a JSON
+array where each element has the fields: id, title, file, ready, claimed, tags, blocked_by.
+
+The JSON output covers all open tickets (not just ready ones), so callers can
+filter and sort by any field. ready=true implies blocked_by is empty.
 
 ## erg next-id [DIR]
 
