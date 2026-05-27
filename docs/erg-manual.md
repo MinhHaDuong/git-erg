@@ -1,7 +1,7 @@
 # erg manual
 
 Author: minh.ha-duong@cnrs.fr
-Generated from: erg built 2026-05-27T20:12:02Z rev b084e79
+Generated from: erg built 2026-05-27T20:37:48Z rev 2934507
 
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
@@ -66,6 +66,24 @@ Additionally emits warnings (non-fatal) for:
     read; run 'erg migrate' to normalise).
 
 Exit codes: 0 on pass (warnings are printed but do not affect exit code), 1 on any violation.
+
+## erg list [DIR] [--all] [--json]
+
+List tickets, one per line: ID, title, tags, and blocked-by refs.
+
+By default only open tickets are shown. With --all, closed tickets are included
+too (and marked [closed] in the human-readable output). Tickets are sorted by ID
+ascending.
+
+Without --json, prints a human-readable line per ticket. With --json, prints a
+JSON array where each element has the fields: id, title, file, closed, tags,
+blocked_by.
+
+Alias: erg ls.
+
+Unlike 'erg ready', which shows only unblocked tickets you can pick up now,
+'erg list' shows the full picture — blocked and tagged tickets included — so it
+answers "what is still open?".
 
 ## erg ready [DIR] [--json]
 
