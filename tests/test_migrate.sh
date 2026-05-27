@@ -189,7 +189,7 @@ if grep -q "Body code block referencing Tags: should stay literal." "$FIXTURES/0
 else
     fail "Tags: in body code block preserved verbatim"
 fi
-if echo "$out" | grep -qE "Tags: . Tag: rewrite: [1-9]"; then
+if echo "$out" | grep -qE "Tags: → Tag: rewrite: [1-9]"; then
     pass "summary reports Tags→Tag rewrite count"
 else
     fail "summary reports Tags→Tag rewrite count (got: $out)"

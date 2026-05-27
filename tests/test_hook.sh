@@ -19,6 +19,10 @@ cd "$REPO"
 git init -q -b main
 git config user.email "test@example.com"
 git config user.name "Test"
+# Keep the sandbox repo hermetic: this suite exercises the pre-commit hook,
+# not commit signing. Disable signing locally so the test does not depend on
+# the host's global git config (which may point at an unreachable signer).
+git config commit.gpgsign false
 
 # Install the hook fragment
 mkdir -p .git/hooks

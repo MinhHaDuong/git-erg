@@ -88,14 +88,20 @@ fi
 # O_EXCL guards against concurrent races (untestable sequentially).
 # Test the adjacent error path: erg new exits non-zero when the target
 # directory is not writable.
-mkdir -p "$TDIR/dupe"
-chmod 000 "$TDIR/dupe"
-if $ERG new "dupe test" "$TDIR/dupe" 2>/dev/null; then
-    chmod 755 "$TDIR/dupe"
-    fail "file creation error: erg new exits non-zero on unwritable dir"
+if [ "$(id -u)" -eq 0 ]; then
+    # chmod-based write protection is a no-op for root; this path can only be
+    # exercised as an unprivileged user.
+    echo "  SKIP (root): erg new exits non-zero on unwritable dir"
 else
-    chmod 755 "$TDIR/dupe"
-    pass "file creation error: erg new exits non-zero on unwritable dir"
+    mkdir -p "$TDIR/dupe"
+    chmod 000 "$TDIR/dupe"
+    if $ERG new "dupe test" "$TDIR/dupe" 2>/dev/null; then
+        chmod 755 "$TDIR/dupe"
+        fail "file creation error: erg new exits non-zero on unwritable dir"
+    else
+        chmod 755 "$TDIR/dupe"
+        pass "file creation error: erg new exits non-zero on unwritable dir"
+    fi
 fi
 
 # --- Default dir is 'tickets' (relative) ---
