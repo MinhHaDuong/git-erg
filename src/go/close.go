@@ -93,6 +93,7 @@ func cmdClose(args []string) int {
 		return 1
 	}
 	content = appendLogLine(content, logLine)
+	content = string(collapseHeaderBlanks([]byte(content)))
 
 	if err := os.WriteFile(ticketPath, []byte(content), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "close: cannot write %s: %v\n", ticketPath, err)
@@ -139,6 +140,7 @@ func removeBlockedByRef(ticketDir, closedID, timestamp, author string) {
 		updated := removeBlockedByLine(string(data), closedID)
 		logLine := fmt.Sprintf("%s %s note blocker %s closed — Blocked-by removed.", timestamp, author, closedID)
 		updated = appendLogLine(updated, logLine)
+		updated = string(collapseHeaderBlanks([]byte(updated)))
 		if err := os.WriteFile(t.Path, []byte(updated), 0644); err != nil {
 			fmt.Fprintf(os.Stderr, "close: warning: cannot write %s: %v\n", t.Path, err)
 		}

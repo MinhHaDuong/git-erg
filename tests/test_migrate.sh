@@ -242,6 +242,36 @@ else
     pass "validate rejects unmigrated Status:"
 fi
 
+# --- Interior header blank: swept across the corpus, reported, idempotent ---
+printf '%%erg 0.1\nTitle: Interior blank\nCreated: 2026-01-01\nAuthor: claude\n\nTag: needs-human\nBlocked-by: 0001\n\n--- log ---\n2026-01-01T10:00Z claude created\n\n--- body ---\nBody.\n' > "$FIXTURES/0020-interior-blank.erg"
+out=$($ERG migrate "$FIXTURES" 2>&1)
+# The blank between Author: and Tag: must be gone; the terminating blank
+# before --- log --- must survive (Tag/Blocked-by now sit in the header block).
+if awk '/^Author: claude$/{getline n; if(n==""){found=1}} END{exit !found}' "$FIXTURES/0020-interior-blank.erg"; then
+    fail "migrate sweep: interior header blank removed"
+else
+    pass "migrate sweep: interior header blank removed"
+fi
+if grep -q "^Tag: needs-human$" "$FIXTURES/0020-interior-blank.erg" \
+    && grep -q "^Blocked-by: 0001$" "$FIXTURES/0020-interior-blank.erg"; then
+    pass "migrate sweep: headers below the blank preserved"
+else
+    fail "migrate sweep: headers below the blank preserved"
+fi
+if echo "$out" | grep -qE "interior header blank sweep: [1-9]"; then
+    pass "summary reports interior header blank sweep count"
+else
+    fail "summary reports interior header blank sweep count (got: $out)"
+fi
+cp "$FIXTURES/0020-interior-blank.erg" "$FIXTURES/snapshot-0020"
+$ERG migrate "$FIXTURES" >/dev/null
+if cmp -s "$FIXTURES/0020-interior-blank.erg" "$FIXTURES/snapshot-0020"; then
+    pass "migrate sweep: idempotent (second run no-op)"
+else
+    fail "migrate sweep: idempotent (second run no-op)"
+fi
+rm -f "$FIXTURES/snapshot-0020"
+
 # --- Layout migration: tools/, FORMAT.md removed; archive/ → closed/; init refreshed ---
 LDIR=$(mktemp -d)
 trap 'rm -rf "$LDIR"' EXIT

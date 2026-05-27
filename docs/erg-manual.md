@@ -1,7 +1,7 @@
 # erg manual
 
 Author: minh.ha-duong@cnrs.fr
-Generated from: erg built 2026-05-12T13:53:49Z rev 10bd3fe
+Generated from: erg built 2026-05-27T20:05:08Z rev 1590f96
 
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
@@ -62,6 +62,8 @@ Additionally emits warnings (non-fatal) for:
 
   - Folder/header mismatch: open ticket in closed/ or closed ticket not in closed/.
   - Stray Go source files (*.go, go.mod, go.sum) inside the ticket store directory.
+  - Interior header blank: a blank line inside the header block (tolerated on
+    read; run 'erg migrate' to normalise).
 
 Exit codes: 0 on pass (warnings are printed but do not affect exit code), 1 on any violation.
 

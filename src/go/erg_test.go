@@ -694,3 +694,118 @@ func TestEncodingWarnings(t *testing.T) {
 		}
 	})
 }
+
+// TestParse_BlankLineInsideHeaderBlock pins the read-tolerance tier from
+// ticket 0141: a stray blank line inside the header block must not discard
+// the headers below it. Before the fix both Tag and Blocked-by landed in the
+// silently-dropped gap, so the ticket validated clean and masked real errors.
+func TestParse_BlankLineInsideHeaderBlock(t *testing.T) {
+	src := "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\n\n" +
+		"Tag: needs-human\nBlocked-by: 0002\n\n" +
+		"--- log ---\n2026-05-27T10:00Z a created\n\n--- body ---\n"
+	e, _ := parseErgBytes([]byte(src), "0001-x.erg")
+	if len(e.Tags) != 1 || e.Tags[0] != "needs-human" {
+		t.Fatalf("Tag after interior blank was dropped: %v", e.Tags)
+	}
+	if len(e.BlockedBys) != 1 {
+		t.Fatalf("Blocked-by after interior blank was dropped: %v", e.BlockedBys)
+	}
+}
+
+// TestParse_BlankBeforeRequiredHeaderFound pins the second failure mode: a
+// blank line after Title must not hide Created/Author below it (they used to
+// land in the dropped gap, producing misleading "missing required header"
+// errors).
+func TestParse_BlankBeforeRequiredHeaderFound(t *testing.T) {
+	src := "%erg 0.1\nTitle: t\n\nCreated: 2026-05-27\nAuthor: a\n\n--- log ---\n--- body ---\n"
+	_, errs := parseErgBytes([]byte(src), "0001-x.erg")
+	for _, e := range errs {
+		if strings.Contains(e, "missing or empty required header") {
+			t.Fatalf("required header below interior blank reported missing: %v", errs)
+		}
+	}
+}
+
+// TestBlankEndsHeaderBlock_TerminatesNormally guards the boundary: the blank
+// that legitimately precedes --- log --- must still end the header block, so
+// trailing gap content is not swept back into the headers.
+func TestParse_TrailingBlankStillEndsHeaderBlock(t *testing.T) {
+	src := "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\n\nignored gap text\n--- log ---\n--- body ---\n"
+	e, _ := parseErgBytes([]byte(src), "0001-x.erg")
+	if e.Title != "t" || e.Created != "2026-05-27" || e.Author != "a" {
+		t.Fatalf("headers before the terminating blank were lost: %+v", e)
+	}
+}
+
+func TestHasInteriorHeaderBlank(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want bool
+	}{
+		{
+			name: "interior blank between header clusters",
+			src:  "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\n\nTag: needs-human\n--- log ---\n--- body ---\n",
+			want: true,
+		},
+		{
+			name: "blank right after magic before headers",
+			src:  "%erg 0.1\n\nTitle: t\nCreated: 2026-05-27\nAuthor: a\n--- log ---\n--- body ---\n",
+			want: true,
+		},
+		{
+			name: "only the terminating blank before separator",
+			src:  "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\n\n--- log ---\n--- body ---\n",
+			want: false,
+		},
+		{
+			name: "no blank at all",
+			src:  "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\n--- log ---\n--- body ---\n",
+			want: false,
+		},
+		{
+			name: "trailing gap text after blank is not interior",
+			src:  "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\n\ngap line\n--- log ---\n--- body ---\n",
+			want: false,
+		},
+		{
+			name: "blank lines in the body are untouched",
+			src:  "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\n\n--- log ---\n--- body ---\npara one\n\npara two\n",
+			want: false,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := hasInteriorHeaderBlank([]byte(c.src)); got != c.want {
+				t.Errorf("hasInteriorHeaderBlank = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+func TestCollapseHeaderBlanks(t *testing.T) {
+	t.Run("removes interior blank keeps terminating blank", func(t *testing.T) {
+		src := "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\n\nTag: needs-human\nBlocked-by: 0002\n\n--- log ---\n2026-05-27T10:00Z a created\n--- body ---\nbody\n"
+		want := "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\nTag: needs-human\nBlocked-by: 0002\n\n--- log ---\n2026-05-27T10:00Z a created\n--- body ---\nbody\n"
+		got := string(collapseHeaderBlanks([]byte(src)))
+		if got != want {
+			t.Errorf("collapseHeaderBlanks\n got: %q\nwant: %q", got, want)
+		}
+	})
+
+	t.Run("idempotent on clean file", func(t *testing.T) {
+		src := "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\n\n--- log ---\n--- body ---\n"
+		got := string(collapseHeaderBlanks([]byte(src)))
+		if got != src {
+			t.Errorf("collapse altered a clean file:\n got: %q\nwant: %q", got, src)
+		}
+	})
+
+	t.Run("body blank lines untouched", func(t *testing.T) {
+		src := "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\n\n--- log ---\n--- body ---\npara one\n\npara two\n"
+		got := string(collapseHeaderBlanks([]byte(src)))
+		if got != src {
+			t.Errorf("collapse touched body blanks:\n got: %q\nwant: %q", got, src)
+		}
+	})
+}

@@ -53,6 +53,7 @@ func cmdMigrate(args []string) int {
 	migratedOther := 0
 	migratedTags := 0
 	migratedMagic := 0
+	migratedBlanks := 0
 	alreadyClean := 0
 
 	err = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
@@ -83,6 +84,9 @@ func cmdMigrate(args []string) int {
 		if res.magicRewritten {
 			migratedMagic++
 		}
+		if res.blanksSwept {
+			migratedBlanks++
+		}
 		return nil
 	})
 	if err != nil {
@@ -95,6 +99,7 @@ func cmdMigrate(args []string) int {
 		total, migratedClosed, migratedOther)
 	fmt.Printf("Tags: → Tag: rewrite: %d tickets\n", migratedTags)
 	fmt.Printf("%%erg v1 → %%erg 0.1 rewrite: %d tickets\n", migratedMagic)
+	fmt.Printf("interior header blank sweep: %d tickets\n", migratedBlanks)
 	fmt.Printf("already clean: %d tickets\n", alreadyClean)
 
 	// Layout migration: only run when dir is named "tickets" (canonical layout).
@@ -204,6 +209,7 @@ type migrateResult struct {
 	statusStripped bool // at least one Status: line was removed (closed or open/doing/pending)
 	tagsRenamed    bool // at least one preamble `Tags:` line was renamed to `Tag:`
 	magicRewritten bool // legacy `%erg v1` magic line was rewritten to `%erg 0.1`
+	blanksSwept    bool // at least one interior header blank line was removed
 }
 
 // migrateFile rewrites a single .erg file in place. The rewrite is preamble-bounded
@@ -296,6 +302,15 @@ func migrateFile(path string) (migrateResult, error) {
 	if hadTrailingNewline {
 		rejoined += "\n"
 	}
+
+	// Sweep interior header blanks across the corpus (ticket 0141). Autofix
+	// only fires on the next mutation; migrate is the one command that
+	// proactively cleans every file, so hand-authored blanks do not linger.
+	if hasInteriorHeaderBlank([]byte(rejoined)) {
+		rejoined = string(collapseHeaderBlanks([]byte(rejoined)))
+		res.blanksSwept = true
+	}
+
 	if rejoined == original {
 		return res, nil
 	}
