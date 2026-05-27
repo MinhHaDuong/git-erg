@@ -5,6 +5,7 @@
 //
 //	erg validate FILE...
 //	erg check    [dir]
+//	erg list     [dir] [--all] [--json]
 //	erg ready    [dir] [--json]
 //	erg next-id  [dir]
 //	erg new      TITLE [DIR]
@@ -148,6 +149,10 @@ func main() {
 	cmd := os.Args[1]
 	rest := os.Args[2:]
 
+	if canonical, ok := commandAliases[cmd]; ok {
+		cmd = canonical
+	}
+
 	// erg --help --all  OR  erg --help=all  → print all command help
 	if cmd == "--help=all" || (cmd == "--help" || cmd == "-h") && len(rest) > 0 && rest[0] == "--all" {
 		genFrom := "Generated from: erg"
@@ -187,6 +192,8 @@ func main() {
 		exitCode = cmdValidate(rest)
 	case "check":
 		exitCode = cmdCheck(rest)
+	case "list":
+		exitCode = cmdList(rest)
 	case "ready":
 		exitCode = cmdReady(rest)
 	case "next-id":
