@@ -9,24 +9,30 @@ Status: Working draft
 - **Offline-first**: no network, no API, no database
 - **Zero runtime dependencies**: single Go binary, shell tests
 - **Agent-friendly by design**: the spec is the interface, the binary is the guardrail and token-saving utilities
-- **One artifact, four users**: the same `tickets/erg` binary serves hooks, CI, agents, and humans through a single bash interface (see below)
+- **Two transports, four users**: POSIX is the first transport, the `erg` CLI is the second, and the same pair serves hooks, CI, agents, and humans (see below)
 
-## One artifact, four users
+## POSIX first, CLI second
 
-`tickets/erg` is built to serve four distinct consumers through the same CLI,
-with no per-consumer wiring:
+`.erg` files are plain text. The *first* transport — and the contract every
+component agrees on — is POSIX: a `.erg` file IS a ticket; `cat`, `grep`,
+`find`, `sed`, `vim`, and an agent's `Read`/`Edit` tools are the universal
+interface, available anywhere a shell runs. The `erg` binary is the *second*
+transport: a single static Go file that adds validation, atomic mutation, and
+`--json` queries on top of the same files. Both transports serve the same
+four users:
 
-| User   | How it calls `erg`                          | What it needs                          |
-|--------|---------------------------------------------|----------------------------------------|
-| Hooks  | `pre-commit` shells out to `erg validate`   | synchronous, non-interactive, exit code|
-| CI     | GitHub Actions / `make` runs `erg check`    | deterministic exit, `--json` for parse |
-| Agents | every coding agent shells out a subprocess  | low-token, predictable schema          |
-| Humans | `tickets/erg --help`, pipes to `jq`/`less`  | discoverability, tab-completion        |
+| User   | POSIX (transport #1)                | CLI (`erg`, transport #2)         |
+|--------|-------------------------------------|-----------------------------------|
+| Hooks  | `grep -l '^%erg' tickets/*.erg`     | `erg validate FILES`              |
+| CI     | `find tickets -name '*.erg'`        | `erg check tickets/`              |
+| Agents | `Read`/`Edit` on `.erg`             | `erg list --json`, `erg close ID` |
+| Humans | `cat`, `vim`, `ls tickets/`         | `erg ready`, `erg --help`         |
 
-Any second transport — an MCP server, an HTTP API, a language SDK — would have
-to serve all four to replace the CLI. None of them do. Bash is the lowest
-common denominator across hooks, CI, agents, and humans; it is also the only
-common denominator. The design rationale is in `pep-erg-v1.md` §8.
+A *third* transport — MCP, an HTTP API, a language SDK — would have to beat
+both. POSIX is already universal and zero-install; the CLI is already a
+single static binary with `--json`. There is no headroom left for a third
+layer to add value without paying installation and version-skew costs the
+project does not need. The design rationale is in `pep-erg-v1.md` §8.
 
 ## Specification
 

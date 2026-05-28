@@ -175,53 +175,55 @@ offline-unknown (blocking) until manually removed.
 
 ### 8. Agent-friendly with efficient binary helper
 
-**Choice:** The primary interface is the `erg` binary. As fallback, agents can manipulate `.erg` files directly using `Read`/`Edit` tools. The binary runs as a validator in a pre-commit hook.
+**Choice:** The primary interface is POSIX — `.erg` files are plain text, and any stock Unix tool (`cat`, `grep`, `find`, `vim`, an agent's `Read`/`Edit`) reads and writes them. The `erg` binary is a token-saving and validating helper on top of the same files, also installed as a validator in a pre-commit hook. POSIX is transport #1; the CLI is transport #2.
 
 **Rationale:** Agents are good at running CLIs and at parsing structured text, but the former is cheaper and faster.
 
-**Alternative considered:** The agent reads `.erg` files directly using `Read`/`Edit`
-tools, the binary is only a validator in the pre-commit hook, not the
-primary interface. Problem: asking an LLM to burn tokens for something that a local binary can do faster and deterministic is irresponsible.
+**Alternative considered (no second transport):** Use only POSIX — the agent reads `.erg` files directly using `Read`/`Edit` and the binary is only a validator in the pre-commit hook, not exposed as a query/mutation surface. Problem: asking an LLM to burn tokens for something a local binary can do faster and deterministically is irresponsible. The CLI exists as a token-saving optimization, not as a contract replacement.
 
-**Why a CLI, and not an MCP server.** `tickets/erg` has four distinct users, and a
-bash CLI is the only interface that serves all four with one artifact:
+**Why a CLI as transport #2, and not an MCP server.** Once transport #1 is fixed
+(POSIX, no choice in the matter — every system has it), the question is what
+the second transport should look like. A bash CLI wins because it serves the
+same four users that POSIX already serves, with no per-consumer wiring:
 
 1. **Hooks.** `pre-commit` runs `erg validate` non-interactively and reads the
    exit code. Hooks live in a shell; they cannot reasonably hand off to a
    long-running server that may or may not be running, owned by some other
-   process, or unreachable from a detached worktree.
+   process, or unreachable from a detached worktree. Before the CLI existed,
+   a `grep`-based check on transport #1 would have worked too.
 2. **CI.** GitHub Actions, GitLab runners, and local `make` targets all shell
    out the same way; `--json` feeds downstream steps. No client SDK, no
    per-runner configuration.
 3. **Agents.** Every coding agent — Claude Code, Cursor, Aider, Codex, Cline,
-   Continue, plain-Python scripts driving the API — can run a subprocess. MCP
-   support is uneven, demands per-client `settings.json` wiring in every
-   consuming repo, and locks the integration to whichever clients implement it
-   today.
-4. **Humans.** `tickets/erg --help` is self-documenting; output pipes to
-   `grep`/`jq`/`less`; the binary tab-completes. An MCP server is opaque
-   without a client.
+   Continue, plain-Python scripts driving the API — can run a subprocess, and
+   every one of them can `Read`/`Edit` files directly. No agent needs to be
+   MCP-aware to participate. MCP support is uneven, demands per-client
+   `settings.json` wiring in every consuming repo, and locks the integration
+   to whichever clients implement it today.
+4. **Humans.** `cat tickets/0042-*.erg | less` works on transport #1 without
+   `erg`; `erg --help` is self-documenting on transport #2 and output pipes to
+   `grep`/`jq`/`less`. An MCP server is opaque without a client.
 
-A second transport would have to serve all four to replace the CLI — and none of
-the candidates (MCP, HTTP API, language SDK) do. Bash is the lowest common
-denominator across hooks, CI, agents, and humans; it is also the *only* common
-denominator. The CLI further keeps the spec as the contract: the binary is a
-courtesy on top of plain files, and an agent without MCP (or without this binary
-at all) still participates by reading and writing `.erg` directly. An MCP server
+An MCP server would be a *third* transport, not a replacement for either of
+the first two. It would sit on top of the same files (POSIX) or shell out to
+the same handlers (CLI), and would have to justify the installation,
+`settings.json` wiring, and client-version skew that POSIX and the CLI both
+avoid. The headline MCP benefit — structured I/O — is already covered by
+`--json` on `list` and `ready`, and corpus sizes do not justify a long-running
+process with a lifecycle of its own. The CLI further keeps the spec as the
+contract: an agent without `erg` still participates via POSIX. An MCP server
 would tend to become the *de facto* interface, weakening the
-file-as-source-of-truth invariant the rest of the design defends. The headline
-MCP benefit — structured I/O — is already covered by `--json` on `list` and
-`ready`, and corpus sizes do not justify a long-running process with a lifecycle
-of its own.
+file-as-source-of-truth invariant the rest of the design defends.
 
-**Why not even an opt-in `erg mcp` subcommand.** Honest answer: we have not
-evaluated the need. No agent integrator has asked for it, no workflow has hit a
-shell-escaping or token-cost wall that `--json` did not solve, and the
-maintainer cost of a second transport (schema drift between CLI flags and MCP
-tool definitions, version skew across clients, a new surface for the validator
-to keep in sync) is non-trivial. The door is not closed: a stdio JSON-RPC
-wrapper over the existing handlers is a small change that would preserve §8
-while letting MCP-native clients skip the shell. We are waiting for a concrete
+**Why not even an opt-in `erg mcp` subcommand (third-transport experiment).**
+Honest answer: we have not evaluated the need. No agent integrator has asked
+for it, no workflow has hit a shell-escaping or token-cost wall that `--json`
+did not solve, and the maintainer cost of a third transport (schema drift
+between CLI flags and MCP tool definitions, version skew across clients, a new
+surface for the validator to keep in sync) is non-trivial. The door is not
+closed: a stdio JSON-RPC wrapper over the existing handlers is a small change
+that would preserve §8 while letting MCP-native clients skip the shell. We
+are waiting for a concrete
 use case before paying that cost.
 
 ### 9. Directory location: `tickets/` at repo root
