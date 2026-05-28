@@ -112,32 +112,18 @@ func printReadyText(totalCount int, openEntries, ready []readyEntry) {
 		} else {
 			fmt.Printf("%d open tickets, all blocked.\n", openCount)
 		}
-	} else {
-		fmt.Printf("Ready tickets (%d):\n", len(ready))
-		for _, r := range ready {
-			tagsSuffix := ""
-			if len(r.tags) > 0 {
-				tagsSuffix = fmt.Sprintf(" (tags: %s)", strings.Join(r.tags, ", "))
-			}
-			fmt.Printf("  %-8s %-40s %s%s\n", r.id, r.file, r.title, tagsSuffix)
-		}
+		return
 	}
-
-	var claimedEntries []readyEntry
-	for _, e := range openEntries {
-		if e.claimed {
-			claimedEntries = append(claimedEntries, e)
+	fmt.Printf("Ready tickets (%d):\n", len(ready))
+	for _, r := range ready {
+		suffix := ""
+		if r.claimed {
+			suffix += " [claimed]"
 		}
-	}
-	if len(claimedEntries) > 0 {
-		fmt.Printf("\nClaimed tickets (%d):\n", len(claimedEntries))
-		for _, r := range claimedEntries {
-			tagsSuffix := ""
-			if len(r.tags) > 0 {
-				tagsSuffix = fmt.Sprintf(" (tags: %s)", strings.Join(r.tags, ", "))
-			}
-			fmt.Printf("  %-8s %-40s %s%s\n", r.id, r.file, r.title, tagsSuffix)
+		if len(r.tags) > 0 {
+			suffix += fmt.Sprintf(" (tags: %s)", strings.Join(r.tags, ", "))
 		}
+		fmt.Printf("  %-8s %-40s %s%s\n", r.id, r.file, r.title, suffix)
 	}
 }
 
@@ -155,14 +141,17 @@ A ticket is ready when all of the following hold:
   - No forge-ref Blocked-by lines (forge refs are offline-unknown, treated as blocking).
   - No tags from the vocabulary (default: needs-human, deferred; see tickets/.ergrc [tags]).
 
-Tickets that pass the readiness test but have a git branch containing the
-ticket ID are reported as "claimed" (shown separately, not in the ready list).
+Tickets whose ID appears in a git branch name are annotated with a "[claimed]"
+marker as a coordination hint. Claimed is an informational signal, not a
+blocker — claimed tickets remain in the ready list (spec-erg-v1.md §closed
+endorses the observation; pep-erg-v1.md §6 frames coordination as workflow).
 
 Without --json, prints a human-readable summary. With --json, prints a JSON
 array where each element has the fields: id, title, file, ready, claimed, tags, blocked_by.
 
 The JSON output covers all open tickets (not just ready ones), so callers can
-filter and sort by any field. ready=true implies blocked_by is empty.
+filter and sort by any field. ready=true implies blocked_by is empty; the
+ready and claimed fields are orthogonal.
 `
 
 // cmdReady implements `erg ready [dir] [--json]`. See helpReady for the user-facing summary.
@@ -260,9 +249,6 @@ func cmdReady(args []string) int {
 				branchesLoaded = true
 			}
 			claimed = isBranchClaimed(tid, branches)
-			if claimed {
-				blocked = true
-			}
 		}
 
 		entry := readyEntry{

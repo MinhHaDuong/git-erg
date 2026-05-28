@@ -366,7 +366,8 @@ else
     fail "unclaimed ticket has claimed=false in JSON (output: $output)"
 fi
 
-# --- Claimed ticket (local branch exists) has claimed=true, ready=false ---
+# --- Claimed ticket (local branch exists) has claimed=true AND ready=true ---
+# Claimed is a coordination marker, not a blocker (ticket 0143).
 rm -f "$FIXTURES/ready/"*.erg
 cat > "$FIXTURES/ready/0098-claimable.erg" <<'EOF'
 %erg 0.1
@@ -386,22 +387,22 @@ if echo "$collapsed" | grep -q '"id": "0098"'; then
     if echo "$collapsed" | grep -q '"claimed": true'; then
         claimed_ok=true
     fi
-    if echo "$collapsed" | grep -q '"ready": false'; then
+    if echo "$collapsed" | grep -q '"ready": true'; then
         ready_ok=true
     fi
 fi
 if [ "$claimed_ok" = "true" ] && [ "$ready_ok" = "true" ]; then
-    pass "claimed ticket has claimed=true and ready=false"
+    pass "claimed ticket has claimed=true and ready=true (orthogonal fields)"
 else
-    fail "claimed ticket has claimed=true and ready=false (output: $output)"
+    fail "claimed ticket has claimed=true and ready=true (output: $output)"
 fi
 
-# --- Human-readable output shows "Claimed" section ---
+# --- Human-readable output marks the claimed ticket inline; no separate section ---
 output=$($ERG ready "$FIXTURES/ready")
-if echo "$output" | grep -q "Claimed"; then
-    pass "human-readable output shows Claimed section"
+if echo "$output" | grep -q "0098.*\[claimed\]" && ! echo "$output" | grep -q "^Claimed tickets"; then
+    pass "claimed ticket gets [claimed] marker, no separate section"
 else
-    fail "human-readable output shows Claimed section (output: $output)"
+    fail "claimed ticket gets [claimed] marker, no separate section (output: $output)"
 fi
 git branch -D test/0098-claim 2>/dev/null || true
 

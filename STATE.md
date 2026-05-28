@@ -27,6 +27,8 @@ An agent-friendly local ticket system for development in disconnected environmen
 - feat: Pre-create 00XX-is-next-ticket.erg.
 - feat: erg list + filters.
 - feat: Flag blocking tags, make erg ready an alias of erg list not blocking.
+  (0143 removed the claimed-as-blocker divergence; ready still has its own
+  command surface for the branch-claim marker.)
 - feat: erg new with body on the line.
 - audit: usage in idh.
 - audit: UX friendliness for beginner, for expert trying out, for other agents, for developper
