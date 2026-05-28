@@ -2,11 +2,13 @@
 Title: erg next-id must scan tickets across all worktrees to avoid ID collisions
 Created: 2026-05-20
 Author: HDMX-coding-agent
+Closed: implemented in nextid.go: 3-pass scan (local fs walk + sibling worktree fs walks + per-branch ls-tree with 200ms deadline + WARNING fallback). 5 Go unit tests + 3 shell integration tests covering uncommitted-in-sibling, committed-on-unchecked-branch, no-tickets-subdir sibling, not-in-git-repo fallback. Skipped --include-remote-branches (opt-in, separate ticket per 0140 action #3) and atomic lockfile (explicit out-of-scope per 0140 notes). External skill ~/.claude/skills/ticket-new/SKILL.md update is outside this repo.
 
 --- log ---
 2026-05-20T23:35Z HDMX-coding-agent created
 2026-05-21T07:32Z claude note re-filed from aedist-technical-report/tickets/0186 — this is upstream git-erg work, not project work
 
+2026-05-28T17:22Z Claude closed — implemented in nextid.go: 3-pass scan (local fs walk + sibling worktree fs walks + per-branch ls-tree with 200ms deadline + WARNING fallback). 5 Go unit tests + 3 shell integration tests covering uncommitted-in-sibling, committed-on-unchecked-branch, no-tickets-subdir sibling, not-in-git-repo fallback. Skipped --include-remote-branches (opt-in, separate ticket per 0140 action #3) and atomic lockfile (explicit out-of-scope per 0140 notes). External skill ~/.claude/skills/ticket-new/SKILL.md update is outside this repo.
 --- body ---
 ## Context
 

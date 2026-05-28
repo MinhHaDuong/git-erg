@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -133,5 +134,153 @@ func TestNextID(t *testing.T) {
 				t.Errorf("nextID() = %q, want %q", got, c.want)
 			}
 		})
+	}
+}
+
+// gitOrSkip runs `git --version`; if git is unavailable the caller skips.
+// All cross-worktree tests need git in PATH.
+func gitOrSkip(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+}
+
+// initRepoWithCommit creates a git repo at root with one initial commit so
+// branches can be created. Sets local user.email/user.name so subsequent
+// commits do not depend on global config.
+func initRepoWithCommit(t *testing.T, root string) {
+	t.Helper()
+	mustGit := func(args ...string) {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = root
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	mustGit("init", "-q", "-b", "main")
+	mustGit("config", "user.email", "test@example.com")
+	mustGit("config", "user.name", "Test")
+	mustGit("config", "commit.gpgsign", "false")
+	if err := os.WriteFile(filepath.Join(root, "README"), []byte("init\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustGit("add", "README")
+	mustGit("commit", "-q", "-m", "init")
+}
+
+func TestNextID_SkipsSiblingWorktreeUncommittedTicket(t *testing.T) {
+	gitOrSkip(t)
+	root := t.TempDir()
+	initRepoWithCommit(t, root)
+	if err := os.MkdirAll(filepath.Join(root, "tickets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "tickets", "0050-local.erg"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	wt2 := filepath.Join(t.TempDir(), "wt2")
+	cmd := exec.Command("git", "-C", root, "worktree", "add", "-b", "wt2-branch", wt2)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("worktree add: %v\n%s", err, out)
+	}
+	if err := os.MkdirAll(filepath.Join(wt2, "tickets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wt2, "tickets", "0123-uncommitted-in-sibling.erg"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := nextID(filepath.Join(root, "tickets"))
+	if got != "0124" {
+		t.Errorf("nextID from primary worktree = %q, want 0124 (must skip past 0123 in sibling)", got)
+	}
+}
+
+func TestNextID_SkipsTicketCommittedOnUncheckedOutBranch(t *testing.T) {
+	gitOrSkip(t)
+	root := t.TempDir()
+	initRepoWithCommit(t, root)
+	mustGit := func(args ...string) {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = root
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	mustGit("checkout", "-q", "-b", "other-branch")
+	if err := os.MkdirAll(filepath.Join(root, "tickets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "tickets", "0200-on-branch.erg"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustGit("add", "tickets/0200-on-branch.erg")
+	mustGit("commit", "-q", "-m", "add 0200")
+	mustGit("checkout", "-q", "main")
+	if err := os.RemoveAll(filepath.Join(root, "tickets")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "tickets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	got := nextID(filepath.Join(root, "tickets"))
+	if got != "0201" {
+		t.Errorf("nextID = %q, want 0201 (must see 0200 on other-branch via ls-tree)", got)
+	}
+}
+
+func TestNextID_SiblingWithoutSubdirIsHarmless(t *testing.T) {
+	gitOrSkip(t)
+	root := t.TempDir()
+	initRepoWithCommit(t, root)
+	if err := os.MkdirAll(filepath.Join(root, "tickets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "tickets", "0010-local.erg"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	wt2 := filepath.Join(t.TempDir(), "wt2")
+	cmd := exec.Command("git", "-C", root, "worktree", "add", "-b", "wt2-branch", wt2)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("worktree add: %v\n%s", err, out)
+	}
+	// Sibling worktree has no tickets/ subdir at all.
+
+	got := nextID(filepath.Join(root, "tickets"))
+	if got != "0011" {
+		t.Errorf("nextID = %q, want 0011 (sibling without tickets/ must be a no-op)", got)
+	}
+}
+
+func TestNextID_NotAGitRepoFallsBackToLocal(t *testing.T) {
+	tmp := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmp, "0007-only-local.erg"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := nextID(tmp)
+	if got != "0008" {
+		t.Errorf("nextID = %q, want 0008 (no-repo path must still work)", got)
+	}
+}
+
+func TestMaxIDInDir(t *testing.T) {
+	tmp := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmp, "closed"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"0003-a.erg", "0042-b.erg", "closed/0007-c.erg", "readme.md"} {
+		if err := os.WriteFile(filepath.Join(tmp, f), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := maxIDInDir(tmp); got != 42 {
+		t.Errorf("maxIDInDir = %d, want 42", got)
+	}
+	if got := maxIDInDir(filepath.Join(tmp, "does-not-exist")); got != 0 {
+		t.Errorf("maxIDInDir(missing) = %d, want 0", got)
 	}
 }
