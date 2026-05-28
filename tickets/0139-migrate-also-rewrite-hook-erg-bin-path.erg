@@ -2,10 +2,12 @@
 Title: migrate: also rewrite hook erg_bin path
 Created: 2026-05-20
 Author: MinhHaDuong
+Closed: implemented in migrate.go migrateHook: content-based legacy pattern rewrite (tickets/tools/go/erg → tickets/erg, validate tickets/ → check tickets/), idempotent, 8 regression tests in test_migrate.sh
 
 --- log ---
 2026-05-20T09:51Z MinhHaDuong created
 
+2026-05-28T17:00Z Claude closed — implemented in migrate.go migrateHook: content-based legacy pattern rewrite (tickets/tools/go/erg → tickets/erg, validate tickets/ → check tickets/), idempotent, 8 regression tests in test_migrate.sh
 --- body ---
 
 ## Context

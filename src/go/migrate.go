@@ -34,8 +34,11 @@ After migration, erg validate will reject any remaining Status: or Tags: lines.
 
 When DIR is named "tickets" (the canonical layout), also performs a one-time
 project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
-renames archive/ to closed/ if archive/ exists and closed/ does not, then
-refreshes init assets via cmdInit.
+renames archive/ to closed/ if archive/ exists and closed/ does not, refreshes
+init assets via cmdInit, and rewrites .git/hooks/pre-commit if it references
+the legacy tickets/tools/go/erg path or the legacy 'validate tickets/' CLI
+form. The hook rewrite is content-based and idempotent; hooks without legacy
+patterns are left untouched.
 
 Does NOT commit. Exits 1 on archive/→closed/ filename collision (both directories are left untouched; the user must resolve manually). Exits 0 otherwise.
 Review the diff with 'git diff tickets/' and commit manually.
@@ -203,7 +206,38 @@ func migrateLayout(dir string) int {
 	if code := cmdInit([]string{root}); code != 0 {
 		fmt.Fprintln(os.Stderr, "migrate: init assets refresh failed")
 	}
+	migrateHook(root)
 	return 0
+}
+
+// migrateHook rewrites a legacy pre-commit hook in place so the post-upgrade
+// hook keeps working. Two patterns are replaced: the pre-bootstrap binary
+// path (tickets/tools/go/erg → tickets/erg) and the old corpus-check CLI
+// form (validate tickets/ → check tickets/, which the current binary
+// rejects in favor of `erg check`). Detection is content-based — no marker
+// comments are required — and the rewrite is idempotent: a hook with no
+// legacy pattern is left untouched and silent. A hook that does not exist,
+// or a .git directory that is unreadable (e.g. a worktree gitfile), is
+// likewise skipped silently.
+func migrateHook(root string) {
+	hookPath := filepath.Join(root, ".git", "hooks", "pre-commit")
+	data, err := os.ReadFile(hookPath)
+	if err != nil {
+		return
+	}
+	original := string(data)
+	updated := original
+	updated = strings.ReplaceAll(updated, `erg_bin="tickets/tools/go/erg"`, `erg_bin="tickets/erg"`)
+	updated = strings.ReplaceAll(updated, `"$erg_bin" validate tickets/`, `"$erg_bin" check tickets/`)
+	updated = strings.ReplaceAll(updated, `$erg_bin validate tickets/`, `$erg_bin check tickets/`)
+	if updated == original {
+		return
+	}
+	if err := os.WriteFile(hookPath, []byte(updated), 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "migrate: rewrite hook: %v\n", err)
+		return
+	}
+	fmt.Println("migrate: rewrote .git/hooks/pre-commit (tickets/tools/go/erg → tickets/erg, validate → check)")
 }
 
 // migrateResult summarizes what migrateFile rewrote in a single .erg file.

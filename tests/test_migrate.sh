@@ -363,5 +363,85 @@ else
 fi
 rm -rf "$MDIR3"
 
+# --- Hook rewrite: legacy erg_bin path and validate→check ---
+HDIR=$(mktemp -d)
+mkdir -p "$HDIR/tickets" "$HDIR/.git/hooks"
+cp "$ERG" "$HDIR/tickets/erg"
+cat > "$HDIR/.git/hooks/pre-commit" <<'HOOK'
+#!/bin/sh
+erg_files=$(git diff --cached --name-only | grep '\.erg$' || true)
+if [ -n "$erg_files" ]; then
+    erg_bin="tickets/tools/go/erg"
+    if [ -x "$erg_bin" ]; then
+        if ! "$erg_bin" validate $erg_files; then exit 1; fi
+        if ! "$erg_bin" validate tickets/; then exit 1; fi
+    fi
+fi
+HOOK
+chmod +x "$HDIR/.git/hooks/pre-commit"
+"$ERG" migrate "$HDIR/tickets" >/dev/null 2>&1
+if grep -q 'erg_bin="tickets/erg"' "$HDIR/.git/hooks/pre-commit"; then
+    pass "hook rewrite: erg_bin path updated to tickets/erg"
+else
+    fail "hook rewrite: erg_bin path updated to tickets/erg"
+fi
+if grep -q '"$erg_bin" check tickets/' "$HDIR/.git/hooks/pre-commit"; then
+    pass "hook rewrite: corpus validate → check on directory"
+else
+    fail "hook rewrite: corpus validate → check on directory"
+fi
+if grep -q 'tickets/tools/go/erg' "$HDIR/.git/hooks/pre-commit"; then
+    fail "hook rewrite: legacy path fully removed"
+else
+    pass "hook rewrite: legacy path fully removed"
+fi
+if [ -x "$HDIR/.git/hooks/pre-commit" ]; then
+    pass "hook rewrite: executable bit preserved"
+else
+    fail "hook rewrite: executable bit preserved"
+fi
+mtime1=$(stat -c %Y "$HDIR/.git/hooks/pre-commit")
+"$ERG" migrate "$HDIR/tickets" >/dev/null 2>&1
+mtime2=$(stat -c %Y "$HDIR/.git/hooks/pre-commit")
+if [ "$mtime1" = "$mtime2" ]; then
+    pass "hook rewrite: idempotent (second run does not touch the file)"
+else
+    fail "hook rewrite: idempotent (second run does not touch the file)"
+fi
+rm -rf "$HDIR"
+
+# --- Hook rewrite: unmanaged hook (no legacy pattern) is left untouched ---
+UHDIR=$(mktemp -d)
+mkdir -p "$UHDIR/tickets" "$UHDIR/.git/hooks"
+cp "$ERG" "$UHDIR/tickets/erg"
+echo '#!/bin/sh' > "$UHDIR/.git/hooks/pre-commit"
+echo 'echo "user hook"' >> "$UHDIR/.git/hooks/pre-commit"
+chmod +x "$UHDIR/.git/hooks/pre-commit"
+before=$(cat "$UHDIR/.git/hooks/pre-commit")
+"$ERG" migrate "$UHDIR/tickets" >/dev/null 2>&1
+after=$(cat "$UHDIR/.git/hooks/pre-commit")
+if [ "$before" = "$after" ]; then
+    pass "hook rewrite: unmanaged hook left untouched"
+else
+    fail "hook rewrite: unmanaged hook left untouched"
+fi
+rm -rf "$UHDIR"
+
+# --- Hook rewrite: no hook file → no error ---
+NHDIR=$(mktemp -d)
+mkdir -p "$NHDIR/tickets" "$NHDIR/.git/hooks"
+cp "$ERG" "$NHDIR/tickets/erg"
+if "$ERG" migrate "$NHDIR/tickets" >/dev/null 2>&1; then
+    pass "hook rewrite: missing hook is a silent no-op"
+else
+    fail "hook rewrite: missing hook is a silent no-op"
+fi
+if [ -e "$NHDIR/.git/hooks/pre-commit" ]; then
+    fail "hook rewrite: missing hook stays missing"
+else
+    pass "hook rewrite: missing hook stays missing"
+fi
+rm -rf "$NHDIR"
+
 echo "migrate: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
