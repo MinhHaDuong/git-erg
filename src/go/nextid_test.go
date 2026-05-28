@@ -232,6 +232,52 @@ func TestNextID_SkipsTicketCommittedOnUncheckedOutBranch(t *testing.T) {
 	}
 }
 
+func TestNextID_SkipsTicketOnRemoteTrackingBranch(t *testing.T) {
+	gitOrSkip(t)
+	// Set up an "origin" bare repo with a branch that has a ticket, fetch
+	// it into a clone, then check whether next-id sees the ID via the
+	// refs/remotes/origin/* cache. No network — git only reads local refs.
+	origin := t.TempDir()
+	mustGitIn := func(dir string, args ...string) {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git -C %s %v: %v\n%s", dir, args, err, out)
+		}
+	}
+	mustGitIn(origin, "init", "-q", "-b", "main", "--bare")
+
+	seed := t.TempDir()
+	initRepoWithCommit(t, seed)
+	mustGitIn(seed, "remote", "add", "origin", origin)
+	mustGitIn(seed, "checkout", "-q", "-b", "feature-with-ticket")
+	if err := os.MkdirAll(filepath.Join(seed, "tickets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(seed, "tickets", "0300-on-origin.erg"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mustGitIn(seed, "add", "tickets/0300-on-origin.erg")
+	mustGitIn(seed, "commit", "-q", "-m", "0300")
+	mustGitIn(seed, "push", "-q", "origin", "feature-with-ticket")
+
+	clone := t.TempDir()
+	mustGitIn(clone, "clone", "-q", origin, ".")
+	mustGitIn(clone, "config", "user.email", "test@example.com")
+	mustGitIn(clone, "config", "user.name", "Test")
+	mustGitIn(clone, "config", "commit.gpgsign", "false")
+	// Stay on main; do NOT check out feature-with-ticket. The ticket is only
+	// visible via refs/remotes/origin/feature-with-ticket in the local cache.
+	if err := os.MkdirAll(filepath.Join(clone, "tickets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	got := nextID(filepath.Join(clone, "tickets"))
+	if got != "0301" {
+		t.Errorf("nextID = %q, want 0301 (must see 0300 via refs/remotes/origin/feature-with-ticket)", got)
+	}
+}
+
 func TestNextID_SiblingWithoutSubdirIsHarmless(t *testing.T) {
 	gitOrSkip(t)
 	root := t.TempDir()

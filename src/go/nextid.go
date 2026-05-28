@@ -49,13 +49,16 @@ func maxIDInDir(dir string) int {
 	return maxID
 }
 
-// localBranches returns the short names of every refs/heads/ branch in the
-// repository containing dir. Remote-tracking branches (refs/remotes/) are
-// intentionally excluded — remote scans are an opt-in feature, not part of
-// the default cross-worktree guarantee. Returns nil on any git error.
-func localBranches(ctx context.Context, dir string) []string {
+// knownBranches returns the short names of every refs/heads/ branch and every
+// refs/remotes/ tracking branch in the repository containing dir. Both come
+// from the local refs cache via a single `git for-each-ref` call — no
+// network. Remote-tracking branches are included because they reflect what
+// the user last fetched from origin; an ID burned on origin is taken, even
+// if no local branch carries it. The origin/HEAD symref is skipped (it
+// duplicates whichever branch HEAD points at). Returns nil on any git error.
+func knownBranches(ctx context.Context, dir string) []string {
 	cmd := exec.CommandContext(ctx, "git", "-C", dir, "for-each-ref",
-		"--format=%(refname:short)", "refs/heads")
+		"--format=%(refname:short)", "refs/heads", "refs/remotes")
 	cmd.Stderr = io.Discard
 	out, err := cmd.Output()
 	if err != nil {
@@ -64,7 +67,7 @@ func localBranches(ctx context.Context, dir string) []string {
 	var refs []string
 	for _, line := range strings.Split(string(out), "\n") {
 		line = strings.TrimSpace(line)
-		if line == "" {
+		if line == "" || strings.HasSuffix(line, "/HEAD") {
 			continue
 		}
 		refs = append(refs, line)
@@ -110,14 +113,17 @@ const branchScanDeadline = 200 * time.Millisecond
 //  1. The filesystem walk of dir itself.
 //  2. The same-relative subdir of every sibling worktree (catches uncommitted
 //     or unpushed tickets drafted in parallel agent worktrees).
-//  3. The same-relative subtree of every local branch tip (catches tickets
-//     committed on branches not currently checked out anywhere).
+//  3. The same-relative subtree of every refs/heads/ and refs/remotes/ tip
+//     in the local refs cache (catches tickets committed on branches not
+//     currently checked out anywhere, and IDs burned on origin that have
+//     been fetched but not merged).
 //
 // Pass 1 always runs. Passes 2 and 3 run only when dir lies inside a git
 // worktree; if dir is outside the repo or git is unavailable, they are
 // silently skipped and behavior reduces to the original local-only scan.
 // Pass 3 is bounded by branchScanDeadline; on timeout it falls back to the
-// Pass 1+2 result and writes a single WARNING to stderr.
+// Pass 1+2 result and writes a single WARNING to stderr. No network calls:
+// remote-tracking refs come from the local cache populated by the last fetch.
 //
 // Allocation is still optimistic: two concurrent invocations in different
 // worktrees may return the same ID. The pre-commit hook on merge catches
@@ -151,7 +157,7 @@ func nextID(dir string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), branchScanDeadline)
 	defer cancel()
 	slashRel := filepath.ToSlash(rel)
-	for _, ref := range localBranches(ctx, top) {
+	for _, ref := range knownBranches(ctx, top) {
 		if ctx.Err() != nil {
 			break
 		}
@@ -185,15 +191,17 @@ zero-padded to 4 digits. Prints "0001" if no numbered tickets exist anywhere.
   2. The same-relative subdir of every sibling worktree, enumerated via
      'git worktree list'. Catches uncommitted tickets drafted in parallel
      agent worktrees of the same repository.
-  3. The same-relative subtree of every local branch tip, enumerated via
-     'git for-each-ref refs/heads/' + 'git ls-tree'. Catches tickets
-     committed on branches not currently checked out anywhere. Bounded by a
-     200ms wall-clock deadline; on timeout, falls back to the Pass 1+2
-     result and prints a WARNING to stderr.
+  3. The same-relative subtree of every refs/heads/ and refs/remotes/ tip
+     in the local refs cache, enumerated via 'git for-each-ref' + 'git
+     ls-tree'. Catches tickets committed on branches not currently checked
+     out anywhere, and IDs already burned on origin that have been fetched
+     but not yet merged locally. No network call — remote-tracking refs
+     come from the local cache populated by the last 'git fetch'. Bounded
+     by a 200ms wall-clock deadline; on timeout, falls back to the Pass
+     1+2 result and prints a WARNING to stderr.
 
-Remote-tracking branches and remote refs are never consulted. When DIR is
-outside a git repository, or git is unavailable, behavior reduces to the
-Pass 1 local walk alone.
+When DIR is outside a git repository, or git is unavailable, behavior
+reduces to the Pass 1 local walk alone.
 
 ID allocation is still optimistic: two concurrent invocations in different
 worktrees may return the same ID — the cross-worktree window has narrowed

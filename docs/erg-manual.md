@@ -1,7 +1,7 @@
 # erg manual
 
 Author: minh.ha-duong@cnrs.fr
-Generated from: erg built 2026-05-28T17:22:01Z rev 1e2d3f9
+Generated from: erg built 2026-05-28T17:25:06Z rev 5408f78
 
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
@@ -140,15 +140,17 @@ zero-padded to 4 digits. Prints "0001" if no numbered tickets exist anywhere.
   2. The same-relative subdir of every sibling worktree, enumerated via
      'git worktree list'. Catches uncommitted tickets drafted in parallel
      agent worktrees of the same repository.
-  3. The same-relative subtree of every local branch tip, enumerated via
-     'git for-each-ref refs/heads/' + 'git ls-tree'. Catches tickets
-     committed on branches not currently checked out anywhere. Bounded by a
-     200ms wall-clock deadline; on timeout, falls back to the Pass 1+2
-     result and prints a WARNING to stderr.
+  3. The same-relative subtree of every refs/heads/ and refs/remotes/ tip
+     in the local refs cache, enumerated via 'git for-each-ref' + 'git
+     ls-tree'. Catches tickets committed on branches not currently checked
+     out anywhere, and IDs already burned on origin that have been fetched
+     but not yet merged locally. No network call — remote-tracking refs
+     come from the local cache populated by the last 'git fetch'. Bounded
+     by a 200ms wall-clock deadline; on timeout, falls back to the Pass
+     1+2 result and prints a WARNING to stderr.
 
-Remote-tracking branches and remote refs are never consulted. When DIR is
-outside a git repository, or git is unavailable, behavior reduces to the
-Pass 1 local walk alone.
+When DIR is outside a git repository, or git is unavailable, behavior
+reduces to the Pass 1 local walk alone.
 
 ID allocation is still optimistic: two concurrent invocations in different
 worktrees may return the same ID — the cross-worktree window has narrowed
