@@ -14,6 +14,9 @@ func TestRefReferencesID(t *testing.T) {
 		{"feat/0001-foo", "0001", true},
 		{"release-0001-fixes", "0001", true},
 		{"foo_0001_bar", "0001", true},
+		{"0001/foo", "0001", true},  // start + '/' right boundary
+		{"0001_foo", "0001", true},  // start + '_' right boundary
+		{"_0001", "0001", true},     // '_' left + end boundary
 		{"origin/feat/0140", "0140", true},
 		// Word-boundary negatives (the substring would match but boundary fails).
 		{"00010", "0001", false},

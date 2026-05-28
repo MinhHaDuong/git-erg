@@ -35,11 +35,11 @@ func isRefBoundary(s string, i int) bool {
 }
 
 // loadGitRefs returns short names of every local and remote-tracking branch
-// in the current repository, excluding remote HEAD symrefs. Returns nil on
-// any git error (no repo, etc.) so callers degrade silently — refs are an
-// optional annotation, not a precondition.
-func loadGitRefs() []string {
-	cmd := exec.Command("git", "for-each-ref",
+// in the repository containing dir, excluding remote HEAD symrefs. Returns
+// nil on any git error (no repo, etc.) so callers degrade silently — refs
+// are an optional annotation, not a precondition.
+func loadGitRefs(dir string) []string {
+	cmd := exec.Command("git", "-C", dir, "for-each-ref",
 		"--format=%(refname:short)",
 		"refs/heads", "refs/remotes")
 	cmd.Stderr = io.Discard
@@ -65,10 +65,10 @@ type worktreeRef struct {
 	branch string
 }
 
-// loadGitWorktrees enumerates the repository's worktrees via
+// loadGitWorktrees enumerates worktrees of the repository containing dir via
 // `git worktree list --porcelain`. Returns nil on git error.
-func loadGitWorktrees() []worktreeRef {
-	cmd := exec.Command("git", "worktree", "list", "--porcelain")
+func loadGitWorktrees(dir string) []worktreeRef {
+	cmd := exec.Command("git", "-C", dir, "worktree", "list", "--porcelain")
 	cmd.Stderr = io.Discard
 	out, err := cmd.Output()
 	if err != nil {
@@ -99,12 +99,12 @@ func loadGitWorktrees() []worktreeRef {
 	return list
 }
 
-// currentWorktreeTop returns the absolute path of the worktree containing the
-// current working directory, or "" if not in a git repository. Used to suppress
-// the current worktree from annotations — its branch is already shown via the
-// local-ref pass, and showing its absolute path is just noise.
-func currentWorktreeTop() string {
-	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+// worktreeTopFor returns the absolute path of the worktree containing dir, or
+// "" if dir is not inside a git repository. Used to suppress the dir's own
+// worktree from annotations — its branch is already shown via the local-ref
+// pass, and the absolute path is just noise.
+func worktreeTopFor(dir string) string {
+	cmd := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel")
 	cmd.Stderr = io.Discard
 	out, err := cmd.Output()
 	if err != nil {
@@ -114,17 +114,18 @@ func currentWorktreeTop() string {
 }
 
 // loadRefMatches returns, for each ticket id, the list of git refs and
-// worktree paths that reference it (per refReferencesID). Refs are listed
-// before worktree paths and preserve the order returned by git. The current
-// worktree is omitted (its branch is already covered by the ref scan).
-// Network-free: all data comes from git for-each-ref and git worktree list.
-func loadRefMatches(ids []string) map[string][]string {
+// worktree paths in the repository containing dir that reference it (per
+// refReferencesID). Refs are listed before worktree paths and preserve the
+// order returned by git. The worktree containing dir itself is omitted (its
+// branch is already covered by the ref scan). Network-free: all data comes
+// from git for-each-ref and git worktree list.
+func loadRefMatches(dir string, ids []string) map[string][]string {
 	if len(ids) == 0 {
 		return nil
 	}
 	matches := make(map[string][]string, len(ids))
 
-	for _, ref := range loadGitRefs() {
+	for _, ref := range loadGitRefs(dir) {
 		for _, id := range ids {
 			if refReferencesID(ref, id) {
 				matches[id] = append(matches[id], ref)
@@ -132,8 +133,8 @@ func loadRefMatches(ids []string) map[string][]string {
 		}
 	}
 
-	top := currentWorktreeTop()
-	for _, wt := range loadGitWorktrees() {
+	top := worktreeTopFor(dir)
+	for _, wt := range loadGitWorktrees(dir) {
 		if wt.branch == "" || wt.path == top {
 			continue
 		}

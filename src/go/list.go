@@ -126,7 +126,7 @@ func loadListEntries(dir string) ([]listEntry, []string) {
 	for i, e := range entries {
 		ids[i] = e.id
 	}
-	if refs := loadRefMatches(ids); refs != nil {
+	if refs := loadRefMatches(dir, ids); refs != nil {
 		for i := range entries {
 			entries[i].refs = refs[entries[i].id]
 		}

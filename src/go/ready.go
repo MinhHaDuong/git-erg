@@ -39,10 +39,14 @@ func cmdReady(args []string) int {
 	useJSON := false
 	var explicit string
 	for _, a := range args {
-		if a == "--json" {
+		switch {
+		case a == "--json":
 			useJSON = true
-		} else if explicit == "" {
+		case explicit == "":
 			explicit = a
+		default:
+			fmt.Fprintf(os.Stderr, "ready: unexpected argument %q (usage: erg ready [DIR] [--json])\n", a)
+			return 1
 		}
 	}
 

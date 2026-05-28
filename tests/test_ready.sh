@@ -318,14 +318,15 @@ else
     fail "open ticket with no matching ref has refs=[] in JSON (output: $output)"
 fi
 
-# --- Matching local branch annotates the ticket; word-boundary respected ---
-# Use an isolated temp git repo so the dev repo stays clean.
+# --- Matching local + remote + worktree all annotate; word-boundary respected ---
+# Isolated temp git repo (dev repo stays clean). Uses id 9098 (≥9000 reserved
+# for test fixtures per STATE.md). Plumbing avoids commit signing.
 ERG_ABS=$ERG
 case "$ERG_ABS" in /*) ;; *) ERG_ABS="$(pwd)/$ERG_ABS" ;; esac
 refdir=$(mktemp -d)
 (
     cd "$refdir" && git init -q && mkdir tickets
-    cat > tickets/0098-claimable.erg <<'EOF'
+    cat > tickets/9098-claimable.erg <<'EOF'
 %erg 0.1
 Title: Claimable ticket
 Created: 2026-01-01
@@ -334,27 +335,38 @@ Author: a
 --- log ---
 --- body ---
 EOF
-    # Plumbing path: commit-tree avoids commit signing (env-dependent).
     export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t \
            GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
     empty_tree=4b825dc642cb6eb9a060e54bf8d69288fbee4904
     sha=$(echo init | git commit-tree "$empty_tree")
-    git update-ref refs/heads/feat/0098-impl "$sha"
-    git update-ref refs/heads/00980-not-a-match "$sha"   # word-boundary negative
+    git update-ref refs/heads/feat/9098-impl "$sha"
+    git update-ref refs/heads/90980-not-a-match "$sha"   # word-boundary negative
+    git update-ref refs/remotes/origin/feat/9098 "$sha"  # remote-tracking match
+    git update-ref refs/remotes/origin/HEAD "$sha"       # symref shape — must be filtered
+    git worktree add --quiet wt-9098 feat/9098-impl 2>/dev/null
     "$ERG_ABS" ready --json tickets/ > out.json
     "$ERG_ABS" ready tickets/ > out.txt
 )
 json_out=$(cat "$refdir/out.json")
 text_out=$(cat "$refdir/out.txt")
-if echo "$json_out" | jq -e '.[0] | .id == "0098" and (.refs | index("feat/0098-impl")) != null and (.refs | index("00980-not-a-match")) == null' >/dev/null 2>&1; then
-    pass "JSON refs: matching branch included, word-boundary respected"
+if echo "$json_out" | jq -e '.[0] | .id == "9098"
+    and (.refs | index("feat/9098-impl")) != null
+    and (.refs | index("origin/feat/9098")) != null
+    and (.refs | index("90980-not-a-match")) == null
+    and (.refs | map(endswith("/HEAD")) | any) == false
+    and (.refs | map(endswith("/wt-9098")) | any) == true
+    and (.refs | map(. == "'"$refdir"'") | any) == false' >/dev/null 2>&1; then
+    pass "JSON refs: local + remote + worktree included; word-boundary + HEAD-symref filtered; current worktree suppressed"
 else
-    fail "JSON refs: matching branch included, word-boundary respected (json: $json_out)"
+    fail "JSON refs: full annotation surface (json: $json_out)"
 fi
-if echo "$text_out" | grep -q '\[feat/0098-impl\]' && ! echo "$text_out" | grep -q '\[claimed\]' && ! echo "$text_out" | grep -q "^Claimed"; then
-    pass "text: literal [ref] annotation, no 'claimed' abstraction, no Claimed section"
+if echo "$text_out" | grep -q '\[feat/9098-impl' \
+        && echo "$text_out" | grep -q 'origin/feat/9098' \
+        && ! echo "$text_out" | grep -q '\[claimed\]' \
+        && ! echo "$text_out" | grep -q "^Claimed"; then
+    pass "text: literal [ref] annotation includes remote prefix, no 'claimed' abstraction"
 else
-    fail "text: literal [ref] annotation, no 'claimed' abstraction, no Claimed section (output: $text_out)"
+    fail "text: literal [ref] annotation includes remote prefix (output: $text_out)"
 fi
 rm -rf "$refdir"
 
@@ -371,7 +383,7 @@ Author: a
 --- log ---
 --- body ---
 EOF
-    $ERG ready --json tickets/
+    "$ERG_ABS" ready --json tickets/
 )
 rc=$?
 rm -rf "$tmpdir"
@@ -379,6 +391,13 @@ if [ "$rc" -eq 0 ]; then
     pass "offline-safe: no-remote repo doesn't crash"
 else
     fail "offline-safe: no-remote repo doesn't crash (exit code: $rc)"
+fi
+
+# --- ready rejects extra positional args ---
+if $ERG ready "$FIXTURES/ready" extra-arg >/dev/null 2>&1; then
+    fail "ready: extra positional arg should error"
+else
+    pass "ready: extra positional arg rejected"
 fi
 
 echo "ready: $PASS passed, $FAIL failed"
