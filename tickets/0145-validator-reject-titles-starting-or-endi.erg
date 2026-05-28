@@ -1,0 +1,33 @@
+%erg 0.1
+Title: validator: reject titles starting or ending with status words
+Created: 2026-05-28
+Author: Claude
+
+--- log ---
+2026-05-28T16:29Z Claude created
+
+--- body ---
+## Context
+
+Title words like `ready`, `done`, `closed`, `open` are status vocabulary in
+this system: pseudo-tags consumed by `erg ls` filters, and the lifecycle
+states agents reason about. When they appear at the start or end of a title
+they read as a status assertion about the ticket itself rather than as a
+reference to the command or concept being changed.
+
+Example: ticket 0143 "ready: demote claimed signal from blocker to marker"
+parses as "this ticket is ready" before the eye reaches the colon. The
+intended reading is "changes to the `erg ready` command."
+
+## Exit criteria
+
+- [ ] `erg validate` rejects a ticket whose Title (after the leading `Title:`)
+      begins or ends with one of: `ready`, `done`, `closed`, `open`
+      (case-insensitive, ignoring surrounding punctuation/whitespace).
+- [ ] `erg check` surfaces the same rule corpus-wide.
+- [ ] Error message points at filename:LINE and names the offending word.
+- [ ] Fixture under `src/go/testdata/` covering each forbidden word at start
+      and at end, plus one passing case where the word appears mid-title.
+- [ ] Decide and document: do existing closed tickets (e.g. 0143, 0144) get
+      grandfathered, or do we rewrite their titles? Default: grandfather
+      closed tickets, enforce on open + new.
