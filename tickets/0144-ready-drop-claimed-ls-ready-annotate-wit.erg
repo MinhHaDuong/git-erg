@@ -2,10 +2,12 @@
 Title: ready: drop claimed; ls/ready annotate with literal ref + worktree facts
 Created: 2026-05-28
 Author: Claude
+Closed: done — refs/worktrees annotation, ready is a thin alias
 
 --- log ---
 2026-05-28T06:19Z Claude created
 
+2026-05-28T06:31Z Claude closed — done — refs/worktrees annotation, ready is a thin alias
 --- body ---
 
 ## Problem

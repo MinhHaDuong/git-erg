@@ -14,7 +14,6 @@ mkdir -p "$FIXTURES/ready"
 tmpdir=
 cleanup() {
     rm -rf "$FIXTURES"
-    git branch -D test/0098-claim 2>/dev/null || true
     [ -n "$tmpdir" ] && rm -rf "$tmpdir"
 }
 trap cleanup EXIT
@@ -242,56 +241,9 @@ else
     fail "ready JSON includes tags array"
 fi
 
-# --- JSON output includes blocked_by for forge blockers ---
-cat > "$FIXTURES/ready/0042-forge-blocked-json.erg" <<'EOF'
-%erg 0.1
-Title: Forge blocked for JSON
-Created: 2026-01-01
-Author: a
-Blocked-by: github.com/anthropics/claude-code#1234
-
---- log ---
-2026-01-01T10:00Z a created
-
---- body ---
-EOF
-output=$($ERG ready --json "$FIXTURES/ready")
-if echo "$output" | jq -e '[.[] | select(.id == "0042")] | .[0].blocked_by | .[0] | .kind == "forge" and .ref == "github.com/anthropics/claude-code#1234"' > /dev/null 2>&1; then
-    pass "ready JSON includes forge blocked_by"
-else
-    fail "ready JSON includes forge blocked_by"
-fi
-
-# --- JSON output includes blocked_by for local blockers ---
-cat > "$FIXTURES/ready/0043-local-blocker.erg" <<'EOF'
-%erg 0.1
-Title: Local blocker
-Created: 2026-01-01
-Author: a
-
---- log ---
-2026-01-01T10:00Z a created
-
---- body ---
-EOF
-cat > "$FIXTURES/ready/0044-local-blocked.erg" <<'EOF'
-%erg 0.1
-Title: Local blocked for JSON
-Created: 2026-01-01
-Author: a
-Blocked-by: 0043
-
---- log ---
-2026-01-01T10:00Z a created
-
---- body ---
-EOF
-output=$($ERG ready --json "$FIXTURES/ready")
-if echo "$output" | jq -e '[.[] | select(.id == "0044")] | .[0].blocked_by | .[0] | .kind == "local" and .id == "0043"' > /dev/null 2>&1; then
-    pass "ready JSON includes local blocked_by"
-else
-    fail "ready JSON includes local blocked_by"
-fi
+# Blocked-ticket JSON shape (forge / local blocker structure) is covered by
+# test_list.sh — ready --json is now filtered to ready tickets only, so blocked
+# entries never appear here.
 
 rm -f "$FIXTURES/ready/"*.erg
 # --- Forge-ref blocker is blocking ---
@@ -318,10 +270,10 @@ fi
 rm -rf "$FIXTURES/ready"
 mkdir -p "$FIXTURES/ready"
 output=$($ERG ready "$FIXTURES/ready")
-if echo "$output" | grep -qi "no tickets"; then
+if echo "$output" | grep -qi "no ready tickets"; then
     pass "empty dir handled"
 else
-    fail "empty dir handled"
+    fail "empty dir handled (output: $output)"
 fi
 
 # --- Unknown blocker ID: ticket appears in ready list and WARNING on stderr ---
@@ -348,11 +300,11 @@ else
     fail "unknown blocker: ticket is ready and WARNING on stderr with ID (stdout: $stdout) (stderr: $stderr)"
 fi
 
-# --- Unclaimed ticket has claimed=false in JSON ---
+# --- Open ticket with no matching ref has refs=[] in JSON ---
 rm -f "$FIXTURES/ready/"*.erg
-cat > "$FIXTURES/ready/9991-unclaimed.erg" <<'EOF'
+cat > "$FIXTURES/ready/9991-no-refs.erg" <<'EOF'
 %erg 0.1
-Title: Unclaimed ticket
+Title: No matching refs
 Created: 2026-01-01
 Author: a
 
@@ -360,16 +312,20 @@ Author: a
 --- body ---
 EOF
 output=$($ERG ready --json "$FIXTURES/ready")
-if echo "$output" | grep -q '"claimed": false'; then
-    pass "unclaimed ticket has claimed=false in JSON"
+if echo "$output" | jq -e '.[0] | .id == "9991" and .refs == []' >/dev/null 2>&1; then
+    pass "open ticket with no matching ref has refs=[] in JSON"
 else
-    fail "unclaimed ticket has claimed=false in JSON (output: $output)"
+    fail "open ticket with no matching ref has refs=[] in JSON (output: $output)"
 fi
 
-# --- Claimed ticket (local branch exists) has claimed=true AND ready=true ---
-# Claimed is a coordination marker, not a blocker (ticket 0143).
-rm -f "$FIXTURES/ready/"*.erg
-cat > "$FIXTURES/ready/0098-claimable.erg" <<'EOF'
+# --- Matching local branch annotates the ticket; word-boundary respected ---
+# Use an isolated temp git repo so the dev repo stays clean.
+ERG_ABS=$ERG
+case "$ERG_ABS" in /*) ;; *) ERG_ABS="$(pwd)/$ERG_ABS" ;; esac
+refdir=$(mktemp -d)
+(
+    cd "$refdir" && git init -q && mkdir tickets
+    cat > tickets/0098-claimable.erg <<'EOF'
 %erg 0.1
 Title: Claimable ticket
 Created: 2026-01-01
@@ -378,33 +334,29 @@ Author: a
 --- log ---
 --- body ---
 EOF
-git branch test/0098-claim 2>/dev/null || true
-output=$($ERG ready --json "$FIXTURES/ready")
-collapsed=$(echo "$output" | tr -d '\n')
-claimed_ok=false
-ready_ok=false
-if echo "$collapsed" | grep -q '"id": "0098"'; then
-    if echo "$collapsed" | grep -q '"claimed": true'; then
-        claimed_ok=true
-    fi
-    if echo "$collapsed" | grep -q '"ready": true'; then
-        ready_ok=true
-    fi
-fi
-if [ "$claimed_ok" = "true" ] && [ "$ready_ok" = "true" ]; then
-    pass "claimed ticket has claimed=true and ready=true (orthogonal fields)"
+    # Plumbing path: commit-tree avoids commit signing (env-dependent).
+    export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t \
+           GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+    empty_tree=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+    sha=$(echo init | git commit-tree "$empty_tree")
+    git update-ref refs/heads/feat/0098-impl "$sha"
+    git update-ref refs/heads/00980-not-a-match "$sha"   # word-boundary negative
+    "$ERG_ABS" ready --json tickets/ > out.json
+    "$ERG_ABS" ready tickets/ > out.txt
+)
+json_out=$(cat "$refdir/out.json")
+text_out=$(cat "$refdir/out.txt")
+if echo "$json_out" | jq -e '.[0] | .id == "0098" and (.refs | index("feat/0098-impl")) != null and (.refs | index("00980-not-a-match")) == null' >/dev/null 2>&1; then
+    pass "JSON refs: matching branch included, word-boundary respected"
 else
-    fail "claimed ticket has claimed=true and ready=true (output: $output)"
+    fail "JSON refs: matching branch included, word-boundary respected (json: $json_out)"
 fi
-
-# --- Human-readable output marks the claimed ticket inline; no separate section ---
-output=$($ERG ready "$FIXTURES/ready")
-if echo "$output" | grep -q "0098.*\[claimed\]" && ! echo "$output" | grep -q "^Claimed tickets"; then
-    pass "claimed ticket gets [claimed] marker, no separate section"
+if echo "$text_out" | grep -q '\[feat/0098-impl\]' && ! echo "$text_out" | grep -q '\[claimed\]' && ! echo "$text_out" | grep -q "^Claimed"; then
+    pass "text: literal [ref] annotation, no 'claimed' abstraction, no Claimed section"
 else
-    fail "claimed ticket gets [claimed] marker, no separate section (output: $output)"
+    fail "text: literal [ref] annotation, no 'claimed' abstraction, no Claimed section (output: $text_out)"
 fi
-git branch -D test/0098-claim 2>/dev/null || true
+rm -rf "$refdir"
 
 # --- Offline-safe: no-remote repo doesn't crash ---
 tmpdir=$(mktemp -d)

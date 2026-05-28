@@ -140,7 +140,10 @@ Otherwise the ticket is **not-closed** (open).
 `erg check` emits a corpus hygiene **warning** (non-fatal) when a ticket's folder placement and `Closed:` header disagree. This mismatch does not make the ticket invalid — the disjunctive criterion above is authoritative for the closed/not-closed decision.
 
 There is no `pending` or `claimed` tag by design, external state must not be encoded in ticket description.
-`erg ready` looks at existing branches names to see if work is already happening on the ticket.
+
+A git ref **references ticket `NNNN`** when the literal 4-digit ID appears at a word boundary (start, end, or any of `/`, `-`, `_`) in its short name. A worktree references the ticket when its branch ref does.
+
+`erg list` and `erg ready` annotate each open ticket with the comma-separated set of references found — local branch short names, remote-tracking branch short names (with their `<remote>/` prefix), and worktree paths. No network calls are made; PRs and forge issue state are out of scope (pep-erg-v1.md §7). Branch *naming* remains a workflow choice (pep-erg-v1.md §6); the rule above only fixes what `list`/`ready` *recognize as a match*.
 
 ### ID assignment
 

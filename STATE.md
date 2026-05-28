@@ -26,9 +26,10 @@ An agent-friendly local ticket system for development in disconnected environmen
 - feat: O(1) everything, tickets store cache.
 - feat: Pre-create 00XX-is-next-ticket.erg.
 - feat: erg list + filters.
-- feat: Flag blocking tags, make erg ready an alias of erg list not blocking.
-  (0143 removed the claimed-as-blocker divergence; ready still has its own
-  command surface for the branch-claim marker.)
+- feat: Flag blocking tags. (0143 removed the claimed-as-blocker divergence;
+  0144 made ready a thin alias of `list open not blocked not <skip-tags>`
+  and replaced the "claimed" abstraction with literal git ref + worktree
+  annotation per spec-erg-v1.md's matching rule.)
 - feat: erg new with body on the line.
 - audit: usage in idh.
 - audit: UX friendliness for beginner, for expert trying out, for other agents, for developper

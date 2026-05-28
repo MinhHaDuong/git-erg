@@ -8,8 +8,13 @@ import (
 	"strings"
 )
 
-// blockedByEntry (defined in ready.go) describes one unsatisfied blocker: a
-// forge ref (offline-unknown, always blocking) or an open local ticket.
+// blockedByEntry describes one unsatisfied blocker of a ticket: a forge ref
+// (offline-unknown, always blocking) or an open local ticket.
+type blockedByEntry struct {
+	kind string
+	id   string
+	ref  string
+}
 
 type listEntry struct {
 	id, title, file string
@@ -17,6 +22,7 @@ type listEntry struct {
 	blocked         bool
 	tags            []string
 	blockedBy       []blockedByEntry
+	refs            []string // git refs + worktree paths referencing this ticket
 }
 
 // has reports whether the entry carries the given filter term. closed, open,
@@ -115,6 +121,17 @@ func loadListEntries(dir string) ([]listEntry, []string) {
 	sort.SliceStable(entries, func(i, j int) bool {
 		return entries[i].id < entries[j].id
 	})
+
+	ids := make([]string, len(entries))
+	for i, e := range entries {
+		ids[i] = e.id
+	}
+	if refs := loadRefMatches(ids); refs != nil {
+		for i := range entries {
+			entries[i].refs = refs[entries[i].id]
+		}
+	}
+
 	return entries, warnings
 }
 
@@ -123,7 +140,11 @@ const summaryList = "List tickets, filtered by tag (alias: ls)"
 
 const helpList = `## erg list [DIR] [TAG...] [not TAG...] [--all] [--json]
 
-List tickets, one per line: ID, title, tags, and blocked-by refs.
+List tickets, one per line, sorted by ID. Each line carries any [refs] —
+git branches, remote-tracking branches, and worktree paths that reference the
+ticket per the spec-erg-v1.md matching rule — plus (tags: …) and (blocked-by:
+…) when present. The refs scan is local-only (git for-each-ref, git worktree
+list); no network calls.
 
 Tag arguments filter the list as a conjunction: a bare TAG keeps only tickets
 carrying it, and "not TAG" drops tickets carrying it. Beyond the literal Tag:
@@ -144,8 +165,8 @@ always filter terms, so 'erg ls closed' lists closed tickets even from inside a
 store that contains a closed/ directory.
 
 Without --json, prints a human-readable line per ticket. With --json, prints a
-JSON array where each element has the fields: id, title, file, closed, tags,
-blocked_by.
+JSON array where each element has the fields: id, title, file, closed, refs,
+tags, blocked_by.
 
 Alias: erg ls.
 
@@ -286,6 +307,9 @@ func printListText(heading string, entries []listEntry) {
 		if e.closed {
 			suffix += " [closed]"
 		}
+		if len(e.refs) > 0 {
+			suffix += fmt.Sprintf(" [%s]", strings.Join(e.refs, ", "))
+		}
 		if len(e.tags) > 0 {
 			suffix += fmt.Sprintf(" (tags: %s)", strings.Join(e.tags, ", "))
 		}
@@ -311,6 +335,7 @@ func printListJSON(entries []listEntry) {
 		Title     string          `json:"title"`
 		File      string          `json:"file"`
 		Closed    bool            `json:"closed"`
+		Refs      []string        `json:"refs"`
 		Tags      []string        `json:"tags"`
 		BlockedBy []blockedByJSON `json:"blocked_by"`
 	}
@@ -325,9 +350,13 @@ func printListJSON(entries []listEntry) {
 		if tags == nil {
 			tags = []string{}
 		}
+		refs := e.refs
+		if refs == nil {
+			refs = []string{}
+		}
 		result[i] = entryJSON{
 			ID: e.id, Title: e.title, File: e.file,
-			Closed: e.closed, Tags: tags, BlockedBy: bb,
+			Closed: e.closed, Refs: refs, Tags: tags, BlockedBy: bb,
 		}
 	}
 
