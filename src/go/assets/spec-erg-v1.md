@@ -160,8 +160,21 @@ erg next-id tickets/
 
 Returns the next available ID. If no valid ticket filenames are found, returns `0001`.
 
-**Collision handling:** optimistic. Multiple worktrees may select the same ID. The pre-commit
-validator rejects duplicates; the losing agent renames and retries.
+**Scan scope:** the local `tickets/` directory, every sibling git worktree's same-relative
+subdir (catches uncommitted drafts in parallel worktrees), and every `refs/heads/` +
+`refs/remotes/` tip in the local refs cache (catches committed-but-unmerged tickets and IDs
+already pushed to origin). The local-branch + remote-tracking pass is bounded by a 200 ms
+wall-clock deadline; on timeout, falls back to the worktree-level result with a stderr
+`WARNING`.
+
+**No network:** remote-tracking refs come from the local cache populated by the last
+`git fetch`. `next-id` never fetches on its own. Run `git fetch` before a parallel raid if
+you want the freshest view of origin; otherwise an ID pushed to origin between fetches is
+invisible and may be re-allocated.
+
+**Collision handling:** optimistic. Two concurrent `next-id` calls in different worktrees
+can still return the same ID — the cross-worktree window has narrowed but is not eliminated.
+The pre-commit validator rejects duplicates on merge; the losing agent renames and retries.
 
 ### Log section
 
