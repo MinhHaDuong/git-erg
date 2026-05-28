@@ -2,10 +2,12 @@
 Title: Tolerate blank lines inside the header block
 Created: 2026-05-27
 Author: Claude
+Closed: delivered in commit b084e79; tolerate+autofix+validate-warn+check-warn with tests
 
 --- log ---
 2026-05-27T19:31Z Claude created
 
+2026-05-28T16:38Z Claude closed — delivered in commit b084e79; tolerate+autofix+validate-warn+check-warn with tests
 --- body ---
 ## Context
 
