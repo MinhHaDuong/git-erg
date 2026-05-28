@@ -9,6 +9,30 @@ Status: Working draft
 - **Offline-first**: no network, no API, no database
 - **Zero runtime dependencies**: single Go binary, shell tests
 - **Agent-friendly by design**: the spec is the interface, the binary is the guardrail and token-saving utilities
+- **Two transports, four users**: POSIX is the first transport, the `erg` CLI is the second, and the same pair serves hooks, CI, agents, and humans (see below)
+
+## POSIX first, CLI second
+
+`.erg` files are plain text. The *first* transport — and the contract every
+component agrees on — is POSIX: a `.erg` file IS a ticket; `cat`, `grep`,
+`find`, `sed`, `vim`, and an agent's `Read`/`Edit` tools are the universal
+interface, available anywhere a shell runs. The `erg` binary is the *second*
+transport: a single static Go file that adds validation, atomic mutation, and
+`--json` queries on top of the same files. Both transports serve the same
+four users:
+
+| User   | POSIX (transport #1)                | CLI (`erg`, transport #2)         |
+|--------|-------------------------------------|-----------------------------------|
+| Hooks  | `grep -l '^%erg' tickets/*.erg`     | `erg validate FILES`              |
+| CI     | `find tickets -name '*.erg'`        | `erg check tickets/`              |
+| Agents | `Read`/`Edit` on `.erg`             | `erg list --json`, `erg close ID` |
+| Humans | `cat`, `vim`, `ls tickets/`         | `erg ready`, `erg --help`         |
+
+A *third* transport — MCP, an HTTP API, a language SDK — would have to beat
+both. POSIX is already universal and zero-install; the CLI is already a
+single static binary with `--json`. There is no headroom left for a third
+layer to add value without paying installation and version-skew costs the
+project does not need. The design rationale is in `pep-erg-v1.md` §8.
 
 ## Specification
 
