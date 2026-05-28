@@ -1,0 +1,109 @@
+%erg 0.1
+Title: ready: drop claimed; ls/ready annotate with literal ref + worktree facts
+Created: 2026-05-28
+Author: Claude
+Closed: done — refs/worktrees annotation, ready is a thin alias
+
+--- log ---
+2026-05-28T06:19Z Claude created
+
+2026-05-28T06:31Z Claude closed — done — refs/worktrees annotation, ready is a thin alias
+--- body ---
+
+## Problem
+
+`erg ready`'s "claimed" abstraction is opaque — a reader sees `[claimed]` and
+must investigate "by whom, when, where, how." Worse, the detection rule lives
+only in source (`strings.Contains(b, id)` in ready.go), is undocumented in spec,
+and has corner-case false positives (substring `0001` matches branches like
+`feat/00010-foo` once IDs ever cross 9999, and more realistically slugs with
+embedded digits).
+
+Adjacent gaps:
+
+  - **Worktrees are never mentioned in the spec.** A ticket's branch may be
+    checked out in a worktree, but `erg ready` shows nothing about it.
+  - **Open PRs are out of reach.** Forge probing is non-negotiably out
+    (pep-erg-v1.md §7: offline + forge-agnostic). Remote-tracking branches are
+    the strongest offline proxy and we already have them via `git for-each-ref
+    refs/remotes`.
+
+## Plan
+
+### 1. Spec amendment
+
+Add to spec-erg-v1.md, replacing the vague "looks at existing branches names"
+sentence:
+
+> A git ref **references ticket NNNN** when the literal 4-digit ID appears
+> at a word boundary (start, end, or any of `/`, `-`, `_`) in its short name.
+> A worktree references the ticket when its branch ref does.
+>
+> `erg ls` and `erg ready` annotate each open ticket with the comma-separated
+> set of references found — local branch short names, remote-tracking branch
+> short names (with their `<remote>/` prefix), and worktree paths. No network
+> calls are made; PRs and forge issue state are out of scope
+> (pep-erg-v1.md §7).
+
+PEP §6 stays: branch *naming* is workflow, not spec. The amendment defines only
+what `ls`/`ready` *recognize as a match*, which today is implicit in source.
+
+### 2. Code changes
+
+  - **Drop the `claimed` abstraction.** Remove `loadBranchNames`,
+    `isBranchClaimed`, the `claimed` field on `readyEntry`, and the
+    `[claimed]` marker.
+  - **Add shared probe** in list.go: `loadRefMatches(dir, tickets)
+    map[id][]string`. Runs `git for-each-ref refs/heads refs/remotes` (short
+    names) and `git worktree list --porcelain`, applies the word-boundary
+    matcher per ticket, returns one map. One git invocation per probe type,
+    cost amortized across all tickets. Lazy gate (skip when no open tickets).
+  - **Annotate in the shared printer.** Append `[ref1, ref2, ../path, ...]`
+    when the set is non-empty. Same code path in `ls` and `ready`. JSON
+    entries gain `refs: []string` (replaces `claimed: bool` — clean break,
+    no transition).
+  - **`ready` becomes a true alias.** Reduce `cmdReady` to: build the saved
+    filter (`open, not blocked, not <skip-tags>`), delegate to the list
+    engine, pass through `--json`. Different heading string ("Ready
+    tickets"), same printer, same annotation. The branch lookup and Claimed
+    section logic in ready.go disappear entirely.
+
+### 3. UX
+
+No `--coordination` / `--show-refs` / `-v` flag. Annotation is unconditional
+when refs exist. If real usage shows it's noise, harness-log sweep can
+inform a future gate; instinct is one less surface.
+
+No `has-branch` / `has-worktree` pseudo-tag for filtering. Annotation is
+greppable; `ls | grep -v '\['` is "truly unstarted." Add the pseudo-tag only
+when a real need surfaces.
+
+### 4. Forge agnostic, offline-safe
+
+  - No `gh`, no HTTP, no `git ls-remote`.
+  - Sources: `git for-each-ref refs/heads refs/remotes` (uses last-fetched
+    state of remotes — stale-fetch is the user's problem, contract of
+    offline tools) and `git worktree list --porcelain`.
+  - No-repo / no-worktree case: probe returns empty, no annotation, no error.
+
+## Acceptance
+
+- [ ] Spec amendment landed in tickets/spec-erg-v1.md (matching rule + scope).
+- [ ] Word-boundary matcher in code; tested for `0001` not matching
+      `00010`, matching `feat/0001`, `release-0001-fixes`, `0001`, etc.
+- [ ] `ls` and `ready` annotate matching local branches, remote-tracking
+      branches (with remote prefix), and worktree paths.
+- [ ] `ready` is a thin alias: `cmdReady` delegates to the list engine
+      with the saved filter; no claimed/branch/worktree logic in ready.go.
+- [ ] JSON entries have `refs: []string` (no `claimed` field).
+- [ ] No network calls; tests cover offline / no-repo / no-fetch states.
+- [ ] STATE.md line 29 closed out: "make erg ready an alias of erg list
+      not blocking" is delivered.
+- [ ] Bootstrap binary and manual refreshed.
+
+## Non-goals
+
+  - PR detection (out per pep-erg-v1.md §7).
+  - Filtering pseudo-tags for refs/worktrees (defer).
+  - Erg-managed branch naming or `erg work <id>` style helpers
+    (pep-erg-v1.md §6: workflow is not spec).

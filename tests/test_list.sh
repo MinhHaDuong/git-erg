@@ -247,6 +247,23 @@ else
     fail "list --json blocked: every entry has a blocker (output: $output)"
 fi
 
+# --- JSON forge blocker has kind="forge" and the literal ref ---
+if echo "$output" | jq -e '
+    [.[] | select(.id == "0005")] | .[0].blocked_by[0]
+    | .kind == "forge" and .ref == "github.com/anthropics/claude-code#1234"' >/dev/null 2>&1; then
+    pass "list --json: forge blocker shape (kind, ref)"
+else
+    fail "list --json: forge blocker shape (output: $output)"
+fi
+
+# --- JSON refs is [] (not null/missing) for tickets with no matching ref ---
+output=$($ERG list --json "$FIXTURES/store")
+if echo "$output" | jq -e 'all(.[]; .refs == [])' >/dev/null 2>&1; then
+    pass "list --json: refs is [] when no refs match"
+else
+    fail "list --json: refs is [] when no refs match (output: $output)"
+fi
+
 rm -f "$FIXTURES/store/0005-forge-blocked.erg"
 
 # An absolute path to the binary, so the cd-based cases below still find it.

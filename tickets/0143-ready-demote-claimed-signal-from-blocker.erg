@@ -1,0 +1,54 @@
+%erg 0.1
+Title: ready: demote claimed signal from blocker to marker
+Created: 2026-05-28
+Author: Claude
+Closed: done — claimed is now a marker, no longer a blocker
+
+--- log ---
+2026-05-28T05:54Z Claude created
+
+2026-05-28T05:56Z Claude closed — done — claimed is now a marker, no longer a blocker
+--- body ---
+
+## Problem
+
+`erg ready` currently promotes the "claimed" branch-observation signal to a
+blocker: ready.go:264 does `if claimed { blocked = true }`, which exiles claimed
+tickets out of the ready list and into a separate "Claimed tickets" section.
+
+This conflates two distinct questions:
+
+  - **ready** — prerequisites satisfied, the ticket is actionable.
+  - **claimed** — someone may already be working on it (informational signal).
+
+A claimed-but-otherwise-ready ticket genuinely is ready. Filtering it out is
+workflow opinion, not a spec requirement. spec-erg-v1.md:143 says ready "looks
+at existing branches names to see if work is already happening" — observation,
+not filtering. pep-erg-v1.md §6 confirms branch names are a *signal*, with
+coordination explicitly out of scope.
+
+## Plan
+
+  - ready.go: remove the `blocked = true` promotion when claimed. Keep the
+    branch lookup (still lazy per closed 0079). Annotate claimed entries with
+    a `[claimed]` marker in the human output; drop the separate Claimed
+    section.
+  - JSON schema unchanged (id, title, file, ready, claimed, tags, blocked_by).
+    Semantics shift for claimed entries: ready=true (was false) and claimed=true.
+    Consumers detecting claimed via ready=false must switch to claimed=true —
+    which is what the field is for.
+  - tests/test_ready.sh: flip the "claimed → ready=false" assertion to
+    "claimed → ready=true and claimed=true"; replace the "Claimed section"
+    assertion with a "[claimed] marker" check.
+  - helpReady: rewrite the claimed paragraph to describe marker semantics.
+  - STATE.md:29: note that the claimed-as-blocker divergence is resolved.
+
+## Acceptance
+
+- [ ] Claimed ticket appears in the ready list with a `[claimed]` marker.
+- [ ] No separate "Claimed tickets" section in human output.
+- [ ] JSON: claimed entries have ready=true and claimed=true.
+- [ ] loadBranchNames remains lazy (only invoked when there is a ready
+      candidate to mark).
+- [ ] test_ready.sh updated and passing.
+- [ ] helpReady and manual reflect marker semantics.
