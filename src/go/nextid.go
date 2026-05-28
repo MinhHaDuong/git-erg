@@ -203,6 +203,12 @@ zero-padded to 4 digits. Prints "0001" if no numbered tickets exist anywhere.
 When DIR is outside a git repository, or git is unavailable, behavior
 reduces to the Pass 1 local walk alone.
 
+Cache freshness: the remote-tracking scan is only as fresh as the last
+'git fetch'. If parallel agents push tickets to origin between fetches,
+their IDs are invisible to this scan and may be re-allocated. Run
+'git fetch' before starting a parallel raid if you want the freshest
+view; next-id itself never makes a network call.
+
 ID allocation is still optimistic: two concurrent invocations in different
 worktrees may return the same ID — the cross-worktree window has narrowed
 but is not eliminated. The pre-commit hook rejects duplicate IDs on merge;
