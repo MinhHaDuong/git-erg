@@ -24,7 +24,11 @@ rules are:
     the ticket becomes not-closed (the correct new state).
   - 'Tags:' preamble line → rewrite the key to 'Tag:' (singular; the header is
     repeatable and singular names are the v1 convention). The value is preserved.
-  - No legacy line → no-op.
+  - Legacy '%erg v1' magic line → rewritten to '%erg 0.1'.
+  - Interior blank lines inside the header block → swept (ticket 0141:
+    accept on read, autofix on write). The first blank line still terminates
+    the header block; only blanks between header lines are removed.
+  - No legacy line and no interior blanks → no-op.
 
 After migration, erg validate will reject any remaining Status: or Tags: lines.
 
