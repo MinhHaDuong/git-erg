@@ -183,17 +183,36 @@ offline-unknown (blocking) until manually removed.
 tools, the binary is only a validator in the pre-commit hook, not the
 primary interface. Problem: asking an LLM to burn tokens for something that a local binary can do faster and deterministic is irresponsible.
 
-**Why a CLI, and not an MCP server.** A bash CLI is universal: every coding agent
-shells out, every git hook runs in a shell, every CI runner has `sh`. MCP support
-is uneven across agents and demands per-client `settings.json` wiring in every
-consuming repo — exactly the install friction `tickets/erg` was committed to avoid.
-The CLI also keeps the spec as the contract: the binary is a courtesy on top of
-plain files, and an agent without MCP (or without this binary at all) still
-participates by reading and writing `.erg` directly. An MCP server would tend to
-become the *de facto* interface, weakening the file-as-source-of-truth invariant
-the rest of the design defends. The headline MCP benefit — structured I/O — is
-already covered by `--json` on `list` and `ready`, and corpus sizes do not
-justify a long-running process with a lifecycle of its own.
+**Why a CLI, and not an MCP server.** `tickets/erg` has four distinct users, and a
+bash CLI is the only interface that serves all four with one artifact:
+
+1. **Hooks.** `pre-commit` runs `erg validate` non-interactively and reads the
+   exit code. Hooks live in a shell; they cannot reasonably hand off to a
+   long-running server that may or may not be running, owned by some other
+   process, or unreachable from a detached worktree.
+2. **CI.** GitHub Actions, GitLab runners, and local `make` targets all shell
+   out the same way; `--json` feeds downstream steps. No client SDK, no
+   per-runner configuration.
+3. **Agents.** Every coding agent — Claude Code, Cursor, Aider, Codex, Cline,
+   Continue, plain-Python scripts driving the API — can run a subprocess. MCP
+   support is uneven, demands per-client `settings.json` wiring in every
+   consuming repo, and locks the integration to whichever clients implement it
+   today.
+4. **Humans.** `tickets/erg --help` is self-documenting; output pipes to
+   `grep`/`jq`/`less`; the binary tab-completes. An MCP server is opaque
+   without a client.
+
+A second transport would have to serve all four to replace the CLI — and none of
+the candidates (MCP, HTTP API, language SDK) do. Bash is the lowest common
+denominator across hooks, CI, agents, and humans; it is also the *only* common
+denominator. The CLI further keeps the spec as the contract: the binary is a
+courtesy on top of plain files, and an agent without MCP (or without this binary
+at all) still participates by reading and writing `.erg` directly. An MCP server
+would tend to become the *de facto* interface, weakening the
+file-as-source-of-truth invariant the rest of the design defends. The headline
+MCP benefit — structured I/O — is already covered by `--json` on `list` and
+`ready`, and corpus sizes do not justify a long-running process with a lifecycle
+of its own.
 
 **Why not even an opt-in `erg mcp` subcommand.** Honest answer: we have not
 evaluated the need. No agent integrator has asked for it, no workflow has hit a

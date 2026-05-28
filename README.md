@@ -9,6 +9,24 @@ Status: Working draft
 - **Offline-first**: no network, no API, no database
 - **Zero runtime dependencies**: single Go binary, shell tests
 - **Agent-friendly by design**: the spec is the interface, the binary is the guardrail and token-saving utilities
+- **One artifact, four users**: the same `tickets/erg` binary serves hooks, CI, agents, and humans through a single bash interface (see below)
+
+## One artifact, four users
+
+`tickets/erg` is built to serve four distinct consumers through the same CLI,
+with no per-consumer wiring:
+
+| User   | How it calls `erg`                          | What it needs                          |
+|--------|---------------------------------------------|----------------------------------------|
+| Hooks  | `pre-commit` shells out to `erg validate`   | synchronous, non-interactive, exit code|
+| CI     | GitHub Actions / `make` runs `erg check`    | deterministic exit, `--json` for parse |
+| Agents | every coding agent shells out a subprocess  | low-token, predictable schema          |
+| Humans | `tickets/erg --help`, pipes to `jq`/`less`  | discoverability, tab-completion        |
+
+Any second transport — an MCP server, an HTTP API, a language SDK — would have
+to serve all four to replace the CLI. None of them do. Bash is the lowest
+common denominator across hooks, CI, agents, and humans; it is also the only
+common denominator. The design rationale is in `pep-erg-v1.md` §8.
 
 ## Specification
 
