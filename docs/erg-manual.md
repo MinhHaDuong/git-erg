@@ -1,7 +1,7 @@
 # erg manual
 
 Author: minh.ha-duong@cnrs.fr
-Generated from: erg built 2026-05-28T17:00:34Z rev d9f85b5
+Generated from: erg built 2026-05-28T17:22:01Z rev 1e2d3f9
 
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
@@ -132,15 +132,28 @@ is local-only; PRs and forge state are out of scope (pep-erg-v1.md §7).
 
 Print the next available ticket ID.
 
-Scans DIR (default: auto-discovered tickets/) and all subdirectories for .erg
-files, extracts the leading 4-digit numeric prefix from each filename, and
-returns the maximum found plus one, zero-padded to 4 digits. Prints "0001" if
-no numbered tickets exist or the directory does not exist.
+Scans for the maximum ticket ID across three sources and returns max+1,
+zero-padded to 4 digits. Prints "0001" if no numbered tickets exist anywhere.
 
-The scan is local to the working directory; other branches, worktrees, and remotes
-are not consulted. ID allocation is optimistic: two concurrent invocations may
-return the same ID. The pre-commit hook rejects duplicate IDs; the losing agent
-renames its ticket with a new ID from a fresh invocation.
+  1. DIR (default: auto-discovered tickets/) and its subdirectories — the
+     local filesystem walk.
+  2. The same-relative subdir of every sibling worktree, enumerated via
+     'git worktree list'. Catches uncommitted tickets drafted in parallel
+     agent worktrees of the same repository.
+  3. The same-relative subtree of every local branch tip, enumerated via
+     'git for-each-ref refs/heads/' + 'git ls-tree'. Catches tickets
+     committed on branches not currently checked out anywhere. Bounded by a
+     200ms wall-clock deadline; on timeout, falls back to the Pass 1+2
+     result and prints a WARNING to stderr.
+
+Remote-tracking branches and remote refs are never consulted. When DIR is
+outside a git repository, or git is unavailable, behavior reduces to the
+Pass 1 local walk alone.
+
+ID allocation is still optimistic: two concurrent invocations in different
+worktrees may return the same ID — the cross-worktree window has narrowed
+but is not eliminated. The pre-commit hook rejects duplicate IDs on merge;
+the losing agent renames its ticket with a new ID from a fresh invocation.
 
 ## erg new TITLE [DIR]
 

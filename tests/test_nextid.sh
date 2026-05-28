@@ -105,5 +105,69 @@ else
     fail "custom dir argument used (got: $out)"
 fi
 
+# --- Cross-worktree: sibling worktree with uncommitted higher-ID ticket ---
+# Live incident regression from ticket 0140: parallel agents in sibling
+# worktrees previously collided on the same ID. The scan must now see
+# uncommitted .erg files in sibling worktrees. All tempdirs are anchored
+# under $TDIR so the top-level EXIT trap cleans them on any failure.
+if command -v git >/dev/null 2>&1; then
+    XWR="$TDIR/xwr"
+    mkdir -p "$XWR/repo"
+    git init -q -b main "$XWR/repo"
+    git -C "$XWR/repo" config user.email "test@example.com"
+    git -C "$XWR/repo" config user.name "Test"
+    git -C "$XWR/repo" config commit.gpgsign false
+    mkdir -p "$XWR/repo/tickets"
+    touch "$XWR/repo/tickets/0050-primary.erg"
+    echo "init" > "$XWR/repo/README"
+    git -C "$XWR/repo" add README
+    git -C "$XWR/repo" commit -q -m "init"
+    git -C "$XWR/repo" worktree add -q -b wt2-branch "$XWR/wt2" >/dev/null 2>&1
+    mkdir -p "$XWR/wt2/tickets"
+    touch "$XWR/wt2/tickets/0123-uncommitted-in-sibling.erg"
+    out=$("$ERG" next-id "$XWR/repo/tickets")
+    if [ "$out" = "0124" ]; then
+        pass "cross-worktree: skips uncommitted ticket in sibling worktree"
+    else
+        fail "cross-worktree: skips uncommitted ticket in sibling worktree (got: $out)"
+    fi
+
+    # --- Cross-worktree: ticket committed on an unchecked-out branch ---
+    YWR="$TDIR/ywr"
+    mkdir -p "$YWR/repo"
+    git init -q -b main "$YWR/repo"
+    git -C "$YWR/repo" config user.email "test@example.com"
+    git -C "$YWR/repo" config user.name "Test"
+    git -C "$YWR/repo" config commit.gpgsign false
+    echo "init" > "$YWR/repo/README"
+    git -C "$YWR/repo" add README
+    git -C "$YWR/repo" commit -q -m "init"
+    git -C "$YWR/repo" checkout -q -b other
+    mkdir -p "$YWR/repo/tickets"
+    touch "$YWR/repo/tickets/0200-on-other-branch.erg"
+    git -C "$YWR/repo" add tickets/0200-on-other-branch.erg
+    git -C "$YWR/repo" commit -q -m "add 0200"
+    git -C "$YWR/repo" checkout -q main
+    rm -rf "$YWR/repo/tickets"
+    mkdir -p "$YWR/repo/tickets"
+    out=$("$ERG" next-id "$YWR/repo/tickets")
+    if [ "$out" = "0201" ]; then
+        pass "cross-worktree: skips ticket committed on un-checked-out branch"
+    else
+        fail "cross-worktree: skips ticket committed on un-checked-out branch (got: $out)"
+    fi
+
+    # --- Cross-worktree: dir outside a git repo still works ---
+    ZWR="$TDIR/zwr"
+    mkdir -p "$ZWR"
+    touch "$ZWR/0007-only-local.erg"
+    out=$("$ERG" next-id "$ZWR")
+    if [ "$out" = "0008" ]; then
+        pass "cross-worktree: dir outside any git repo falls back to local scan"
+    else
+        fail "cross-worktree: dir outside any git repo falls back to local scan (got: $out)"
+    fi
+fi
+
 echo "next-id: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

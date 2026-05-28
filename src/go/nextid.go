@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // parseIDFromFilename extracts the leading numeric prefix from an .erg
@@ -27,13 +32,12 @@ func parseIDFromFilename(name string) int {
 	return n
 }
 
-// nextID scans dir and all its subdirectories for the highest numeric .erg
-// filename prefix and returns the next ID as a zero-padded 4-digit string.
-// Returns "0001" when dir does not exist or contains no numbered tickets.
-func nextID(dir string) string {
+// maxIDInDir walks dir (and subdirectories) and returns the largest numeric
+// .erg filename prefix found, or 0 if dir does not exist or contains none.
+// Used by nextID for the local pass and for each sibling worktree pass.
+func maxIDInDir(dir string) int {
 	maxID := 0
-
-	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
 		}
@@ -42,6 +46,126 @@ func nextID(dir string) string {
 		}
 		return nil
 	})
+	return maxID
+}
+
+// localBranches returns the short names of every refs/heads/ branch in the
+// repository containing dir. Remote-tracking branches (refs/remotes/) are
+// intentionally excluded — remote scans are an opt-in feature, not part of
+// the default cross-worktree guarantee. Returns nil on any git error.
+func localBranches(ctx context.Context, dir string) []string {
+	cmd := exec.CommandContext(ctx, "git", "-C", dir, "for-each-ref",
+		"--format=%(refname:short)", "refs/heads")
+	cmd.Stderr = io.Discard
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	var refs []string
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		refs = append(refs, line)
+	}
+	return refs
+}
+
+// maxIDInRef returns the largest ticket ID found in <ref>'s tree under
+// <relpath> via `git ls-tree -r -z --name-only`. The command runs with -C
+// <repoTop> so the pathspec is anchored at the repo root (running it from a
+// subdir would interpret <relpath> relative to cwd, missing the tree).
+// core.quotePath=false makes non-ASCII filenames come back literal, and -z
+// gives NUL-delimited output so embedded newlines are safe. Returns 0 on any
+// git error.
+func maxIDInRef(ctx context.Context, repoTop, ref, relpath string) int {
+	cmd := exec.CommandContext(ctx, "git", "-C", repoTop,
+		"-c", "core.quotePath=false",
+		"ls-tree", "-r", "-z", "--name-only", ref, "--", relpath)
+	cmd.Stderr = io.Discard
+	out, err := cmd.Output()
+	if err != nil {
+		return 0
+	}
+	maxID := 0
+	for _, name := range strings.Split(string(out), "\x00") {
+		if name == "" {
+			continue
+		}
+		if n := parseIDFromFilename(path.Base(name)); n > maxID {
+			maxID = n
+		}
+	}
+	return maxID
+}
+
+// branchScanDeadline bounds the Pass 3 (local-branch ls-tree) scan. On
+// timeout, nextID falls back to the Pass 1+2 result with a stderr warning.
+const branchScanDeadline = 200 * time.Millisecond
+
+// nextID returns the next available ticket ID as a zero-padded 4-digit string.
+// The scan combines three sources:
+//
+//  1. The filesystem walk of dir itself.
+//  2. The same-relative subdir of every sibling worktree (catches uncommitted
+//     or unpushed tickets drafted in parallel agent worktrees).
+//  3. The same-relative subtree of every local branch tip (catches tickets
+//     committed on branches not currently checked out anywhere).
+//
+// Pass 1 always runs. Passes 2 and 3 run only when dir lies inside a git
+// worktree; if dir is outside the repo or git is unavailable, they are
+// silently skipped and behavior reduces to the original local-only scan.
+// Pass 3 is bounded by branchScanDeadline; on timeout it falls back to the
+// Pass 1+2 result and writes a single WARNING to stderr.
+//
+// Allocation is still optimistic: two concurrent invocations in different
+// worktrees may return the same ID. The pre-commit hook on merge catches
+// duplicates on the same branch; the cross-worktree window has narrowed but
+// is not eliminated.
+func nextID(dir string) string {
+	maxID := maxIDInDir(dir)
+
+	top := worktreeTopFor(dir)
+	if top == "" {
+		return fmt.Sprintf("%04d", maxID+1)
+	}
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return fmt.Sprintf("%04d", maxID+1)
+	}
+	rel, err := filepath.Rel(top, absDir)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return fmt.Sprintf("%04d", maxID+1)
+	}
+
+	for _, wt := range loadGitWorktrees(dir) {
+		if wt.path == top || wt.path == "" {
+			continue
+		}
+		if n := maxIDInDir(filepath.Join(wt.path, rel)); n > maxID {
+			maxID = n
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), branchScanDeadline)
+	defer cancel()
+	slashRel := filepath.ToSlash(rel)
+	for _, ref := range localBranches(ctx, top) {
+		if ctx.Err() != nil {
+			break
+		}
+		if n := maxIDInRef(ctx, top, ref, slashRel); n > maxID {
+			maxID = n
+		}
+	}
+	// Check after the loop so the warning fires whether the deadline tripped
+	// during localBranches itself, during the last maxIDInRef call, or between
+	// iterations. The Pass 1+2 result is preserved.
+	if ctx.Err() != nil {
+		fmt.Fprintln(os.Stderr,
+			"WARNING: next-id branch-tip scan exceeded 200ms; result may miss IDs on un-checked-out branches")
+	}
 
 	return fmt.Sprintf("%04d", maxID+1)
 }
@@ -53,15 +177,28 @@ const helpNextID = `## erg next-id [DIR]
 
 Print the next available ticket ID.
 
-Scans DIR (default: auto-discovered tickets/) and all subdirectories for .erg
-files, extracts the leading 4-digit numeric prefix from each filename, and
-returns the maximum found plus one, zero-padded to 4 digits. Prints "0001" if
-no numbered tickets exist or the directory does not exist.
+Scans for the maximum ticket ID across three sources and returns max+1,
+zero-padded to 4 digits. Prints "0001" if no numbered tickets exist anywhere.
 
-The scan is local to the working directory; other branches, worktrees, and remotes
-are not consulted. ID allocation is optimistic: two concurrent invocations may
-return the same ID. The pre-commit hook rejects duplicate IDs; the losing agent
-renames its ticket with a new ID from a fresh invocation.
+  1. DIR (default: auto-discovered tickets/) and its subdirectories — the
+     local filesystem walk.
+  2. The same-relative subdir of every sibling worktree, enumerated via
+     'git worktree list'. Catches uncommitted tickets drafted in parallel
+     agent worktrees of the same repository.
+  3. The same-relative subtree of every local branch tip, enumerated via
+     'git for-each-ref refs/heads/' + 'git ls-tree'. Catches tickets
+     committed on branches not currently checked out anywhere. Bounded by a
+     200ms wall-clock deadline; on timeout, falls back to the Pass 1+2
+     result and prints a WARNING to stderr.
+
+Remote-tracking branches and remote refs are never consulted. When DIR is
+outside a git repository, or git is unavailable, behavior reduces to the
+Pass 1 local walk alone.
+
+ID allocation is still optimistic: two concurrent invocations in different
+worktrees may return the same ID — the cross-worktree window has narrowed
+but is not eliminated. The pre-commit hook rejects duplicate IDs on merge;
+the losing agent renames its ticket with a new ID from a fresh invocation.
 `
 
 // cmdNextID implements `erg next-id [dir]`. See helpNextID for the user-facing summary.
