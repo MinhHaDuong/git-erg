@@ -183,6 +183,28 @@ offline-unknown (blocking) until manually removed.
 tools, the binary is only a validator in the pre-commit hook, not the
 primary interface. Problem: asking an LLM to burn tokens for something that a local binary can do faster and deterministic is irresponsible.
 
+**Why a CLI, and not an MCP server.** A bash CLI is universal: every coding agent
+shells out, every git hook runs in a shell, every CI runner has `sh`. MCP support
+is uneven across agents and demands per-client `settings.json` wiring in every
+consuming repo — exactly the install friction `tickets/erg` was committed to avoid.
+The CLI also keeps the spec as the contract: the binary is a courtesy on top of
+plain files, and an agent without MCP (or without this binary at all) still
+participates by reading and writing `.erg` directly. An MCP server would tend to
+become the *de facto* interface, weakening the file-as-source-of-truth invariant
+the rest of the design defends. The headline MCP benefit — structured I/O — is
+already covered by `--json` on `list` and `ready`, and corpus sizes do not
+justify a long-running process with a lifecycle of its own.
+
+**Why not even an opt-in `erg mcp` subcommand.** Honest answer: we have not
+evaluated the need. No agent integrator has asked for it, no workflow has hit a
+shell-escaping or token-cost wall that `--json` did not solve, and the
+maintainer cost of a second transport (schema drift between CLI flags and MCP
+tool definitions, version skew across clients, a new surface for the validator
+to keep in sync) is non-trivial. The door is not closed: a stdio JSON-RPC
+wrapper over the existing handlers is a small change that would preserve §8
+while letting MCP-native clients skip the shell. We are waiting for a concrete
+use case before paying that cost.
+
 ### 9. Directory location: `tickets/` at repo root
 
 **Choice:** Tickets live in `tickets/` at the repository root. Closed tickets may go to
