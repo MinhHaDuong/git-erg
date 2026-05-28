@@ -1,7 +1,7 @@
 # erg manual
 
 Author: minh.ha-duong@cnrs.fr
-Generated from: erg built 2026-05-27T21:00:11Z rev ae843bd
+Generated from: erg built 2026-05-28T05:56:41Z rev 965b439
 
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
@@ -113,14 +113,17 @@ A ticket is ready when all of the following hold:
   - No forge-ref Blocked-by lines (forge refs are offline-unknown, treated as blocking).
   - No tags from the vocabulary (default: needs-human, deferred; see tickets/.ergrc [tags]).
 
-Tickets that pass the readiness test but have a git branch containing the
-ticket ID are reported as "claimed" (shown separately, not in the ready list).
+Tickets whose ID appears in a git branch name are annotated with a "[claimed]"
+marker as a coordination hint. Claimed is an informational signal, not a
+blocker — claimed tickets remain in the ready list (spec-erg-v1.md §closed
+endorses the observation; pep-erg-v1.md §6 frames coordination as workflow).
 
 Without --json, prints a human-readable summary. With --json, prints a JSON
 array where each element has the fields: id, title, file, ready, claimed, tags, blocked_by.
 
 The JSON output covers all open tickets (not just ready ones), so callers can
-filter and sort by any field. ready=true implies blocked_by is empty.
+filter and sort by any field. ready=true implies blocked_by is empty; the
+ready and claimed fields are orthogonal.
 
 ## erg next-id [DIR]
 
