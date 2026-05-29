@@ -2,10 +2,12 @@
 Title: Clarify where the prebuilt erg binary comes from in README
 Created: 2026-05-29
 Author: Claude
+Closed: autoclosed — PR #184
 
 --- log ---
 2026-05-29T15:30Z Claude created — UX audit finding F10 (verified); "use a prebuilt one" with no source
 
+2026-05-29T19:19Z MinhHaDuong closed — autoclosed — PR #184
 --- body ---
 ## Context
 
