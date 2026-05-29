@@ -1,0 +1,87 @@
+%erg 0.1
+Title: Add contributor guide with add-a-subcommand checklist
+Created: 2026-05-29
+Author: Claude
+
+--- log ---
+2026-05-29T15:30Z Claude created — UX audit findings F16 + F17 (verified); folds two adjacent contributor-onboarding gaps into one doc
+
+--- body ---
+## Context
+
+The UX audit (0152, PR #174) found two adjacent contributor-onboarding
+gaps, both verified by the developer persona:
+
+- **F16**: no `CONTRIBUTING.md` exists anywhere. `AGENTS.md` documents
+  autonomous *agent* policy (pick/safety/merge gates), not the *human*
+  contributor workflow — branch naming, how to submit a patch, code
+  style, test policy.
+- **F17**: adding a subcommand requires reconstructing a checklist from
+  four separate files. Verified: the dispatch switch lives in
+  `src/go/main.go` (~lines 190–222), the command registry in
+  `src/go/helptext.go` (the `commands` slice), plus a new command file,
+  a `tests/test_<cmd>.sh`, and a `TEST_SUITES` entry in the `Makefile`.
+  `TestDispatchRegistrySync` (`src/go/erg_test.go:407`) is a good safety
+  net that catches drift, but the *workflow* is nowhere documented.
+
+These are one document: the subcommand checklist is a section *inside* a
+contributor guide. Filing them together avoids a premature split.
+
+## Relevant files
+
+- (new) `CONTRIBUTING.md` — the contributor guide
+- `src/go/helptext.go` — `commands` slice (registry)
+- `src/go/main.go` — dispatch switch (~190–222)
+- `src/go/erg_test.go:407` — `TestDispatchRegistrySync` (the safety net to cite)
+- `Makefile` — `TEST_SUITES` (the test-registration step)
+- `tests/README.md` — existing test policy to cross-link, not duplicate
+- `README.md`, `AGENTS.md` — link to CONTRIBUTING from a discoverable spot
+
+## Actions
+
+1. Write `CONTRIBUTING.md` covering: build/test loop (`make build`,
+   `make test`, single-suite `make test-<cmd>`), branch naming, the
+   merge-request workflow, where the test policy lives (link
+   `tests/README.md`), and the Go version (link `go.mod`).
+2. Add an explicit "Adding a subcommand" checklist: (a) create
+   `src/go/<cmd>.go` with `summary<Cmd>` / `help<Cmd>` / `cmd<Cmd>`,
+   (b) register in the `commands` slice in `helptext.go`, (c) add a
+   dispatch case in `main.go`, (d) create `tests/test_<cmd>.sh`,
+   (e) add `<cmd>` to `TEST_SUITES` in the Makefile — and note that
+   `TestDispatchRegistrySync` + `_test-lint` enforce steps (b)/(c)/(e).
+3. Link CONTRIBUTING.md from README and/or AGENTS.md so a human finds it.
+
+## Test
+
+Source-inspection guard (no subprocess) in `tests/test_docs.sh`:
+
+```sh
+# CONTRIBUTING.md exists and lists every file the subcommand checklist touches
+for token in helptext.go main.go TEST_SUITES test_; do
+    grep -q "$token" CONTRIBUTING.md || fail "CONTRIBUTING.md omits $token"
+done
+```
+
+Catches a wrong implementation (a stub CONTRIBUTING.md missing the
+checklist), not merely a differently-worded one — the negative control
+is the current absent file.
+
+## Verification
+
+- [ ] `CONTRIBUTING.md` exists and is linked from a discoverable place
+- [ ] The add-a-subcommand checklist names all five touch-points and the
+      enforcing tests
+- [ ] A new contributor can follow it end-to-end without reading source
+- [ ] Guard test fails pre-fix (no file), passes post-fix
+
+## Invariants
+
+- Do not duplicate `tests/README.md` — link it.
+- Keep `AGENTS.md` agent-policy-only; CONTRIBUTING.md is the human doc.
+- `make test` stays green.
+
+## Exit criteria
+
+- A human contributor guide exists with a complete, accurate
+  add-a-subcommand checklist, discoverable from README/AGENTS, guarded
+  by a doc test.
