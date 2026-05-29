@@ -18,7 +18,7 @@
 // CPU / nice: erg deliberately does NOT renice itself — process priority is the
 // invoker's job (nice/ionice/systemd), and erg has no goroutines so it never
 // saturates cores. There is therefore nothing to assert about scheduling here;
-// the rationale lives in tickets/0165.
+// the rationale lives in tickets/0169.
 
 package main
 
