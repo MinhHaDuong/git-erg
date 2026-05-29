@@ -4,7 +4,7 @@
 //
 // Build-tagged `scaling` so it is excluded from `make test`, `make unit-test`,
 // and plain `go test ./...` — none of which pass `-tags scaling`. It is slow
-// (it builds stores up to ~1000 tickets and profiles six commands) and is a
+// (it builds stores up to ~1000 tickets and profiles five commands) and is a
 // regression guard, not a per-merge check. Run it on demand: `make test-scaling`.
 //
 // 0154 named the real O(N^2) risk as "the dependent/ref scans in check/rm/close".
@@ -18,9 +18,10 @@
 // What this catches, and what it does not. Allocation *volume* is the assertion
 // signal because the realistic O(N^2) regressions in this code — a nested scan
 // that builds a per-pair slice/map, re-parsing the corpus inside a loop — move
-// O(N^2) bytes and trip the ratio hard (verified by mutation: a per-ticket
-// []string of all IDs pushes the top-step ratio to ~16). Two things slip past
-// it by construction: allocation *count* (Mallocs) is a poor proxy because
+// O(N^2) bytes and trip the ratio hard. TestScalingLinearNegativeControl is the
+// permanent proof of teeth: it runs a genuinely O(N^2) probe through the same
+// harness and asserts the ratio exceeds the ceiling. Two things slip past the
+// guard by construction: allocation *count* (Mallocs) is a poor proxy because
 // `append` amortises an O(N^2)-byte build into O(N log N) allocation events; and
 // a purely compute-bound O(N^2) that allocates nothing (e.g. a tight comparison
 // scan over already-parsed structs) leaves both bytes and a few-ms time delta
@@ -121,9 +122,11 @@ func buildCorpus(t *testing.T, dir string, n int) {
 	}
 }
 
-// measure runs fn once with stdout discarded and returns the heap-allocation
-// volume (TotalAlloc bytes) it produced and its wall-clock duration. The GC
-// before sampling makes the TotalAlloc delta reflect only fn's own allocations.
+// measure runs fn once with stdout and stderr discarded and returns the
+// heap-allocation volume (TotalAlloc bytes) it produced and its wall-clock
+// duration. TotalAlloc is cumulative and monotonic, so the delta across the two
+// reads already reflects only what fn allocated; the GC beforehand just lowers
+// the odds of a collection cycle landing inside the timed region.
 func measure(t *testing.T, fn func()) (bytes uint64, elapsed time.Duration) {
 	t.Helper()
 	devnull, err := os.Open(os.DevNull)
@@ -131,9 +134,9 @@ func measure(t *testing.T, fn func()) (bytes uint64, elapsed time.Duration) {
 		t.Fatalf("open %s: %v", os.DevNull, err)
 	}
 	defer devnull.Close()
-	saved := os.Stdout
-	os.Stdout = devnull
-	defer func() { os.Stdout = saved }()
+	savedOut, savedErr := os.Stdout, os.Stderr
+	os.Stdout, os.Stderr = devnull, devnull
+	defer func() { os.Stdout, os.Stderr = savedOut, savedErr }()
 
 	var m1, m2 runtime.MemStats
 	runtime.GC()
@@ -145,9 +148,61 @@ func measure(t *testing.T, fn func()) (bytes uint64, elapsed time.Duration) {
 	return m2.TotalAlloc - m1.TotalAlloc, elapsed
 }
 
-// scalingCommands are the corpus-heavy commands 0154 flagged. invoke runs the
-// command against a freshly built corpus dir; mutating commands (close, rm)
-// therefore measure a clean, repeatable scan each time.
+// scalingReps is how many times each (command, size) point is measured; the
+// minimum is kept. Allocation volume is deterministic for fixed input, but
+// min-of-reps rejects the occasional run perturbed by a stray GC allocation or
+// scheduling jitter in the timing. Each rep gets a freshly built corpus so the
+// mutating probes (close, rm) measure a clean scan every time.
+const scalingReps = 3
+
+// profileLadder runs invoke against a freshly built corpus at each size in the
+// ladder, keeping the min-of-reps allocation volume and time, logs the table,
+// and returns the largest consecutive-size allocation-bytes ratio. A 4x size
+// step means a linear command yields ~4.0 and a quadratic one ~16.0.
+func profileLadder(t *testing.T, label string, invoke func(dir string) int) (maxRatio float64) {
+	t.Helper()
+	t.Logf("%-8s %6s %12s %12s %8s", "cmd", "N", "alloc_KB", "time_us", "ratio")
+	var prevBytes uint64
+	for _, n := range scalingSizes {
+		var minBytes uint64
+		var minNs int64
+		for r := 0; r < scalingReps; r++ {
+			dir := t.TempDir()
+			buildCorpus(t, dir, n)
+			b, elapsed := measure(t, func() { invoke(dir) })
+			if r == 0 || b < minBytes {
+				minBytes = b
+			}
+			if ns := elapsed.Nanoseconds(); r == 0 || ns < minNs {
+				minNs = ns
+			}
+		}
+
+		ratioStr := "--"
+		if prevBytes > 0 {
+			r := float64(minBytes) / float64(prevBytes)
+			ratioStr = fmt.Sprintf("%.2f", r)
+			if r > maxRatio {
+				maxRatio = r
+			}
+		}
+		t.Logf("%-8s %6d %12d %12d %8s", label, n, minBytes/1024, minNs/1000, ratioStr)
+		prevBytes = minBytes
+	}
+	return maxRatio
+}
+
+// scalingCommands are the corpus-heavy commands whose in-process work scales
+// with corpus size. invoke runs the command against a freshly built corpus dir;
+// mutating commands (close, rm) therefore measure a clean, repeatable scan each
+// time.
+//
+// next-id is deliberately absent. Its dominant work in production is a
+// `git for-each-ref` / `ls-tree` subprocess (nextid.go) that ReadMemStats — a
+// parent-heap probe — cannot see; and against this non-git temp corpus those
+// passes no-op entirely, leaving only the trivial Pass-1 WalkDir, which barely
+// allocates. Either way it is not a meaningful allocation-scaling target, so
+// measuring it would report a hollow curve.
 var scalingCommands = []struct {
 	name   string
 	invoke func(dir string) int
@@ -155,9 +210,10 @@ var scalingCommands = []struct {
 	{"check", func(d string) int { return cmdCheck([]string{d}) }},
 	{"list", func(d string) int { return cmdList([]string{d}) }},
 	{"ready", func(d string) int { return cmdReady([]string{d}) }},
-	{"next-id", func(d string) int { return cmdNextID([]string{d}) }},
 	// close/rm exercise the full-corpus dependent scan (clearBlockedByRefs):
-	// ticket 0001 is Blocked-by of 0002, so both rewrite a dependent.
+	// ticket 0001 is Blocked-by of 0002, so both rewrite a dependent. The
+	// rewrite itself is in-process (atomic file writes, no git), so the
+	// measured cost is the loadErgs scan — a genuine O(N) in-process target.
 	{"close", func(d string) int { return cmdClose([]string{"0001", "scaling bench", d}) }},
 	{"rm", func(d string) int { return cmdRm([]string{"0001", d, "--force"}) }},
 }
@@ -165,28 +221,62 @@ var scalingCommands = []struct {
 func TestScalingLinear(t *testing.T) {
 	for _, c := range scalingCommands {
 		t.Run(c.name, func(t *testing.T) {
-			t.Logf("%-8s %6s %12s %12s %8s", "cmd", "N", "alloc_KB", "time_us", "ratio")
-			var prevBytes uint64
-			var prevN int
-			for _, n := range scalingSizes {
-				dir := t.TempDir()
-				buildCorpus(t, dir, n)
-
-				allocBytes, elapsed := measure(t, func() { c.invoke(dir) })
-
-				ratioStr := "--"
-				if prevBytes > 0 {
-					r := float64(allocBytes) / float64(prevBytes)
-					ratioStr = fmt.Sprintf("%.2f", r)
-					if r > ratioCeiling {
-						t.Errorf("%s: alloc-bytes ratio %d->%d = %.2f exceeds %.1f — super-linear allocation (4x is linear, ~16x quadratic)",
-							c.name, prevN, n, r, ratioCeiling)
-					}
-				}
-				t.Logf("%-8s %6d %12d %12d %8s", c.name, n, allocBytes/1024, elapsed.Microseconds(), ratioStr)
-				prevBytes = allocBytes
-				prevN = n
+			if maxRatio := profileLadder(t, c.name, c.invoke); maxRatio > ratioCeiling {
+				t.Errorf("%s: worst alloc-bytes ratio %.2f exceeds %.1f — super-linear allocation (4x is linear, ~16x quadratic)",
+					c.name, maxRatio, ratioCeiling)
 			}
 		})
+	}
+}
+
+// quadraticProbe deliberately allocates O(N²) bytes: for each ticket it builds
+// a slice of every ticket's filename. It is not a command — it exists only to
+// drive the negative control below.
+func quadraticProbe(dir string) int {
+	tickets, _ := loadErgs(dir)
+	var sink [][]string
+	for range tickets {
+		row := make([]string, 0, len(tickets))
+		for j := range tickets {
+			row = append(row, tickets[j].Filename())
+		}
+		sink = append(sink, row)
+	}
+	return len(sink)
+}
+
+// TestScalingLinearNegativeControl is the falsifiable companion to
+// TestScalingLinear (the AGENTS.md / 0146 convention: every guard ships a
+// control that proves it trips). It runs quadraticProbe — genuinely O(N²) in
+// allocated bytes — through the same ladder and asserts the ratio exceeds the
+// ceiling. If this ever passes, the guard has gone blind and TestScalingLinear's
+// green is worthless.
+func TestScalingLinearNegativeControl(t *testing.T) {
+	maxRatio := profileLadder(t, "quad-ctl", quadraticProbe)
+	if maxRatio <= ratioCeiling {
+		t.Errorf("negative control: O(N²) probe ratio %.2f did not exceed %.1f — the scaling guard is vacuous",
+			maxRatio, ratioCeiling)
+	}
+}
+
+// TestScalingCorpusValid pins the "validates clean" invariant in code rather
+// than prose: a malformed fixture would silently make the whole ladder measure
+// an error path instead of the success path. It builds the corpus and asserts
+// validateCorpus reports zero errors. Warnings (e.g. an open ticket whose
+// Blocked-by points at a closed one) are not errors and are allowed.
+func TestScalingCorpusValid(t *testing.T) {
+	dir := t.TempDir()
+	buildCorpus(t, dir, scalingSizes[len(scalingSizes)-1])
+
+	tickets, parseErrs := loadErgs(dir)
+	if len(tickets) == 0 {
+		t.Fatal("buildCorpus produced no tickets")
+	}
+	cfg, err := loadConfig(dir)
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	if errs := validateCorpus(tickets, parseErrs, cfg); len(errs) > 0 {
+		t.Fatalf("fixture is not clean: %d corpus error(s); first: %s", len(errs), errs[0])
 	}
 }

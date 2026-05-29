@@ -62,8 +62,11 @@ test: unit-test $(TEST_TARGETS)
 
 # Empirical scaling regression guard (ticket 0159). Build-tagged out of the
 # default suite: slow, and a regression check rather than a per-merge gate.
-test-scaling: build
-	cd src/go && go test -tags scaling -run TestScalingLinear -v .
+# No `build` prerequisite — the test drives the commands in-process, never the
+# binary. The -run pattern matches the linear test, its negative control, and
+# the corpus-validity check (all named TestScaling*).
+test-scaling:
+	cd src/go && go test -tags scaling -run TestScaling -v .
 
 validate: build
 	$(ERG_BIN) check tickets/

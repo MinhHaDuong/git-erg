@@ -19,10 +19,12 @@ O(N²) *algorithm* inside a per-item loop can pass it silently. The wall-clock
 backstop catches catastrophe but not a 2×→4× regression.
 
 This ticket adds the empirical guard the author asked for: measure real
-allocation count and wall-clock time of the corpus-heavy commands across a
-geometric ladder of corpus sizes and assert the growth is linear. Allocation
-count is deterministic for fixed input (immune to CI-box speed), so it is the
-assertion signal; time is logged for inspection.
+allocation volume (TotalAlloc bytes) and wall-clock time of the corpus-heavy
+commands across a geometric ladder of corpus sizes and assert the growth is
+linear. Allocation volume is deterministic for fixed input (immune to CI-box
+speed), so it is the assertion signal; time is logged for inspection. (Volume,
+not count: `append` amortises an O(N²)-byte build into O(N log N) malloc
+events, so a count-based check would miss it.)
 
 It is slow (builds large stores, runs six commands) and is a regression guard,
 not a per-merge check — so it is build-tagged out of the default suite and run
@@ -39,21 +41,29 @@ on demand.
    Blocked-by edges per ticket, fan-in), a `closed/` subdirectory (recursive
    walk + folder-closure path), tags from the default vocabulary, varied
    bodies — not an identical-ticket chain.
-2. Profile the corpus-heavy commands 0154 named (`check`, `list`, `ready`,
-   `next-id`, and the dependent-scan mutators `close`, `rm`) across a
-   3-point 4× ladder {64, 256, 1024}.
-3. Assert linear scaling: malloc-count ratio between consecutive sizes stays
-   below the linear/quadratic separator (4× expected linear, 16× quadratic).
+2. Profile the corpus-heavy commands whose in-process work scales with corpus
+   size (`check`, `list`, `ready`, and the dependent-scan mutators `close`,
+   `rm`) across a 3-point 4× ladder {64, 256, 1024}. `next-id` is excluded: its
+   dominant cost is a `git for-each-ref`/`ls-tree` subprocess invisible to
+   ReadMemStats (and a no-op against the non-git temp corpus).
+3. Assert linear scaling: allocation-volume (bytes) ratio between consecutive
+   sizes stays below the linear/quadratic separator (4× expected linear, 16×
+   quadratic), with a permanent O(N²) negative control proving the guard trips.
 4. Add `make test-scaling`; keep it out of `make test` / `make unit-test`.
 
 ## Test
-- `make test-scaling` runs `TestScalingLinear` (tag `scaling`); all six
-  commands report ratios near 4.0 and the suite passes.
+- `make test-scaling` runs `TestScaling*` (tag `scaling`); the five commands
+  report ratios near 4.0 and the suite passes.
+- `TestScalingLinearNegativeControl` runs an O(N²) probe and asserts the ratio
+  exceeds the ceiling — proves the guard is not vacuous.
+- `TestScalingCorpusValid` asserts the fixture has zero corpus errors.
 - `make test` / `go test ./...` do NOT compile or run the tagged file
   (verify the binary/coverage run is unchanged).
 
 ## Verification
 - [ ] `make test-scaling` green; ratios logged near 4.0 for every command
+- [ ] Negative control trips (ratio > ceiling on the O(N²) probe)
+- [ ] Fixture validates clean in code (validateCorpus → 0 errors)
 - [ ] `make test` unaffected (tagged file excluded)
 - [ ] Corpus is non-trivial: multi-edge DAG, closed/ subdir, tags
 
@@ -63,6 +73,6 @@ on demand.
 - The generated corpus validates clean (errors → 0; warnings allowed).
 
 ## Exit criteria
-- A build-tagged scaling test exercising check/list/ready/next-id/close/rm
+- A build-tagged scaling test exercising check/list/ready/close/rm
   on a non-trivial store, asserting linear growth, run via `make test-scaling`
   and excluded from the default suite. `make check` / `make test` green.
