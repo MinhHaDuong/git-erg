@@ -3,10 +3,12 @@ Title: Self-update via git fetch instead of an embedded HTTP client
 Created: 2026-05-29
 Author: Claude
 Tag: needs-human
+Closed: Implemented: http->git transport for erg update; offline invariant now holds everywhere
 
 --- log ---
 2026-05-29T08:30Z Claude created — split out of 0146; touches the distribution model, so needs-human
 
+2026-05-29T09:52Z Claude closed — Implemented: http->git transport for erg update; offline invariant now holds everywhere
 --- body ---
 ## Context
 
@@ -59,11 +61,11 @@ Preserve the existing escape hatches and friendliness:
 
 ## Exit criteria
 
-- [ ] `erg update` works via `git fetch` from origin; no `net/http` import
+- [x] `erg update` works via `git fetch` from origin; no `net/http` import
       remains anywhere in the source.
-- [ ] Explicit upstream-tracking override still available and documented.
-- [ ] Offline-safe (exit 0 on fetch error); atomic replace preserved.
-- [ ] Help/summary text no longer over-claims; `make test`/`make validate`
+- [x] Explicit upstream-tracking override still available and documented.
+- [x] Offline-safe (exit 0 on fetch error); atomic replace preserved.
+- [x] Help/summary text no longer over-claims; `make test`/`make validate`
       green; docs + bootstrap refreshed.
 
 ## Notes

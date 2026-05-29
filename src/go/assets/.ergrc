@@ -8,4 +8,7 @@ needs-human
 deferred
 
 [update]
-# url = https://raw.githubusercontent.com/MinhHaDuong/git-erg/main/tickets/erg
+# Git remote (name or URL) that `erg update` fetches the committed binary from.
+# Defaults to "origin" — you update from where you cloned. Point it at upstream
+# to track upstream's binary instead, e.g.:
+# url = https://github.com/MinhHaDuong/git-erg.git
