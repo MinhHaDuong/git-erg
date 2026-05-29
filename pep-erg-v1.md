@@ -328,6 +328,20 @@ Conclusion: stay on Go; bank the static + strip wins. "Small" therefore means
 re-platform decision, evidence-gated, not a tuning task. The design-contract
 guardrails (ticket 0146) lock these properties in as tests.
 
+**Distribution stance: source is primary, the binary is an optional cache.**
+The single binary is the *implementation*, but it is not the primary
+*distribution* artifact — `src/go/` is. The committed `tickets/erg` is a
+convenience cache for boxes where Go is unavailable and the POSIX path is not
+enough; it is reproducibly buildable from the vendored source and adds no trust
+the source does not already carry. This follows directly from the §8 POSIX-first
+invariant (the binary is optional) and from the adoption-first decision that
+`erg` must be useful without a Go toolchain: keeping the committed binary is a
+deliberate choice that holds git-erg in the *infrastructure class* (a blob in
+many repos, run in hooks/CI), which is why the reproducible-build + signed-tag
+controls (ticket 0151) are obligatory rather than precautionary. The full
+trade-off analysis — including the vendor-and-rebuild alternative that would
+shed the class at the cost of requiring Go — is in
+`docs/audit-infrastructure-class.md`.
 
 ### 11. Postel's Law: tolerant on read, strict on write
 
