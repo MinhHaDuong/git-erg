@@ -1,0 +1,42 @@
+%erg 0.1
+Title: Rebuild-binary CI must trigger on embedded asset changes
+Created: 2026-05-29
+Author: Claude
+Closed: autoclosed — PR #183
+
+--- log ---
+2026-05-29T19:04Z Claude created
+
+2026-05-29T20:30Z MinhHaDuong closed — autoclosed — PR #183
+--- body ---
+## Context
+
+`.github/workflows/rebuild-binary.yml` regenerates the committed bootstrap
+binary `tickets/erg` on push to main. Its path filter watched only
+`src/go/*.go` and `src/go/go.mod` — but the binary also embeds the
+`src/go/assets/**` files via `//go:embed` (`bootstrap_assets.go`).
+
+The 0160 fix (corrupted `≤` → `�i` in `assets/AGENTS.md`) was an asset-only
+change. It did NOT match the path filter, so the rebuild never fired and the
+committed binary kept shipping the corruption — i.e. `erg init` still unpacked
+`random jitter �i 500ms`. The binary only got healed days later by accident,
+when PR #172 touched `src/go/new.go` and triggered an incidental rebuild
+(commit 26e66e2). Without that unrelated .go change, the corruption would have
+shipped indefinitely.
+
+The `tests/test_init.sh` pure-ASCII guard (added by 0160) correctly catches
+the corruption — but only against a fresh `make build`, never against the
+committed binary, by design (`_test-lint` forbids tests defaulting to the
+committed binary). So nothing guarded the shipped artifact.
+
+## Fix
+
+Broaden the path filter to `src/go/**` so any input the binary is built from
+(Go sources, go.mod/go.sum, embedded assets) triggers a rebuild. The existing
+"Binary unchanged — no commit needed" guard makes no-op rebuilds (e.g.
+test-only edits) harmless.
+
+## Exit criteria
+
+- [ ] `rebuild-binary.yml` triggers on `src/go/assets/**` changes
+- [ ] No-op rebuilds remain harmless (unchanged-binary guard still present)
