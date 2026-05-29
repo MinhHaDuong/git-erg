@@ -2,6 +2,7 @@
 Title: Data-safety guard suite — never lose or corrupt a ticket
 Created: 2026-05-29
 Author: Claude
+Closed: delivered — data-safety guard suite + shared atomic ticket-write path (PR #162)
 
 --- log ---
 2026-05-29T09:00Z Claude created — never-lose-data promoted to a first-class invariant; this is its guard suite
@@ -11,6 +12,7 @@ Author: Claude
 2026-05-29T10:04Z Claude delivered guard suite tests/test_datasafety.sh + src/go/atomicwrite_test.go, wired datasafety into make test; make test/validate green
 2026-05-29T12:03Z Claude note correction prior finding misstated update.go — it is the binary self-updater, not a ticket writer; the real gap was no shared atomic path for ticket files (close/log/tag/untag/migrate all used truncating os.WriteFile)
 2026-05-29T12:03Z Claude note review-panel fixes — validate-before-replace now refuses only when it would corrupt a clean ticket (was over-strict, regressed close edge-clearing); migrate routed through writeTicketAtomic; added parent-dir fsync after rename; O_EXCL no-clobber now unit-tested; lossless extended to close/tag/untag
+2026-05-29T13:24Z Claude closed — delivered — data-safety guard suite + shared atomic ticket-write path (PR #162)
 --- body ---
 ## Context
 
