@@ -1,0 +1,70 @@
+%erg 0.1
+Title: Fix corrupted character in embedded AGENTS.md asset
+Created: 2026-05-29
+Author: Claude
+
+--- log ---
+2026-05-29T15:10Z Claude created — UX audit finding F02 (verified); erg init ships corrupted bytes
+
+--- body ---
+## Context
+
+The UX audit (0152, PR #174) found that `erg init` unpacks an AGENTS.md
+containing a corrupted character. The embedded asset
+`src/go/assets/AGENTS.md:28` reads `random jitter �i 500ms` where it should
+read `random jitter ≤ 500ms`. Verified with hexdump: the bytes are
+`ef bf bd 69` (U+FFFD REPLACEMENT CHARACTER followed by `i`) where a
+`≤ ` (U+2264 + space) belongs.
+
+This is a data-quality bug in a shipped asset: every user who runs
+`erg init` receives the corrupted text in the first document they read.
+The on-disk repo copy (`tickets/AGENTS.md`) is clean — only the embedded
+source asset is corrupted, so it travels in every binary.
+
+## Relevant files
+
+- `src/go/assets/AGENTS.md:28` — the corrupted line (the embedded source)
+- `src/go/bootstrap_assets.go` — embeds the asset
+- `tests/test_init.sh` — init asset tests (add a guard here)
+
+## Actions
+
+1. Replace the corrupted bytes at `src/go/assets/AGENTS.md:28` with the
+   intended `≤ ` (U+2264 + space): `random jitter ≤ 500ms`.
+2. Rebuild and confirm `erg init` now unpacks clean UTF-8.
+3. Rebuild the bootstrap binary (`make update-bootstrap-binary`).
+
+## Test
+
+Add an assertion to `tests/test_init.sh` (or `test_ux.sh`) that the
+init-unpacked `AGENTS.md` contains no U+FFFD replacement character:
+
+```sh
+if grep -aq "$(printf '\357\277\275')" "$REPO/tickets/AGENTS.md"; then
+    fail "init-unpacked AGENTS.md contains U+FFFD replacement character"
+else
+    pass "init-unpacked AGENTS.md is clean UTF-8"
+fi
+```
+
+This catches a wrong implementation (corrupted asset re-embedded), not
+merely a different one — the negative control is the current corrupted
+asset, which the test must flag.
+
+## Verification
+
+- [ ] `src/go/assets/AGENTS.md` is valid UTF-8 with `≤` at line 28
+- [ ] `erg init` in a temp dir unpacks AGENTS.md with no U+FFFD bytes
+- [ ] New test fails against the pre-fix asset, passes after the fix
+- [ ] Bootstrap binary rebuilt
+
+## Invariants
+
+- Do not alter the *content* of AGENTS.md beyond fixing the byte —
+  the embedded copy and any on-disk template should stay in sync.
+- `make test` stays green.
+
+## Exit criteria
+
+- The embedded asset is clean UTF-8, `erg init` unpacks it intact, and a
+  regression test guards against re-introducing a replacement character.
