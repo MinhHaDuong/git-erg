@@ -59,6 +59,28 @@ it does not duplicate the update tests.
 2. Add `security` to `TEST_SUITES` in Makefile.
 3. Each test has an explicit negative control proving the check trips.
 
+## Confinement fix (audit finding — raid 151 feasibility probe)
+
+The audit probe found two real confinement gaps the write path (0149's
+`writeTicketAtomic`/`withinStore`) does NOT cover. Fix both as part of this
+ticket so the confinement tests are green:
+
+- **`cmdRm` FILE form** (`rm.go`): the `.erg`-suffix branch calls
+  `os.Remove(ticketPath)` directly, never `withinStore`. `erg rm
+  /tmp/outside.erg` deletes a file outside the store. Add a `withinStore`
+  gate against the resolved store before `os.Remove`. (HIGH: write path is
+  confined, delete path was not — inconsistent rail.)
+- **`cmdNew` DIR arg** (`new.go`): an explicit DIR is `filepath.Clean`ed then
+  `MkdirAll`+created with no confinement. Confinement here is subtler — the
+  store is the DIR itself, so the rail is "refuse a DIR that escapes the
+  discovered/cwd store root" or document the explicit-DIR form as an
+  intentional escape hatch. Match 0149's fail-safe philosophy; do not break
+  the legitimate `erg new TITLE some/subdir` use.
+
+Both attacks require attacker-controlled CLI args (not a committed `.erg`),
+so the parser-input surface is unaffected. The fix closes the write/delete
+consistency gap 0151's body flagged (`new`/`rm` path-injection in scope).
+
 ## Test
 ```sh
 # Red: security suite should exist
@@ -68,5 +90,7 @@ make test-security
 ## Exit criteria
 - [ ] `test_security.sh` covers path-traversal, symlink, input-DoS, ID injection
 - [ ] Each positive test has a negative control (falsifiable)
-- [ ] All tests pass on the current binary
+- [ ] `cmdRm` FILE form refuses a target outside the resolved store
+- [ ] `cmdNew` confines (or documents) the explicit-DIR form per 0149 philosophy
+- [ ] All security tests pass (binary fixed in this PR)
 - [ ] `make test` passes (all suites including security)
