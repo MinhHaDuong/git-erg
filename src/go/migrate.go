@@ -203,8 +203,10 @@ func migrateLayout(dir string) int {
 		}
 		fmt.Println("migrate: copied binary → tickets/erg")
 	}
-	if code := cmdInit([]string{root}); code != 0 {
-		fmt.Fprintln(os.Stderr, "migrate: init assets refresh failed")
+	if c, r, u, err := installAssets(root); err != nil {
+		fmt.Fprintf(os.Stderr, "migrate: init assets refresh failed: %v\n", err)
+	} else {
+		fmt.Printf("migrate: init assets refreshed (%d created, %d refreshed, %d unchanged)\n", c, r, u)
 	}
 	migrateHook(root)
 	return 0
