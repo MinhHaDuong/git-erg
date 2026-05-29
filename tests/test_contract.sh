@@ -16,7 +16,12 @@
 set -eu
 
 ERG="${ERG_BIN:-build/erg}"
-ERG_ABS=$(readlink -f "$ERG")
+# Resolve to an absolute path (the stateless guard runs the binary from a
+# throwaway cwd). Prefer `readlink -f`, but fall back to a POSIX construction so
+# a missing/non-GNU readlink reports clearly instead of silently aborting the
+# suite under `set -e`.
+ERG_ABS=$(readlink -f "$ERG" 2>/dev/null || true)
+[ -n "$ERG_ABS" ] || ERG_ABS=$(cd "$(dirname "$ERG")" 2>/dev/null && pwd)/$(basename "$ERG")
 SRC=src/go
 PASS=0; FAIL=0; SKIP=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
@@ -27,6 +32,13 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
 HAVE_GO=$(command -v go >/dev/null 2>&1 && echo yes || echo no)
+# Resolve the dependency graph once, capturing success separately: a failed
+# `go list` (compile error, offline toolchain fetch) must surface as a FAIL,
+# never as a silent abort or a vacuous "no net package" pass.
+DEPS=""; DEPS_OK=no
+if [ "$HAVE_GO" = yes ]; then
+    if DEPS=$(cd "$SRC" && go list -deps . 2>/dev/null); then DEPS_OK=yes; fi
+fi
 
 echo "=== contract guardrails (design-contract invariants, 0146) ==="
 
@@ -55,10 +67,10 @@ fi
 
 # A POSIX-extracted header field must agree with the binary's own parse.
 POSIX_TITLE=$(awk -F': ' '/^Title:/{print $2; exit}' "$STORE1/0001-hand-authored.erg")
-if "$ERG_ABS" list "$STORE1" 2>/dev/null | grep -qF "$POSIX_TITLE"; then
+if [ -n "$POSIX_TITLE" ] && "$ERG_ABS" list "$STORE1" 2>/dev/null | grep -qF "$POSIX_TITLE"; then
     pass "agnostic: grep/awk-extracted Title agrees with the binary's parse"
 else
-    fail "agnostic: POSIX-extracted field disagrees with the binary's parse"
+    fail "agnostic: POSIX-extracted field empty or disagrees with the binary's parse"
 fi
 # Negative control: a string the file never contained must NOT surface in the
 # parse — proves the agreement check above is not vacuous.
@@ -69,8 +81,7 @@ else
 fi
 
 # --- 2. offline: no networking anywhere (0148 removed the last exception) ----
-if [ "$HAVE_GO" = yes ]; then
-    DEPS=$(cd "$SRC" && go list -deps . 2>/dev/null)
+if [ "$DEPS_OK" = yes ]; then
     if printf '%s\n' "$DEPS" | grep -qE '^net($|/)'; then
         NETPKGS=$(printf '%s\n' "$DEPS" | grep -E '^net($|/)' | tr '\n' ' ')
         fail "offline: a net* package is reachable from the binary: $NETPKGS"
@@ -88,8 +99,10 @@ if [ "$HAVE_GO" = yes ]; then
     else
         fail "offline (neg control): detector failed to flag net/http"
     fi
-else
+elif [ "$HAVE_GO" = no ]; then
     skip "offline: Go toolchain absent — dependency-graph check skipped"
+else
+    fail "offline: 'go list -deps' failed — cannot verify the dependency graph"
 fi
 
 # Optional dynamic guard: a read command must succeed with the network dropped.
@@ -109,15 +122,17 @@ if grep -qE '^require' "$SRC/go.mod"; then
 else
     pass "standalone: go.mod is stdlib-only (no require block)"
 fi
-if [ "$HAVE_GO" = yes ]; then
+if [ "$DEPS_OK" = yes ]; then
     THIRD=$(printf '%s\n' "$DEPS" | grep -E '^[^/]+\.[^/]+/' || true)
     if [ -z "$THIRD" ]; then
         pass "standalone: every dependency is a stdlib package"
     else
         fail "standalone: third-party packages in the graph: $(printf '%s' "$THIRD" | tr '\n' ' ')"
     fi
-else
+elif [ "$HAVE_GO" = no ]; then
     skip "standalone: Go toolchain absent — dependency-graph check skipped"
+else
+    fail "standalone: 'go list -deps' failed — cannot verify the dependency graph"
 fi
 
 # Static link: Linux ldd ⇒ "not a dynamic executable" (skip if ldd absent).
@@ -179,15 +194,24 @@ RUNCWD="$WORK/stateless/cwd"; mkdir -p "$RUNCWD"
 store_sum() { (cd "$STORE4" && for f in *.erg; do printf '%s ' "$f"; cksum < "$f"; done); }
 snapshot()  { find "$FAKEHOME" "$RUNCWD" -type f 2>/dev/null | sort; }
 
+# Run a read command from a throwaway cwd with a throwaway HOME; track exit codes
+# so a crash can't pass silently behind an unchanged filesystem.
+READ_RC=0
+run_read() { ( cd "$RUNCWD" && HOME="$FAKEHOME" "$ERG_ABS" "$@" >/dev/null 2>&1 ); }
+
 BEFORE_STORE=$(store_sum); BEFORE_FS=$(snapshot)
-# Run every read command from a throwaway cwd with a throwaway HOME.
-( cd "$RUNCWD" && HOME="$FAKEHOME" "$ERG_ABS" list    "$STORE4"          >/dev/null 2>&1 ) || true
-( cd "$RUNCWD" && HOME="$FAKEHOME" "$ERG_ABS" ready   "$STORE4"          >/dev/null 2>&1 ) || true
-( cd "$RUNCWD" && HOME="$FAKEHOME" "$ERG_ABS" check   "$STORE4"          >/dev/null 2>&1 ) || true
-( cd "$RUNCWD" && HOME="$FAKEHOME" "$ERG_ABS" validate "$STORE4/0001-a.erg" >/dev/null 2>&1 ) || true
-( cd "$RUNCWD" && HOME="$FAKEHOME" "$ERG_ABS" next-id "$STORE4"          >/dev/null 2>&1 ) || true
+run_read list    "$STORE4"             || READ_RC=1
+run_read ready   "$STORE4"             || READ_RC=1
+run_read check   "$STORE4"             || READ_RC=1
+run_read validate "$STORE4/0001-a.erg" || READ_RC=1
+run_read next-id "$STORE4"             || READ_RC=1
 AFTER_STORE=$(store_sum); AFTER_FS=$(snapshot)
 
+if [ "$READ_RC" -eq 0 ]; then
+    pass "stateless: read commands all exit 0 (no crash hiding behind a clean FS)"
+else
+    fail "stateless: a read command exited non-zero"
+fi
 if [ "$BEFORE_STORE" = "$AFTER_STORE" ]; then
     pass "stateless: read commands leave the store byte-identical"
 else
@@ -198,7 +222,9 @@ if [ "$BEFORE_FS" = "$AFTER_FS" ]; then
 else
     fail "stateless: a read command wrote outside the store"
 fi
-# Negative control: the snapshot mechanism must catch a real out-of-store write.
+# Negative control: validates the snapshot *detector* — a read command can't be
+# made to write out of store on demand, so plant a file and confirm the
+# find-snapshot would have caught such a write.
 touch "$FAKEHOME/.ergcache"
 if [ "$BEFORE_FS" = "$(snapshot)" ]; then
     fail "stateless (neg control): snapshot missed a planted out-of-store file"
@@ -218,18 +244,24 @@ fi
 
 # --- 5. small: the committed binary stays near the Go runtime floor ---------
 CEILING=$((5 * 1024 * 1024))    # 5 MB — ratcheted from 10 MB (AGENTS.md / 0146)
-SIZE=$(wc -c < "$ERG_ABS")
-if [ "$SIZE" -le "$CEILING" ]; then
-    pass "small: binary is $SIZE bytes ≤ $CEILING (5 MB) ceiling"
+# size_within reports whether the file at $1 is within the ceiling — the actual
+# measurement path, exercised by both the real check and its negative control.
+size_within() { [ "$(wc -c < "$1")" -le "$CEILING" ]; }
+
+if size_within "$ERG_ABS"; then
+    pass "small: binary is $(wc -c < "$ERG_ABS") bytes ≤ $CEILING (5 MB) ceiling"
 else
-    fail "small: binary is $SIZE bytes — exceeds the $CEILING (5 MB) ceiling"
+    fail "small: binary is $(wc -c < "$ERG_ABS") bytes — exceeds the $CEILING (5 MB) ceiling"
 fi
 # zero-dep is the root cause of small — already asserted under standalone above.
-# Negative control: the size comparison must reject a value above the ceiling.
-if [ "$((SIZE + CEILING))" -le "$CEILING" ]; then
-    fail "small (neg control): size comparison accepted an over-ceiling value"
+# Negative control: build a genuinely oversized artifact and run it through the
+# SAME measurement — proves the guard trips on real bloat, not just arithmetic.
+BLOAT="$WORK/bloat.bin"
+head -c $((CEILING + 1)) /dev/zero > "$BLOAT" 2>/dev/null || dd if=/dev/zero of="$BLOAT" bs=1024 count=$(((CEILING / 1024) + 1)) >/dev/null 2>&1
+if size_within "$BLOAT"; then
+    fail "small (neg control): a $(wc -c < "$BLOAT")-byte file slipped under the ceiling"
 else
-    pass "small (neg control): size comparison rejects an over-ceiling value"
+    pass "small (neg control): size check rejects a real >5 MB artifact"
 fi
 
 echo "contract: $PASS passed, $FAIL failed, $SKIP skipped"
