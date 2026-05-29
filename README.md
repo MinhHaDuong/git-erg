@@ -59,10 +59,6 @@ See **Install into a project** below.
 The rest of this README is the design depth — how the two transports fit
 together, the spec, and the binary policy.
 
-- **File-based**: plain text `.erg` files committed to git
-- **Offline-first**: no network, no API, no database
-- **Zero runtime dependencies**: single Go binary, shell tests
-- **Agent-friendly by design**: the spec is the interface, the binary is the guardrail and token-saving utilities
 - **Two transports, four users**: POSIX is the first transport, the `erg` CLI is the second, and the same pair serves hooks, CI, agents, and humans (see below)
 
 ## POSIX first, CLI second
@@ -112,27 +108,13 @@ is fully functional without `erg`, and a `grep`-based pre-commit hook validates
 tickets without the binary. Platform and build details are in **Binary policy**
 below.
 
-## Quick start
+## Quick start (with the `erg` binary)
+
+The zero-install demo at the top creates and queries tickets with stock POSIX
+tools. The `erg` binary adds validation and structured queries over the same
+files:
 
 ```bash
-# Create a ticket (or just write the file — agents do)
-cat > tickets/0001-add-auth.erg <<'EOF'
-%erg 0.1
-Title: Add authentication flow
-Created: 2026-03-27
-Author: claude
-
---- log ---
-2026-03-27T10:00Z user created
-
---- body ---
-## Context
-Need auth before shipping the API.
-EOF
-
-# List tickets
-ls tickets
-
 # Validate a single ticket
 tickets/erg validate 01
 
@@ -156,15 +138,17 @@ Dependencies on ticket ID will be automatically cleared by `tickets/erg close ID
 authoritative artifact is `src/go/`, which travels in every clone. `tickets/erg`
 is a committed Linux x86-64 bootstrap *convenience* for environments where Go
 may be unavailable (CI runners, agents) and where the POSIX path isn't enough —
-it is reproducibly buildable from the vendored source, not a separate source of
-trust. (Rationale and the supply-chain trade-offs: `docs/audit-infrastructure-class.md`.)
-I look forward to working with macOS, ARM or Windows early adopters.
+built from the vendored source, not a separate source of trust (bit-for-bit
+reproducibility is the goal, tracked in ticket 0151). (Rationale and the
+supply-chain trade-offs: `docs/audit-infrastructure-class.md`.) I look forward
+to working with macOS, ARM or Windows early adopters.
 
-Because the binary is a cache of the source, anyone can rebuild it bit-for-bit
-and verify the committed blob matches — that reproducibility is what lets us
-ship it at all (see the security controls in ticket 0151). CI builds always
-compile from source and do not rely on the committed binary: all tests and
-development builds must use `build/erg`, rebuilt from source via `make build`.
+Because the binary is a cache of the source, the aim is that anyone can rebuild
+it bit-for-bit and verify the committed blob matches — that reproducibility is
+what justifies shipping a binary at all, and is the keystone control tracked in
+ticket 0151 (not yet complete). CI builds always compile from source and do not
+rely on the committed binary: all tests and development builds must use
+`build/erg`, rebuilt from source via `make build`.
 
 The bootstrap binary is updated explicitly via `make update-bootstrap-binary`
 (typically after changes to the Go code or when releasing) and must never be

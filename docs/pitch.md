@@ -1,5 +1,8 @@
 # git-erg — the pitch
 
+Author: Minh Ha-Duong <minh.ha-duong@cnrs.fr>
+Last modified: 2026-05-29
+
 A reusable source for the README hero, a landing page, a conference slide, or
 a social post. The job of this doc: make adopting git-erg a *sexy no-brainer*
 — near-zero cost, near-zero risk, and obviously want-able.
@@ -74,9 +77,10 @@ erg close 0001 "done in PR #42"   # atomic, validated, never corrupts the file
    real magic-line version marker (à la `%PDF-1.7`); a closed header schema
    means there is exactly one right way to write a ticket — agents love rigid
    schemas, humans love no bikeshedding.
-3. **Honest engineering.** One static, zero-dependency binary you can rebuild
-   bit-for-bit from the vendored source and verify offline. No supply chain to
-   trust on faith — the source travels with the tool.
+3. **Honest engineering.** A static, zero-dependency binary whose full source
+   (`src/go/`) travels with it — nothing to trust on faith. The roadmap closes
+   the loop (ticket 0151): bit-for-bit reproducible builds and signed release
+   tags so the committed binary can be verified offline.
 
 ## Who it's for
 
@@ -97,8 +101,9 @@ It is local-first ticket *content*, not a synchronized multi-writer queue.
 
 The thing that makes it spread — a binary that travels in thousands of repos
 and runs in their hooks and CI — is also what makes it a supply-chain target.
-git-erg owns this rather than hiding it: reproducible builds (rebuild from
-`src/go/` and byte-compare), a full SHA-256 in `erg version` recomputable with
-stock tools, and signed release tags. The same property that makes adoption a
-no-brainer is why those controls are non-negotiable. See
+git-erg owns this rather than hiding it. `erg version` already prints the
+binary's full SHA-256 (recomputable with stock tools); the planned controls
+(ticket 0151) close the rest — bit-for-bit reproducible builds (rebuild from
+`src/go/` and byte-compare) and signed release tags. The same property that
+makes adoption a no-brainer is why those controls are non-negotiable. See
 `docs/audit-infrastructure-class.md`.

@@ -343,7 +343,6 @@ trade-off analysis — including the vendor-and-rebuild alternative that would
 shed the class at the cost of requiring Go — is in
 `docs/audit-infrastructure-class.md`.
 
-
 ### 11. Postel's Law: tolerant on read, strict on write
 
 **Choice:** Nothing prevents an agent to parse a free-form text file as a ticket. The validator enforces `%erg 0.1` strictly on commit for `.erg` files.

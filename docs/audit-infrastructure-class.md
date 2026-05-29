@@ -13,8 +13,11 @@ tickets/0151.
   not the implementation.
 - **By present *scale and criticality*: no.** The "maximal threat — binary
   embarked in thousands of repos, supply-chain + mass-RCE" framing in
-  AGENTS.md and 0151 is aspirational, not current-state. More pointedly, that
-  framing quietly breaks the project's own evidence-first bar.
+  AGENTS.md and 0151 is aspirational, not current-state, and *as written it
+  appeared to* break the project's own evidence-first bar — but the author's
+  do-not-require-Go decision (see *Decision*, below) supplies the missing
+  justification and resolves that tension in favour of *real*. The verdict
+  below is the pre-decision analysis; the decision is its resolution.
 
 One line: **git-erg is shaped like infrastructure but is not yet deployed
 like it — and the single design decision that *creates* the class is
@@ -49,11 +52,12 @@ All design-level choices, not implementation details:
 - **Self-update channel** (`update.go`; → `git fetch` in 0148). A propagation
   path: compromise once, ship everywhere.
 
-The design's *response* to this framing is coherent and correct: reproducible
-builds as the keystone control, signed git tags (`git tag -s`), full SHA-256
-recomputable with stock tools, static/stripped/zero-dep, offline-verifiable
-rebuild (`make verify`). If you accept the premise, these are the right
-controls. The design is internally consistent *in its answer*. The open
+The design's *intended response* to this framing is coherent and correct
+(tracked in 0151, and mostly **not yet shipped**): reproducible builds as the
+keystone control, signed git tags (`git tag -s`), the full SHA-256 already
+printed by `erg version`, static/stripped/zero-dep, and an offline-verifiable
+rebuild (a planned `make verify`). If you accept the premise, these are the
+right controls. The design is internally consistent *in its answer*. The open
 question is whether the *premise* is right-sized.
 
 ## Where it does not qualify (caveats the docs underplay)
@@ -102,6 +106,11 @@ clean resolutions:
   precautionarily ahead of adoption," not "maximal threat, now." Notably
   0151/0152 are correctly `needs-human` and *not* in `ready` — so the project
   is not yet over-investing. The fix here is wording, not effort.
+
+The author took resolution **(a)**: keep the binary and own the class
+explicitly (see *Decision*). The "inconsistency" above is therefore the
+pre-decision reading — the decision converts it from an unjustified premise
+into a deliberate, named choice.
 
 ## Alternative considered: vendor the source, rebuild on demand
 
