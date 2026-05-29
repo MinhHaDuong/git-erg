@@ -1,0 +1,61 @@
+%erg 0.1
+Title: erg new should parse --author and reject unknown flags
+Created: 2026-05-29
+Author: Claude
+
+--- log ---
+2026-05-29T19:15Z Claude created
+
+--- body ---
+## Context
+
+Found while creating a ticket during the 0165 CI work. Running
+
+    erg new "Some title" --author Claude
+
+silently created a stray `./--author/` directory and dropped the value
+`Claude`. Cause: `cmdNew` (src/go/new.go) treats `args[0]` as TITLE and
+`args[1]` as DIR with no flag parsing — so `--author` became the DIR
+positional (passed through `os.MkdirAll`) and the following token was
+ignored.
+
+Two defects:
+
+1. **No `--author` flag.** Author is only resolvable via `$ERG_AUTHOR`,
+   git `user.name`, or `$USER`. There is no per-invocation override, even
+   though the help text frames author as a first-class field.
+2. **Unknown flags are not rejected.** Any `-`-prefixed token that isn't a
+   positional is silently consumed as DIR, so a typo (`--athor`, `--dir`)
+   becomes a created directory rather than an error. This is a data-safety
+   footgun: `erg` is meant never to surprise the user with stray writes.
+
+`src/go/rm.go` already establishes the house convention: a switch over
+known flags, a `default` that rejects unknown `-`-prefixed tokens and
+collects positionals.
+
+## Relevant files
+
+- `src/go/new.go` — `cmdNew` arg parsing, `helpNew`, usage strings
+- `src/go/identity.go` — `resolveAuthor`; factor out the newline-sanitizer
+  so a `--author` value gets the same anti-injection hardening
+- `src/go/new_test.go` — add coverage
+- `tests/test_new.sh` — CLI-level coverage
+
+## Exit criteria
+
+- [ ] `erg new TITLE --author NAME` (and `-a NAME`, `--author=NAME`) sets
+      the Author header
+- [ ] An explicit `--author` overrides the env/git/USER chain
+- [ ] A `--author` value is newline-sanitized (no header injection); an
+      empty value is an error, not a silent fallback
+- [ ] Unknown `-`-prefixed flags are rejected with a non-zero exit and a
+      usage message — NOT turned into a DIR
+- [ ] `erg new TITLE DIR` (positional store) still works unchanged
+- [ ] `helpNew` / usage strings document `--author`
+- [ ] Go unit + `tests/test_new.sh` coverage for the above
+- [ ] `make check` passes
+
+## Notes
+
+Do NOT implement in the 0165 branch/worktree — this is its own ticket and
+must be isolated in its own worktree (`/start-ticket 166`).
