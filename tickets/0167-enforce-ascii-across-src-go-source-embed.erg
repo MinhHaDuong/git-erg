@@ -1,0 +1,80 @@
+%erg 0.1
+Title: Enforce ASCII across src/go (source + embedded assets) with a guard test
+Created: 2026-05-29
+Author: Claude
+
+--- log ---
+2026-05-29T19:20Z Claude created
+
+--- body ---
+## Context
+
+Audit (2026-05-29) found a U+FFFD replacement char shipped in the embedded
+`assets/AGENTS.md` (fixed under 0160; CI trigger gap fixed under 0165/PR #183).
+Root question raised by the author: should ASCII be imposed on everything the
+binary embeds *and* on the Go source itself? Decision: yes — ratified.
+
+This is a security + data-quality invariant, not a style preference. It fits
+erg's stated posture: a committed binary in many repos (maximal threat model),
+"small / simple / verifiable", and "never surprise the user". Non-ASCII in
+binary-carried content (embedded assets, user-facing string literals) is a
+terminal/locale-rendering and corruption risk; non-ASCII in source-at-rest is
+a Trojan-Source / bidi-override / homoglyph vector (CVE-2021-42574).
+
+## Ratified policy
+
+- **`src/go/**` is ASCII-only** — both `*.go` sources and `assets/**`.
+  - Chosen over a narrower "ban only bidi/zero-width/confusables" rule for
+    simplicity and verifiability: a single rule (`grep -P '[^\x00-\x7F]'`,
+    no maintained codepoint list) gives complete coverage of bidi, zero-width,
+    homoglyph and U+FFFD classes at once. erg is English/terminal-facing, so
+    the cost is small and one-time.
+- **U+FFFD is forbidden everywhere in the repo** (the universal floor) — it is
+  never legitimate and always signals an encoding round-trip bug. This is the
+  one check that spans prose too.
+- **Prose / docs / tickets keep their typography** (em dash, ≤, →, §, box
+  drawing are intentional). The ASCII rule is scoped to `src/go/**` only; do
+  NOT ASCII-fy README/spec/manual/tickets.
+
+## Scope of work
+
+1. De-escape existing non-ASCII in `src/go/**` (per the audit it is em dashes
+   and similar in comments/strings — `—` → `--`, `≤` → `<=`/`less than`, etc.;
+   verify with `git grep -nP '[^\x00-\x7F]' -- src/go`). Touch comments/strings
+   only; do not change behavior.
+2. Add the guard test(s) (see below).
+3. Confirm the existing 0160 guard in `tests/test_init.sh` (unpacked AGENTS.md
+   is pure ASCII) stays green — it becomes the runtime complement to the new
+   source-side guard.
+
+## Guard test (the point of the ticket)
+
+A guard that fails CI/`make check` when a non-ASCII byte is reintroduced into
+`src/go/**`, with a documented negative control:
+
+- Asserts every file under `src/go/**` (`*.go` + `assets/**`) contains no byte
+  > 0x7F.
+- Plus a repo-wide U+FFFD check (`LC_ALL=C grep -aR $'\357\277\275'`).
+- Catches a *wrong* state (inject one non-ASCII byte → test must fail), not
+  merely a different one — include the negative-control reasoning in the test,
+  matching the 0146/0160 house style.
+- Placement: a shell guard (e.g. extend `tests/test_contract.sh` or a new
+  `tests/test_encoding.sh`) or a Go test reading the files directly — pick to
+  match the existing adherence/contract-guard convention. Per coding rules,
+  read files directly rather than via subprocess where possible.
+
+## Exit criteria
+
+- [ ] `src/go/**` contains zero bytes > 0x7F (sources + assets)
+- [ ] No U+FFFD anywhere in the repo
+- [ ] Guard test fails when a non-ASCII byte is injected into `src/go/**`
+      (negative control demonstrated), passes on the clean tree
+- [ ] Guard is wired into `make test` / TEST_SUITES (no unwired suite)
+- [ ] Prose/docs/tickets typography left untouched (rule scoped to src/go/**)
+- [ ] `make check` passes
+
+## Notes
+
+Implement in its own worktree (`/start-ticket 167`) — not inline. If at
+implementation time the narrower bidi-only policy is preferred over full
+ASCII, that is a human override; the simplicity argument above is the default.
