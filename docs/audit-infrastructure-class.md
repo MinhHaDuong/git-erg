@@ -212,3 +212,13 @@ that choice is paid in full by — and only by — shipping the 0151 controls.
   source + reproducible rebuild remains the verification tier (and the opt-out
   for Go-having boxes), layered over a POSIX/grep floor that needs neither
   binary nor Go.
+
+## See also
+
+The controls this audit obligates are enumerated, run, and surfaced to users in:
+
+- [`threat-model.md`](./threat-model.md) — assets, actors, attack surfaces, and
+  the shipped/CI-tested/deferred controls table.
+- [`red-team-checklist.md`](./red-team-checklist.md) — the repeatable
+  verification procedure, with a dated run log.
+- `README.md` § "Verifying the binary" — the two user-facing opsec tiers.

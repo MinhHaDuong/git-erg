@@ -157,6 +157,39 @@ The bootstrap binary is updated explicitly via `make update-bootstrap-binary`
 (typically after changes to the Go code or when releasing) and must never be
 modified by `make test`.
 
+## Verifying the binary
+
+The committed `tickets/erg` is a convenience cache of the source — and a cache
+is only as trustworthy as your ability to check it. You don't have to trust it
+on faith; here are two tiers, pick the one that fits your threat model.
+
+**Basic — recompute and compare.** `erg version` prints the binary's full
+SHA-256 digest and names the algorithm, so stock tools can reproduce it:
+
+```bash
+sha256sum tickets/erg          # or: shasum -a 256, openssl dgst -sha256, certutil
+tickets/erg version            # compare against the sha256: line it reports
+```
+
+If those two agree, the blob matches what it claims to be. When a maintainer-
+signed release tag is available, `git verify-tag <tag>` confirms the published
+hash came from the maintainer (git-native trust — signed tags are planned, see
+the threat model).
+
+**Advanced — don't trust the blob, rebuild it.** The source travels in the
+repo, so you can rebuild offline and byte-compare:
+
+```bash
+make verify     # rebuilds tickets/erg from src/go/ and diffs it — expect: verify: PASS
+```
+
+For the highest assurance, have a capable AI review `src/go/` before you rebuild
+— reviewable source beats an opaque blob.
+
+The full picture — what we defend, against whom, and the repeatable check —
+lives in [`docs/threat-model.md`](docs/threat-model.md) and
+[`docs/red-team-checklist.md`](docs/red-team-checklist.md).
+
 ## License
 
 MIT
