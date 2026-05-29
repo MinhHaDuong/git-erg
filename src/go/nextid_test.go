@@ -21,6 +21,9 @@ func TestParseIDFromFilename(t *testing.T) {
 		{"not-a-number-foo.erg", 0},
 		{"", 0},
 		{"0005.txt", 0},
+		// IDs outside the 4-digit range are ignored (stray files don't poison next-id).
+		{"10000-bad.erg", 0},
+		{"99999-overflow.erg", 0},
 	}
 	for _, c := range cases {
 		got := parseIDFromFilename(c.name)
@@ -32,9 +35,10 @@ func TestParseIDFromFilename(t *testing.T) {
 
 func TestNextID(t *testing.T) {
 	cases := []struct {
-		desc  string
-		files map[string]string // relative path -> content (content is irrelevant)
-		want  string
+		desc    string
+		files   map[string]string // relative path -> content (content is irrelevant)
+		want    string
+		wantErr bool
 	}{
 		{
 			desc:  "empty directory",
@@ -106,12 +110,37 @@ func TestNextID(t *testing.T) {
 			// handled specially below
 			want: "0001",
 		},
+		{
+			desc: "stray high-ID file is ignored, normal IDs still work",
+			files: map[string]string{
+				"0005-foo.erg":  "",
+				"10000-bad.erg": "",
+			},
+			want: "0006",
+		},
+		{
+			desc: "range exhausted: 9999 exists → error",
+			files: map[string]string{
+				"9999-last.erg": "",
+			},
+			wantErr: true,
+		},
+		{
+			desc: "range not exhausted: 9998 exists → 9999 valid",
+			files: map[string]string{
+				"9998-penultimate.erg": "",
+			},
+			want: "9999",
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
 			if c.desc == "nonexistent directory returns 0001" {
-				got := nextID("/nonexistent/path/that/does/not/exist")
+				got, err := nextID("/nonexistent/path/that/does/not/exist")
+				if err != nil {
+					t.Fatalf("nextID(nonexistent) returned unexpected error: %v", err)
+				}
 				if got != c.want {
 					t.Errorf("nextID(nonexistent) = %q, want %q", got, c.want)
 				}
@@ -129,7 +158,16 @@ func TestNextID(t *testing.T) {
 				}
 			}
 
-			got := nextID(tmp)
+			got, err := nextID(tmp)
+			if c.wantErr {
+				if err == nil {
+					t.Errorf("nextID() = %q, expected error (range exhausted)", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("nextID() unexpected error: %v", err)
+			}
 			if got != c.want {
 				t.Errorf("nextID() = %q, want %q", got, c.want)
 			}
@@ -183,7 +221,10 @@ func TestNextID_SkipsSiblingWorktreeUncommittedTicket(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := nextID(filepath.Join(root, "tickets"))
+	got, err := nextID(filepath.Join(root, "tickets"))
+	if err != nil {
+		t.Fatalf("nextID unexpected error: %v", err)
+	}
 	if got != "0124" {
 		t.Errorf("nextID from primary worktree = %q, want 0124 (must skip past 0123 in sibling)", got)
 	}
@@ -211,7 +252,10 @@ func TestNextID_SkipsTicketCommittedOnUncheckedOutBranch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := nextID(filepath.Join(root, "tickets"))
+	got, err := nextID(filepath.Join(root, "tickets"))
+	if err != nil {
+		t.Fatalf("nextID unexpected error: %v", err)
+	}
 	if got != "0201" {
 		t.Errorf("nextID = %q, want 0201 (must see 0200 on other-branch via ls-tree)", got)
 	}
@@ -251,7 +295,10 @@ func TestNextID_SkipsTicketOnRemoteTrackingBranch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := nextID(filepath.Join(clone, "tickets"))
+	got, err := nextID(filepath.Join(clone, "tickets"))
+	if err != nil {
+		t.Fatalf("nextID unexpected error: %v", err)
+	}
 	if got != "0301" {
 		t.Errorf("nextID = %q, want 0301 (must see 0300 via refs/remotes/origin/feature-with-ticket)", got)
 	}
@@ -272,7 +319,10 @@ func TestNextID_SiblingWithoutSubdirIsHarmless(t *testing.T) {
 	gitRun(t, root, "worktree", "add", "-b", "wt2-branch", wt2)
 	// Sibling worktree has no tickets/ subdir at all.
 
-	got := nextID(filepath.Join(root, "tickets"))
+	got, err := nextID(filepath.Join(root, "tickets"))
+	if err != nil {
+		t.Fatalf("nextID unexpected error: %v", err)
+	}
 	if got != "0011" {
 		t.Errorf("nextID = %q, want 0011 (sibling without tickets/ must be a no-op)", got)
 	}
@@ -283,7 +333,10 @@ func TestNextID_NotAGitRepoFallsBackToLocal(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(tmp, "0007-only-local.erg"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	got := nextID(tmp)
+	got, err := nextID(tmp)
+	if err != nil {
+		t.Fatalf("nextID unexpected error: %v", err)
+	}
 	if got != "0008" {
 		t.Errorf("nextID = %q, want 0008 (no-repo path must still work)", got)
 	}
