@@ -9,6 +9,16 @@ ERG="${ERG_BIN:-build/erg}"
 ERG_ABS=$(readlink -f "$ERG")
 PASS=0; FAIL=0
 
+# Local-path git remotes are central to these fixtures. Hardened hosts set
+# protocol.file.allow=never globally (CVE-2022-39253 mitigation), which would
+# break both our `git clone <path>` calls and erg's own child `git fetch <path>`.
+# Inject the override via env so it reaches every git invocation we spawn *and*
+# every git that erg spawns (env is inherited; the -c flag would not reach erg's
+# child git). This mirrors how the fixtures pin commit.gpgsign.
+export GIT_CONFIG_COUNT=1
+export GIT_CONFIG_KEY_0=protocol.file.allow
+export GIT_CONFIG_VALUE_0=always
+
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
@@ -165,9 +175,37 @@ else
     fail "update offline should exit 0"
 fi
 
+# Test: with no discoverable ticket store, update refuses rather than pulling
+# the binary from whatever unrelated repo the user happens to be standing in.
+# The hijack remote commits a (distinct) tickets/erg blob; the work repo wires
+# it as origin but has NO checked-out tickets/ dir and NO .erg files, so store
+# discovery finds nothing. Before the guard, the cwd-repo fallback would fetch
+# origin's tickets/erg and overwrite the running binary.
+HJ_REMOTE="$WORKROOT/hijack-remote"
+git_init "$HJ_REMOTE"
+mkdir "$HJ_REMOTE/tickets"
+cp "$ERG_ABS" "$HJ_REMOTE/tickets/erg"
+printf 'HIJACK' >> "$HJ_REMOTE/tickets/erg"   # distinct hash — would show if pulled
+git -C "$HJ_REMOTE" add -A
+git -C "$HJ_REMOTE" commit -qm hijack
+HJ_WORK="$WORKROOT/hijack-work"
+git_init "$HJ_WORK"
+git -C "$HJ_WORK" remote add origin "$HJ_REMOTE"   # origin wired, nothing checked out
+# Run a copy of erg from a dir with no .erg files and not named "tickets".
+mkdir "$HJ_WORK/run"
+cp "$ERG_ABS" "$HJ_WORK/run/erg"
+HJ_BEFORE=$(sha256sum "$HJ_WORK/run/erg" | cut -c1-12)
+OUT=$(cd "$HJ_WORK" && ERG_TICKET_DIR= ./run/erg update 2>&1 || true)
+HJ_AFTER=$(sha256sum "$HJ_WORK/run/erg" | cut -c1-12)
+if [ "$HJ_BEFORE" = "$HJ_AFTER" ] && echo "$OUT" | grep -q "no git-erg ticket store"; then
+    pass "update refuses when no ticket store is found (no cwd-repo hijack)"
+else
+    fail "update without a store changed the binary or gave no warning: $OUT"
+fi
+
 # Test: the binary carries no embedded network/TLS client. `erg update` now
 # shells out to git, so the offline invariant holds everywhere — guard it.
-if grep -rEn 'net/http|crypto/tls' src/go/*.go >/dev/null 2>&1; then
+if grep -rEn 'net/http|crypto/tls' src/go/ >/dev/null 2>&1; then
     fail "source imports net/http or crypto/tls — erg must carry no network code"
 else
     pass "no net/http or crypto/tls in source (offline invariant)"

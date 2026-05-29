@@ -372,7 +372,9 @@ If the fetched hash matches the running binary, prints "already up to date" and 
 Otherwise replaces the binary via an atomic rename (write to .tmp, then rename over self).
 
 Fetch errors exit 0 so that 'erg update && erg validate' chains do not fail in offline
-or isolated environments (no remote configured, no network, not a git repo).
+or isolated environments (no remote configured, no network, not a git repo). If no
+ticket store is found, update does nothing and exits 0 — it never pulls the binary from
+an unrelated repository you happen to be standing in.
 
 After a successful update, checks whether any .erg files in the ticket store still carry
 legacy Status: headers. If found, prints explicit migration guidance: 'erg migrate DIR',

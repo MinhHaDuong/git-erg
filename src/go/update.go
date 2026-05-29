@@ -36,7 +36,9 @@ If the fetched hash matches the running binary, prints "already up to date" and 
 Otherwise replaces the binary via an atomic rename (write to .tmp, then rename over self).
 
 Fetch errors exit 0 so that 'erg update && erg validate' chains do not fail in offline
-or isolated environments (no remote configured, no network, not a git repo).
+or isolated environments (no remote configured, no network, not a git repo). If no
+ticket store is found, update does nothing and exits 0 — it never pulls the binary from
+an unrelated repository you happen to be standing in.
 
 After a successful update, checks whether any .erg files in the ticket store still carry
 legacy Status: headers. If found, prints explicit migration guidance: 'erg migrate DIR',
@@ -120,8 +122,20 @@ func cmdUpdate(_ []string) int {
 		}
 	}
 
+	// Anchor the fetch to a resolved ticket store. Without one we have no
+	// trustworthy notion of "this project's repo", and falling back to the
+	// current directory's git repo would let `erg update` silently pull the
+	// binary from whatever unrelated repo you happen to be standing in. Refuse
+	// and leave the binary untouched (exit 0, so update && validate still works).
+	if ticketDir == "" {
+		fmt.Fprintln(os.Stderr,
+			"update: no git-erg ticket store found here — run from inside your "+
+				"git-erg repo, or set ERG_TICKET_DIR. Binary left unchanged.")
+		return 0
+	}
+
 	var configRemote string
-	if os.Getenv("ERG_UPDATE_URL") == "" && ticketDir != "" {
+	if os.Getenv("ERG_UPDATE_URL") == "" {
 		if cfg, cfgErr := loadConfig(ticketDir); cfgErr == nil && cfg != nil {
 			configRemote = cfg.UpdateURL
 		}
@@ -130,24 +144,20 @@ func cmdUpdate(_ []string) int {
 
 	// The repo's committed binary lives at <ticket store>/erg. Translate that
 	// to a repo-root-relative path for `git cat-file blob FETCH_HEAD:<path>`.
-	gitDir := ticketDir
-	if gitDir == "" {
-		gitDir = "."
-	}
+	// If the store is not inside a git repo, blobPath is moot — the fetch below
+	// fails (not a repo) and we exit 0, leaving the binary in place.
 	blobPath := "tickets/erg"
-	if ticketDir != "" {
-		if top := gitToplevel(gitDir); top != "" {
-			if abs, absErr := filepath.Abs(ticketDir); absErr == nil {
-				if rel, relErr := filepath.Rel(top, filepath.Join(abs, "erg")); relErr == nil {
-					blobPath = filepath.ToSlash(rel)
-				}
+	if top := gitToplevel(ticketDir); top != "" {
+		if abs, absErr := filepath.Abs(ticketDir); absErr == nil {
+			if rel, relErr := filepath.Rel(top, filepath.Join(abs, "erg")); relErr == nil {
+				blobPath = filepath.ToSlash(rel)
 			}
 		}
 	}
 
-	body, err := fetchRemoteBinary(gitDir, remote, blobPath)
+	body, err := fetchRemoteBinary(ticketDir, remote, blobPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "update: offline or unreachable — %v\n", err)
+		fmt.Fprintf(os.Stderr, "update: could not fetch — %v\n", err)
 		return 0
 	}
 	if len(body) == 0 {
@@ -179,9 +189,6 @@ func cmdUpdate(_ []string) int {
 	// Detect tickets still carrying `Status:` headers and emit a hint.
 	// Migration is explicit: the user runs `erg migrate`, reviews the diff,
 	// and commits separately. erg update never mutates ticket files.
-	if ticketDir == "" {
-		return 0
-	}
 	if info, err := os.Stat(ticketDir); err == nil && info.IsDir() && hasStatusHeader(ticketDir) {
 		fmt.Printf("erg: detected Status: headers in %s — run:\n", ticketDir)
 		fmt.Printf("  erg migrate %s\n", ticketDir)
