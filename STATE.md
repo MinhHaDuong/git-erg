@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-05-29T13:25Z — Closed 0149 (data-safety guard suite): shipped `tests/test_datasafety.sh` + `src/go/atomicwrite_test.go` and a shared atomic ticket-write path (`writeTicketAtomic`/`atomicWriteFile`) — temp-then-rename, validate-before-replace, write-confinement, mode-preserving, read-only-respecting — that all mutating commands (close/log/tag/untag/migrate) now funnel through; wired in as the `datasafety` suite. Finding: there was no shared atomic path before (all mutations used truncating `os.WriteFile`); now consolidated, no follow-up. Earlier: Closed 0146 (design-contract guardrails): shipped `tests/test_contract.sh`, a falsifiable guard (each with a negative control) for the deterministic five invariants — agnostic, offline, standalone, stateless, small (5 MB ceiling) — wired into `make test` as the `contract` suite. The `fast` guards (parse-once + linear N-vs-2N op-count + wall-clock backstop) need loader instrumentation, so they split out to **0154** (READY) per 0146's own "land deterministic first; fast can lag". Earlier: 0147 (static+stripped build) and 0148 (self-update via git fetch) landed — the bootstrap binary is now static **and** stripped (~2.9 MB), no network code anywhere. Remaining work: 0150 (install/uninstall round-trip, READY), 0154 (fast guards, READY); needs-human: 0151 (security/red-team — standing QA process, max threat model: binary in thousands of repos; trust via git-native signed tags), 0152 (UX try-and-learn — standing AI-assisted QA process). Closed 0153 (signed manifest/revocation) as YAGNI. never-lose-data is the 7th, foremost invariant. 150 closed, 4 open, 2 ready._
+_Last updated: 2026-05-29T19:20Z — Raid 151 (security audit): split the needs-human 0151 into four automatable children and merged all four. **0155** (#170): `erg version` prints the full SHA-256, names the algorithm, and emits a copy-paste `verify:` hint (shell-safe, gated to the bootstrap path). **0156** (#171): `make verify` rebuilds the committed `tickets/erg` byte-for-byte from its embedded revision (go1.21.13 pinned via go.mod toolchain; CI uses fetch-depth:0 so the ancestor revision is present) — the keystone supply-chain control, now live in `make test`/CI. **0157** (#172): `test_security.sh` — 26 falsifiable checks (path-traversal, symlink escape, input-DoS, ID-injection) each with a negative control — plus a real confinement fix the audit surfaced: `erg rm` FILE-form now passes through `withinStore` (the explicit-`new` DIR was deliberately documented as an escape hatch). **0158** (#182): `docs/threat-model.md`, `docs/red-team-checklist.md` (run once — zero high-severity), and a README "Verifying the binary" opsec section. 0151 stays **open (needs-human)** for its one remaining item: signed release tags (`git tag -s` — needs a maintainer GPG key). Every PR cleared CI + Copilot; #170/#172 also cleared ultra review (only nits). Process lesson saved: never `Blocked-by:` a parent tracker from a child — it breaks erg-pr-merge's per-file pre-commit validation. Earlier: 0149 (data-safety atomic write path), 0146 (contract guards), 0147/0148 (static build + git-fetch update) all landed. never-lose-data is the foremost invariant. 160 closed, 5 open._
 
 ## North star:
 
@@ -17,8 +17,8 @@ An agent-friendly local ticket system for development in disconnected environmen
 
 ## Stats
 
-- Tickets: 150 closed, 4 open — ready: 0150, 0154; needs-human: 0151, 0152
-- Tests: green — ok git-erg
+- Tickets: 160 closed, 5 open — ready: 0163, 0164, 0166; needs-human: 0151, 0152
+- Tests: green — `make test`, `make verify` (reproducible build), `erg check` (164) all pass on main
 - Open PRs: none
 
 ## Notes
