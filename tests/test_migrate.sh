@@ -145,16 +145,32 @@ else
     fail "summary reports already-clean count (got: $out)"
 fi
 
-# --- After migration the migrated files pass check ---
-# Use 'check' for directory-level validation; 'validate' takes files only.
-out=$($ERG check "$FIXTURES" 2>&1 || true)
-# Ignore ID collision errors caused by repeated 0001/0002 IDs across older
-# fixtures; just verify there is no Status: complaint.
-if echo "$out" | grep -qi "Status:"; then
-    fail "no Status: complaint after migration"
+# --- A formerly-Status ticket passes check cleanly after migration ---
+# Run check on an isolated dir holding exactly one freshly-migrated ticket, so
+# the result is load-bearing: a leftover Status: header would make the
+# validator emit "'Status:' header is no longer part of %erg 0.1" and exit 1.
+# (Running against $FIXTURES would mask this behind duplicate-ID errors.)
+CLEANDIR=$(mktemp -d)
+cat > "$CLEANDIR/0001-was-status.erg" <<'EOF'
+%erg v1
+Title: Legacy ticket carrying a status header
+Created: 2026-01-01
+Author: claude
+Status: open
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+$ERG migrate "$CLEANDIR" >/dev/null 2>&1
+out=$($ERG check "$CLEANDIR" 2>&1); rc=$?
+if [ "$rc" -eq 0 ] && ! echo "$out" | grep -qi "Status:"; then
+    pass "formerly-Status ticket passes check after migration"
 else
-    pass "no Status: complaint after migration"
+    fail "formerly-Status ticket passes check after migration (rc=$rc, out: $out)"
 fi
+rm -rf "$CLEANDIR"
 
 # --- Tags: → Tag: rewrite (preamble-bounded, value preserved) ---
 cat > "$FIXTURES/0010-tags-legacy.erg" <<'EOF'

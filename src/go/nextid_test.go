@@ -151,13 +151,7 @@ func gitOrSkip(t *testing.T) {
 // commits do not depend on global config.
 func initRepoWithCommit(t *testing.T, root string) {
 	t.Helper()
-	mustGit := func(args ...string) {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = root
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
+	mustGit := func(args ...string) { gitRun(t, root, args...) }
 	mustGit("init", "-q", "-b", "main")
 	mustGit("config", "user.email", "test@example.com")
 	mustGit("config", "user.name", "Test")
@@ -181,10 +175,7 @@ func TestNextID_SkipsSiblingWorktreeUncommittedTicket(t *testing.T) {
 	}
 
 	wt2 := filepath.Join(t.TempDir(), "wt2")
-	cmd := exec.Command("git", "-C", root, "worktree", "add", "-b", "wt2-branch", wt2)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("worktree add: %v\n%s", err, out)
-	}
+	gitRun(t, root, "worktree", "add", "-b", "wt2-branch", wt2)
 	if err := os.MkdirAll(filepath.Join(wt2, "tickets"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -202,13 +193,7 @@ func TestNextID_SkipsTicketCommittedOnUncheckedOutBranch(t *testing.T) {
 	gitOrSkip(t)
 	root := t.TempDir()
 	initRepoWithCommit(t, root)
-	mustGit := func(args ...string) {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = root
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
+	mustGit := func(args ...string) { gitRun(t, root, args...) }
 	mustGit("checkout", "-q", "-b", "other-branch")
 	if err := os.MkdirAll(filepath.Join(root, "tickets"), 0o755); err != nil {
 		t.Fatal(err)
@@ -238,13 +223,7 @@ func TestNextID_SkipsTicketOnRemoteTrackingBranch(t *testing.T) {
 	// it into a clone, then check whether next-id sees the ID via the
 	// refs/remotes/origin/* cache. No network — git only reads local refs.
 	origin := t.TempDir()
-	mustGitIn := func(dir string, args ...string) {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = dir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git -C %s %v: %v\n%s", dir, args, err, out)
-		}
-	}
+	mustGitIn := func(dir string, args ...string) { gitRun(t, dir, args...) }
 	mustGitIn(origin, "init", "-q", "-b", "main", "--bare")
 
 	seed := t.TempDir()
@@ -290,10 +269,7 @@ func TestNextID_SiblingWithoutSubdirIsHarmless(t *testing.T) {
 	}
 
 	wt2 := filepath.Join(t.TempDir(), "wt2")
-	cmd := exec.Command("git", "-C", root, "worktree", "add", "-b", "wt2-branch", wt2)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("worktree add: %v\n%s", err, out)
-	}
+	gitRun(t, root, "worktree", "add", "-b", "wt2-branch", wt2)
 	// Sibling worktree has no tickets/ subdir at all.
 
 	got := nextID(filepath.Join(root, "tickets"))

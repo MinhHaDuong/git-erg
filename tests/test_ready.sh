@@ -342,7 +342,11 @@ EOF
     git update-ref refs/heads/feat/9098-impl "$sha"
     git update-ref refs/heads/90980-not-a-match "$sha"   # word-boundary negative
     git update-ref refs/remotes/origin/feat/9098 "$sha"  # remote-tracking match
-    git update-ref refs/remotes/origin/HEAD "$sha"       # symref shape — must be filtered
+    # A remote HEAD symref is present so `ready` must not choke on it. Its
+    # short name is the bare remote ("origin"), which has no digits and so can
+    # never reference a numeric ticket — symref *filtering* is therefore not
+    # observable here; it is asserted directly in refs_git_test.go's TestLoadGitRefs.
+    git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/feat/9098
     git worktree add --quiet wt-9098 feat/9098-impl 2>/dev/null
     "$ERG_ABS" ready --json tickets/ > out.json
     "$ERG_ABS" ready tickets/ > out.txt
@@ -353,10 +357,9 @@ if echo "$json_out" | jq -e '.[0] | .id == "9098"
     and (.refs | index("feat/9098-impl")) != null
     and (.refs | index("origin/feat/9098")) != null
     and (.refs | index("90980-not-a-match")) == null
-    and (.refs | map(endswith("/HEAD")) | any) == false
     and (.refs | map(endswith("/wt-9098")) | any) == true
     and (.refs | map(. == "'"$refdir"'") | any) == false' >/dev/null 2>&1; then
-    pass "JSON refs: local + remote + worktree included; word-boundary + HEAD-symref filtered; current worktree suppressed"
+    pass "JSON refs: local + remote + worktree included; word-boundary filtered; current worktree suppressed"
 else
     fail "JSON refs: full annotation surface (json: $json_out)"
 fi
