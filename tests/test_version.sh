@@ -26,7 +26,7 @@ cat > "$STUB" <<'STUBEOF'
 if [ "$1" = "version" ]; then
     echo "erg version"
     echo "  path:    /tmp/tickets/erg"
-    echo "  hash:    aabbccddeeff"
+    echo "  sha256:  aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
     echo "  built:   2020-01-01T00:00:00Z"
     echo "  revision: olddeadbeef"
     echo "  arch:    linux/amd64"
@@ -40,6 +40,15 @@ if echo "$OUT" | grep -qF "$WORKSPACE/tickets/erg"; then
     pass "version: discovers ./tickets/erg in CWD"
 else
     fail "version: did not discover ./tickets/erg in CWD: $OUT"
+fi
+
+# Test: live erg version prints the full 64-char SHA-256 digest, named sha256:.
+# Run with discovery suppressed so only the running binary's line is matched.
+SELF_OUT=$(ERG_VERSION_NO_DISCOVER=1 "$ERG_ABS" version 2>&1)
+if echo "$SELF_OUT" | grep -qE '^[[:space:]]+sha256:[[:space:]]+[0-9a-f]{64}$'; then
+    pass "version: prints full 64-char SHA-256 digest"
+else
+    fail "version: missing full sha256 digest: $SELF_OUT"
 fi
 
 echo "version: $PASS passed, $FAIL failed"

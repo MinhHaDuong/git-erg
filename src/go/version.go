@@ -64,7 +64,8 @@ Print self-diagnostic info and discover other erg binaries.
 Prints the following fields for the running binary:
 
   - path:     resolved absolute path (symlinks followed).
-  - hash:     first 12 hex characters of the SHA-256 of the binary file.
+  - sha256:   full 64-char hex SHA-256 of the binary file; recompute and verify
+              with stock tools, e.g. ` + "`sha256sum tickets/erg`" + `.
   - built:    build date injected at compile time via -ldflags (or "[unknown]").
   - revision: VCS commit hash injected at compile time via -ldflags (if present).
   - arch:     GOOS/GOARCH of the running binary.
@@ -106,7 +107,7 @@ func cmdVersion(_ []string) int {
 	// Print running binary info
 	fmt.Println("erg version")
 	fmt.Printf("  path:    %s\n", self)
-	fmt.Printf("  hash:    %s\n", h[:12])
+	fmt.Printf("  sha256:  %s\n", h)
 	if buildDate != "" {
 		fmt.Printf("  built:   %s\n", buildDate)
 	} else {
@@ -116,6 +117,9 @@ func cmdVersion(_ []string) int {
 		fmt.Printf("  revision: %s\n", vcsRevision)
 	}
 	fmt.Printf("  arch:    %s/%s\n", runtime.GOOS, runtime.GOARCH)
+	if strings.HasSuffix(self, "tickets/erg") {
+		fmt.Println("  verify:  sha256sum tickets/erg")
+	}
 
 	if os.Getenv("ERG_VERSION_NO_DISCOVER") != "" {
 		return 0
@@ -193,7 +197,7 @@ func cmdVersion(_ []string) int {
 			}
 		}
 
-		entry := fmt.Sprintf("  %s\n    hash:     %s", resolved, ch[:12])
+		entry := fmt.Sprintf("  %s\n    sha256:   %s", resolved, ch)
 		if otherDate != "" {
 			entry += fmt.Sprintf("\n    built:    %s", otherDate)
 		}
