@@ -54,6 +54,15 @@ func selfHash(path string) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
+// shellSingleQuote wraps s in POSIX single quotes so it is safe to paste into
+// a shell verbatim — even if it contains spaces, $, backticks, or other
+// metacharacters. Embedded single quotes are escaped as '\''. Double-quoting
+// (e.g. fmt %q) would NOT suffice: $ and ` stay active inside double quotes.
+// The `verify:` hint exists solely for copy-paste, so this must be exact.
+func shellSingleQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 // summaryVersion is the one-liner printed by printUsage via the commands registry.
 const summaryVersion = "Print version, path, build date, and obsolescence info"
 
@@ -71,6 +80,9 @@ Prints the following fields for the running binary:
   - built:    build date injected at compile time via -ldflags (or "[unknown]").
   - revision: VCS commit hash injected at compile time via -ldflags (if present).
   - arch:     GOOS/GOARCH of the running binary.
+  - verify:   a ready-to-paste ` + "`sha256sum`" + ` command for the binary's resolved
+              path. Shown only for the in-repo bootstrap copy (a path ending in
+              /tickets/erg), where verifying the committed binary matters most.
 
 After printing the running binary info, ` + "`erg version`" + ` discovers other erg binaries
 in well-known locations (./build/erg, ./tickets/erg, ~/.local/bin/erg, and PATH
@@ -119,11 +131,13 @@ func cmdVersion(_ []string) int {
 		fmt.Printf("  revision: %s\n", vcsRevision)
 	}
 	fmt.Printf("  arch:    %s/%s\n", runtime.GOOS, runtime.GOARCH)
-	if strings.HasSuffix(self, "tickets/erg") {
-		// Hash the resolved absolute path, not a cwd-relative "tickets/erg":
-		// the command must recompute the digest printed above no matter what
-		// directory `erg version` was invoked from.
-		fmt.Printf("  verify:  sha256sum %s\n", self)
+	if strings.HasSuffix(self, "/tickets/erg") {
+		// Leading separator so only a real ".../tickets/erg" path matches —
+		// a bare "tickets/erg" suffix would also fire on "/home/me/my-tickets/erg".
+		// Hash the resolved absolute path (single-quoted for safe paste), not a
+		// cwd-relative "tickets/erg": the command must recompute the digest
+		// printed above no matter what directory `erg version` was invoked from.
+		fmt.Printf("  verify:  sha256sum %s\n", shellSingleQuote(self))
 	}
 
 	if os.Getenv("ERG_VERSION_NO_DISCOVER") != "" {

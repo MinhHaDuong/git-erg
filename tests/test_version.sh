@@ -56,5 +56,36 @@ else
     fail "version: printed sha256 ('$PRINTED') != sha256sum ('$ACTUAL'): $SELF_OUT"
 fi
 
+# Test: the `verify:` hint (shown only for the in-repo bootstrap copy, a path
+# ending in /tickets/erg) emits a ready-to-paste, correctly-quoted sha256sum
+# command that ACTUALLY recomputes the displayed digest — run from an unrelated
+# cwd, so a cwd-relative or unquoted command would fail. This guards both the
+# single-quote escaping and the leading-separator path gate (ultra review).
+BOOT="$WORKSPACE/bootstrap/tickets"
+mkdir -p "$BOOT"
+cp "$ERG_ABS" "$BOOT/erg"
+VH_OUT=$(cd / && ERG_VERSION_NO_DISCOVER=1 "$BOOT/erg" version 2>&1)
+VH_CMD=$(echo "$VH_OUT" | sed -n 's/^[[:space:]]*verify:[[:space:]]*//p')
+VH_SHA=$(echo "$VH_OUT" | sed -n 's/^[[:space:]]*sha256:[[:space:]]*\([0-9a-f]\{64\}\)$/\1/p')
+VH_GOT=$(cd / && eval "$VH_CMD" 2>/dev/null | cut -d' ' -f1)
+if [ -n "$VH_CMD" ] && [ -n "$VH_SHA" ] && [ "$VH_GOT" = "$VH_SHA" ]; then
+    pass "version: verify hint emits a working, correctly-quoted sha256sum command"
+else
+    fail "version: verify hint did not recompute the digest: cmd='$VH_CMD' got='$VH_GOT' want='$VH_SHA'"
+fi
+
+# Negative control for the path gate: a binary at .../my-tickets/erg must NOT
+# show the verify hint — only a real ".../tickets/erg" (leading-separator) does.
+# A bare-suffix check would wrongly fire here.
+FAKE="$WORKSPACE/false/my-tickets"
+mkdir -p "$FAKE"
+cp "$ERG_ABS" "$FAKE/erg"
+FAKE_OUT=$(cd / && ERG_VERSION_NO_DISCOVER=1 "$FAKE/erg" version 2>&1)
+if echo "$FAKE_OUT" | grep -q '^[[:space:]]*verify:'; then
+    fail "version: verify hint wrongly shown for a .../my-tickets/erg path: $FAKE_OUT"
+else
+    pass "version: verify hint correctly suppressed for non-bootstrap path"
+fi
+
 echo "version: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

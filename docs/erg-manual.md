@@ -349,6 +349,9 @@ Prints the following fields for the running binary:
   - built:    build date injected at compile time via -ldflags (or "[unknown]").
   - revision: VCS commit hash injected at compile time via -ldflags (if present).
   - arch:     GOOS/GOARCH of the running binary.
+  - verify:   a ready-to-paste `sha256sum` command for the binary's resolved
+              path. Shown only for the in-repo bootstrap copy (a path ending in
+              /tickets/erg), where verifying the committed binary matters most.
 
 After printing the running binary info, `erg version` discovers other erg binaries
 in well-known locations (./build/erg, ./tickets/erg, ~/.local/bin/erg, and PATH
