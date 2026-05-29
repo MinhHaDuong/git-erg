@@ -3,9 +3,13 @@ name: Rebuild bootstrap binary
 on:
   push:
     branches: [main]
+    # Anything the binary is built from — Go sources, go.mod/go.sum, AND the
+    # //go:embed assets under src/go/assets/. An asset-only change (e.g. the
+    # 0160 corrupted-AGENTS.md fix) must rebuild too, or the committed binary
+    # ships stale embedded files. The "Binary unchanged" guard below makes a
+    # no-op rebuild (e.g. test-only edits) harmless.
     paths:
-      - 'src/go/*.go'
-      - 'src/go/go.mod'
+      - 'src/go/**'
 
 concurrency:
   group: rebuild-binary-${{ github.ref }}
