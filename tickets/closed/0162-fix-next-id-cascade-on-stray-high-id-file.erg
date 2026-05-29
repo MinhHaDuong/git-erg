@@ -2,10 +2,12 @@
 Title: Prevent next-id cascade from stray high-ID ticket file
 Created: 2026-05-29
 Author: Claude
+Closed: autoclosed — PR #179
 
 --- log ---
 2026-05-29T15:10Z Claude created — UX audit finding F03 (verified); one stray file poisons erg new
 
+2026-05-29T18:56Z MinhHaDuong closed — autoclosed — PR #179
 --- body ---
 ## Context
 

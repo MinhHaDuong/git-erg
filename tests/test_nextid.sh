@@ -169,5 +169,25 @@ if command -v git >/dev/null 2>&1; then
     fi
 fi
 
+# --- Range exhaustion: 9999 exists -> error, no 5-digit ID ---
+mkdir -p "$TDIR/maxed"
+touch "$TDIR/maxed/9999-bad.erg"
+if out=$($ERG next-id "$TDIR/maxed" 2>&1); then
+    fail "next-id should error when range is exhausted (got: $out)"
+else
+    pass "next-id errors on range exhaustion"
+fi
+
+# --- Stray 5-digit file is ignored, normal IDs work ---
+mkdir -p "$TDIR/stray5"
+touch "$TDIR/stray5/0005-valid.erg"
+touch "$TDIR/stray5/10000-stray.erg"
+out=$($ERG next-id "$TDIR/stray5")
+if [ "$out" = "0006" ]; then
+    pass "stray 5-digit file ignored, next-id returns 0006"
+else
+    fail "stray 5-digit file ignored, next-id returns 0006 (got: $out)"
+fi
+
 echo "next-id: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
