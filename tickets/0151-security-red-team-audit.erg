@@ -10,6 +10,7 @@ Tag: needs-human
 2026-05-29T09:55Z Claude note verification must be local + offline (rebuild the in-repo src/go with git+go, no phone-home) and discoverable — make verify + erg version hint, documented; cluestick the user
 2026-05-29T10:10Z Claude note clarified the displayed-hash intent — (1) keep a widely-available algorithm (SHA-256, stock tools), name it and expose the full digest; (2) kindly teach two opsec tiers: basic = local vs self-reported vs published hash; advanced = AI-review source, rebuild, hash that
 2026-05-29T10:25Z Claude note tier (a) needs a trustable SIGNED publication, not a bare hash, plus deprecate-old + revoke-compromised lifecycle — split to 0153 (needs-human; key management). Reproducibility answers "real binary?"; signed manifest answers "still safe?"
+2026-05-29T10:40Z Claude note dropped the bespoke route — 0153 closed YAGNI. Basic-tier trust = git-native signed release tags (how git/Junio Hamano do it: tag -s / verify-tag); revocation, if ever needed, = key revocation + advisory + new release, not a polled list.
 
 --- body ---
 ## Context
@@ -50,10 +51,14 @@ threat-model changes.
   2. **Kindly remind the user of verification opsec** — two tiers, a gentle
      cluestick, not a nag:
      - *Basic:* recompute locally (`sha256sum tickets/erg`) and check it
-       agrees three ways — your local hash == the self-reported `erg version`
-       hash == a **trustable signed** reference (not a bare published hash:
-       an attacker who can push a release publishes a matching hash too — see
-       **0153** for the signed manifest, deprecation, and revocation).
+       agrees with the self-reported `erg version` hash and the hash on a
+       **maintainer-signed git release tag** (`git tag -s`, verified with
+       `git verify-tag` / `--show-signature`). A bare hash is only as
+       trustworthy as its channel; a signed tag is how git itself publishes
+       trust — git-native, no bespoke manifest/revocation, no new dependency.
+       (We considered a signed manifest + revocation list; closed YAGNI in
+       0153 — that is not how git/Junio Hamano do it, and we have no observed
+       compromise to justify the key-management cost.)
      - *Advanced:* don't trust the blob at all — have a powerful AI review the
        in-repo `src/go/`, rebuild it locally (git+go, **offline**), hash the
        rebuild, and confirm it matches the committed binary. `make verify`
@@ -113,9 +118,9 @@ repos, so "low" is rarely low.
       rebuilds the recorded revision and diffs it (reusing `selfHash`).
 - [ ] `erg version` names the algorithm (SHA-256) and exposes the full digest;
       the displayed hash is recomputable with stock tools.
-- [ ] A trustable **signed** reference publication exists with deprecation +
-      revocation (split out as **0153**) for the basic check; bare published
-      hashes are not sufficient.
+- [ ] Release tags are signed (git-native `git tag -s`) and the verify step
+      (`git verify-tag`) is documented — this is the trustable publication.
+      No bespoke manifest/revocation (0153 closed YAGNI).
 - [ ] Local + offline advanced path: `make verify` rebuilds the recorded
       revision and diffs against the committed binary (git+go only, no network).
 - [ ] Both opsec tiers are documented and the user is kindly pointed at them

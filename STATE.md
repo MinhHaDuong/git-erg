@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-05-29T09:00Z — Freeze lifted. Design-contract + custody work: 0147 (static+stripped build, READY), 0146 (six form-guards, Blocked-by 0147), 0149 (data-safety guard suite, READY), 0150 (install/uninstall round-trip, READY); needs-human: 0148 (self-update via git fetch), 0151 (security/red-team — standing QA process, max threat model: binary in thousands of repos), 0152 (UX try-and-learn — standing AI-assisted QA process), 0153 (signed version manifest — trustable publication + deprecation + revocation). Added never-lose-data as a 7th, foremost invariant. 145 closed, 8 open, 3 ready._
+_Last updated: 2026-05-29T09:00Z — Freeze lifted. Design-contract + custody work: 0147 (static+stripped build, READY), 0146 (six form-guards, Blocked-by 0147), 0149 (data-safety guard suite, READY), 0150 (install/uninstall round-trip, READY); needs-human: 0148 (self-update via git fetch), 0151 (security/red-team — standing QA process, max threat model: binary in thousands of repos; trust via git-native signed tags), 0152 (UX try-and-learn — standing AI-assisted QA process). Closed 0153 (signed manifest/revocation) as YAGNI — use git signed tags, not bespoke signing infra. Added never-lose-data as a 7th, foremost invariant. 146 closed, 7 open, 3 ready._
 
 ## North star:
 
@@ -17,7 +17,7 @@ An agent-friendly local ticket system for development in disconnected environmen
 
 ## Stats
 
-- Tickets: 145 closed, 8 open — ready: 0147, 0149, 0150; blocked: 0146 (by 0147); needs-human: 0148, 0151, 0152, 0153
+- Tickets: 146 closed, 7 open — ready: 0147, 0149, 0150; blocked: 0146 (by 0147); needs-human: 0148, 0151, 0152
 - Tests: green — ok git-erg
 - Open PRs: none
 

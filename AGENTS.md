@@ -66,8 +66,10 @@ class — and reproducible builds are the keystone control, **verifiable locally
 and offline** (rebuild the in-repo `src/go/` with git+go; no phone-home). The
 displayed hash uses a widely-available algorithm (SHA-256, recomputable with
 stock tools), and we kindly teach two opsec tiers — basic (local vs
-self-reported vs published hash) and advanced (AI-review the source, rebuild,
-hash that) — discoverably, so users actually verify.
+self-reported vs a maintainer-signed git release tag) and advanced (AI-review
+the source, rebuild, hash that) — discoverably, so users actually verify.
+Trust is published the way git itself does it — signed tags (`git tag -s`),
+not a bespoke signing/revocation system (0153 closed YAGNI).
 
 Simplicity is a feature, and declining is legitimate work. Closing a ticket
 as YAGNI (0131), reducing a command to a thin alias (0144), or saying "no"
