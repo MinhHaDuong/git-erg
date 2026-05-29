@@ -21,8 +21,15 @@ feels tidier. If you cannot name who felt the lack and how, it is not ready.
 Respect the core invariants. They are non-negotiable, and a proposal that
 fights one starts deep in the negative:
 
-The six are equals — none is a lesser "nice to have":
+Seven invariants, one above the rest — **never lose data** is the tool's
+*job*; the other six guard its *form*. None is a lesser "nice to have":
 
+- **Never lose data** (the one job) — the ticket files are sacred. Every
+  mutation is atomic (write-temp-then-rename), validates before it replaces,
+  never clobbers on ID collision, and preserves the log/body losslessly; a
+  killed `erg` leaves the old file or the new, never a truncated one. The
+  blanket "never" can't be proven, so it is backed by a data-safety guard
+  suite + standing audit (0149).
 - **Agnostic** (POSIX-first) — a hand edit must always win; the plain `.erg`
   file is the contract and the binary is optional. Nothing may make the file
   the second-class source of truth (this is why a stale cache is a bug, not

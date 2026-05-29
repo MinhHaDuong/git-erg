@@ -1,0 +1,59 @@
+%erg 0.1
+Title: Security audit — threat model and red-team resistance
+Created: 2026-05-29
+Author: Claude
+Tag: needs-human
+
+--- log ---
+2026-05-29T09:00Z Claude created — "resists red team" is a posture, not a checkmark; needs-human
+
+--- body ---
+## Context
+
+"Resists red team" cannot be a green checkmark — security is a posture, not a
+boolean. For *this* tool the attack surface is small and nameable, so the
+work is: write a threat model, back it with the few falsifiable hardening
+tests that exist, and run a human audit for the rest.
+
+## Threat model (to refine during the audit)
+
+- **Untrusted `.erg` input.** Anyone can commit a `.erg`; hooks/CI parse it.
+  A malicious/pathological file must not cause RCE, **path traversal**
+  (a crafted ID or path-ref escaping `tickets/` on read or write), or **DoS**
+  (huge file, deep nesting, pathological regex / ReDoS in the parser).
+- **Path / ID injection.** IDs and path-refs feed filesystem paths
+  (`resolveDir`, `resolveTicketByID`, `new`/`rm`/`archive`). Verify no
+  `..`, absolute-path, or symlink escape.
+- **Update integrity.** `erg update` (today `net/http`; 0148 → `git fetch`)
+  must not be coercible into installing an attacker binary — hash
+  verification, trusted origin, no silent downgrade / MITM.
+- **Secret hygiene.** erg never reads, writes, or logs secrets, and never
+  leaks env/keys into tickets or output ("never leak keys").
+
+## Falsifiable tests to carve out (the rest is human audit)
+
+- Path-traversal fixtures (malicious IDs/path-refs) are rejected, never
+  escape the store.
+- Oversized / pathological input is bounded (no unbounded memory / catastrophic
+  backtracking).
+- Update integrity: a hash mismatch refuses to replace the binary.
+
+## Relevant files
+
+- Parser + ref resolution: `erg.go`, `ref.go`, `main.go`
+  (`resolveDir`/`resolveTicketByID`).
+- Path construction: `new.go`, `rm.go`, `archive.go`.
+- `update.go` (coordinate update-integrity with 0148).
+
+## Exit criteria
+
+- [ ] Documented threat model.
+- [ ] Falsifiable hardening tests for path-traversal, input-DoS, and
+      update-integrity, each with a negative control.
+- [ ] Audit findings recorded; high-severity findings filed as their own fix
+      tickets.
+
+## Notes
+
+- **needs-human** (AGENTS.md §2 security gate). This is the "never leak
+  keys" / red-team half; data-safety *integrity* is 0149.

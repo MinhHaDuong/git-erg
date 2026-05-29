@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-05-29T08:40Z — Freeze lifted. Design-contract work split into three: 0147 (static+stripped build, Makefile-only, READY), 0146 (the six guard tests, Blocked-by 0147), 0148 (self-update via git fetch, needs-human — touches distribution model). 145 closed, 3 open, 1 ready._
+_Last updated: 2026-05-29T09:00Z — Freeze lifted. Design-contract + custody work: 0147 (static+stripped build, READY), 0146 (six form-guards, Blocked-by 0147), 0149 (data-safety guard suite, READY), 0150 (install/uninstall round-trip, READY); needs-human: 0148 (self-update via git fetch), 0151 (security/red-team audit), 0152 (UX try-and-learn audit). Added never-lose-data as a 7th, foremost invariant. 145 closed, 7 open, 3 ready._
 
 ## North star:
 
@@ -17,7 +17,7 @@ An agent-friendly local ticket system for development in disconnected environmen
 
 ## Stats
 
-- Tickets: 145 closed, 3 open — 0147 (ready), 0146 (blocked-by 0147), 0148 (needs-human)
+- Tickets: 145 closed, 7 open — ready: 0147, 0149, 0150; blocked: 0146 (by 0147); needs-human: 0148, 0151, 0152
 - Tests: green — ok git-erg
 - Open PRs: none
 

@@ -1,0 +1,52 @@
+%erg 0.1
+Title: UX audit — easy to try and easy to learn
+Created: 2026-05-29
+Author: Claude
+Tag: needs-human
+
+--- log ---
+2026-05-29T09:00Z Claude created — UX is a quality goal measured by judgment, not a unit test; the evidence engine for feats; needs-human
+
+--- body ---
+## Context
+
+"Easy to try and learn" is a UX quality goal, measured by judgment and
+observation, not a unit test. It is also the **evidence engine**: it is how
+we learn whether speculative feats (e.g. `erg new --body`) are actually felt,
+per AGENTS.md "Earning a feature". Run it as an audit, not a guard.
+
+## What to evaluate (falsifiable proxies + human judgment)
+
+- **Time / steps to first ticket** from a cold clone: how many README steps
+  to install; can a newcomer create + close a ticket in a few minutes?
+- **Orientation:** does `erg` with no args / `erg help` / `erg --help --all`
+  orient a beginner? Is the POSIX-first path (just edit a `.erg`) discoverable?
+- **Self-describing install:** does `erg init` leave files that explain
+  themselves (`AGENTS.md`, spec, `integration.md`)?
+- **Four audiences** (from the dreamlist): beginner, expert trying it out,
+  other agents, developer — each has a different first five minutes.
+- **Error messages:** do they teach (the `filename:line: msg` form from 0124)
+  and suggest the fix?
+
+## Output
+
+A findings report. Each concrete friction item becomes a **Ready** fix ticket
+*with the observed evidence attached* — this is how feats earn their place,
+pulled by real friction rather than pushed from the wishlist.
+
+## Relevant files
+
+- `README.md`, `tickets/AGENTS.md`, the `init` assets, help text
+  (`helptext.go` / per-command help).
+
+## Exit criteria
+
+- [ ] Audit across the four audiences, with the proxies above measured.
+- [ ] Friction documented with severity.
+- [ ] Each actionable item filed as its own ticket with the evidence.
+
+## Notes
+
+- **needs-human**, evidence-driven. Prior UX work (closed): 0071–0074
+  (UX audit P0–P3), 0124 (error-message format). Build no feat off this until
+  the friction is observed.
