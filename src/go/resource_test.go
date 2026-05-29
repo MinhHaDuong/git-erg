@@ -125,7 +125,9 @@ func TestScalingHeapRetention(t *testing.T) {
 			var first, last uint64
 			withDiscardedStdout(t, func() {
 				for i := 0; i < iters; i++ {
-					c.invoke(dir)
+					if ret := c.invoke(dir); ret != 0 {
+						t.Fatalf("%s returned non-zero exit %d — heap-retention signal is untrustworthy", c.name, ret)
+					}
 					if i == 0 {
 						first = liveHeapBytes()
 					}
