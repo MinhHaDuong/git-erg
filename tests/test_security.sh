@@ -235,7 +235,11 @@ fi
 # ---------------------------------------------------------------------------
 WS="$FIXTURES/newconfine"
 mkdir -p "$WS"
-( cd "$WS" && $ERG new "Sub ticket" "sub/dir" >/dev/null 2>&1 )
+# `|| true`: under `set -e`, a non-zero exit from this standalone subshell would
+# abort the whole script — silently skipping the rest of this group, Groups 5-7,
+# the intended fail diagnostic below, and the summary. The `if ls` check is the
+# real assertion; let it record pass/fail.
+( cd "$WS" && $ERG new "Sub ticket" "sub/dir" >/dev/null 2>&1 ) || true
 if ls "$WS"/sub/dir/*.erg >/dev/null 2>&1; then
     pass "new: legitimate relative subdir 'sub/dir' creates a ticket"
 else
