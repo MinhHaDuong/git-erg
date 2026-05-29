@@ -214,19 +214,19 @@ func TestUpdateURL_EnvVarOverridesConfig(t *testing.T) {
 		t.Fatalf("config URL not loaded: %q", cfg.UpdateURL)
 	}
 
-	const def = "https://default.example.com/erg"
+	const def = "origin"
 	envURL := "https://from-env.example.com/erg"
 
 	// Env var set → wins over both config and default.
-	if got := resolveUpdateURL(envURL, cfg.UpdateURL, def); got != envURL {
+	if got := resolveUpdateRemote(envURL, cfg.UpdateURL, def); got != envURL {
 		t.Errorf("env var should override config: got %q, want %q", got, envURL)
 	}
 	// Env var unset → config wins over default.
-	if got := resolveUpdateURL("", cfg.UpdateURL, def); got != cfg.UpdateURL {
+	if got := resolveUpdateRemote("", cfg.UpdateURL, def); got != cfg.UpdateURL {
 		t.Errorf("config should override default when env unset: got %q, want %q", got, cfg.UpdateURL)
 	}
 	// Env and config unset → compiled-in default.
-	if got := resolveUpdateURL("", "", def); got != def {
+	if got := resolveUpdateRemote("", "", def); got != def {
 		t.Errorf("default should apply when env and config unset: got %q, want %q", got, def)
 	}
 }

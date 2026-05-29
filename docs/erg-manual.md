@@ -323,7 +323,7 @@ Unpack embedded bootstrap assets into the project.
 
 Writes (or refreshes) four files relative to DIR (default: current directory):
 
-  - tickets/.ergrc — project configuration (tag vocabulary, update URL).
+  - tickets/.ergrc — project configuration (tag vocabulary, update remote).
   - tickets/AGENTS.md — agent operating instructions for the ticket workflow.
   - tickets/spec-erg-v1.md — the %erg 0.1 format specification.
   - tickets/integration.md — setup guide for the pre-commit hook and CI integration.
@@ -357,17 +357,26 @@ comparison to avoid recursion).
 
 ## erg update
 
-Fetch the upstream binary and replace this executable atomically.
+Fetch the committed binary from your git remote and replace this executable atomically.
 
-Downloads the binary from ERG_UPDATE_URL (default: the main branch of the
-upstream GitHub repo). If the downloaded hash matches the running binary,
-prints "already up to date" and exits 0. Otherwise replaces the binary via
-an atomic rename (write to .tmp, then rename over self).
+Uses git (already a dependency of git-erg) — never an embedded network client — so
+the binary carries no network code at all. It runs 'git fetch <remote> HEAD' in the
+ticket store's repository, extracts the committed binary at that remote's default
+branch, and compares its hash to the running binary.
 
-Network and HTTP errors exit 0 so that 'erg update && erg validate' chains
-do not fail in offline or isolated environments.
+The remote defaults to 'origin' (you update from where you cloned). Override it with
+the ERG_UPDATE_URL environment variable or the .ergrc [update] url key — the value is
+a git remote name or URL, so a fork can point it at upstream to track upstream's binary.
 
-After a successful update, checks whether any .erg files in the ticket store
-still carry legacy Status: headers. If found, prints explicit migration
-guidance: 'erg migrate DIR', 'git diff tickets/', 'git commit'. The update
-command never mutates ticket files itself — migration is a separate, reviewable step.
+If the fetched hash matches the running binary, prints "already up to date" and exits 0.
+Otherwise replaces the binary via an atomic rename (write to .tmp, then rename over self).
+
+Fetch errors exit 0 so that 'erg update && erg validate' chains do not fail in offline
+or isolated environments (no remote configured, no network, not a git repo). If no
+ticket store is found, update does nothing and exits 0 — it never pulls the binary from
+an unrelated repository you happen to be standing in.
+
+After a successful update, checks whether any .erg files in the ticket store still carry
+legacy Status: headers. If found, prints explicit migration guidance: 'erg migrate DIR',
+'git diff tickets/', 'git commit'. The update command never mutates ticket files itself —
+migration is a separate, reviewable step.

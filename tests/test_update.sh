@@ -1,14 +1,37 @@
 #!/bin/sh
 # Integration tests for: erg version, erg update
+#
+# erg update fetches the committed binary via git (no embedded network client),
+# so these tests build local git remote fixtures rather than an HTTP server.
 set -eu
 
 ERG="${ERG_BIN:-build/erg}"
+ERG_ABS=$(readlink -f "$ERG")
 PASS=0; FAIL=0
+
+# Local-path git remotes are central to these fixtures. Hardened hosts set
+# protocol.file.allow=never globally (CVE-2022-39253 mitigation), which would
+# break both our `git clone <path>` calls and erg's own child `git fetch <path>`.
+# Inject the override via env so it reaches every git invocation we spawn *and*
+# every git that erg spawns (env is inherited; the -c flag would not reach erg's
+# child git). This mirrors how the fixtures pin commit.gpgsign.
+export GIT_CONFIG_COUNT=1
+export GIT_CONFIG_KEY_0=protocol.file.allow
+export GIT_CONFIG_VALUE_0=always
 
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
 echo "=== erg update/version ==="
+
+# git_init DIR — create a repo with signing/identity that works unattended,
+# independent of the caller's global git config (which may force commit signing).
+git_init() {
+    git init -q "$1"
+    git -C "$1" config user.email test@example.com
+    git -C "$1" config user.name test
+    git -C "$1" config commit.gpgsign false
+}
 
 # Test: erg version exits 0 and prints structured output with hash and arch
 VER=$("$ERG" version)
@@ -18,42 +41,39 @@ else
     fail "version output: $VER"
 fi
 
-# Test: erg update with bad URL exits 0
-if ERG_UPDATE_URL=http://127.0.0.1:1 "$ERG" update 2>/dev/null; then
-    pass "update offline exits 0"
-else
-    fail "update offline should exit 0"
-fi
+# --- git-fetch-based update tests ---
 
-# Test: erg update with local server serving same binary → already up to date
-PORT=$(python3 -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()")
-SRV_DIR=$(mktemp -d)
-TICKET_DIR=
-WORKSPACE=
-cp "$ERG" "$SRV_DIR/erg"
-( cd "$SRV_DIR" && exec python3 -m http.server $PORT >/dev/null 2>&1 ) &
-SERVER_PID=$!
-cleanup() {
-    kill $SERVER_PID 2>/dev/null || true
-    rm -rf "$SRV_DIR"
-    [ -n "$TICKET_DIR" ] && rm -rf "$TICKET_DIR"
-    [ -n "$WORKSPACE" ] && rm -rf "$WORKSPACE"
-}
+WORKROOT=$(mktemp -d)
+cleanup() { rm -rf "$WORKROOT"; }
 trap cleanup EXIT
 
-# Wait for server to be ready
-i=0; until curl -s http://127.0.0.1:$PORT/ >/dev/null 2>&1 || [ $i -ge 20 ]; do sleep 0.1; i=$((i+1)); done
+# Build an "origin" remote whose committed tickets/erg differs from $ERG.
+REMOTE="$WORKROOT/remote"
+git_init "$REMOTE"
+mkdir "$REMOTE/tickets"
+cp "$ERG_ABS" "$REMOTE/tickets/erg"
+printf 'X' >> "$REMOTE/tickets/erg"   # make the remote binary differ from $ERG
+cat > "$REMOTE/tickets/0001-normal.erg" <<'ERGEOF'
+%erg 0.1
+Title: Normal ticket
+Created: 2026-01-01
+Author: a
 
-OUT=$(ERG_UPDATE_URL=http://127.0.0.1:$PORT/erg "$ERG" update 2>&1)
-if echo "$OUT" | grep -q "already up to date"; then
-    pass "update same binary is no-op"
-else
-    fail "update same binary: $OUT"
-fi
+--- log ---
+2026-01-01T10:00Z a created
 
-# Test: update with Status: tickets → emits hint, does NOT rewrite files
-TICKET_DIR=$(mktemp -d)
-cat > "$TICKET_DIR/0001-legacy.erg" <<'ERGEOF'
+--- body ---
+ERGEOF
+git -C "$REMOTE" add -A
+git -C "$REMOTE" commit -qm init
+REMOTE_HASH=$(sha256sum "$REMOTE/tickets/erg" | cut -c1-12)
+
+# Clone it; overwrite the checked-out binary with $ERG so update has work to do.
+WORK="$WORKROOT/work"
+git clone -q "$REMOTE" "$WORK"
+cp "$ERG_ABS" "$WORK/tickets/erg"
+# A legacy Status: ticket so the post-update migration hint fires.
+cat > "$WORK/tickets/0002-legacy.erg" <<'ERGEOF'
 %erg 0.1
 Title: Legacy ticket
 Created: 2026-01-01
@@ -65,56 +85,131 @@ Status: open
 
 --- body ---
 ERGEOF
-BEFORE=$(cat "$TICKET_DIR/0001-legacy.erg")
-# Force a real update path (different hash) so migrate hint logic runs.
-cp "$ERG" "$SRV_DIR/erg-new"
-printf '\n' >> "$SRV_DIR/erg-new"
-OUT=$(ERG_UPDATE_URL=http://127.0.0.1:$PORT/erg-new ERG_TICKET_DIR="$TICKET_DIR" "$ERG" update 2>&1 || true)
-AFTER=$(cat "$TICKET_DIR/0001-legacy.erg")
-if [ "$BEFORE" = "$AFTER" ]; then
+LEGACY_BEFORE=$(cat "$WORK/tickets/0002-legacy.erg")
+
+# Test: update from origin replaces the stale binary with the committed one.
+OUT=$(cd "$WORK" && ERG_TICKET_DIR="$WORK/tickets" ./tickets/erg update 2>&1 || true)
+AFTER_HASH=$(sha256sum "$WORK/tickets/erg" | cut -c1-12)
+if [ "$AFTER_HASH" = "$REMOTE_HASH" ]; then
+    pass "update replaces stale binary with origin's committed binary"
+else
+    fail "update did not replace binary: after=$AFTER_HASH want=$REMOTE_HASH ($OUT)"
+fi
+
+# Test: update emits the migrate hint for legacy Status: tickets...
+if echo "$OUT" | grep -q "erg migrate"; then
+    pass "update emits migrate hint"
+else
+    fail "update missing migrate hint: $OUT"
+fi
+# ...but never rewrites ticket files itself.
+if [ "$(cat "$WORK/tickets/0002-legacy.erg")" = "$LEGACY_BEFORE" ]; then
     pass "update does not rewrite ticket files"
 else
     fail "update rewrote ticket files"
 fi
-if echo "$OUT" | grep -q "erg migrate"; then
-    pass "update emits migrate hint"
-else
-    fail "update missing migrate hint"
-fi
-rm -rf "$TICKET_DIR"
 
-# Test: erg update with 404 response exits 0 and stderr contains "server returned"
-OUT=$(ERG_UPDATE_URL=http://127.0.0.1:$PORT/no-such-file "$ERG" update 2>&1 || true)
-if echo "$OUT" | grep -q "server returned"; then
-    pass "update 404 exits 0 and emits 'server returned'"
+# Test: running update again is a no-op (hash now matches origin).
+OUT=$(cd "$WORK" && ERG_TICKET_DIR="$WORK/tickets" ./tickets/erg update 2>&1 || true)
+if echo "$OUT" | grep -q "already up to date"; then
+    pass "update on hash match is a no-op"
 else
-    fail "update 404: $OUT"
+    fail "update should report already up to date: $OUT"
 fi
 
-# Test: erg update with 200 empty body exits 0 and stderr contains "empty body"
-printf '' > "$SRV_DIR/erg-empty"
-OUT=$(ERG_UPDATE_URL=http://127.0.0.1:$PORT/erg-empty "$ERG" update 2>&1 || true)
-if echo "$OUT" | grep -q "empty body"; then
-    pass "update empty-body 200 exits 0 and emits 'empty body'"
-else
-    fail "update empty-body 200: $OUT"
-fi
-
-# Test: update does NOT rewrite managed assets (binary-only contract)
-WORKSPACE=$(mktemp -d)
-ERG_ABS=$(readlink -f "$ERG")
-mkdir -p "$WORKSPACE/tickets"
-echo "stale content" > "$WORKSPACE/tickets/AGENTS.md"
-cp "$ERG_ABS" "$SRV_DIR/erg-new2"
-printf '\x00' >> "$SRV_DIR/erg-new2"
-OUT=$(cd "$WORKSPACE" && ERG_UPDATE_URL=http://127.0.0.1:$PORT/erg-new2 "$ERG_ABS" update 2>&1 || true)
-STALE_CONTENT=$(cat "$WORKSPACE/tickets/AGENTS.md")
-if [ "$STALE_CONTENT" = "stale content" ]; then
+# Test: git fetch only touches the binary — working-tree assets stay put.
+if [ "$(cat "$WORK/tickets/0001-normal.erg")" = "$(cat "$REMOTE/tickets/0001-normal.erg")" ]; then
     pass "update does not rewrite managed assets"
 else
-    fail "update rewrote managed asset (AGENTS.md content changed)"
+    fail "update altered a working-tree asset"
 fi
-rm -rf "$WORKSPACE"
+
+# Test: ERG_UPDATE_URL overrides origin — fetch upstream's binary instead.
+UPSTREAM="$WORKROOT/upstream"
+git_init "$UPSTREAM"
+mkdir "$UPSTREAM/tickets"
+cp "$ERG_ABS" "$UPSTREAM/tickets/erg"
+printf 'UPSTREAM' >> "$UPSTREAM/tickets/erg"   # distinct from both $ERG and origin
+git -C "$UPSTREAM" add -A
+git -C "$UPSTREAM" commit -qm upstream
+UPSTREAM_HASH=$(sha256sum "$UPSTREAM/tickets/erg" | cut -c1-12)
+
+WORK2="$WORKROOT/work2"
+git clone -q "$REMOTE" "$WORK2"
+cp "$ERG_ABS" "$WORK2/tickets/erg"
+OUT=$(cd "$WORK2" && ERG_TICKET_DIR="$WORK2/tickets" ERG_UPDATE_URL="$UPSTREAM" ./tickets/erg update 2>&1 || true)
+WORK2_HASH=$(sha256sum "$WORK2/tickets/erg" | cut -c1-12)
+if [ "$WORK2_HASH" = "$UPSTREAM_HASH" ]; then
+    pass "ERG_UPDATE_URL override fetches from the given remote, not origin"
+else
+    fail "override ignored: after=$WORK2_HASH want=$UPSTREAM_HASH ($OUT)"
+fi
+
+# Test: .ergrc [update] url override is honored when the env var is unset.
+WORK3="$WORKROOT/work3"
+git clone -q "$REMOTE" "$WORK3"
+cp "$ERG_ABS" "$WORK3/tickets/erg"
+printf '[update]\nurl = %s\n' "$UPSTREAM" > "$WORK3/tickets/.ergrc"
+OUT=$(cd "$WORK3" && ERG_TICKET_DIR="$WORK3/tickets" ./tickets/erg update 2>&1 || true)
+WORK3_HASH=$(sha256sum "$WORK3/tickets/erg" | cut -c1-12)
+if [ "$WORK3_HASH" = "$UPSTREAM_HASH" ]; then
+    pass ".ergrc [update] url override is honored"
+else
+    fail ".ergrc override ignored: after=$WORK3_HASH want=$UPSTREAM_HASH ($OUT)"
+fi
+
+# Test: offline / no reachable remote exits 0 and leaves the binary untouched.
+OFFLINE="$WORKROOT/offline"
+mkdir -p "$OFFLINE/tickets"
+cp "$ERG_ABS" "$OFFLINE/tickets/erg"
+cp "$WORK/tickets/0001-normal.erg" "$OFFLINE/tickets/0001-normal.erg"
+OFFLINE_BEFORE=$(sha256sum "$OFFLINE/tickets/erg" | cut -c1-12)
+if (cd "$OFFLINE" && ERG_TICKET_DIR="$OFFLINE/tickets" ./tickets/erg update >/dev/null 2>&1); then
+    OFFLINE_AFTER=$(sha256sum "$OFFLINE/tickets/erg" | cut -c1-12)
+    if [ "$OFFLINE_BEFORE" = "$OFFLINE_AFTER" ]; then
+        pass "update offline exits 0 and leaves binary untouched"
+    else
+        fail "update offline changed the binary"
+    fi
+else
+    fail "update offline should exit 0"
+fi
+
+# Test: with no discoverable ticket store, update refuses rather than pulling
+# the binary from whatever unrelated repo the user happens to be standing in.
+# The hijack remote commits a (distinct) tickets/erg blob; the work repo wires
+# it as origin but has NO checked-out tickets/ dir and NO .erg files, so store
+# discovery finds nothing. Before the guard, the cwd-repo fallback would fetch
+# origin's tickets/erg and overwrite the running binary.
+HJ_REMOTE="$WORKROOT/hijack-remote"
+git_init "$HJ_REMOTE"
+mkdir "$HJ_REMOTE/tickets"
+cp "$ERG_ABS" "$HJ_REMOTE/tickets/erg"
+printf 'HIJACK' >> "$HJ_REMOTE/tickets/erg"   # distinct hash — would show if pulled
+git -C "$HJ_REMOTE" add -A
+git -C "$HJ_REMOTE" commit -qm hijack
+HJ_WORK="$WORKROOT/hijack-work"
+git_init "$HJ_WORK"
+git -C "$HJ_WORK" remote add origin "$HJ_REMOTE"   # origin wired, nothing checked out
+# Run a copy of erg from a dir with no .erg files and not named "tickets".
+mkdir "$HJ_WORK/run"
+cp "$ERG_ABS" "$HJ_WORK/run/erg"
+HJ_BEFORE=$(sha256sum "$HJ_WORK/run/erg" | cut -c1-12)
+OUT=$(cd "$HJ_WORK" && ERG_TICKET_DIR= ./run/erg update 2>&1 || true)
+HJ_AFTER=$(sha256sum "$HJ_WORK/run/erg" | cut -c1-12)
+if [ "$HJ_BEFORE" = "$HJ_AFTER" ] && echo "$OUT" | grep -q "no git-erg ticket store"; then
+    pass "update refuses when no ticket store is found (no cwd-repo hijack)"
+else
+    fail "update without a store changed the binary or gave no warning: $OUT"
+fi
+
+# Test: the binary carries no embedded network/TLS client. `erg update` now
+# shells out to git, so the offline invariant holds everywhere — guard it.
+if grep -rEn 'net/http|crypto/tls' src/go/ >/dev/null 2>&1; then
+    fail "source imports net/http or crypto/tls — erg must carry no network code"
+else
+    pass "no net/http or crypto/tls in source (offline invariant)"
+fi
 
 # --- vcsRevision-based outdated detection tests ---
 
