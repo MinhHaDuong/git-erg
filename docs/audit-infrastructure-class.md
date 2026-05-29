@@ -103,6 +103,82 @@ clean resolutions:
   0151/0152 are correctly `needs-human` and *not* in `ready` — so the project
   is not yet over-investing. The fix here is wording, not effort.
 
+## Alternative considered: vendor the source, rebuild on demand
+
+Instead of committing the binary, vendor `src/go/` (already in the repo) and
+have the box rebuild `erg` on first use, caching a gitignored `build/erg`.
+This is the natural expression of the lever above. Scored against the four
+conferring properties:
+
+| Property | Committed binary | Vendor + rebuild-on-use |
+|---|---|---|
+| Opaque blob travels | present (the liability) | **eliminated** — only source travels |
+| Self-update propagation | present (`update.go`) | **eliminated** — `git pull` + rebuild |
+| Auto-exec in hooks/CI | yes | yes (unchanged) |
+| Parses untrusted input | yes | yes (unchanged) |
+
+It removes the two *distinctive* infrastructure-class properties (the
+supply-chain *source* ones). What remains — auto-exec + parse untrusted
+input — is shared with every linter (eslint, black, gofmt all run in
+hooks/CI on untrusted code); by itself that is "normal dev tool," not
+infrastructure class. Bonus: it kills the rubber-stamped-blob vector (the
+git log is full of unreviewed `chore: rebuild bootstrap binary [skip ci]`
+commits — source diffs are reviewable, blob diffs are not) and lets
+`update.go`'s network code be deleted outright (folds in 0148).
+
+**The one thing it trades away is the exact thing the committed binary was
+introduced for** (README binary policy): *environments where Go may be
+unavailable — CI runners, agents.* The whole proposal reduces to one
+empirical bet: **do the boxes that run `erg` have Go?** Minimal CI images
+(alpine/distroless, Node/Python images) often don't; pre-commit hooks run on
+contributor laptops; agent sandboxes vary. Requiring Go is a hit to the
+*agnostic / travels-everywhere* invariant.
+
+Three second-order costs even where Go is present: a `fast` tax (a staleness
+check — source hash vs `build/erg` — on every invocation, plus a ~1–3s first
+build per source-change); a `stateless` tension (the cached artifact needs
+atomic build-to-temp-then-rename so parallel worktrees don't race); and a
+hard requirement to **pin the Go toolchain** (`go.mod` toolchain directive),
+without which different Go versions defeat "reproducible." Upside of the
+pin: every box then performs 0151's reproducible-build check *implicitly*, as
+the default code path rather than a separate `make verify` step.
+
+What it does **not** fix: a malicious PR editing `src/go/*.go` still executes
+in CI on rebuild — identical risk in both models (it is the auto-exec
+property, not the binary), except reviewable source beats an opaque blob for
+catching it. With reproducible builds, committed-binary and vendor-rebuild
+are the *same trust model*; vendoring just drops the cache.
+
+### Decision (2026-05-29): do not require Go to be useful
+
+The author's constraint is **minimal barriers to adoption — `erg` must be
+useful without a Go toolchain.** That settles the bet against
+"rebuild-only," and has a clean consequence for this audit:
+
+- **The committed binary stays** — it is what gives no-Go boxes the full CLI.
+  Therefore the project **remains structurally infrastructure-class by
+  deliberate choice**, not by accident or wishlist.
+- This **resolves the precautionary-vs-real question** (the "internal
+  inconsistency" above) in favour of *real*: the maximal threat model is
+  justified by a design decision the author is consciously making, so 0151's
+  reproducible-build + signed-tag controls are **non-negotiable, not
+  precautionary**. Keeping the blob *obligates* the controls that make the
+  blob verifiable.
+- **Vendor-and-rebuild becomes an additive trust layer, not a replacement.**
+  The honest distribution stance is a three-tier floor:
+  1. *POSIX / grep hook* (transport #1) — the floor; always useful, zero
+     binary, zero Go.
+  2. *Rebuild from vendored `src/go/`* — for boxes that have Go and want to
+     verify or skip the blob; reproducible build makes it byte-equal to the
+     committed binary.
+  3. *Committed binary* — the convenience artifact for the no-Go majority the
+     constraint is protecting; trusted via reproducible-build equivalence to
+     tier 2 and a signed release tag, not on faith.
+
+In short: "do not require Go" is a legitimate adoption-first choice, but it
+is *the* choice that keeps git-erg in the infrastructure class. The price of
+that choice is paid in full by — and only by — shipping the 0151 controls.
+
 ## Bottom line
 
 - **Structurally infrastructure-class: yes** — the committed-binary +
@@ -111,10 +187,14 @@ clean resolutions:
 - **Criticality infrastructure-class: not yet**, and bounded by being
   dev-time + optional + no-runtime-path.
 - **The class is conferred by exactly one design decision — committing the
-  binary.** Everything else is shared with any linter. That is where the audit
-  should focus: own it explicitly in the PEP (and keep the keystone controls),
-  or recognize that POSIX-first already provides the lever to *not* be
-  infrastructure-class at all.
-- **Watch self-consistency:** size the *stated* threat model to *demonstrated*
-  adoption, and tag the remainder precautionary — otherwise the security
-  posture is the one place the project breaks its own evidence-first contract.
+  binary.** Everything else is shared with any linter. The lever to *not* be
+  infrastructure-class (vendor + rebuild) exists, but using it would require
+  Go on every box.
+- **Decided: keep the binary, because `erg` must be useful without Go**
+  (adoption-first). That is a deliberate choice to *stay* infrastructure-class,
+  which is the honest, internally-consistent position — and it converts 0151's
+  reproducible-build + signed-tag controls from "precautionary" to
+  **obligatory**: shipping the blob is what pays for keeping it. Vendored
+  source + reproducible rebuild remains the verification tier (and the opt-out
+  for Go-having boxes), layered over a POSIX/grep floor that needs neither
+  binary nor Go.
