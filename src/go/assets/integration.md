@@ -52,8 +52,9 @@ git-erg local tickets: see tickets/AGENTS.md
 
 ## Uninstall
 
-To remove erg from your project, delete the five files it placed in
-`tickets/` and the pre-commit hook (if you installed one in step 1):
+To remove erg from your project, delete the binary and the four files
+`erg init` placed in `tickets/`, plus the pre-commit hook (if you
+installed one in step 1):
 
 ```sh
 rm tickets/.ergrc tickets/AGENTS.md tickets/spec-erg-v1.md tickets/integration.md tickets/erg
