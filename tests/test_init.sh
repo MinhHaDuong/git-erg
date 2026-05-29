@@ -115,5 +115,13 @@ else
     pass "uninstall subcommand removed"
 fi
 
+# --- unpacked AGENTS.md is clean UTF-8 (no U+FFFD) ---
+
+if grep -aq "$(printf '\357\277\275')" "$REPO/tickets/AGENTS.md"; then
+    fail "init-unpacked AGENTS.md contains U+FFFD replacement character"
+else
+    pass "init-unpacked AGENTS.md is clean UTF-8"
+fi
+
 echo "init: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
