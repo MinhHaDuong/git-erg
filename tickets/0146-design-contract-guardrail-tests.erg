@@ -11,6 +11,7 @@ Author: Claude
 
 2026-05-29T09:46Z Claude note blocker 0147 closed — Blocked-by removed.
 2026-05-29T12:25Z Claude note ratcheted small-ceiling 10MB->5MB; shipped ~2.4MB after 0147 (strip) + 0148 (drop net/http) — 5MB keeps comfortable headroom while tripping on real bloat
+2026-05-29T12:27Z Claude note size-ceiling ratchet 10MB->5MB opened as PR #164 (https://github.com/MinhHaDuong/git-erg/pull/164); enforced guard still pending in this ticket
 --- body ---
 ## Context
 
