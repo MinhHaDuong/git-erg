@@ -79,6 +79,14 @@ with a reason is a win, not a failure to ship. The smallest correct system
 that meets a *demonstrated* need beats a larger one that anticipates an
 imagined one.
 
+## UX audit cadence
+
+Run `make test-ux` before any change to README, help text, or init assets.
+Run the full four-persona AI dry-run (`docs/ux-audit-procedure.md`) when
+adding or removing a subcommand or changing the install path. Procedure,
+personas, and output format are documented in that file. Findings go
+through a human severity gate before becoming tickets (0152).
+
 ## Autonomous Run Policy
 
 Purpose: allow unattended sweeps without paralysis, risky edits, or

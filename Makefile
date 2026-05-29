@@ -13,7 +13,7 @@
 #   make ready      List ready tickets
 #   make install-erg-binary              Install erg to ~/.local/bin
 
-TEST_SUITES := validate check list ready update close migrate nextid log tag new init main archive rm datasafety pipeline help version hook godoc docs contract
+TEST_SUITES := validate check list ready update close migrate nextid log tag new init main archive rm datasafety pipeline help version hook godoc docs contract ux
 TEST_TARGETS := $(TEST_SUITES:%=test-%)
 
 .PHONY: build test unit-test _test-lint docs $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary
