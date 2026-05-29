@@ -2,12 +2,14 @@
 Title: Scaling regression guard — empirical 4x-ladder for corpus-heavy commands
 Created: 2026-05-29
 Author: Claude
+Closed: autoclosed — PR #173
 
 --- log ---
 2026-05-29T16:51Z Claude created — follow-up to 0154; adds an empirical end-to-end scaling guard to complement the counter-based op-count guard and the wall-clock backstop
 
 2026-05-29T17:20Z Claude note assertion signal is allocation VOLUME (TotalAlloc bytes), not allocation count (Mallocs): mutation testing showed `append` amortises an O(N^2)-byte build into O(N log N) malloc events, so count misses it but bytes trip ~16x. Compute-bound zero-alloc O(N^2) still slips past — owned by 0154 wall-clock backstop + review (defense-in-depth, accepted on #169)
 
+2026-05-29T15:34Z MinhHaDuong closed — autoclosed — PR #173
 --- body ---
 ## Context
 
