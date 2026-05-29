@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Created:** 2026-03-27
-**Modified:** 2026-05-12
+**Modified:** 2026-05-29
 **Author:** Minmh Ha-Duong <minh.ha-duong@cnrs.fr>
 
 ## Abstract
@@ -342,6 +342,19 @@ controls (ticket 0151) are obligatory rather than precautionary. The full
 trade-off analysis — including the vendor-and-rebuild alternative that would
 shed the class at the cost of requiring Go — is in
 `docs/audit-infrastructure-class.md`.
+
+**Single-threaded by design.** Corpus scans (`check`, `list`, `ready`) run
+sequentially, not across goroutines. The work is I/O-bound, not CPU-bound, and
+even at ~1000 tickets a full command is tens of milliseconds — there is no
+latency worth recovering. Staying single-threaded keeps output ordering
+deterministic (reproducible `list`/`check`, golden-file tests) and the resource
+story trivial: no goroutines means no goroutine leaks and no fan-in error
+handling to reason about. For the same reason `erg` never lowers its own
+scheduling priority — that is the invoker's prerogative (`nice`/`ionice`/systemd
+slice), and with nothing running concurrently there is nothing to throttle.
+Should a future batch operation (e.g. a large `migrate`) ever justify
+parallelism, it would be gated behind an explicit `--jobs` flag defaulting to 1,
+so the default path stays deterministic.
 
 ### 11. Postel's Law: tolerant on read, strict on write
 

@@ -1,0 +1,64 @@
+%erg 0.1
+Title: Resource-hygiene guard — fd + heap-retention, sibling to 0159
+Created: 2026-05-29
+Author: Claude
+
+--- log ---
+2026-05-29T18:10Z Claude created — sibling to 0159. 0159 (PR #173) gates allocation VOLUME (TotalAlloc), the O(N^2) churn signal; it is blind to OS-resource leaks. This adds a per-command hygiene guard (fd-neutrality + heap-retention) that runs alongside the scaling guard via the same make test-scaling target.
+
+--- body ---
+## Context
+
+0159 asserts allocated *bytes* scale linearly. That is the right signal for an
+O(N^2) churn regression and the wrong signal for a leak: TotalAlloc counts
+bytes ever allocated, never bytes still held or OS handles still open. Four
+resource classes slip past it:
+
+- file descriptors — erg shells out to git (exec.Command in refs.go,
+  identity.go, update.go, version.go) and opens files (atomicwrite.go, new.go);
+  a missing Close or unreaped child pipe leaks an fd.
+- heap retention — a command that parses the corpus and fails to drop the
+  references holds that memory live; invisible to the volume ratio, fatal if
+  erg is ever embedded in a long-lived process.
+- child processes — exec.Start without a matching Wait leaks a zombie/PID.
+  (Go's exec .Run/.Output reap automatically; this is a guard against a future
+  bare .Start.)
+- temp files — os.CreateTemp left on disk on an error path leaks inodes.
+
+This ticket covers the first two with deterministic assertions; the latter two
+are noted for review and a future check.
+
+## Relevant files
+- src/go/resource_test.go — new, //go:build scaling (sibling to scaling_test.go)
+- Makefile — test-scaling -run filter widened to name all three tests
+
+## Actions
+1. Add resource_test.go (build tag scaling), reusing buildCorpus from
+   scaling_test.go (same package + tag):
+   - TestScalingFDHygiene: each corpus-heavy command returns with no extra open fds
+     (/proc/self/fd before vs after a single invocation).
+   - TestScalingHeapRetention: read-only commands hold no live heap across repeated
+     calls (HeapAlloc after GC stays flat over N iterations).
+2. Integrate minimally by NAMING: the make test-scaling target already
+   filters with `-run TestScaling` (a prefix match). Naming the hygiene tests
+   TestScalingFDHygiene / TestScalingHeapRetention makes the existing filter
+   pick them up — zero Makefile change, and the scaling and hygiene guards run
+   together under one target where neither can be forgotten.
+
+## Decision: CPU / nice
+erg does NOT renice itself. Process priority is the invoker's prerogative
+(nice / ionice / systemd slice); a short-lived interactive CLI that
+self-deprioritises would hurt UX and surprise users. erg has no goroutines, so
+it never saturates multiple cores — there is nothing to cap. If a future change
+parallelises the corpus scan, bound it with an explicit --jobs flag defaulting
+conservatively, rather than renicing.
+
+## Test
+- make test-scaling runs TestScalingLinear AND the two hygiene tests; green.
+- make test / go test ./... still exclude the tagged file.
+
+## Exit criteria
+- A sibling build-tagged test (resource_test.go) asserting per-command
+  fd-neutrality and heap-retention-neutrality on a non-trivial store, run by the
+  same make test-scaling target as 0159 and excluded from the default suite.
+  make check / make test green. Blocked-by 0159.
