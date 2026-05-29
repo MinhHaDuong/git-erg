@@ -2,6 +2,7 @@
 Title: Guardrail tests for the six design-contract invariants
 Created: 2026-05-29
 Author: Claude
+Closed: Deterministic design-contract guard suite delivered (tests/test_contract.sh, 5 of 6 invariants); fast guards split to 0154
 
 --- log ---
 2026-05-29T07:30Z Claude created
@@ -12,6 +13,8 @@ Author: Claude
 2026-05-29T09:46Z Claude note blocker 0147 closed — Blocked-by removed.
 2026-05-29T12:25Z Claude note ratcheted small-ceiling 10MB->5MB; shipped ~2.4MB after 0147 (strip) + 0148 (drop net/http) — 5MB keeps comfortable headroom while tripping on real bloat
 2026-05-29T12:27Z Claude note size-ceiling ratchet 10MB->5MB opened as PR #164 (https://github.com/MinhHaDuong/git-erg/pull/164); enforced guard still pending in this ticket
+2026-05-29T12:38Z Claude note delivered deterministic five guards in tests/test_contract.sh (agnostic/offline/standalone/stateless/small), each falsifiable with a negative control; fast split to 0154
+2026-05-29T12:38Z Claude closed — Deterministic design-contract guard suite delivered (tests/test_contract.sh, 5 of 6 invariants); fast guards split to 0154
 --- body ---
 ## Context
 
@@ -166,23 +169,28 @@ rebuild-blob pays for it). Two facets:
 
 ## Exit criteria
 
-- [ ] One **falsifiable** guard per invariant (agnostic, offline,
+- [x] One **falsifiable** guard per invariant (agnostic, offline,
       standalone-deps, stateless), each with a demonstrated negative control
       (guard fails when the invariant is deliberately broken).
-- [ ] offline guard pins the network surface to `update` and fails if any
-      other command imports/uses networking.
-- [ ] standalone guard asserts static (Linux `ldd` ⇒ not dynamic / cgo-free
-      elsewhere) with a negative control — depends on **0147** having shipped
-      the static build.
-- [ ] stateless guard proves no writes outside the store for read commands.
-- [ ] fast guards are deterministic and blocking (parse-once + linear
-      N-vs-2N op-count); any wall-clock check is a generous non-flaky
-      backstop. Never flakes CI.
-- [ ] small guard enforces the **5 MB** ceiling (with zero-dep as the
-      root-cause guard); negative control proves it trips on bloat.
-- [ ] Suite runs offline with **no new deps**; `ldd`/namespace bits skip
+- [x] offline guard fails if any command imports/uses networking. (Post-0148
+      there is no `update` exception left — the guard asserts *no* net package
+      anywhere, with a net/http negative control. Optional dynamic
+      `unshare -rn` check, skip-if-absent.)
+- [x] standalone guard asserts static (Linux `ldd` ⇒ not dynamic) with a
+      dynamic-binary negative control — 0147 shipped the static build.
+- [x] stateless guard proves no writes outside the store for read commands
+      (throwaway HOME + cwd snapshot; planted-file negative control; plus
+      idempotence/order-independence of `list`).
+- [~] fast guards (parse-once + linear N-vs-2N op-count + wall-clock backstop)
+      — **split out to 0154**: they need loader instrumentation (a production
+      change), unlike the pure-shell deterministic five. Deferred per this
+      ticket's own Notes ("fast a lonely third; land the deterministic
+      clusters first; fast can lag").
+- [x] small guard enforces the **5 MB** ceiling (with zero-dep as the
+      root-cause guard); negative control proves the comparison trips on bloat.
+- [x] Suite runs offline with **no new deps**; `ldd`/namespace bits skip
       gracefully when absent.
-- [ ] Wired into `make test` (`TEST_SUITES += contract`); `make test` and
+- [x] Wired into `make test` (`TEST_SUITES += contract`); `make test` and
       `make validate` green.
 
 ## Notes

@@ -1,0 +1,64 @@
+%erg 0.1
+Title: Fast invariant guards — parse-once and linear op-counts
+Created: 2026-05-29
+Author: Claude
+
+--- log ---
+2026-05-29T12:37Z Claude created — split out of 0146; the deterministic five guards (agnostic, offline, standalone, stateless, small) shipped in tests/test_contract.sh, fast deferred here per 0146's "land deterministic first; fast can lag"
+
+2026-05-29T12:38Z Claude note carries the fast guards 0146 deferred (parse-once + linear N-vs-2N op-count + wall-clock backstop)
+--- body ---
+## Context
+
+0146 delivered the deterministic design-contract guards (agnostic, offline,
+standalone, stateless, small) as `tests/test_contract.sh`. The **fast**
+invariant was deliberately left out: unlike the others it cannot be checked
+with pure shell + the Go toolchain — it needs *instrumentation of the corpus
+loader* to count work, which is a small but real production change and a
+design exercise in its own right. 0146's Notes sanctioned this split ("fast a
+lonely third... land the deterministic clusters first; fast can lag").
+
+The need is the same one 0146 names: `erg` is *invoked* (pre-commit hook every
+commit, CI every push, agents in loops), never resident, so per-invocation
+cost is the product. Nothing currently stops a change from making the corpus
+scan O(N²) — e.g. the dependent/ref scans in `check`/`rm`/`close`.
+
+## The guards (from 0146, measured work — not wall-clock)
+
+1. **Parse-once (headline, blocking):** instrument the loader (`parseErgBytes`
+   / `loadErgs` in `src/go/erg.go`) with a test-visible counter; assert each
+   command parses each `.erg` at most once per invocation. (Note: `check`
+   already does extra *raw-byte* passes for BOM/CRLF/header-blank warnings —
+   those are reads, not parses; the guard must count parses, not ReadFile, or
+   it will false-positive. Worth deciding whether those raw passes also fold
+   into the single load.)
+2. **Linear, not quadratic (blocking):** build synthetic corpora of N and 2N
+   and assert the loader's **operation count** ~doubles (not ~quadruples). A
+   ratio on counts is immune to slow CI boxes. This is the guard that catches
+   the real O(N²) risk in the ref/dependent scans.
+3. **Wall-clock backstop (non-flaky, non-blocking):** one generous absolute
+   ceiling on a large corpus, ~10× headroom so it trips only on catastrophe.
+   Rule: if it ever flakes, **raise it, don't delete it**.
+
+## Constraints (inherit 0146's)
+
+- Deterministic in the blocking path; the only timing-based check is the
+  non-blocking backstop. Counter instrumentation must be effectively free in
+  the production path (a plain integer increment) and test-visible only.
+- No new deps. Add to `tests/test_contract.sh` and/or a `src/go/contract_test.go`
+  (Go is the natural home for the parse-once / op-count guards).
+
+## Exit criteria
+
+- [ ] Parse-once guard: deterministic, blocking, with a negative control that
+      trips when a command is made to parse a file twice.
+- [ ] Linear N-vs-2N op-count guard: blocking, ratio-based, with a negative
+      control (a deliberately O(N²) path trips it).
+- [ ] Wall-clock backstop present, generous, documented "raise don't delete".
+- [ ] `make test` / `make validate` green; suite still runs offline, no new deps.
+
+## Notes
+
+- Decide parse-once's scope vs `check`'s raw encoding passes (3 reads/file
+  today: loadErgs + encodingWarnings + headerBlankWarnings). Folding them is a
+  separate optimisation; the guard should at minimum pin *parses* to once.
