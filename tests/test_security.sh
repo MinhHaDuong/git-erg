@@ -16,12 +16,38 @@
 set -eu
 
 ERG="${ERG_BIN:-build/erg}"
+# Resolve erg to an absolute path up front: several checks below cd into fixture
+# directories before invoking it, where a relative "build/erg" would no longer
+# resolve. (Same pattern as test_contract.sh.)
+ERG_ABS=$(readlink -f "$ERG" 2>/dev/null || true)
+[ -n "$ERG_ABS" ] || ERG_ABS=$(cd "$(dirname "$ERG")" 2>/dev/null && pwd)/$(basename "$ERG")
+ERG=$ERG_ABS
 FIXTURES=$(mktemp -d)
 PASS=0
 FAIL=0
 
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
+
+# `timeout` is GNU coreutils, not POSIX (AGENTS.md standalone/POSIX constraint).
+# bounded SECS CMD... runs CMD under `timeout` when available (exit 124 on
+# expiry); on a POSIX-only box without it, runs CMD directly and post-measures
+# wall-clock with date(1) (POSIX), returning 124 if it overran. The parser is
+# independently proven linear by Go unit tests, so post-measurement is an
+# adequate regression backstop here — never a hard dependency on `timeout`.
+if command -v timeout >/dev/null 2>&1; then HAVE_TIMEOUT=1; else HAVE_TIMEOUT=0; fi
+bounded() {
+    _secs=$1; shift
+    if [ "$HAVE_TIMEOUT" = 1 ]; then
+        timeout "$_secs" "$@"
+        return $?
+    fi
+    _start=$(date +%s)
+    "$@"; _rc=$?
+    _end=$(date +%s)
+    [ $((_end - _start)) -gt "$_secs" ] && return 124
+    return $_rc
+}
 
 trap 'rm -rf "$FIXTURES"' EXIT
 
@@ -291,7 +317,7 @@ mkdir -p "$WS"
     printf '%%erg 0.1\nTitle: Big body\nCreated: 2026-01-01\nAuthor: claude\n\n--- log ---\n2026-01-01T10:00Z claude created\n\n--- body ---\n'
     head -c 10000000 /dev/zero | tr '\0' 'x'
 } > "$WS/0001-bigbody.erg"
-if timeout 5 $ERG validate "$WS/0001-bigbody.erg" >/dev/null 2>&1; then
+if bounded 5 $ERG validate "$WS/0001-bigbody.erg" >/dev/null 2>&1; then
     pass "dos: 10 MB body validates within time budget (no hang/OOM)"
 else
     fail "dos: 10 MB body should validate fast (rc=$? — 124 means timeout)"
@@ -307,7 +333,7 @@ fi
     done
     printf '\n--- body ---\n'
 } > "$WS/0002-biglog.erg"
-if timeout 5 $ERG validate "$WS/0002-biglog.erg" >/dev/null 2>&1; then
+if bounded 5 $ERG validate "$WS/0002-biglog.erg" >/dev/null 2>&1; then
     pass "dos: 100k-line log section parses within time budget"
 else
     fail "dos: 100k-line log should parse fast (rc=$? — 124 means timeout)"
@@ -315,7 +341,7 @@ fi
 
 # 6c — 10,000-char title via `erg new`: slug must truncate to <=40, no ReDoS.
 LONG=$(head -c 10000 /dev/zero | tr '\0' 'a')
-out=$(timeout 5 $ERG new "$LONG" "$WS/bigtitle" 2>&1) && rc=0 || rc=$?
+out=$(bounded 5 $ERG new "$LONG" "$WS/bigtitle" 2>&1) && rc=0 || rc=$?
 slug=$(echo "$out" | sed 's/^CREATED [0-9]*-//; s/\.erg$//')
 sluglen=$(printf '%s' "$slug" | wc -c)
 if [ "$rc" -eq 0 ] && [ "$sluglen" -le 40 ] && [ "$sluglen" -gt 0 ]; then
@@ -326,7 +352,7 @@ fi
 
 # Negative control: a normal file validates (timeout passes trivially).
 write_open "$WS/0009-normal.erg" "Normal"
-if timeout 5 $ERG validate "$WS/0009-normal.erg" >/dev/null 2>&1; then
+if bounded 5 $ERG validate "$WS/0009-normal.erg" >/dev/null 2>&1; then
     pass "dos neg ctrl: normal-sized file validates fast"
 else
     fail "dos neg ctrl: normal file should validate fast"
