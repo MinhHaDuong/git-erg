@@ -116,12 +116,14 @@ func validateCorpus(tickets []Erg, parseErrs [][]string, cfg *Config) []string {
 	tagSet := effectiveTagSet(cfg)
 	validList := sortedKeys(tagSet)
 	for i := range tickets {
+		corpusOpCount++ // per-ticket tag-vocabulary check
 		errors = append(errors, validateTagVocabulary(&tickets[i], tagSet, validList)...)
 	}
 
 	// Corpus check: no duplicate IDs (not a per-file rule).
 	idToFiles := make(map[string][]string)
 	for i := range tickets {
+		corpusOpCount++ // per-ticket ID extraction
 		id := tickets[i].FilenameID()
 		if id != "" {
 			idToFiles[id] = append(idToFiles[id], tickets[i].Filename())
@@ -149,6 +151,7 @@ func validateCorpus(tickets []Erg, parseErrs [][]string, cfg *Config) []string {
 		t := &tickets[i]
 		name := t.Filename()
 		for _, ref := range t.BlockedBys {
+			corpusOpCount++ // per-ref lookup
 			if ref.Kind == RefLocal && !allIDs[ref.ID] {
 				errors = append(errors, fmt.Sprintf(
 					"%s: Blocked-by '%s' references unknown ticket ID", name, ref.ID))

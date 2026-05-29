@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"testing"
 )
 
@@ -74,36 +73,36 @@ func TestParseOnce(t *testing.T) {
 }
 
 func TestLinearOpCount(t *testing.T) {
-	t.Run("loadErgs scales linearly with corpus size", func(t *testing.T) {
+	t.Run("corpus validation scales linearly with corpus size", func(t *testing.T) {
 		nSmall := 50
 		nLarge := 100
 
 		dirSmall := t.TempDir()
 		makeCorpus(t, dirSmall, nSmall)
-		resetParseCount()
-		loadErgs(dirSmall)
-		countSmall := parseCount
+		resetCorpusOpCount()
+		cmdCheck([]string{dirSmall})
+		countSmall := corpusOpCount
 
 		dirLarge := t.TempDir()
 		makeCorpus(t, dirLarge, nLarge)
-		resetParseCount()
-		loadErgs(dirLarge)
-		countLarge := parseCount
+		resetCorpusOpCount()
+		cmdCheck([]string{dirLarge})
+		countLarge := corpusOpCount
 
 		if countSmall == 0 {
-			t.Fatal("countSmall is 0 — instrumentation broken")
+			t.Fatal("countSmall is 0 — corpusOpCount instrumentation broken")
 		}
 
 		ratio := float64(countLarge) / float64(countSmall)
 		// Linear: ratio should be ~2.0. Quadratic would give ~4.0.
 		// Allow 1.5–2.5 for linear; anything above 3.0 is clearly super-linear.
 		if ratio < 1.5 || ratio > 2.5 {
-			t.Errorf("op-count ratio = %.2f (N=%d→%d, 2N=%d→%d); want ~2.0 for linear scaling",
+			t.Errorf("corpus op-count ratio = %.2f (N=%d→%d ops, 2N=%d→%d ops); want ~2.0 for linear scaling",
 				ratio, nSmall, countSmall, nLarge, countLarge)
 		}
 	})
 
-	t.Run("negative control: quadratic loader trips the guard", func(t *testing.T) {
+	t.Run("negative control: quadratic validation trips the guard", func(t *testing.T) {
 		nSmall := 50
 		nLarge := 100
 
@@ -113,25 +112,25 @@ func TestLinearOpCount(t *testing.T) {
 		dirLarge := t.TempDir()
 		makeCorpus(t, dirLarge, nLarge)
 
-		// Simulate O(N²): parse each file N times
-		quadraticLoad := func(dir string) int {
-			resetParseCount()
-			tickets, _ := loadErgs(dir)
+		// Simulate O(N²): run validateCorpus N times per corpus
+		quadraticValidate := func(dir string) int {
+			tickets, parseErrs := loadErgs(dir)
+			cfg, _ := loadConfig(dir)
 			n := len(tickets)
+			resetCorpusOpCount()
 			for i := 0; i < n; i++ {
-				loadErgs(dir)
+				validateCorpus(tickets, parseErrs, cfg)
 			}
-			return parseCount
+			return corpusOpCount
 		}
 
-		countSmall := quadraticLoad(dirSmall)
-		countLarge := quadraticLoad(dirLarge)
+		countSmall := quadraticValidate(dirSmall)
+		countLarge := quadraticValidate(dirLarge)
 
 		ratio := float64(countLarge) / float64(countSmall)
 		// With O(N²), ratio should be ~4.0 (or higher), well above the 2.5 ceiling
 		if ratio < 3.0 {
-			t.Errorf("negative control: ratio = %.2f, expected ≥3.0 for a quadratic loader", ratio)
+			t.Errorf("negative control: ratio = %.2f, expected ≥3.0 for a quadratic validator", ratio)
 		}
-		_ = math.Abs(ratio) // use math to keep import
 	})
 }

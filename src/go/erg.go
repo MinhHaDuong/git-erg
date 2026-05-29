@@ -10,11 +10,20 @@ import (
 )
 
 // parseCount tracks how many times parseErgBytes is called. Test-visible
-// only — used by contract tests to verify parse-once and linear-scaling
-// invariants. The increment is a single integer add; no production cost.
+// only — used by contract tests to verify the parse-once invariant.
+// The increment is a single integer add; no production cost.
 var parseCount int
 
 func resetParseCount() { parseCount = 0 }
+
+// corpusOpCount tracks the number of per-ticket operations performed
+// inside validateCorpus (ref-resolution lookups, cycle-detection edge
+// walks, tag-vocabulary checks). Test-visible only — used by contract
+// tests to verify linear-scaling of corpus validation. A single integer
+// add per operation; no production cost.
+var corpusOpCount int
+
+func resetCorpusOpCount() { corpusOpCount = 0 }
 
 // IsClosed reports whether the ticket is closed under the v1 criterion:
 // either a path component test fires, or a `Closed:` preamble header is
