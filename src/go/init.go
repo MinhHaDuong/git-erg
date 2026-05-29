@@ -35,6 +35,40 @@ Each asset is compared byte-for-byte with the embedded version; unchanged files
 are skipped and counted separately from newly created or refreshed files.
 `
 
+// installAssets unpacks the embedded bootstrap assets under root, returning
+// counts of how many files were newly created, refreshed (overwritten with
+// different content), or left unchanged (byte-identical to the embedded
+// copy). Shared by `erg init` and by `erg migrate`'s layout sweep. Error
+// messages are unwrapped — no "init:" prefix — so each caller can label
+// them with its own command name.
+func installAssets(root string) (created, refreshed, unchanged int, err error) {
+	for _, rel := range initAssetPaths {
+		content, ok := bootstrapAsset(rel)
+		if !ok {
+			return created, refreshed, unchanged, fmt.Errorf("missing embedded asset: %s", rel)
+		}
+		target := filepath.Join(root, filepath.FromSlash(rel))
+		if mkErr := os.MkdirAll(filepath.Dir(target), 0755); mkErr != nil {
+			return created, refreshed, unchanged, fmt.Errorf("cannot create directory for %s: %w", rel, mkErr)
+		}
+		existing, readErr := os.ReadFile(target)
+		exists := readErr == nil
+		if exists && string(existing) == content {
+			unchanged++
+			continue
+		}
+		if wErr := os.WriteFile(target, []byte(content), 0644); wErr != nil {
+			return created, refreshed, unchanged, fmt.Errorf("cannot write %s: %w", rel, wErr)
+		}
+		if exists {
+			refreshed++
+		} else {
+			created++
+		}
+	}
+	return created, refreshed, unchanged, nil
+}
+
 // cmdInit implements `erg init [dir]`. See helpInit for the user-facing summary.
 func cmdInit(args []string) int {
 	root := "."
@@ -49,36 +83,10 @@ func cmdInit(args []string) int {
 		return 1
 	}
 
-	created := 0
-	refreshed := 0
-	unchanged := 0
-
-	for _, rel := range initAssetPaths {
-		content, ok := bootstrapAsset(rel)
-		if !ok {
-			fmt.Fprintf(os.Stderr, "init: missing embedded asset: %s\n", rel)
-			return 1
-		}
-		target := filepath.Join(root, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
-			fmt.Fprintf(os.Stderr, "init: cannot create directory for %s: %v\n", rel, err)
-			return 1
-		}
-		existing, err := os.ReadFile(target)
-		exists := err == nil
-		if exists && string(existing) == content {
-			unchanged++
-			continue
-		}
-		if err := os.WriteFile(target, []byte(content), 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "init: cannot write %s: %v\n", rel, err)
-			return 1
-		}
-		if exists {
-			refreshed++
-		} else {
-			created++
-		}
+	created, refreshed, unchanged, err := installAssets(root)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "init: %v\n", err)
+		return 1
 	}
 
 	fmt.Printf("init: %d created, %d refreshed, %d unchanged\n", created, refreshed, unchanged)
