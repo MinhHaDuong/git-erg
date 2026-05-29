@@ -54,11 +54,11 @@ to `ready` without the evidence the bar in AGENTS.md demands.
 - audit: go coding practices, lint, smells
 
 ## Status
-<!-- generated 2026-05-12T13:52Z -->
+<!-- generated 2026-05-29T13:32Z (housekeeping sweep) -->
 
 **Recent commits:**
-  d1dcb0d docs: update erg-manual.md Generated-from header to current binary
-  c1881d3 chore(0131): close — YAGNI, shell test suites already cover CLI surface
-  759df32 chore: refresh STATE.md — 135 closed, 1 deferred, 0 open
-  9d05413 chore: archive 0136 (closed via Closed: header in earlier commit)
-  2377a8b docs(0129): document URL-shortcut Blocked-by ref grammar (spec-only) (#144)
+  0ed6ffd chore(0149): close + archive — delivered in #162
+  fde94a0 chore: rebuild bootstrap binary [skip ci]
+  be36e4d fix(0149): respect read-only target files in the atomic write path
+  94f1038 fix(0149): address Copilot review remarks
+  b458f90 fix(0149): address review-panel findings on the data-safety write path
