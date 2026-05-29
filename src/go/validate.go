@@ -21,6 +21,7 @@ func detectCycles(tickets []Erg) []string {
 		}
 		var localRefs []string
 		for _, ref := range tickets[i].BlockedBys {
+			corpusOpCount++ // per-ref adjacency build
 			if ref.Kind == RefLocal {
 				localRefs = append(localRefs, ref.ID)
 			}
@@ -46,6 +47,7 @@ func detectCycles(tickets []Erg) []string {
 		color[node] = gray
 		stack = append(stack, node) // push
 		for _, neighbor := range adj[node] {
+			corpusOpCount++ // per-edge DFS visit
 			c, exists := color[neighbor]
 			if !exists {
 				continue
@@ -116,12 +118,14 @@ func validateCorpus(tickets []Erg, parseErrs [][]string, cfg *Config) []string {
 	tagSet := effectiveTagSet(cfg)
 	validList := sortedKeys(tagSet)
 	for i := range tickets {
+		corpusOpCount++ // per-ticket tag-vocabulary check
 		errors = append(errors, validateTagVocabulary(&tickets[i], tagSet, validList)...)
 	}
 
 	// Corpus check: no duplicate IDs (not a per-file rule).
 	idToFiles := make(map[string][]string)
 	for i := range tickets {
+		corpusOpCount++ // per-ticket ID extraction
 		id := tickets[i].FilenameID()
 		if id != "" {
 			idToFiles[id] = append(idToFiles[id], tickets[i].Filename())
@@ -149,6 +153,7 @@ func validateCorpus(tickets []Erg, parseErrs [][]string, cfg *Config) []string {
 		t := &tickets[i]
 		name := t.Filename()
 		for _, ref := range t.BlockedBys {
+			corpusOpCount++ // per-ref lookup
 			if ref.Kind == RefLocal && !allIDs[ref.ID] {
 				errors = append(errors, fmt.Sprintf(
 					"%s: Blocked-by '%s' references unknown ticket ID", name, ref.ID))
