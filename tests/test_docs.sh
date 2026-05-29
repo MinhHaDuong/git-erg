@@ -51,6 +51,24 @@ else
     pass "README erg validate examples use file paths, not bare IDs"
 fi
 
+# CONTRIBUTING.md exists and its add-a-subcommand checklist names every
+# touch-point (regression guard for 0163 / findings F16+F17). A stub guide
+# missing the checklist must fail.
+if [ -f CONTRIBUTING.md ]; then
+    pass "CONTRIBUTING.md exists"
+    missing=""
+    for token in helptext.go main.go TEST_SUITES "tests/test_" TestDispatchRegistrySync; do
+        grep -qF "$token" CONTRIBUTING.md || missing="$missing $token"
+    done
+    if [ -z "$missing" ]; then
+        pass "CONTRIBUTING.md subcommand checklist names all touch-points"
+    else
+        fail "CONTRIBUTING.md subcommand checklist omits:$missing"
+    fi
+else
+    fail "CONTRIBUTING.md is missing"
+fi
+
 echo ""
 if [ "$FAIL" -eq 0 ]; then
     echo "docs: PASS ($PASS checks)"
