@@ -153,7 +153,7 @@ fi
 CLEANDIR=$(mktemp -d)
 cat > "$CLEANDIR/0001-was-status.erg" <<'EOF'
 %erg v1
-Title: Was Status Open
+Title: Legacy ticket carrying a status header
 Created: 2026-01-01
 Author: claude
 Status: open
