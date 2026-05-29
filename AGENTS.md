@@ -54,6 +54,14 @@ over a feature built on a guess — the audit tells you whether the feature
 is felt at all. Build the thing the audit justifies, not the thing the
 wishlist remembered.
 
+Posture properties — security and UX — cannot be reduced to a single guard or
+closed by a one-shot audit; they drift as the tool changes. They need a
+**standing, AI-assisted QA process** that re-runs per release: agents do the
+legwork (red-team passes, persona dry-runs), a falsifiable subset runs in CI,
+and humans gate the findings (0151 security, 0152 UX). For a binary embarked
+in thousands of repos, the security bar is maximal — supply-chain and mass-RCE
+class — and reproducible builds are the keystone control.
+
 Simplicity is a feature, and declining is legitimate work. Closing a ticket
 as YAGNI (0131), reducing a command to a thin alias (0144), or saying "no"
 with a reason is a win, not a failure to ship. The smallest correct system

@@ -6,40 +6,67 @@ Tag: needs-human
 
 --- log ---
 2026-05-29T09:00Z Claude created — "resists red team" is a posture, not a checkmark; needs-human
+2026-05-29T09:20Z Claude note reframed — standing AI-assisted QA process (not one-shot); threat model maxed for a binary embarked in thousands of repos (supply-chain + mass-RCE); reproducible builds added as the keystone control
 
 --- body ---
 ## Context
 
-"Resists red team" cannot be a green checkmark — security is a posture, not a
-boolean. For *this* tool the attack surface is small and nameable, so the
-work is: write a threat model, back it with the few falsifiable hardening
-tests that exist, and run a human audit for the rest.
+"Resists red team" cannot be a green checkmark, and it cannot be closed by a
+one-shot audit — security is a **standing QA process**, not a boolean or a
+single report. And the threat model here is **maximal, not small**: the
+binary is *embarked in thousands of repos*, committed and travelling with
+every project that adopts git-erg, executing in their pre-commit hooks and CI.
+That makes it a **supply-chain and mass-RCE target** — one vuln, or one
+poisoned binary, is exploitable across every adopter at once. Treat it that
+way.
 
-## Threat model (to refine during the audit)
+The work: a maximal threat model, a falsifiable hardening subset wired into
+CI, and a **repeatable, AI-assisted red-team process** (re-run per release and
+per change to the relevant surface), with a human gate on findings and on
+threat-model changes.
 
-- **Untrusted `.erg` input.** Anyone can commit a `.erg`; hooks/CI parse it.
-  A malicious/pathological file must not cause RCE, **path traversal**
-  (a crafted ID or path-ref escaping `tickets/` on read or write), or **DoS**
-  (huge file, deep nesting, pathological regex / ReDoS in the parser).
+## Threat model (maximal — a binary in thousands of repos)
+
+- **Supply chain / reproducible builds (keystone).** The committed
+  `tickets/erg` is an opaque blob in thousands of repos. Anyone must be able
+  to **rebuild it bit-for-bit from `src/go/`** (pinned Go version,
+  `CGO_ENABLED=0 -trimpath`, build stamp the only intended variance) and
+  verify the committed binary matches — else a poisoned commit could swap the
+  binary undetectably. An unverifiable committed binary *is* the liability.
+- **Update channel.** `erg update` (today `net/http`; 0148 → `git fetch`)
+  must not be coercible into installing an attacker binary — integrity
+  (hash/signature), trusted origin, no silent downgrade / MITM. A compromised
+  update propagates to every repo that runs it.
+- **Mass code-execution surface.** erg runs in hooks/CI everywhere; a parser
+  RCE or command-injection is exploitable across all adopters simultaneously.
+- **Untrusted `.erg` input.** Anyone can commit / PR a `.erg`; hooks/CI parse
+  it. No RCE, **path traversal** (crafted ID/path-ref escaping `tickets/`),
+  or **DoS** (huge file, deep nesting, ReDoS in the parser).
 - **Path / ID injection.** IDs and path-refs feed filesystem paths
-  (`resolveDir`, `resolveTicketByID`, `new`/`rm`/`archive`). Verify no
-  `..`, absolute-path, or symlink escape.
-- **Update integrity.** `erg update` (today `net/http`; 0148 → `git fetch`)
-  must not be coercible into installing an attacker binary — hash
-  verification, trusted origin, no silent downgrade / MITM.
-- **Secret hygiene.** erg never reads, writes, or logs secrets, and never
-  leaks env/keys into tickets or output ("never leak keys").
+  (`resolveDir`, `resolveTicketByID`, `new`/`rm`/`archive`) — no `..`,
+  absolute-path, or symlink escape.
+- **Secret hygiene.** erg never reads, writes, or logs secrets; never leaks
+  env/keys into tickets or output ("never leak keys").
 
-## Falsifiable tests to carve out (the rest is human audit)
+Every finding carries a **severity multiplier**: it ships to thousands of
+repos, so "low" is rarely low.
 
-- Path-traversal fixtures (malicious IDs/path-refs) are rejected, never
-  escape the store.
-- Oversized / pathological input is bounded (no unbounded memory / catastrophic
-  backtracking).
-- Update integrity: a hash mismatch refuses to replace the binary.
+## QA process (repeatable, AI-assisted)
+
+- **Falsifiable subset in CI** (every push): reproducible-build check (rebuild
+  + byte-diff against committed `tickets/erg`); path-traversal fixtures
+  rejected; input-DoS bounds; update-integrity (hash mismatch refuses).
+- **AI-assisted red-team pass** (per release / per relevant change): an agent
+  works a red-team checklist — craft malicious refs/IDs, oversized/ReDoS
+  inputs, attempt an update hijack in a sandbox — and reports. Cheap to
+  re-run, so run it often.
+- **Human gate:** review findings, approve threat-model changes, set severity.
+  High-severity findings become their own fix tickets.
 
 ## Relevant files
 
+- Reproducibility: `Makefile` build flags (0147 — pinned Go, `CGO_ENABLED=0
+  -trimpath`), CI rebuild + diff.
 - Parser + ref resolution: `erg.go`, `ref.go`, `main.go`
   (`resolveDir`/`resolveTicketByID`).
 - Path construction: `new.go`, `rm.go`, `archive.go`.
@@ -47,13 +74,20 @@ tests that exist, and run a human audit for the rest.
 
 ## Exit criteria
 
-- [ ] Documented threat model.
-- [ ] Falsifiable hardening tests for path-traversal, input-DoS, and
-      update-integrity, each with a negative control.
-- [ ] Audit findings recorded; high-severity findings filed as their own fix
-      tickets.
+- [ ] Maximal threat model documented (supply-chain framing + severity
+      multiplier).
+- [ ] Committed `tickets/erg` is byte-reproducible from source; a CI check
+      rebuilds and diffs it.
+- [ ] Falsifiable hardening tests in CI (path-traversal, input-DoS,
+      update-integrity), each with a negative control.
+- [ ] An AI-assisted red-team checklist exists and has run once; the process
+      + cadence are documented so it re-runs — not one-and-done.
+- [ ] Findings recorded; high-severity items filed as fix tickets.
 
 ## Notes
 
-- **needs-human** (AGENTS.md §2 security gate). This is the "never leak
-  keys" / red-team half; data-safety *integrity* is 0149.
+- **needs-human** (AGENTS.md §2 security gate). The "never leak keys" /
+  red-team half; data-safety *integrity* is 0149.
+- The **reproducible-build verification** is falsifiable and could be split
+  into a Ready guard (cross-ref 0146/0147) ahead of the rest of the audit —
+  flagged for the human to decide.

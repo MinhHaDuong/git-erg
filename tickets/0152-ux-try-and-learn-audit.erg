@@ -6,33 +6,47 @@ Tag: needs-human
 
 --- log ---
 2026-05-29T09:00Z Claude created — UX is a quality goal measured by judgment, not a unit test; the evidence engine for feats; needs-human
+2026-05-29T09:20Z Claude note reframed — standing AI-assisted QA process (not one-shot): agents do persona dry-runs each release, a falsifiable smoke subset runs in CI, humans gate severity
 
 --- body ---
 ## Context
 
-"Easy to try and learn" is a UX quality goal, measured by judgment and
-observation, not a unit test. It is also the **evidence engine**: it is how
-we learn whether speculative feats (e.g. `erg new --body`) are actually felt,
-per AGENTS.md "Earning a feature". Run it as an audit, not a guard.
+"Easy to try and learn" is a UX quality goal, measured by judgment — but it is
+**not** a one-shot audit either: UX drifts as the tool changes, so it needs a
+**repeatable, AI-assisted QA process** that re-runs and tracks the product. It
+is also the **evidence engine**: how we learn whether speculative feats (e.g.
+`erg new --body`) are actually felt, per AGENTS.md "Earning a feature".
 
-## What to evaluate (falsifiable proxies + human judgment)
+## QA process (AI-assisted, repeatable)
 
-- **Time / steps to first ticket** from a cold clone: how many README steps
-  to install; can a newcomer create + close a ticket in a few minutes?
+AI does the legwork; humans judge.
+
+- **AI persona dry-runs** (per release / per UX-surface change): agents
+  role-play the four audiences — beginner, expert trying it out, another
+  agent, developer — through the cold-clone *first five minutes* (install,
+  create + close a ticket, recover from an induced error) and report friction
+  with transcripts. Cheap to re-run, so re-run it.
+- **Falsifiable smoke in CI** (every push): the README install steps actually
+  execute on a clean image; a "steps/time to first ticket" script stays under
+  a budget; help-completeness (every command documented — regression of 0068).
+- **Human gate:** judge severity, decide which friction is real and which
+  becomes a feat — with the transcript as the attached evidence.
+
+## What to evaluate
+
+- **Time / steps to first ticket** from a cold clone.
 - **Orientation:** does `erg` with no args / `erg help` / `erg --help --all`
   orient a beginner? Is the POSIX-first path (just edit a `.erg`) discoverable?
 - **Self-describing install:** does `erg init` leave files that explain
   themselves (`AGENTS.md`, spec, `integration.md`)?
-- **Four audiences** (from the dreamlist): beginner, expert trying it out,
-  other agents, developer — each has a different first five minutes.
 - **Error messages:** do they teach (the `filename:line: msg` form from 0124)
   and suggest the fix?
 
 ## Output
 
-A findings report. Each concrete friction item becomes a **Ready** fix ticket
-*with the observed evidence attached* — this is how feats earn their place,
-pulled by real friction rather than pushed from the wishlist.
+A findings report per run. Each concrete friction item becomes a **Ready** fix
+ticket *with the dry-run transcript attached* — this is how feats earn their
+place, pulled by observed friction rather than pushed from the wishlist.
 
 ## Relevant files
 
@@ -41,12 +55,16 @@ pulled by real friction rather than pushed from the wishlist.
 
 ## Exit criteria
 
-- [ ] Audit across the four audiences, with the proxies above measured.
-- [ ] Friction documented with severity.
-- [ ] Each actionable item filed as its own ticket with the evidence.
+- [ ] A repeatable AI persona dry-run procedure exists (the four audiences,
+      the first-five-minutes script) and has been run once.
+- [ ] Falsifiable UX smoke wired into CI (install steps execute, time-to-first
+      -ticket budget, help-completeness).
+- [ ] The process + cadence are documented so it re-runs — not one-and-done.
+- [ ] Friction documented with severity; each actionable item filed as its own
+      ticket with the transcript evidence.
 
 ## Notes
 
 - **needs-human**, evidence-driven. Prior UX work (closed): 0071–0074
-  (UX audit P0–P3), 0124 (error-message format). Build no feat off this until
-  the friction is observed.
+  (UX audit P0–P3), 0124 (error-message format), 0068 (help-completeness
+  regression test). Build no feat off this until the friction is observed.
