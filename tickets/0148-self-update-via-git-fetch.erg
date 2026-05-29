@@ -1,0 +1,80 @@
+%erg 0.1
+Title: Self-update via git fetch instead of an embedded HTTP client
+Created: 2026-05-29
+Author: Claude
+Tag: needs-human
+
+--- log ---
+2026-05-29T08:30Z Claude created — split out of 0146; touches the distribution model, so needs-human
+
+--- body ---
+## Context
+
+`erg update` downloads the binary over **`net/http`** from a hardcoded
+upstream raw URL (`raw.githubusercontent.com/MinhHaDuong/git-erg/main/...`),
+with `ERG_UPDATE_URL` / `.ergrc [update] url` as overrides. That `net/http`
+import is the binary's **only network code and only cgo trigger** (~0.64 MB of
+symbols). Two problems:
+
+- **Unkind to forks.** The default silently pulls *upstream's* binary, not the
+  fork's own — even though the command's own summary claims "Fetch and replace
+  binary from origin". A fork that rebuilds its binary (via 0147 + CI) would
+  have `erg update` overwrite it with upstream's.
+- **It's the lone exception to the offline invariant**, and the lone reason
+  the binary isn't trivially static.
+
+## Decision
+
+Fetch the committed binary via **`git`** — already a hard dependency of
+*git*-erg — from the repo's own `origin` by default, instead of embedding an
+HTTP client. Explicitly **not** `curl`: that would add a new dependency; git
+is already present. Benefits:
+
+- Fork-kind: you update from where you cloned (origin), and the "from origin"
+  promise becomes true.
+- Removes the last network code and the last cgo trigger → simpler static
+  build, ~0.64 MB smaller.
+
+Preserve the existing escape hatches and friendliness:
+- Keep an explicit **upstream-tracking** override (e.g. `ERG_UPDATE_URL` /
+  `.ergrc`) so a fork that *wants* upstream's binary still can.
+- Keep "**exit 0 on fetch error**" so `erg update && erg validate` chains
+  don't fail offline or in isolated environments.
+- Keep the atomic write-then-rename and the post-update legacy-`Status:`
+  migration hint.
+
+## Relevant files
+
+- `src/go/update.go` — drop `net/http`/`crypto/tls`; shell out to `git`
+  (fetch the blob from origin, compare hash, atomic replace). Update
+  `summaryUpdate`/`helpUpdate` so the docs match reality.
+- `docs/erg-manual.md` regenerated; bootstrap binary refreshed.
+
+## Test
+
+- Update against a **local** git remote fixture (no network): replaces a stale
+  binary, and reports "already up to date" on a hash match.
+- Fetch failure (no remote / offline) exits 0 and leaves the binary untouched.
+- Negative: `grep` the source / `go list` proves `net/http` is gone.
+
+## Exit criteria
+
+- [ ] `erg update` works via `git fetch` from origin; no `net/http` import
+      remains anywhere in the source.
+- [ ] Explicit upstream-tracking override still available and documented.
+- [ ] Offline-safe (exit 0 on fetch error); atomic replace preserved.
+- [ ] Help/summary text no longer over-claims; `make test`/`make validate`
+      green; docs + bootstrap refreshed.
+
+## Notes
+
+- **needs-human**: changes the update/distribution mechanism (AGENTS.md §1
+  auto-skip term "distribution model") — a human should weigh the
+  origin-vs-upstream default and the fork story.
+- Once this lands, 0146's *offline* guard tightens from "no network except
+  `update`" to "**no network anywhere**" — coordinate ordering with 0146.
+- Prior design history to read first (closed): 0011 (self-update from origin
+  when online), 0023 (distribution/installation/update model — design), 0033
+  (keep `erg update` binary-only, hand repo sync to `init`). This ticket
+  revisits the *transport* (http→git), not those decisions; check it doesn't
+  contradict them.

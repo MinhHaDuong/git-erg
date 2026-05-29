@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-05-29T07:30Z — Freeze lifted. Opened 0146 (design-contract guardrail tests) — the one dreamlist item justified by structural need: the six invariants (agnostic/offline/standalone/fast/small/stateless) are currently unguarded. 145 closed, 1 open._
+_Last updated: 2026-05-29T08:40Z — Freeze lifted. Design-contract work split into three: 0147 (static+stripped build, Makefile-only, READY), 0146 (the six guard tests, Blocked-by 0147), 0148 (self-update via git fetch, needs-human — touches distribution model). 145 closed, 3 open, 1 ready._
 
 ## North star:
 
@@ -17,7 +17,7 @@ An agent-friendly local ticket system for development in disconnected environmen
 
 ## Stats
 
-- Tickets: 145 closed, 1 open (0146 — design-contract guardrail tests)
+- Tickets: 145 closed, 3 open — 0147 (ready), 0146 (blocked-by 0147), 0148 (needs-human)
 - Tests: green — ok git-erg
 - Open PRs: none
 

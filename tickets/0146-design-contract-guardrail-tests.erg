@@ -2,11 +2,13 @@
 Title: Guardrail tests for the six design-contract invariants
 Created: 2026-05-29
 Author: Claude
+Blocked-by: 0147
 
 --- log ---
 2026-05-29T07:30Z Claude created
 2026-05-29T07:45Z Claude note decided open-decision 1 — make the binary genuinely static (CGO_ENABLED=0); the current dynamic link is an accidental cgo default, not a choice
 2026-05-29T08:10Z Claude note decided open-decisions 2 and 3 — fast guard = deterministic op-counts (not wall-clock); small = zero-dep + 10MB ceiling; promote fast+small to first-class invariants (six equals). Build adds -s -w -trimpath (static + ~6.2MB). Language stays Go (rationale in pep-erg-v1.md); self-update may move from net/http to git fetch (git already a dep, drops the only network/cgo surface)
+2026-05-29T08:30Z Claude note split into independent work — build hardening → 0147 (Blocked-by); self-update via git fetch → 0148 (needs-human). This ticket is now just the guard tests. AGENTS six-invariants + pep §10 why-Go rationale already landed on this branch.
 
 --- body ---
 ## Context
@@ -62,26 +64,17 @@ dependencies, and deterministic (no flaky wall-clock in the blocking path).
 - Optional dynamic guard: run the non-`update` commands under a dropped
   network namespace (`unshare -n` *if present*, skip-if-absent — no hard
   dep) and assert exit 0.
-- **git-fetch lever (recommended follow-up, separable):** `erg update` is the
-  only reason `net/http` (and the cgo resolver) is in the binary. Since this
-  is *git*-erg, git is already a hard dependency — so self-update can shell
-  out to `git fetch` instead of embedding an HTTP client (explicitly *not*
-  `curl`: that would be a new dependency; git is not). That deletes the only
-  network code from the binary entirely (the offline guard becomes "no
-  networking anywhere", no exception to carve out), removes the last cgo
-  trigger, and saves ~0.64 MB. It changes `erg update` behaviour, so it is
-  its own ticket — but the offline guard should be written to *welcome* it
-  (assert zero networking once `update` no longer dials out).
+- **git-fetch lever → split out as 0148** (needs-human): moving `erg update`
+  off `net/http` to `git fetch` deletes the only network code and the last
+  cgo trigger. Write this guard to *welcome* it: once 0148 lands, the guard
+  tightens from "no network except `update`" to "no networking anywhere",
+  with no exception to carve out.
 
 **3. standalone** — single binary, zero third-party deps, no libc dependency.
 - Guard A (true today): `go list -deps ./...` / `go.mod` contain only
   stdlib — no third-party `require`.
-- Guard B (static link): **first** make the build static — set
-  `CGO_ENABLED=0` (and defensively `-tags osusergo,netgo`) on the Makefile
-  build/bootstrap targets, and add `-trimpath -ldflags "… -s -w"` (strip
-  symbol table + DWARF: 9.0 MB → 6.2 MB, ~31%, still static; use `-s -w`,
-  **not** external `strip(1)`, which can mangle Go's pclntab; no UPX — its
-  per-invocation decompression hurts "fast") — **then** assert it:
+- Guard B (static link): the static+stripped build itself is **0147**
+  (`Blocked-by`); this ticket only *asserts the result* once 0147 lands:
   - Linux: `ldd build/erg` ⇒ `not a dynamic executable` (skip-if-`ldd`-absent).
   - Portable form: assert the binary is cgo-free / has no third-party dynamic
     deps (on darwin "static" is impossible — goal there is only `libSystem`).
@@ -138,43 +131,33 @@ rebuild-blob pays for it). Two facets:
 - `tests/test_contract.sh` (new) — the six guards (shell-drivable parts).
 - `src/go/contract_test.go` (new, maybe) — import-graph / parse-once guards
   that are cleaner in Go than in shell.
-- `Makefile` — (a) on the `build` and bootstrap targets, set
-  `CGO_ENABLED=0`, add `-tags osusergo,netgo`, `-trimpath`, and `-s -w` to
-  the existing ldflags so the committed binary is static *and* stripped
-  (~6.2 MB); (b) `TEST_SUITES += contract` (the existing "every test_*.sh is
-  in TEST_SUITES" check already enforces wiring).
-- `AGENTS.md` — expand the invariants list from four to **six** (add
-  *fast* and *small* as first-class, equal to the rest).
-- `pep-erg-v1.md` — short "why Go" rationale note (Go over Rust/C), so the
-  language choice is recorded and not relitigated.
+- `Makefile` — `TEST_SUITES += contract` only. (The static+strip build flags
+  are 0147; this ticket adds no build change.)
+- `AGENTS.md` (six invariants) and `pep-erg-v1.md` §10 (why-Go rationale) are
+  **already updated on this branch** — not pending work here.
 
-## Open decisions
+## Open decisions (all resolved or split out)
 
-1. **Static binary** — RESOLVED (2026-05-29): build static via
-   `CGO_ENABLED=0`. The dynamic link was an accidental cgo default, not a
-   choice; the only cgo trigger is `net/http`'s resolver in `update.go`
-   (`os/user` is unused), so the pure-Go resolver covers it at zero
-   functional cost — while letting the travels-with-repo binary run on
-   musl/Alpine and old glibc instead of failing to load. Caveats recorded:
-   static does **not** grant cross-arch portability (still amd64; other
-   arches rebuild), and darwin cannot be fully static (goal: cgo-free).
-2. **fast / small guards** — RESOLVED (2026-05-29): fast = deterministic
-   op-count guards (parse-once + linear N-vs-2N) blocking, plus one generous
-   non-flaky wall-clock backstop ("raise, don't delete"); drop the stopwatch
-   as the primary metric. small = zero-dep (root cause) + a **10 MB** binary
-   ceiling (shipped ~6.2 MB after static+strip). These are essential
-   contracts for an invoked, committed-to-repo infra tool, not budgets.
-3. **Invariant vocabulary** — RESOLVED (2026-05-29): promote *fast* and
-   *small* to **first-class invariants** in AGENTS.md — six equals, no
-   lesser tier. The guard suite and the policy then tell the same story.
-4. **Self-update transport** (new, separable): move `erg update` from the
-   embedded `net/http` client to `git fetch` (git is already a dependency;
-   `curl` is not and is rejected). Removes the only network code + cgo
-   trigger and ~0.64 MB. Out of scope here except that the offline guard is
-   written to welcome it. Its own ticket.
-5. **Language** — RESOLVED: stay Go (see pep-erg-v1.md rationale). Rust is
-   the documented fallback if a hard size/startup requirement ever lands
-   with evidence; a rewrite is the ultimate push-from-wishlist and has none.
+1. **Static binary** — RESOLVED: build static via `CGO_ENABLED=0`. The
+   dynamic link was an accidental cgo default; `net/http` in `update.go` is
+   the only cgo trigger (`os/user` unused). **Split out as 0147** (Makefile
+   flags) — this ticket is `Blocked-by: 0147` and only asserts the result.
+   Caveats: static is orthogonal to cross-arch (still amd64), and darwin
+   can only be cgo-free.
+2. **fast / small guards** — RESOLVED: fast = deterministic op-count guards
+   (parse-once + linear N-vs-2N) blocking, plus a generous non-flaky
+   wall-clock backstop ("raise, don't delete"). small = zero-dep (root
+   cause) + a **10 MB** ceiling (shipped ~6.2 MB). Essential contracts for
+   an invoked, committed-to-repo tool, not budgets.
+3. **Invariant vocabulary** — RESOLVED and **done on this branch**: AGENTS.md
+   now lists *fast* and *small* as first-class — six equals.
+4. **Self-update transport** — **split out as 0148** (needs-human): `erg
+   update` moves from `net/http` to `git fetch` (git already a dep; `curl`
+   rejected). This guard is written to welcome it (offline tightens to "no
+   networking anywhere" once 0148 lands).
+5. **Language** — RESOLVED and **done**: stay Go; rationale recorded in
+   `pep-erg-v1.md` §10 (the existing language section), Rust as the
+   evidence-gated fallback.
 
 ## Exit criteria
 
@@ -183,10 +166,9 @@ rebuild-blob pays for it). Two facets:
       (guard fails when the invariant is deliberately broken).
 - [ ] offline guard pins the network surface to `update` and fails if any
       other command imports/uses networking.
-- [ ] build is static *and* stripped (`CGO_ENABLED=0 -trimpath -ldflags
-      "… -s -w"`, ~6.2 MB); standalone guard asserts static (Linux `ldd` ⇒
-      not dynamic / cgo-free elsewhere) with a negative control; bootstrap
-      `tickets/erg` rebuilt.
+- [ ] standalone guard asserts static (Linux `ldd` ⇒ not dynamic / cgo-free
+      elsewhere) with a negative control — depends on **0147** having shipped
+      the static build.
 - [ ] stateless guard proves no writes outside the store for read commands.
 - [ ] fast guards are deterministic and blocking (parse-once + linear
       N-vs-2N op-count); any wall-clock check is a generous non-flaky
@@ -196,11 +178,7 @@ rebuild-blob pays for it). Two facets:
 - [ ] Suite runs offline with **no new deps**; `ldd`/namespace bits skip
       gracefully when absent.
 - [ ] Wired into `make test` (`TEST_SUITES += contract`); `make test` and
-      `make validate` green; docs/bootstrap refreshed if surface changes.
-- [ ] `AGENTS.md` invariants expanded to six; `pep-erg-v1.md` carries the
-      "why Go" rationale.
-- [ ] Open decisions recorded (static, fast/small guards, vocabulary,
-      self-update transport, language).
+      `make validate` green.
 
 ## Notes
 

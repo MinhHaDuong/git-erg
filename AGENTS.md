@@ -40,7 +40,7 @@ The six are equals — none is a lesser "nice to have":
   Work stays linear in the corpus; no redundant passes.
 - **Small** — the binary is committed and travels with every clone, so size
   is paid by everyone. Stay near the Go runtime floor (≤ ~10 MB); guard
-  against dependency bloat (see 0146).
+  against dependency bloat (0147 builds it static+stripped; 0146 guards it).
 
 Audits are the evidence engine. Prefer an audit that discovers real need
 over a feature built on a guess — the audit tells you whether the feature
