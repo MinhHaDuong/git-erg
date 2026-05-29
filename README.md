@@ -115,8 +115,11 @@ tools. The `erg` binary adds validation and structured queries over the same
 files:
 
 ```bash
-# Validate a single ticket
-tickets/erg validate 01
+# Validate a single ticket (validate takes file paths, not IDs)
+tickets/erg validate tickets/0001-add-auth.erg
+
+# Or validate the whole store at once
+tickets/erg check tickets/
 
 # List ready tickets
 tickets/erg ready

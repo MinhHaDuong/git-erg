@@ -43,6 +43,14 @@ else
     fail "make docs: docs/erg-manual.md is missing or empty"
 fi
 
+# README must not show `erg validate <ID>` — validate takes file paths, not IDs
+# (regression guard for 0161; the broken example was `tickets/erg validate 01`).
+if grep -Eq 'erg validate [0-9]+( |$)' README.md; then
+    fail "README has an erg validate example with a bare ID (validate takes paths)"
+else
+    pass "README erg validate examples use file paths, not bare IDs"
+fi
+
 echo ""
 if [ "$FAIL" -eq 0 ]; then
     echo "docs: PASS ($PASS checks)"
