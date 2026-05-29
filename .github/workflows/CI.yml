@@ -13,6 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so `make verify` (0156) can check out the committed
+          # binary's embedded ancestor revision; a shallow clone lacks it and
+          # the reproducible-build check would only ever SKIP.
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version: '1.21'
