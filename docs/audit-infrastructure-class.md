@@ -49,16 +49,19 @@ All design-level choices, not implementation details:
 - **Parses untrusted input in those contexts.** Anyone can PR a `.erg`;
   hooks/CI parse it. Path-traversal via crafted IDs/path-refs, ReDoS,
   oversized input are real classes (enumerated in 0151).
-- **Self-update channel** (`update.go`; → `git fetch` in 0148). A propagation
-  path: compromise once, ship everywhere.
+- **Self-update channel** (`update.go`, now git-transport per 0148, closed). A
+  propagation path: compromise once, ship everywhere — the channel exists
+  regardless of transport.
 
-The design's *intended response* to this framing is coherent and correct
-(tracked in 0151, and mostly **not yet shipped**): reproducible builds as the
-keystone control, signed git tags (`git tag -s`), the full SHA-256 already
-printed by `erg version`, static/stripped/zero-dep, and an offline-verifiable
-rebuild (a planned `make verify`). If you accept the premise, these are the
-right controls. The design is internally consistent *in its answer*. The open
-question is whether the *premise* is right-sized.
+The design's *intended response* to this framing is coherent and correct —
+partly shipped, partly tracked in 0151: the static/stripped/zero-dep build
+(0147, **shipped**), the full SHA-256 already printed by `erg version`
+(**shipped**), and git-transport self-update carrying no network code (0148,
+**shipped**) are in place; reproducible builds as the keystone control, signed
+git tags (`git tag -s`), and an offline-verifiable rebuild (a planned
+`make verify`) are **not yet shipped** (0151). If you accept the premise, these
+are the right controls. The design is internally consistent *in its answer*.
+The open question is whether the *premise* is right-sized.
 
 ## Where it does not qualify (caveats the docs underplay)
 
@@ -76,7 +79,8 @@ question is whether the *premise* is right-sized.
   is far smaller than "binary running in every hook and CI" implies — the
   supply-chain exposure is opt-in and removable.
 - **Near-zero transitive surface.** Zero third-party deps; the only network
-  call is being deleted (0148). git-erg is a *potential* supply-chain
+  call has been removed (0148, closed — `erg update` now uses git transport, so
+  the binary carries no network code). git-erg is a *potential* supply-chain
   *source*, but barely a *consumer* of one — it lacks the deep dependency tree
   that makes most infrastructure dangerous.
 - **"Thousands of repos" does not exist.** Adoption today is ~the author's own
@@ -132,8 +136,9 @@ input — is shared with every linter (eslint, black, gofmt all run in
 hooks/CI on untrusted code); by itself that is "normal dev tool," not
 infrastructure class. Bonus: it kills the rubber-stamped-blob vector (the
 git log is full of unreviewed `chore: rebuild bootstrap binary [skip ci]`
-commits — source diffs are reviewable, blob diffs are not) and lets
-`update.go`'s network code be deleted outright (folds in 0148).
+commits — source diffs are reviewable, blob diffs are not). (`update.go`'s
+network code is already gone independently — 0148 moved `erg update` to git
+transport.)
 
 **The one thing it trades away is the exact thing the committed binary was
 introduced for** (README binary policy): *environments where Go may be
