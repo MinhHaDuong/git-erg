@@ -1,0 +1,58 @@
+%erg 0.1
+Title: Make install-erg-binary staleness check asset-aware
+Created: 2026-05-29
+Author: haduong
+
+--- log ---
+2026-05-29T19:33Z haduong created
+
+--- body ---
+## Context
+PR #183 (ticket 0165) fixed the CI `rebuild-binary.yml` path filter so that
+changes to `//go:embed` assets under `src/go/assets/` trigger a rebuild of the
+committed bootstrap binary. The same bug class survives one layer down, in the
+local install path.
+
+`Makefile:108` (`install-erg-binary`) decides whether the committed bootstrap
+binary is fresh enough to install by running:
+
+    find src/go -name '*.go' -newer "$(BOOTSTRAP_BIN)"
+
+This only detects changes to `.go` source files. If a developer edits an
+embedded asset under `src/go/assets/` (which the binary bakes in via
+`//go:embed`) without touching any `.go` file, the staleness check sees no
+newer source, treats the committed binary as fresh, and installs a stale
+binary — exactly the 0160 corruption-shipping failure mode, but on the local
+`make install-erg-binary` path instead of CI.
+
+## Relevant files
+- `Makefile` (line ~108, `install-erg-binary` target) — the asset-blind staleness check
+
+## Actions
+1. Broaden the staleness probe so it also detects newer embedded assets.
+   Mirror the #183 fix intent (`src/go/**`): probe all tracked inputs the
+   binary embeds, e.g. `find src/go -type f -newer "$(BOOTSTRAP_BIN)"`, or
+   scope to `-name '*.go' -o -path 'src/go/assets/*'`. Avoid false positives
+   from regenerable/non-embedded files if `-type f` is too broad.
+2. Keep the existing platform guard (`Linux`/`x86_64`/binary-present) intact.
+
+## Test
+- Add a Makefile/shell test (parallel to the rebuild-binary asset test) that:
+  touches an asset under `src/go/assets/` to be newer than the committed
+  binary, runs the `install-erg-binary` decision logic, and asserts it falls
+  through to the `go build` branch rather than installing the stale binary.
+
+## Verification
+- [ ] Editing only a `src/go/assets/*` file marks the committed binary stale
+- [ ] Editing only a `src/go/*.go` file still marks it stale (no regression)
+- [ ] An untouched tree still installs the committed binary (no spurious rebuild)
+- [ ] `make check` passes
+
+## Invariants
+- The offline/no-Go fallback behavior is unchanged: when assets are fresh and
+  the platform matches, the committed binary is still installed without Go.
+
+## Exit criteria
+- `install-erg-binary` rebuilds (or refuses the stale binary) when any embedded
+  input — `.go` source OR `src/go/assets/*` — is newer than the committed
+  bootstrap binary, covered by a test.
