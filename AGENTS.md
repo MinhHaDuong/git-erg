@@ -48,8 +48,10 @@ Seven invariants, one above the rest — **never lose data** is the tool's
   agents in loops), never resident, so per-invocation cost is the product.
   Work stays linear in the corpus; no redundant passes.
 - **Small** — the binary is committed and travels with every clone, so size
-  is paid by everyone. Stay near the Go runtime floor (≤ ~10 MB); guard
-  against dependency bloat (0147 builds it static+stripped; 0146 guards it).
+  is paid by everyone. Stay near the Go runtime floor (≤ ~5 MB — ratcheted
+  down from 10 MB once 0147's static+stripped build and 0148's net/http
+  removal cut the shipped binary to ~2.4 MB); guard against dependency bloat
+  (0147 builds it static+stripped; 0146 guards it).
 
 Audits are the evidence engine. Prefer an audit that discovers real need
 over a feature built on a guess — the audit tells you whether the feature
