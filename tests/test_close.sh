@@ -459,17 +459,25 @@ Author: claude
 
 --- body ---
 EOF
+# Resolve $ERG to an absolute path: the default is the relative build/erg, which
+# would not exist from inside the subshell's cd.
+case "$ERG" in
+    /*) ERG_ABS="$ERG" ;;
+    *)  ERG_ABS="$PWD/$ERG" ;;
+esac
 # Run from an unrelated ticket store; pass an absolute FILE path into STORE, no DIR.
-OUT=$(cd "$OTHER" && "$ERG" close "$STORE/0001-blocker.erg" "done")
+OUT=$(cd "$OTHER" && "$ERG_ABS" close "$STORE/0001-blocker.erg" "done")
 if [ "$OUT" = "CLOSED" ] && ! grep -q "Blocked-by: 0001" "$STORE/0002-dep.erg"; then
     pass "file-form: step 3 clears edges in the file's own store (not the cwd store)"
 else
-    fail "file-form: step 3 clears edges in the file's own store (out=$OUT, left: $(grep -E 'Blocked-by' "$STORE/0002-dep.erg"))"
+    left=$(grep -E 'Blocked-by' "$STORE/0002-dep.erg" || true)
+    fail "file-form: step 3 clears edges in the file's own store (out=$OUT, left: $left)"
 fi
 if "$ERG" check "$STORE" >/dev/null 2>&1; then
     pass "file-form: file's own store stays check-clean after close"
 else
-    fail "file-form: file's own store stays check-clean (got: $("$ERG" check "$STORE" 2>&1))"
+    diag=$("$ERG" check "$STORE" 2>&1 || true)
+    fail "file-form: file's own store stays check-clean (got: $diag)"
 fi
 rm -rf "$STORE" "$OTHER"
 

@@ -172,8 +172,14 @@ write_open            "$STORE/0001-blocker.erg"          "Blocker"
 write_open_blocked_by "$STORE/0002-blocked.erg" "Blocked" "0001"
 OTHER=$(mktemp -d)
 write_open "$OTHER/0009-unrelated.erg" "Unrelated decoy store"
+# Resolve $ERG to an absolute path: the default is the relative build/erg, which
+# would not exist from inside the subshell's cd.
+case "$ERG" in
+    /*) ERG_ABS="$ERG" ;;
+    *)  ERG_ABS="$PWD/$ERG" ;;
+esac
 # cd into an unrelated ticket store, give an absolute FILE path into STORE, no DIR.
-out=$(cd "$OTHER" && "$ERG" rm "$STORE/0001-blocker.erg" 2>&1) && rc=0 || rc=$?
+out=$(cd "$OTHER" && "$ERG_ABS" rm "$STORE/0001-blocker.erg" 2>&1) && rc=0 || rc=$?
 if [ "$rc" -ne 0 ] && echo "$out" | grep -q "0002" && [ -f "$STORE/0001-blocker.erg" ]; then
     pass "file-form: guard scans the file's own store (not the cwd store)"
 else
@@ -200,12 +206,14 @@ out=$($ERG rm --force 0001 "$WS" 2>&1) && rc=0 || rc=$?
 if [ "$rc" -eq 0 ] && ! grep -Eq "^Blocked-by" "$WS/0002-ws-dep.erg"; then
     pass "force: clears 'Blocked-by : 0001' (whitespace-before-colon) line"
 else
-    fail "force: clears 'Blocked-by : 0001' line (rc=$rc, left: $(grep -E '^Blocked-by' "$WS/0002-ws-dep.erg"))"
+    left=$(grep -E '^Blocked-by' "$WS/0002-ws-dep.erg" || true)
+    fail "force: clears 'Blocked-by : 0001' line (rc=$rc, left: $left)"
 fi
 if $ERG check "$WS" >/dev/null 2>&1; then
     pass "force: corpus check-clean after whitespace-form cascade"
 else
-    fail "force: corpus check-clean after whitespace-form cascade (got: $($ERG check "$WS" 2>&1))"
+    diag=$($ERG check "$WS" 2>&1 || true)
+    fail "force: corpus check-clean after whitespace-form cascade (got: $diag)"
 fi
 rm -rf "$WS"
 
