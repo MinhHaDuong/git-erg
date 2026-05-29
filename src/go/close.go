@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -45,22 +46,36 @@ func cmdClose(args []string) int {
 	if len(args) >= 3 {
 		explicit = args[2]
 	}
-	ticketDir, err := resolveDir(explicit)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "close: %v\n", err)
-		return 1
-	}
 
 	if strings.TrimSpace(reason) == "" {
 		fmt.Fprintln(os.Stderr, "close: reason is required and must be non-empty")
 		return 1
 	}
 
-	// Resolve to file path.
-	var ticketPath string
+	// Resolve to a file path and the corpus to scan for dependents (step 3).
+	// For the FILE form with no explicit DIR, the corpus is the store the file
+	// actually lives in — inferred from its directory — not an auto-discovered
+	// store, which would otherwise leave Blocked-by edges dangling in the
+	// file's real store (mirrors the cmdRm guard).
+	var ticketPath, ticketDir string
+	var err error
 	if strings.HasSuffix(idOrFile, ".erg") {
 		ticketPath = idOrFile
+		scanArg := explicit
+		if scanArg == "" {
+			scanArg = filepath.Dir(ticketPath)
+		}
+		ticketDir, err = resolveDir(scanArg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "close: %v\n", err)
+			return 1
+		}
 	} else {
+		ticketDir, err = resolveDir(explicit)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "close: %v\n", err)
+			return 1
+		}
 		ticketPath, err = resolveTicketByID(ticketDir, idOrFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "close: %v\n", err)
@@ -113,19 +128,34 @@ func cmdClose(args []string) int {
 
 // removeBlockedByRef scans ticketDir for open tickets that have a
 // Blocked-by header referencing closedID, removes those lines, and
-// appends a log entry recording the removal. Uses loadErgs for
-// consistent parsing/filtering, then re-reads only the matching files
-// to perform the byte-level rewrite.
+// appends a log entry recording the removal. Thin wrapper over
+// clearBlockedByRefs: close only ever rewrites OPEN dependents (a closed
+// dependent's historical Blocked-by line is left intact).
 func removeBlockedByRef(ticketDir, closedID, timestamp, author string) {
+	logLine := fmt.Sprintf("%s %s note blocker %s closed — Blocked-by removed.", timestamp, author, closedID)
+	clearBlockedByRefs(ticketDir, closedID, logLine, false)
+}
+
+// clearBlockedByRefs scans ticketDir for tickets whose Blocked-by header
+// references targetID, strips those lines, and appends logLine to each
+// rewritten ticket. Uses loadErgs for consistent parsing/filtering, then
+// re-reads only the matching files to perform the byte-level rewrite. When
+// includeClosed is false, already-closed dependents are skipped (close's
+// behaviour: their historical refs are preserved). When true, closed
+// dependents are rewritten too (rm's behaviour: a dangling ref left in a
+// closed ticket would still trip the unknown-ref corpus check). The rewrite
+// machinery — removeBlockedByLine, appendLogLine, collapseHeaderBlanks — is
+// shared with close. Iterates all matching tickets; idempotent but not atomic.
+func clearBlockedByRefs(ticketDir, targetID, logLine string, includeClosed bool) {
 	tickets, _ := loadErgs(ticketDir)
 	for i := range tickets {
 		t := &tickets[i]
-		if t.IsClosed() {
+		if !includeClosed && t.IsClosed() {
 			continue
 		}
 		found := false
 		for _, ref := range t.BlockedBys {
-			if ref.ID == closedID || ref.Raw == closedID {
+			if ref.MatchesLocalID(targetID) {
 				found = true
 				break
 			}
@@ -137,24 +167,30 @@ func removeBlockedByRef(ticketDir, closedID, timestamp, author string) {
 		if err != nil {
 			continue
 		}
-		updated := removeBlockedByLine(string(data), closedID)
-		logLine := fmt.Sprintf("%s %s note blocker %s closed — Blocked-by removed.", timestamp, author, closedID)
+		updated := removeBlockedByLine(string(data), targetID)
 		updated = appendLogLine(updated, logLine)
 		updated = string(collapseHeaderBlanks([]byte(updated)))
 		if err := os.WriteFile(t.Path, []byte(updated), 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "close: warning: cannot write %s: %v\n", t.Path, err)
+			fmt.Fprintf(os.Stderr, "warning: cannot write %s: %v\n", t.Path, err)
 		}
 	}
 }
 
-// removeBlockedByLine removes "Blocked-by: <id>" lines matching id from content.
+// removeBlockedByLine removes Blocked-by header lines matching id from content.
+// It parses each line with parseHeaderLine — the same parser that populated
+// Erg.BlockedBys for dependency detection — so it strips every form the parser
+// tolerates (e.g. "Blocked-by : 0001" with whitespace before the colon or
+// trailing whitespace), not just the canonical "Blocked-by: <id>" spelling.
+// Detecting a dependent but failing to remove its edge would leave a dangling
+// ref that `erg check` then flags.
 func removeBlockedByLine(content, id string) string {
 	lines := strings.Split(content, "\n")
 	out := make([]string, 0, len(lines))
-	prefix := "Blocked-by: " + id
 	for _, line := range lines {
-		if strings.TrimRight(line, " \t") == prefix {
-			continue
+		if key, val, ok := parseHeaderLine(line); ok && key == "Blocked-by" {
+			if ref, err := parseRef(val); err == nil && ref.MatchesLocalID(id) {
+				continue
+			}
 		}
 		out = append(out, line)
 	}

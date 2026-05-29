@@ -24,6 +24,7 @@ var commands = []commandEntry{
 	{"tag", "ID TAGNAME [DIR]", summaryTag, helpTag},
 	{"untag", "ID TAGNAME [DIR]", summaryUntag, helpUntag},
 	{"archive", "[ID...] [DIR]", summaryArchive, helpArchive},
+	{"rm", "ID|FILE [DIR] [--force]", summaryRm, helpRm},
 	{"migrate", "[DIR]", summaryMigrate, helpMigrate},
 	{"init", "[DIR]", summaryInit, helpInit},
 	{"version", "", summaryVersion, helpVersion},

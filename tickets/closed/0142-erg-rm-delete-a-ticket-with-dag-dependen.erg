@@ -2,10 +2,12 @@
 Title: erg rm: delete a ticket with DAG dependency verification
 Created: 2026-05-27
 Author: Claude
+Closed: Implemented erg rm with DAG dependency guard and --force cascade; reuses close's edge-clearing machinery (clearBlockedByRefs).
 
 --- log ---
 2026-05-27T20:36Z Claude created
 
+2026-05-29T05:29Z Claude closed — Implemented erg rm with DAG dependency guard and --force cascade; reuses close's edge-clearing machinery (clearBlockedByRefs).
 --- body ---
 ## Context
 
