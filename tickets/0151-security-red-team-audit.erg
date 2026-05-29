@@ -33,6 +33,10 @@ threat-model changes.
   `CGO_ENABLED=0 -trimpath`, build stamp the only intended variance) and
   verify the committed binary matches — else a poisoned commit could swap the
   binary undetectably. An unverifiable committed binary *is* the liability.
+  *Building block already present:* `erg version` prints the binary's SHA-256
+  + the build revision (`selfHash`, `version.go`), and `update` already
+  hash-compares — reproducibility turns that self-reported hash into a
+  *verifiable attestation* (rebuild the recorded revision, confirm the hash).
 - **Update channel.** `erg update` (today `net/http`; 0148 → `git fetch`)
   must not be coercible into installing an attacker binary — integrity
   (hash/signature), trusted origin, no silent downgrade / MITM. A compromised
@@ -66,7 +70,8 @@ repos, so "low" is rarely low.
 ## Relevant files
 
 - Reproducibility: `Makefile` build flags (0147 — pinned Go, `CGO_ENABLED=0
-  -trimpath`), CI rebuild + diff.
+  -trimpath`), CI rebuild + diff, and `version.go`/`update.go` (`selfHash` —
+  the existing hash print to verify against).
 - Parser + ref resolution: `erg.go`, `ref.go`, `main.go`
   (`resolveDir`/`resolveTicketByID`).
 - Path construction: `new.go`, `rm.go`, `archive.go`.
@@ -77,7 +82,8 @@ repos, so "low" is rarely low.
 - [ ] Maximal threat model documented (supply-chain framing + severity
       multiplier).
 - [ ] Committed `tickets/erg` is byte-reproducible from source; a CI check
-      rebuilds and diffs it.
+      rebuilds the recorded revision and diffs it (and the `erg version` hash
+      matches — reusing the existing `selfHash`, not new machinery).
 - [ ] Falsifiable hardening tests in CI (path-traversal, input-DoS,
       update-integrity), each with a negative control.
 - [ ] An AI-assisted red-team checklist exists and has run once; the process

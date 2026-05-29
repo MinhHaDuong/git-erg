@@ -5,6 +5,7 @@ Author: Claude
 
 --- log ---
 2026-05-29T09:00Z Claude created — never-lose-data promoted to a first-class invariant; this is its guard suite
+2026-05-29T09:40Z Claude note added write-confinement rail — erg confines writes to the resolved store (fail-safe against user errors and eager agents, can be removed); behaviour + guard
 
 --- body ---
 ## Context
@@ -17,6 +18,13 @@ and each does its own `os.Rename`/`WriteFile`/`.tmp` dance — there is no
 single obviously-shared atomic-write path. Step one is to confirm whether
 mutations funnel through one audited helper; if they don't, that is a finding
 (and possibly a precursor fix).
+
+The realistic data-loss vector is not a red-teamer — it is a **user error or
+an eager creative agent**: a fat-fingered `DIR`/ID, or an agent computing a
+target outside `tickets/`. The cheapest rail against that is to **confine
+erg's writes to the resolved store** (below). It is a fail-safe, not a
+security boundary — it "can be removed" and a determined caller bypasses it —
+but it stops the common mistake before it lands.
 
 ## The guards (each falsifiable, with a negative control)
 
@@ -37,6 +45,12 @@ mutations funnel through one audited helper; if they don't, that is a finding
   file. Test via a wrapper that interrupts around the rename.
 - **DAG guard (regression of 0142)** — `rm` still refuses to orphan
   dependents without `--force`.
+- **Write-confinement (fail-safe rail + behaviour addition)** — before any
+  write/rename, the absolute target must resolve *inside* the store root, else
+  refuse. Catches user errors and overeager agents writing outside `tickets/`.
+  Not a security boundary (the adversarial version of this boundary is 0151's
+  path-traversal); here it is mistake-prevention. Cross-ref 0146 stateless
+  (read commands write nothing outside the store).
 
 ## Constraints (suite obeys the contract)
 
@@ -55,6 +69,8 @@ fail if its safety property is removed.
 - [ ] Falsifiable guard per property (atomic, validate-before-replace,
       lossless round-trip, no-clobber, crash-safety, DAG), each with a
       negative control.
+- [ ] Write-confinement enforced at runtime (mutations refuse an out-of-store
+      target) and guarded with a negative control.
 - [ ] Finding recorded on whether mutations share one atomic-write path; if
       not, a follow-up to consolidate is filed.
 - [ ] Wired into `make test`; `make test`/`make validate` green.

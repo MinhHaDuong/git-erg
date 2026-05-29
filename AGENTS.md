@@ -26,7 +26,9 @@ Seven invariants, one above the rest — **never lose data** is the tool's
 
 - **Never lose data** (the one job) — the ticket files are sacred. Every
   mutation is atomic (write-temp-then-rename), validates before it replaces,
-  never clobbers on ID collision, and preserves the log/body losslessly; a
+  never clobbers on ID collision, preserves the log/body losslessly, and
+  confines its writes to the resolved store (a fail-safe against fat-fingers
+  and overeager agents — removable, but it stops the common mistake); a
   killed `erg` leaves the old file or the new, never a truncated one. The
   blanket "never" can't be proven, so it is backed by a data-safety guard
   suite + standing audit (0149).
