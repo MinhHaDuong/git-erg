@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -13,6 +14,45 @@ func makeCorpus(t *testing.T, dir string, n int) {
 		id := 9000 + i
 		name := fmt.Sprintf("%04d-synth-%04d.erg", id, i)
 		writeErg(t, dir, name, validErgContent())
+	}
+}
+
+// makeCorpusWithRefs creates n tickets where each ticket (except the first)
+// has a Blocked-by ref to the previous ticket, forming a chain. This
+// exercises the ref-resolution and cycle-detection paths in validateCorpus.
+func makeCorpusWithRefs(t *testing.T, dir string, n int) {
+	t.Helper()
+	for i := 1; i <= n; i++ {
+		id := 9000 + i
+		name := fmt.Sprintf("%04d-synth-%04d.erg", id, i)
+		content := "%erg 0.1\nTitle: Synthetic ticket\nCreated: 2024-01-01\nAuthor: test\n"
+		if i > 1 {
+			content += fmt.Sprintf("Blocked-by: %04d\n", 9000+i-1)
+		}
+		content += "\n--- log ---\n--- body ---\n"
+		writeErg(t, dir, name, content)
+	}
+}
+
+// makeCorpusQuadraticRefs creates n tickets where ticket i references ALL
+// prior tickets (i-1 refs), producing O(N²) total refs. This is the data
+// shape that would expose a linear scan inside the ref loop.
+func makeCorpusQuadraticRefs(t *testing.T, dir string, n int) {
+	t.Helper()
+	for i := 1; i <= n; i++ {
+		id := 9000 + i
+		name := fmt.Sprintf("%04d-synth-%04d.erg", id, i)
+		var refs []string
+		for j := 1; j < i; j++ {
+			refs = append(refs, fmt.Sprintf("Blocked-by: %04d", 9000+j))
+		}
+		refBlock := ""
+		if len(refs) > 0 {
+			refBlock = strings.Join(refs, "\n") + "\n"
+		}
+		content := "%erg 0.1\nTitle: Synthetic ticket\nCreated: 2024-01-01\nAuthor: test\n" +
+			refBlock + "\n--- log ---\n--- body ---\n"
+		writeErg(t, dir, name, content)
 	}
 }
 
@@ -39,7 +79,6 @@ func TestParseOnce(t *testing.T) {
 
 		resetParseCount()
 		loadErgs(dir)
-		// Simulate a bug: re-parse every file
 		loadErgs(dir)
 		if parseCount <= n {
 			t.Errorf("negative control failed: parseCount = %d after two loadErgs calls on %d files; expected > %d",
@@ -73,18 +112,18 @@ func TestParseOnce(t *testing.T) {
 }
 
 func TestLinearOpCount(t *testing.T) {
-	t.Run("corpus validation scales linearly with corpus size", func(t *testing.T) {
+	t.Run("corpus validation scales linearly with refs", func(t *testing.T) {
 		nSmall := 50
 		nLarge := 100
 
 		dirSmall := t.TempDir()
-		makeCorpus(t, dirSmall, nSmall)
+		makeCorpusWithRefs(t, dirSmall, nSmall)
 		resetCorpusOpCount()
 		cmdCheck([]string{dirSmall})
 		countSmall := corpusOpCount
 
 		dirLarge := t.TempDir()
-		makeCorpus(t, dirLarge, nLarge)
+		makeCorpusWithRefs(t, dirLarge, nLarge)
 		resetCorpusOpCount()
 		cmdCheck([]string{dirLarge})
 		countLarge := corpusOpCount
@@ -94,43 +133,36 @@ func TestLinearOpCount(t *testing.T) {
 		}
 
 		ratio := float64(countLarge) / float64(countSmall)
-		// Linear: ratio should be ~2.0. Quadratic would give ~4.0.
-		// Allow 1.5–2.5 for linear; anything above 3.0 is clearly super-linear.
 		if ratio < 1.5 || ratio > 2.5 {
 			t.Errorf("corpus op-count ratio = %.2f (N=%d→%d ops, 2N=%d→%d ops); want ~2.0 for linear scaling",
 				ratio, nSmall, countSmall, nLarge, countLarge)
 		}
 	})
 
-	t.Run("negative control: quadratic validation trips the guard", func(t *testing.T) {
-		nSmall := 50
-		nLarge := 100
+	t.Run("negative control: quadratic ref fan-out trips the guard", func(t *testing.T) {
+		// A corpus where ticket i references all prior tickets has O(N²)
+		// total refs. The per-ref counters in validateCorpus and
+		// detectCycles produce a quadratic operation count, which the
+		// ratio test catches (ratio ≈ 4.0, well above the 2.5 ceiling).
+		nSmall := 30
+		nLarge := 60
 
 		dirSmall := t.TempDir()
-		makeCorpus(t, dirSmall, nSmall)
+		makeCorpusQuadraticRefs(t, dirSmall, nSmall)
+		resetCorpusOpCount()
+		cmdCheck([]string{dirSmall})
+		countSmall := corpusOpCount
 
 		dirLarge := t.TempDir()
-		makeCorpus(t, dirLarge, nLarge)
-
-		// Simulate O(N²): run validateCorpus N times per corpus
-		quadraticValidate := func(dir string) int {
-			tickets, parseErrs := loadErgs(dir)
-			cfg, _ := loadConfig(dir)
-			n := len(tickets)
-			resetCorpusOpCount()
-			for i := 0; i < n; i++ {
-				validateCorpus(tickets, parseErrs, cfg)
-			}
-			return corpusOpCount
-		}
-
-		countSmall := quadraticValidate(dirSmall)
-		countLarge := quadraticValidate(dirLarge)
+		makeCorpusQuadraticRefs(t, dirLarge, nLarge)
+		resetCorpusOpCount()
+		cmdCheck([]string{dirLarge})
+		countLarge := corpusOpCount
 
 		ratio := float64(countLarge) / float64(countSmall)
-		// With O(N²), ratio should be ~4.0 (or higher), well above the 2.5 ceiling
 		if ratio < 3.0 {
-			t.Errorf("negative control: ratio = %.2f, expected ≥3.0 for a quadratic validator", ratio)
+			t.Errorf("negative control: ratio = %.2f (N=%d→%d ops, 2N=%d→%d ops); expected ≥3.0 for quadratic ref fan-out",
+				ratio, nSmall, countSmall, nLarge, countLarge)
 		}
 	})
 }

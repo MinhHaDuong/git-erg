@@ -21,6 +21,7 @@ func detectCycles(tickets []Erg) []string {
 		}
 		var localRefs []string
 		for _, ref := range tickets[i].BlockedBys {
+			corpusOpCount++ // per-ref adjacency build
 			if ref.Kind == RefLocal {
 				localRefs = append(localRefs, ref.ID)
 			}
@@ -46,6 +47,7 @@ func detectCycles(tickets []Erg) []string {
 		color[node] = gray
 		stack = append(stack, node) // push
 		for _, neighbor := range adj[node] {
+			corpusOpCount++ // per-edge DFS visit
 			c, exists := color[neighbor]
 			if !exists {
 				continue
