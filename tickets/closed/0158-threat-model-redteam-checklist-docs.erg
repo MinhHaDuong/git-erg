@@ -2,11 +2,13 @@
 Title: Threat model doc, red-team checklist, opsec tier documentation
 Created: 2026-05-29
 Author: Claude
+Closed: autoclosed — PR #182
 
 --- log ---
 2026-05-29T14:00Z Claude created — child of 0151 (security audit); documentation deliverables
 2026-05-29T19:30Z Claude note dropped Blocked-by: 0151 — a child is not blocked by its parent tracker; the link lives in 0151's Children list + this log (child merges before the parent closes)
 
+2026-05-29T19:13Z MinhHaDuong closed — autoclosed — PR #182
 --- body ---
 ## Context
 
