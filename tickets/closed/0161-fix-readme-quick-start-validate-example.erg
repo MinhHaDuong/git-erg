@@ -2,10 +2,12 @@
 Title: Fix wrong erg validate example in README quick-start
 Created: 2026-05-29
 Author: Claude
+Closed: autoclosed — PR #180
 
 --- log ---
 2026-05-29T15:10Z Claude created — UX audit finding F01 (verified); first binary example is broken
 
+2026-05-29T18:58Z MinhHaDuong closed — autoclosed — PR #180
 --- body ---
 ## Context
 
