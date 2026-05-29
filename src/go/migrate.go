@@ -354,11 +354,15 @@ func migrateFile(path string) (migrateResult, error) {
 	if rejoined == original {
 		return res, nil
 	}
-	// Rewrite atomically (temp-then-rename) so an interrupted migrate never
-	// truncates a ticket. migrate is the one command that mutates ticket files
-	// without a resolved store root in hand, so it uses atomicWriteFile
-	// directly rather than writeTicketAtomic's confine+validate wrapper.
-	if err := atomicWriteFile(path, []byte(rejoined), 0644); err != nil {
+	// Rewrite through the shared audited path so migrate gets the same atomic
+	// replace + validate-before-replace as the other mutators. The store root
+	// is the file's own directory (migrate has no separately-resolved store in
+	// hand), so confinement is a no-op here; the value is the atomic temp-then-
+	// rename plus the guard that migrate never replaces a clean ticket with
+	// unparseable output. The validate gate does NOT block legitimate
+	// migrations: a legacy file (e.g. carrying a Status: header) is already
+	// invalid by current rules, so writeTicketAtomic permits rewriting it.
+	if err := writeTicketAtomic(filepath.Dir(path), path, []byte(rejoined)); err != nil {
 		return res, err
 	}
 	res.changed = true

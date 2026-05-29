@@ -9,6 +9,8 @@ Author: Claude
 2026-05-29T10:04Z Claude note finding mutations did not share one atomic-write path — only update.go used temp-then-rename; close/log/tag/untag/migrate used truncating os.WriteFile
 2026-05-29T10:04Z Claude note consolidated all ticket-file writes through writeTicketAtomic/atomicWriteFile (close, log, tag, untag, clearBlockedByRefs, migrateFile); archive uses atomic rename and new uses O_EXCL — no follow-up needed
 2026-05-29T10:04Z Claude delivered guard suite tests/test_datasafety.sh + src/go/atomicwrite_test.go, wired datasafety into make test; make test/validate green
+2026-05-29T12:03Z Claude note correction prior finding misstated update.go — it is the binary self-updater, not a ticket writer; the real gap was no shared atomic path for ticket files (close/log/tag/untag/migrate all used truncating os.WriteFile)
+2026-05-29T12:03Z Claude note review-panel fixes — validate-before-replace now refuses only when it would corrupt a clean ticket (was over-strict, regressed close edge-clearing); migrate routed through writeTicketAtomic; added parent-dir fsync after rename; O_EXCL no-clobber now unit-tested; lossless extended to close/tag/untag
 --- body ---
 ## Context
 
@@ -74,9 +76,14 @@ fail if its safety property is removed.
 - [x] Write-confinement enforced at runtime (mutations refuse an out-of-store
       target) and guarded with a negative control.
 - [x] Finding recorded on whether mutations share one atomic-write path; if
-      not, a follow-up to consolidate is filed. (They did not — only update.go
-      used temp+rename; consolidated into writeTicketAtomic/atomicWriteFile in
-      this ticket, so no follow-up is needed.)
+      not, a follow-up to consolidate is filed. (They did not — there was NO
+      shared atomic path for ticket files: close/log/tag/untag/migrate all used
+      truncating os.WriteFile. update.go does temp+rename but for the binary
+      self-update, not a ticket. Consolidated every ticket-file write — incl.
+      migrate, which now also validates-before-replace — into writeTicketAtomic/
+      atomicWriteFile; rm's delete is inherently atomic and its dependent-ref
+      cleanup goes through writeTicketAtomic; archive uses atomic rename; new
+      uses O_EXCL. So no follow-up is needed.)
 - [x] Wired into `make test`; `make test`/`make validate` green.
 
 ## Notes
@@ -84,3 +91,15 @@ fail if its safety property is removed.
 - This is the **never-lose-data** half of the dreamlist `audit security`
   line; the **never-leak-keys / red-team** half is 0151.
 - Pairs with the never-lose-data invariant now in AGENTS.md (the one job).
+- Verification notes (how each guard is actually exercised):
+  - Crash/interrupt safety is verified structurally, not by a real kill: the
+    inode-change assertion proves the writer never truncates in place (so a kill
+    before the rename leaves the old file, after it the new file). fsync of the
+    file and of the parent dir make the rename durable, but power-loss
+    durability is not simulated in CI.
+  - No-clobber's O_EXCL path is unit-tested directly via `createExclusive`
+    (new.go) — sequential collision, not a race; archive's destination-collision
+    refusal is the black-box half.
+  - Validate-before-replace refusal (clean ticket → invalid output) is
+    unit-tested; the shell suite locks the complementary direction (it must NOT
+    block a mutation on an already-invalid ticket).

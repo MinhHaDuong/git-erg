@@ -131,6 +131,58 @@ func TestWriteTicketAtomicRefusesInvalid(t *testing.T) {
 	}
 }
 
+// TestWriteTicketAtomicAllowsWhenOriginalInvalid locks the fix for the
+// over-strict gate: when the file on disk is ALREADY invalid, a mutation that
+// leaves it (still) invalid must succeed — the gate only protects clean
+// tickets. Negative control: a refuse-on-any-error gate fails this test, which
+// is exactly the regression that left dangling Blocked-by edges on dependents
+// carrying unrelated violations.
+func TestWriteTicketAtomicAllowsWhenOriginalInvalid(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "0001-x.erg")
+	// Original is invalid (unknown header) AND carries a Blocked-by edge.
+	original := strings.Replace(validTicket, "Author: claude\n", "Author: claude\nBogus: x\nBlocked-by: 0009\n", 1)
+	if _, errs := parseErgBytes([]byte(original), path); len(errs) == 0 {
+		t.Fatal("fixture precondition: original should be invalid")
+	}
+	if err := os.WriteFile(path, []byte(original), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// New content drops the Blocked-by line but is still invalid (Bogus stays).
+	updated := strings.Replace(original, "Blocked-by: 0009\n", "", 1)
+	if err := writeTicketAtomic(dir, path, []byte(updated)); err != nil {
+		t.Fatalf("writeTicketAtomic must allow a mutation on an already-invalid file: %v", err)
+	}
+	got, _ := os.ReadFile(path)
+	if strings.Contains(string(got), "Blocked-by: 0009") {
+		t.Fatal("mutation did not land — edge not cleared on the invalid dependent")
+	}
+}
+
+// TestCreateExclusiveNoClobber is the no-clobber guard with its negative
+// control: createExclusive (new's O_EXCL path) refuses to overwrite an existing
+// file and leaves its contents intact. Drop O_EXCL and the second call would
+// truncate/overwrite — failing this test.
+func TestCreateExclusiveNoClobber(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "0001-x.erg")
+
+	if err := createExclusive(path, "first\n"); err != nil {
+		t.Fatalf("first createExclusive: %v", err)
+	}
+	err := createExclusive(path, "second — must not land\n")
+	if err == nil {
+		t.Fatal("createExclusive overwrote an existing file (O_EXCL not enforced)")
+	}
+	if !os.IsExist(err) {
+		t.Fatalf("expected an already-exists error, got: %v", err)
+	}
+	got, _ := os.ReadFile(path)
+	if string(got) != "first\n" {
+		t.Fatalf("existing file was modified: %q", got)
+	}
+}
+
 // TestWriteTicketAtomicConfinement is the write-confinement guard with its
 // negative control: a target outside the resolved store is refused with
 // errOutsideStore and no file is created there. Remove the confinement check

@@ -36,7 +36,8 @@ type errOutsideStore struct {
 }
 
 func (e *errOutsideStore) Error() string {
-	return fmt.Sprintf("refusing to write %s: target is outside the ticket store %s", e.Target, e.Store)
+	return fmt.Sprintf("refusing to write %s: target is outside the ticket store %s "+
+		"(pass the directory that contains the file, or omit DIR to infer it)", e.Target, e.Store)
 }
 
 // withinStore reports whether target resolves inside storeRoot's subtree.
@@ -88,6 +89,12 @@ func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
 		tmp.Close()
 		return err
 	}
+	// CreateTemp makes the file 0600; restore the intended mode on the fd
+	// (before Close) so there is no path-based TOCTOU window.
+	if err := tmp.Chmod(perm); err != nil {
+		tmp.Close()
+		return err
+	}
 	// fsync the contents before the rename so the bytes are durable on disk,
 	// not just in the page cache, when the rename publishes them.
 	if err := tmp.Sync(); err != nil {
@@ -97,14 +104,20 @@ func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	// CreateTemp makes the file 0600; restore the intended mode before publish.
-	if err := os.Chmod(tmpName, perm); err != nil {
-		return err
-	}
 	if err := os.Rename(tmpName, path); err != nil {
 		return err
 	}
 	tmpName = "" // rename done — the temp is now the target; do not remove it
+
+	// fsync the parent directory so the rename itself is durable: without this,
+	// a crash just after the rename can lose the new directory entry on some
+	// filesystems and leave the old file. Best-effort — a dir that cannot be
+	// synced (or a platform that disallows it) must not fail an otherwise
+	// completed write.
+	if dirf, err := os.Open(dir); err == nil {
+		_ = dirf.Sync()
+		_ = dirf.Close()
+	}
 	return nil
 }
 
@@ -123,7 +136,25 @@ func writeTicketAtomic(storeRoot, path string, content []byte) error {
 		return &errOutsideStore{Target: path, Store: absStore}
 	}
 	if _, errs := parseErgBytes(content, path); len(errs) > 0 {
-		return fmt.Errorf("refusing to write invalid %%erg content to %s: %s", path, errs[0])
+		// Validate-before-replace guards against turning a GOOD ticket into a
+		// bad one — "never write garbage over a good ticket". It must not block
+		// a mutation on a ticket that was ALREADY invalid: e.g. close clearing a
+		// dangling Blocked-by from a dependent that carries an unrelated
+		// pre-existing rule violation must still succeed (otherwise the edge is
+		// left dangling and erg check flags it). So we refuse only when the file
+		// on disk currently parses clean — or does not exist, since creating a
+		// brand-new invalid ticket is never wanted either.
+		if old, readErr := os.ReadFile(path); readErr != nil || len(parseErgErrs(old, path)) == 0 {
+			return fmt.Errorf("refusing to write invalid %%erg content to %s: %s", path, errs[0])
+		}
 	}
 	return atomicWriteFile(path, content, 0644)
+}
+
+// parseErgErrs returns just the parse-time errors for content, discarding the
+// Erg — a small helper so writeTicketAtomic can ask "was the original clean?"
+// without naming the unused parse result.
+func parseErgErrs(content []byte, path string) []string {
+	_, errs := parseErgBytes(content, path)
+	return errs
 }

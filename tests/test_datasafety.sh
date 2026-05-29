@@ -39,14 +39,22 @@ Author: claude
 EOF
 }
 
-inode_of() { ls -i "$1" | awk '{print $1}'; }
+# Inode of a file. Prefer `stat -c %i` (GNU/BusyBox) for an unambiguous value;
+# fall back to `ls -i` where stat is absent.
+inode_of() { stat -c %i "$1" 2>/dev/null || ls -i "$1" | awk '{print $1}'; }
 
 # ---------------------------------------------------------------------------
 # Guard 1 — Atomic replace (temp-then-rename, never truncate-in-place).
 # Negative control: a temp+rename gives the file a NEW inode every mutation.
 # An in-place truncating writer keeps the same inode, failing this assertion.
-# Covers the crash-safety property too: until the rename, the original inode is
-# untouched, so a killed erg leaves the complete old file, never a partial one.
+#
+# This is also the structural basis for crash/interrupt safety: because the
+# target is replaced by rename and never opened for truncation, an erg killed
+# before the rename leaves the complete old file and one killed after leaves the
+# complete new file — never a truncated one. The inode change proves the no-in-
+# place-write property; it is a structural proxy, not a power-loss test (fsync
+# durability is implemented in atomicWriteFile but cannot be unit-tested without
+# simulating power loss).
 # ---------------------------------------------------------------------------
 WS="$FIXTURES/atomic"
 mkdir -p "$WS"
@@ -110,18 +118,14 @@ else
     fail "lossless: log line count $logcount_before → $logcount_after (expected +1)"
 fi
 
-# ---------------------------------------------------------------------------
-# Guard 3 — Validate-before-replace: a mutation that would leave the file
-# unparseable as %erg is refused and the original is left untouched.
-# Negative control: the duplicate-Title file is byte-identical after the
-# refused tag. Remove the validate gate and the bad file would be rewritten.
-# ---------------------------------------------------------------------------
-WS="$FIXTURES/validate"
-mkdir -p "$WS"
-cat > "$WS/0001-dup.erg" <<'EOF'
+# The property also holds for close/tag/untag — the other log/header mutators
+# (the ticket names "close/tag/untag/rm --force"). They funnel through the same
+# appendLogLine + writeTicketAtomic path; assert the body survives each.
+body_of() { awk '/^--- body ---$/{f=1;next} f' "$1"; }
+write_rt2() {
+    cat > "$WS/0002-rt.erg" <<'EOF'
 %erg 0.1
-Title: First
-Title: Second
+Title: Round trip two
 Created: 2026-01-01
 Author: claude
 
@@ -129,18 +133,68 @@ Author: claude
 2026-01-01T10:00Z claude created
 
 --- body ---
+## Body
+
+Verbatim    spacing and bullets:
+- one
+- two
 EOF
-cp "$WS/0001-dup.erg" "$WS/.snapshot"
-out=$($ERG tag 0001 needs-human "$WS" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "invalid %erg content"; then
-    pass "validate-before-replace: tag refuses to rewrite a file into invalid %erg"
+}
+write_rt2; want_body=$(body_of "$WS/0002-rt.erg")
+$ERG close 0002 "done" "$WS" >/dev/null 2>&1
+if [ "$want_body" = "$(body_of "$WS/0002-rt.erg")" ]; then
+    pass "lossless: body preserved verbatim across erg close"
 else
-    fail "validate-before-replace: tag should refuse invalid output (rc=$rc, got: $out)"
+    fail "lossless: body changed across erg close"
 fi
-if cmp -s "$WS/0001-dup.erg" "$WS/.snapshot"; then
-    pass "validate-before-replace: original left byte-for-byte intact after refusal"
+write_rt2; want_body=$(body_of "$WS/0002-rt.erg")
+$ERG tag 0002 needs-human "$WS" >/dev/null 2>&1
+$ERG untag 0002 needs-human "$WS" >/dev/null 2>&1
+if [ "$want_body" = "$(body_of "$WS/0002-rt.erg")" ]; then
+    pass "lossless: body preserved verbatim across erg tag + untag"
 else
-    fail "validate-before-replace: original was modified despite refusal"
+    fail "lossless: body changed across erg tag/untag"
+fi
+
+# ---------------------------------------------------------------------------
+# Guard 3 — Validate-before-replace (correct semantics).
+# The gate refuses a write only when it would turn a CLEAN ticket invalid —
+# "never write garbage over a good ticket". That refusal is unit-tested in
+# atomicwrite_test.go (TestWriteTicketAtomicRefusesInvalid): a CLI command never
+# produces invalid output from valid input, so the refusal cannot be triggered
+# black-box. Here we lock the complementary direction an over-strict first cut
+# got wrong — the gate must NOT block a mutation on an ALREADY-invalid ticket,
+# or close would leave a dangling Blocked-by on a dependent that carries an
+# unrelated pre-existing violation.
+# Negative control: a refuse-on-any-error gate leaves "Blocked-by: 0001" in the
+# (invalid) dependent, and erg check then flags the dangling ref.
+# ---------------------------------------------------------------------------
+WS="$FIXTURES/validate"
+mkdir -p "$WS"
+write_open "$WS/0001-blk.erg" "Blocker"
+cat > "$WS/0002-dep.erg" <<'EOF'
+%erg 0.1
+Title: Dependent
+Created: 2026-01-01
+Author: claude
+Bogus: x
+Blocked-by: 0001
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+if $ERG validate "$WS/0002-dep.erg" >/dev/null 2>&1; then
+    fail "validate-before-replace: fixture precondition — dependent should already be invalid"
+else
+    pass "validate-before-replace: fixture dependent is already invalid (unrelated violation)"
+fi
+$ERG close 0001 "done" "$WS" >/dev/null 2>&1
+if grep -q '^Blocked-by' "$WS/0002-dep.erg"; then
+    fail "validate-before-replace: gate over-blocked — dangling Blocked-by left on invalid dependent"
+else
+    pass "validate-before-replace: close still clears the edge on an already-invalid dependent"
 fi
 
 # ---------------------------------------------------------------------------

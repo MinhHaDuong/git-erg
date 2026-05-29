@@ -97,21 +97,28 @@ func cmdNew(args []string) int {
 	author := resolveAuthor()
 	content := fmt.Sprintf("%%erg 0.1\nTitle: %s\nCreated: %s\nAuthor: %s\n\n%s\n%s %s created\n\n%s\n", title, today, author, separatorLog, timestamp, author, separatorBody)
 
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
-	if err != nil {
+	if err := createExclusive(path, content); err != nil {
 		fmt.Fprintf(os.Stderr, "new: cannot create %s: %v\n", path, err)
-		return 1
-	}
-	if _, err := fmt.Fprint(f, content); err != nil {
-		f.Close()
-		fmt.Fprintf(os.Stderr, "new: cannot write %s: %v\n", path, err)
-		return 1
-	}
-	if err := f.Close(); err != nil {
-		fmt.Fprintf(os.Stderr, "new: cannot close %s: %v\n", path, err)
 		return 1
 	}
 
 	fmt.Printf("CREATED %s\n", filename)
 	return 0
+}
+
+// createExclusive writes content to a brand-new file at path, refusing to
+// touch an existing one. O_EXCL is the no-clobber guard: it never overwrites an
+// existing ID (a collision returns an error rather than truncating the file
+// already there), and it closes the race window between two concurrent `erg
+// new`/`next-id` invocations that computed the same ID.
+func createExclusive(path, content string) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprint(f, content); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }
