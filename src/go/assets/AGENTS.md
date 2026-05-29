@@ -25,7 +25,7 @@ We need exponential backoff with jitter, capped at 3 retries.
 
 ## Exit criteria
 - [ ] `client.Fetch()` retries up to 3 times on 5xx
-- [ ] Backoff is 1s, 2s, 4s + random jitter ≤  500ms
+- [ ] Backoff is 1s, 2s, 4s + random jitter less than 500ms
 - [ ] Unit test covers retry exhaustion path
 - [ ] `make check` passes
 ```
