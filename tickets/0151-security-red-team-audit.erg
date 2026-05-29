@@ -14,6 +14,7 @@ Tag: needs-human
 2026-05-29T11:10Z Claude note infrastructure-class design audit (docs/audit-infrastructure-class.md): committing the binary is the single decision that confers infrastructure-class status; the do-not-require-Go / adoption-first decision keeps that binary, so these controls (reproducible build + signed tags) are OBLIGATORY, not precautionary. The vendor-and-rebuild alternative would shed the class but requires Go on every box — rejected for adoption reasons.
 
 2026-05-29T13:45Z Claude note raid-151 split: children 0155-0158 (automatable subset); human-gated items stay on 0151
+2026-05-29T19:14Z Claude note raid-151 done: children 0155-0158 all merged (#170/#171/#172/#182). 8/9 exit criteria addressed; only signed release tags (git tag -s) remains — DEFERRED-human (needs maintainer GPG key). 0151 stays open for that.
 --- body ---
 ## Context
 
@@ -114,24 +115,32 @@ repos, so "low" is rarely low.
 
 ## Exit criteria
 
-- [ ] Maximal threat model documented (supply-chain framing + severity
-      multiplier).
-- [ ] Committed `tickets/erg` is byte-reproducible from source; a CI check
-      rebuilds the recorded revision and diffs it (reusing `selfHash`).
-- [ ] `erg version` names the algorithm (SHA-256) and exposes the full digest;
-      the displayed hash is recomputable with stock tools.
+- [x] Maximal threat model documented (supply-chain framing + severity
+      multiplier). — 0158: docs/threat-model.md
+- [x] Committed `tickets/erg` is byte-reproducible from source; a CI check
+      rebuilds the recorded revision and diffs it (reusing `selfHash`). — 0156:
+      `make verify` (wired into `make test` → CI; fetch-depth:0 so the embedded
+      revision is present).
+- [x] `erg version` names the algorithm (SHA-256) and exposes the full digest;
+      the displayed hash is recomputable with stock tools. — 0155.
 - [ ] Release tags are signed (git-native `git tag -s`) and the verify step
       (`git verify-tag`) is documented — this is the trustable publication.
-      No bespoke manifest/revocation (0153 closed YAGNI).
-- [ ] Local + offline advanced path: `make verify` rebuilds the recorded
-      revision and diffs against the committed binary (git+go only, no network).
-- [ ] Both opsec tiers are documented and the user is kindly pointed at them
-      (cluestick), not left to find them.
-- [ ] Falsifiable hardening tests in CI (path-traversal, input-DoS,
-      update-integrity), each with a negative control.
-- [ ] An AI-assisted red-team checklist exists and has run once; the process
-      + cadence are documented so it re-runs — not one-and-done.
-- [ ] Findings recorded; high-severity items filed as fix tickets.
+      No bespoke manifest/revocation (0153 closed YAGNI). — **DEFERRED (human):
+      needs a maintainer GPG key; this is the sole open item keeping 0151 open.**
+- [x] Local + offline advanced path: `make verify` rebuilds the recorded
+      revision and diffs against the committed binary (git+go only, no network). — 0156.
+- [x] Both opsec tiers are documented and the user is kindly pointed at them
+      (cluestick), not left to find them. — 0155 (`verify:` hint) + 0158 (README
+      "Verifying the binary").
+- [x] Falsifiable hardening tests in CI (path-traversal, input-DoS,
+      update-integrity), each with a negative control. — 0157 (`test_security.sh`,
+      26 checks; update-integrity already in `test_update.sh`).
+- [x] An AI-assisted red-team checklist exists and has run once; the process
+      + cadence are documented so it re-runs — not one-and-done. — 0158:
+      docs/red-team-checklist.md with a dated run log.
+- [x] Findings recorded; high-severity items filed as fix tickets. — 0158 run
+      log: zero high-severity (the rm/new confinement gaps the audit found were
+      fixed in 0157, not deferred).
 
 ## Children (automatable subset — raid 151)
 
