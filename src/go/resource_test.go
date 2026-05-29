@@ -91,7 +91,9 @@ func TestScalingFDHygiene(t *testing.T) {
 			var before, after int
 			withDiscardedStdout(t, func() {
 				before = openFDCount(t)
-				c.invoke(dir)
+				if ret := c.invoke(dir); ret != 0 {
+					t.Fatalf("%s returned non-zero exit %d — fd-hygiene signal is untrustworthy", c.name, ret)
+				}
 				after = openFDCount(t)
 			})
 			if after > before {
