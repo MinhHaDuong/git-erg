@@ -55,6 +55,7 @@ in fresh temp directories. Findings independently verified where marked.
 
 ### F07 — AGENTS.md (init-unpacked) omits close command and pick-work workflow
 - **Personas**: agent
+- **Verified**: yes (grep confirms zero mentions of `erg close` or `erg ready` in init-unpacked AGENTS.md)
 - **Actual**: agent-facing AGENTS.md mentions log format, Blocked-by, and tag vocabulary but never shows `erg close ID REASON` signature or `erg ready` for work-picking. First close attempt always errors.
 - **Draft severity**: P1
 
@@ -75,6 +76,7 @@ in fresh temp directories. Findings independently verified where marked.
 
 ### F11 — Pre-commit hook hard-fails without binary
 - **Personas**: beginner, expert
+- **Verified**: yes (integration.md line 36: `exit 1` on missing binary)
 - **Actual**: Hook in integration.md exits 1 with "Run `make build` first" when binary is absent. Contradicts README's "POSIX path works without binary."
 - **Draft severity**: P1
 
@@ -110,6 +112,7 @@ in fresh temp directories. Findings independently verified where marked.
 
 ### F18 — Pre-commit hook uses tickets/erg but `make build` produces build/erg
 - **Personas**: developer
+- **Verified**: yes (integration.md line 27: `erg_bin="tickets/erg"`)
 - **Actual**: hook error says "Run `make build` first" but make build won't fix it (wrong path). Contradicts AGENTS.md rule 7 (tests must use build/erg).
 - **Draft severity**: P1
 
@@ -144,7 +147,7 @@ in fresh temp directories. Findings independently verified where marked.
 | Draft severity | Count | Verified bugs | Friction items |
 |----------------|-------|---------------|----------------|
 | P0             | 0     | —             | —              |
-| P1             | 9     | F01, F02, F03 | F07, F10, F11, F16, F17, F18 |
+| P1             | 9     | F01, F02, F03, F07, F11, F18 | F10, F16, F17 |
 | P2             | 10    | —             | F04,F06,F08,F09,F12,F13,F15,F19,F20,F21 |
 | P3             | 3     | —             | F05, F14, F22  |
 
