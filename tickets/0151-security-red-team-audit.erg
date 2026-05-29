@@ -11,6 +11,7 @@ Tag: needs-human
 2026-05-29T10:10Z Claude note clarified the displayed-hash intent — (1) keep a widely-available algorithm (SHA-256, stock tools), name it and expose the full digest; (2) kindly teach two opsec tiers: basic = local vs self-reported vs published hash; advanced = AI-review source, rebuild, hash that
 2026-05-29T10:25Z Claude note tier (a) needs a trustable SIGNED publication, not a bare hash, plus deprecate-old + revoke-compromised lifecycle — split to 0153 (needs-human; key management). Reproducibility answers "real binary?"; signed manifest answers "still safe?"
 2026-05-29T10:40Z Claude note dropped the bespoke route — 0153 closed YAGNI. Basic-tier trust = git-native signed release tags (how git/Junio Hamano do it: tag -s / verify-tag); revocation, if ever needed, = key revocation + advisory + new release, not a polled list.
+2026-05-29T11:10Z Claude note infrastructure-class design audit (docs/audit-infrastructure-class.md): committing the binary is the single decision that confers infrastructure-class status; the do-not-require-Go / adoption-first decision keeps that binary, so these controls (reproducible build + signed tags) are OBLIGATORY, not precautionary. The vendor-and-rebuild alternative would shed the class but requires Go on every box — rejected for adoption reasons.
 
 --- body ---
 ## Context

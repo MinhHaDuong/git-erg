@@ -152,9 +152,19 @@ Dependencies on ticket ID will be automatically cleared by `tickets/erg close ID
 
 ## Binary policy
 
-`tickets/erg` is a committed Linux x86-64 bootstrap binary for environments where Go may be unavailable (CI runners, agents). I look forward to working with macOS, ARM or Windows early adopters.
+**Source is primary; the committed binary is an optional cache.** The
+authoritative artifact is `src/go/`, which travels in every clone. `tickets/erg`
+is a committed Linux x86-64 bootstrap *convenience* for environments where Go
+may be unavailable (CI runners, agents) and where the POSIX path isn't enough —
+it is reproducibly buildable from the vendored source, not a separate source of
+trust. (Rationale and the supply-chain trade-offs: `docs/audit-infrastructure-class.md`.)
+I look forward to working with macOS, ARM or Windows early adopters.
 
-Source lives in `src/go/`. CI builds always compile from source and do not rely on the committed binary: all tests and development builds must use `build/erg`, rebuilt from source via `make build`.
+Because the binary is a cache of the source, anyone can rebuild it bit-for-bit
+and verify the committed blob matches — that reproducibility is what lets us
+ship it at all (see the security controls in ticket 0151). CI builds always
+compile from source and do not rely on the committed binary: all tests and
+development builds must use `build/erg`, rebuilt from source via `make build`.
 
 The bootstrap binary is updated explicitly via `make update-bootstrap-binary`
 (typically after changes to the Go code or when releasing) and must never be
