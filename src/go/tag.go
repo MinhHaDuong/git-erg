@@ -99,7 +99,7 @@ func cmdTag(args []string) int {
 	content = appendLogLine(content, logLine)
 	content = string(collapseHeaderBlanks([]byte(content)))
 
-	if err := os.WriteFile(ticketPath, []byte(content), 0644); err != nil {
+	if err := writeTicketAtomic(ticketDir, ticketPath, []byte(content)); err != nil {
 		fmt.Fprintf(os.Stderr, "tag: cannot write %s: %v\n", ticketPath, err)
 		return 1
 	}
@@ -174,7 +174,7 @@ func cmdUntag(args []string) int {
 	content = appendLogLine(content, logLine)
 	content = string(collapseHeaderBlanks([]byte(content)))
 
-	if err := os.WriteFile(ticketPath, []byte(content), 0644); err != nil {
+	if err := writeTicketAtomic(ticketDir, ticketPath, []byte(content)); err != nil {
 		fmt.Fprintf(os.Stderr, "untag: cannot write %s: %v\n", ticketPath, err)
 		return 1
 	}

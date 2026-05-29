@@ -86,7 +86,7 @@ func cmdLog(args []string) int {
 
 	content := appendLogLine(string(data), logLine)
 
-	if err := os.WriteFile(ticketPath, []byte(content), 0644); err != nil {
+	if err := writeTicketAtomic(ticketDir, ticketPath, []byte(content)); err != nil {
 		fmt.Fprintf(os.Stderr, "log: cannot write %s: %v\n", ticketPath, err)
 		return 1
 	}

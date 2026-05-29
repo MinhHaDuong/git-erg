@@ -354,7 +354,11 @@ func migrateFile(path string) (migrateResult, error) {
 	if rejoined == original {
 		return res, nil
 	}
-	if err := os.WriteFile(path, []byte(rejoined), 0644); err != nil {
+	// Rewrite atomically (temp-then-rename) so an interrupted migrate never
+	// truncates a ticket. migrate is the one command that mutates ticket files
+	// without a resolved store root in hand, so it uses atomicWriteFile
+	// directly rather than writeTicketAtomic's confine+validate wrapper.
+	if err := atomicWriteFile(path, []byte(rejoined), 0644); err != nil {
 		return res, err
 	}
 	res.changed = true

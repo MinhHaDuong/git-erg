@@ -6,7 +6,9 @@ Author: Claude
 --- log ---
 2026-05-29T09:00Z Claude created — never-lose-data promoted to a first-class invariant; this is its guard suite
 2026-05-29T09:40Z Claude note added write-confinement rail — erg confines writes to the resolved store (fail-safe against user errors and eager agents, can be removed); behaviour + guard
-
+2026-05-29T10:04Z Claude note finding mutations did not share one atomic-write path — only update.go used temp-then-rename; close/log/tag/untag/migrate used truncating os.WriteFile
+2026-05-29T10:04Z Claude note consolidated all ticket-file writes through writeTicketAtomic/atomicWriteFile (close, log, tag, untag, clearBlockedByRefs, migrateFile); archive uses atomic rename and new uses O_EXCL — no follow-up needed
+2026-05-29T10:04Z Claude delivered guard suite tests/test_datasafety.sh + src/go/atomicwrite_test.go, wired datasafety into make test; make test/validate green
 --- body ---
 ## Context
 
@@ -66,14 +68,16 @@ fail if its safety property is removed.
 
 ## Exit criteria
 
-- [ ] Falsifiable guard per property (atomic, validate-before-replace,
+- [x] Falsifiable guard per property (atomic, validate-before-replace,
       lossless round-trip, no-clobber, crash-safety, DAG), each with a
       negative control.
-- [ ] Write-confinement enforced at runtime (mutations refuse an out-of-store
+- [x] Write-confinement enforced at runtime (mutations refuse an out-of-store
       target) and guarded with a negative control.
-- [ ] Finding recorded on whether mutations share one atomic-write path; if
-      not, a follow-up to consolidate is filed.
-- [ ] Wired into `make test`; `make test`/`make validate` green.
+- [x] Finding recorded on whether mutations share one atomic-write path; if
+      not, a follow-up to consolidate is filed. (They did not — only update.go
+      used temp+rename; consolidated into writeTicketAtomic/atomicWriteFile in
+      this ticket, so no follow-up is needed.)
+- [x] Wired into `make test`; `make test`/`make validate` green.
 
 ## Notes
 
