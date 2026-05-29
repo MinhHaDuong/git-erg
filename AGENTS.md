@@ -62,7 +62,10 @@ closed by a one-shot audit; they drift as the tool changes. They need a
 legwork (red-team passes, persona dry-runs), a falsifiable subset runs in CI,
 and humans gate the findings (0151 security, 0152 UX). For a binary embarked
 in thousands of repos, the security bar is maximal — supply-chain and mass-RCE
-class — and reproducible builds are the keystone control.
+class — and reproducible builds are the keystone control, **verifiable locally
+and offline** (rebuild the in-repo `src/go/` with git+go; no phone-home) and
+made discoverable (`make verify`, an `erg version` hint) so users actually
+run it.
 
 Simplicity is a feature, and declining is legitimate work. Closing a ticket
 as YAGNI (0131), reducing a command to a thin alias (0144), or saying "no"

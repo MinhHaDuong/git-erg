@@ -7,6 +7,7 @@ Tag: needs-human
 --- log ---
 2026-05-29T09:00Z Claude created — "resists red team" is a posture, not a checkmark; needs-human
 2026-05-29T09:20Z Claude note reframed — standing AI-assisted QA process (not one-shot); threat model maxed for a binary embarked in thousands of repos (supply-chain + mass-RCE); reproducible builds added as the keystone control
+2026-05-29T09:55Z Claude note verification must be local + offline (rebuild the in-repo src/go with git+go, no phone-home) and discoverable — make verify + erg version hint, documented; cluestick the user
 
 --- body ---
 ## Context
@@ -37,6 +38,15 @@ threat-model changes.
   + the build revision (`selfHash`, `version.go`), and `update` already
   hash-compares — reproducibility turns that self-reported hash into a
   *verifiable attestation* (rebuild the recorded revision, confirm the hash).
+  Crucially this must be **verifiable locally and offline**: `src/go/` travels
+  in the repo and `git`+`go` are the only tools needed, so a user rebuilds and
+  compares on their own machine — no trust in a remote, no phone-home
+  (on-brand with offline/standalone). And it must be **discoverable — hit the
+  user with a cluestick**: ship a `make verify` target (rebuild the recorded
+  revision, diff against the committed binary / `erg version` hash) and have
+  `erg version` print a one-line "verify: make verify" hint, documented in
+  README / integration.md. Verification nobody can find is verification nobody
+  runs.
 - **Update channel.** `erg update` (today `net/http`; 0148 → `git fetch`)
   must not be coercible into installing an attacker binary — integrity
   (hash/signature), trusted origin, no silent downgrade / MITM. A compromised
@@ -70,8 +80,9 @@ repos, so "low" is rarely low.
 ## Relevant files
 
 - Reproducibility: `Makefile` build flags (0147 — pinned Go, `CGO_ENABLED=0
-  -trimpath`), CI rebuild + diff, and `version.go`/`update.go` (`selfHash` —
-  the existing hash print to verify against).
+  -trimpath`), a `make verify` target, CI rebuild + diff, `version.go`/
+  `update.go` (`selfHash` — the existing hash to verify against), and
+  README / integration.md (the documented local one-liner + the cluestick).
 - Parser + ref resolution: `erg.go`, `ref.go`, `main.go`
   (`resolveDir`/`resolveTicketByID`).
 - Path construction: `new.go`, `rm.go`, `archive.go`.
@@ -84,6 +95,11 @@ repos, so "low" is rarely low.
 - [ ] Committed `tickets/erg` is byte-reproducible from source; a CI check
       rebuilds the recorded revision and diffs it (and the `erg version` hash
       matches — reusing the existing `selfHash`, not new machinery).
+- [ ] Local + offline verification: `make verify` rebuilds the recorded
+      revision and diffs against the committed binary, using only git+go, no
+      network.
+- [ ] Discoverable: `erg version` points to it and README/integration.md
+      document the one-liner (cluestick the user, don't hide it).
 - [ ] Falsifiable hardening tests in CI (path-traversal, input-DoS,
       update-integrity), each with a negative control.
 - [ ] An AI-assisted red-team checklist exists and has run once; the process
