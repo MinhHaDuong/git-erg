@@ -81,7 +81,7 @@ verify: ## Rebuild tickets/erg from its embedded revision and byte-diff it
 	if ! git -C $$WORKDIR checkout --quiet $$REVISION 2>/dev/null; then \
 		rm -rf $$WORKDIR; \
 		echo "verify: SKIP — revision $$REVISION not present in this clone (shallow checkout? run 'git fetch --unshallow' or set fetch-depth: 0 in CI)"; \
-		exit 0; \
+		exit 1; \
 	fi; \
 	( cd $$WORKDIR/src/go && $(GO_BUILD_ENV) GOTOOLCHAIN=$$GOTC go build $(GO_BUILD_FLAGS) \
 		-ldflags "-s -w -X main.buildDate=$$BUILD_DATE -X main.vcsRevision=$$REVISION" \
