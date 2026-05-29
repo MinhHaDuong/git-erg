@@ -1,0 +1,81 @@
+%erg 0.1
+Title: Fix wrong erg validate example in README quick-start
+Created: 2026-05-29
+Author: Claude
+
+--- log ---
+2026-05-29T15:10Z Claude created — UX audit finding F01 (verified); first binary example is broken
+
+--- body ---
+## Context
+
+The UX audit (0152, PR #174) found that the README's "Quick start (with
+the erg binary)" section gives a broken first example. README line ~119
+shows:
+
+```
+tickets/erg validate 01
+```
+
+`erg validate` takes file *paths*, not IDs. Running it produces:
+
+```
+WARNING: skipping 01 (stat 01: no such file or directory)
+No .erg files found.
+```
+
+and exits 0 — so it *looks* like validation passed when nothing was
+validated. This is the first command a user runs after installing the
+binary, and it silently does nothing. Found independently by the beginner
+and expert personas; reproduced.
+
+## Relevant files
+
+- `README.md` — the "Quick start (with the erg binary)" section (~line 117)
+- `tests/test_docs.sh` — doc-consistency tests (candidate guard location)
+
+## Actions
+
+1. Change the README example to a working invocation that validates the
+   ticket created by the zero-install demo, e.g.:
+   `tickets/erg validate tickets/0001-add-auth.erg`
+   (or `tickets/erg check tickets/` for directory-level validation —
+   pick whichever the surrounding prose intends).
+2. Scan the README for any other `validate <ID>` style examples and fix
+   them in the same commit (rename/refactor sweep over the doc section).
+
+## Test
+
+Add a guard (in `tests/test_docs.sh` or `test_ux.sh`) that extracts the
+`erg validate` example from README and asserts it does not pass a bare
+2-digit ID. Source-inspection form (no subprocess):
+
+```sh
+if grep -Eq 'erg validate [0-9]{1,3}( |$)' README.md; then
+    fail "README has an erg validate example with a bare ID (takes paths)"
+else
+    pass "README erg validate examples use file paths"
+fi
+```
+
+Catches the wrong implementation (bare-ID example), not merely a
+different wording.
+
+## Verification
+
+- [ ] README quick-start `validate` example uses a real file path
+- [ ] The corrected command actually validates the demo ticket (exit 0,
+      reports a file checked)
+- [ ] No remaining `validate <ID>` examples in README
+- [ ] Guard test fails against the pre-fix README, passes after
+
+## Invariants
+
+- Keep the quick-start consistent with the zero-install demo above it
+  (the file it validates must be the one the demo creates).
+- `make test` / `make validate` stay green.
+
+## Exit criteria
+
+- The README's first binary example is a working command, and a test
+  guards against bare-ID `validate` examples returning.
