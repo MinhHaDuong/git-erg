@@ -140,7 +140,7 @@ func clearBlockedByRefs(ticketDir, targetID, logLine string, includeClosed bool)
 		}
 		found := false
 		for _, ref := range t.BlockedBys {
-			if ref.ID == targetID || ref.Raw == targetID {
+			if ref.MatchesLocalID(targetID) {
 				found = true
 				break
 			}
@@ -172,8 +172,10 @@ func removeBlockedByLine(content, id string) string {
 	lines := strings.Split(content, "\n")
 	out := make([]string, 0, len(lines))
 	for _, line := range lines {
-		if key, val, ok := parseHeaderLine(line); ok && key == "Blocked-by" && val == id {
-			continue
+		if key, val, ok := parseHeaderLine(line); ok && key == "Blocked-by" {
+			if ref, err := parseRef(val); err == nil && ref.MatchesLocalID(id) {
+				continue
+			}
 		}
 		out = append(out, line)
 	}

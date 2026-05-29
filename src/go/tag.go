@@ -183,14 +183,18 @@ func cmdUntag(args []string) int {
 	return 0
 }
 
-// removeTagLine removes "Tag: <tag>" header lines from content.
+// removeTagLine removes Tag header lines whose value equals tag. It parses
+// each line with parseHeaderLine — the same parser that populated Erg.Tags for
+// cmdUntag's idempotency check — so detection ("ticket has this tag") and
+// removal ("strip this Tag line") agree on every tolerated spelling
+// (e.g. "Tag : deferred" with whitespace before the colon). Matching the full
+// trimmed value also means untagging "deferred" never strikes a different
+// "Tag: deferred-soon" line.
 func removeTagLine(content, tag string) string {
 	lines := strings.Split(content, "\n")
-	prefix := "Tag: " + tag
-	var out []string
+	out := make([]string, 0, len(lines))
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == prefix || strings.HasPrefix(trimmed, prefix+" ") {
+		if key, val, ok := parseHeaderLine(line); ok && key == "Tag" && val == tag {
 			continue
 		}
 		out = append(out, line)

@@ -123,6 +123,21 @@ func titleStatusEdgeWord(title string) (word, position string, bad bool) {
 	return "", "", false
 }
 
+// titleStatusWordMessage returns the rule-14 violation message for title, or
+// ("", false) when the Title is acceptable. The message names the offending
+// word and edge; callers prefix it with their own location/context so the
+// wording stays identical across `erg validate`/`erg check` (parseErgBytes)
+// and the `erg new` creation-time guard — one definition, no drift.
+func titleStatusWordMessage(title string) (string, bool) {
+	word, pos, bad := titleStatusEdgeWord(title)
+	if !bad {
+		return "", false
+	}
+	return fmt.Sprintf(
+		"Title %s status word '%s' — reserved for ticket status; rephrase so the Title does not start or end with: closed, done, open, ready",
+		pos, word), true
+}
+
 // parseHeaderLine extracts "Key: value" from a line. Accepts both "Key:"
 // and "Key :" (whitespace before colon is tolerated). Both key and value
 // are trimmed of surrounding whitespace before return.
@@ -438,10 +453,8 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	// changed (ticket 0145). Closed tickets are grandfathered: the rule is
 	// enforced on open + new only, so existing closed history is never broken.
 	if title != "" && !(pathIsClosed(path) || closed != "") {
-		if word, pos, bad := titleStatusEdgeWord(title); bad {
-			errs = append(errs, fmt.Sprintf(
-				"%s:%d: Title %s status word '%s' — reserved for ticket status; rephrase so the Title does not start or end with: closed, done, open, ready",
-				name, titleLine, pos, word))
+		if msg, bad := titleStatusWordMessage(title); bad {
+			errs = append(errs, fmt.Sprintf("%s:%d: %s", name, titleLine, msg))
 		}
 	}
 

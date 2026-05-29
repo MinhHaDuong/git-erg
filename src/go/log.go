@@ -75,6 +75,15 @@ func cmdLog(args []string) int {
 	now := time.Now().UTC().Format("2006-01-02T15:04Z")
 	logLine := now + " " + line
 
+	// A state-altering command must never write a line the validator rejects.
+	// The timestamp is ours; reuse logLineRE (rule 11's source of truth) to
+	// confirm LINE supplies at least an actor and a verb before we commit it.
+	if !logLineRE.MatchString(logLine) {
+		fmt.Fprintf(os.Stderr,
+			"log: %q is not a valid log entry — LINE must be 'actor verb [detail]' (at least two words)\n", line)
+		return 1
+	}
+
 	content := appendLogLine(string(data), logLine)
 
 	if err := os.WriteFile(ticketPath, []byte(content), 0644); err != nil {

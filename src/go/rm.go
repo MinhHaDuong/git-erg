@@ -117,7 +117,7 @@ func cmdRm(args []string) int {
 			continue
 		}
 		for _, ref := range t.BlockedBys {
-			if ref.Kind == RefLocal && ref.ID == targetID {
+			if ref.MatchesLocalID(targetID) {
 				dependents = append(dependents, t.Filename())
 				break
 			}

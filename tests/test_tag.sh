@@ -229,5 +229,26 @@ else
     pass "tagged file no longer warns on interior header blank"
 fi
 
+# --- untag removes the parser-tolerated 'Tag : value' (whitespace before colon) ---
+# Detection (Erg.Tags) and removal (removeTagLine) must agree on this spelling.
+cat > "$FIXTURES/7011-ws-tag.erg" <<'EOF'
+%erg 0.1
+Title: Whitespace before colon
+Created: 2026-01-01
+Author: claude
+Tag : needs-human
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+OUT=$($ERG untag 7011 needs-human "$FIXTURES")
+if [ "$OUT" = "UNTAGGED" ] && ! grep -Eq "^Tag" "$FIXTURES/7011-ws-tag.erg"; then
+    pass "untag removes whitespace-before-colon Tag line"
+else
+    fail "untag removes whitespace-before-colon Tag line (out=$OUT, left: $(grep -E '^Tag' "$FIXTURES/7011-ws-tag.erg"))"
+fi
+
 echo "tag: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
