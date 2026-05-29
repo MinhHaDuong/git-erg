@@ -136,6 +136,31 @@ func TestWriteTicketAtomicPreservesExistingMode(t *testing.T) {
 	}
 }
 
+// TestAtomicWriteFileRefusesReadOnlyTarget locks the permission contract: a
+// read-only existing target is NOT silently replaced (a bare temp+rename would
+// succeed since it only needs a writable directory). Skipped as root, which
+// bypasses file-permission bits — matching the close suite's own root skip.
+func TestAtomicWriteFileRefusesReadOnlyTarget(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses file permissions; this path only exercises unprivileged")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "0001-x.erg")
+	if err := os.WriteFile(path, []byte("original\n"), 0444); err != nil {
+		t.Fatal(err)
+	}
+	if err := atomicWriteFile(path, []byte("replacement — must not land\n"), 0644); err == nil {
+		t.Fatal("expected atomicWriteFile to refuse a read-only target")
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "original\n" {
+		t.Fatalf("read-only target was modified: %q", got)
+	}
+}
+
 // TestWriteTicketAtomicRefusesInvalid is the validate-before-replace guard with
 // its negative control: writing content that no longer parses as %erg is
 // refused and the good original is left byte-for-byte intact. Remove the

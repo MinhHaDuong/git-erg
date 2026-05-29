@@ -76,6 +76,20 @@ func withinStore(storeRoot, target string) (bool, error) {
 // temp from an earlier crash is never silently reused. On any failure the temp
 // is removed and the original (if any) is left untouched.
 func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
+	// Respect the target's existing writability. A temp+rename only needs a
+	// writable *directory*, so without this probe a read-only ticket (mode
+	// 0444, or one the caller lacks write permission on) could still be
+	// replaced — a surprising change from the os.WriteFile call this path
+	// replaced, and a bypass of a deliberate read-only marking. Probe the real
+	// file with O_WRONLY (no O_TRUNC, so nothing is modified) and refuse if it
+	// is not writable; a non-existent target is fine (we are creating it). This
+	// reproduces the prior contract exactly, including root bypassing the check.
+	if f, err := os.OpenFile(path, os.O_WRONLY, 0); err == nil {
+		f.Close()
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
 	dir := filepath.Dir(path)
 	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp-*")
 	if err != nil {
