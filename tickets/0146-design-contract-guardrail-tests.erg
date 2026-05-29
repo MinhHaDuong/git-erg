@@ -10,6 +10,7 @@ Author: Claude
 2026-05-29T08:30Z Claude note split into independent work — build hardening → 0147 (Blocked-by); self-update via git fetch → 0148 (needs-human). This ticket is now just the guard tests. AGENTS six-invariants + pep §10 why-Go rationale already landed on this branch.
 
 2026-05-29T09:46Z Claude note blocker 0147 closed — Blocked-by removed.
+2026-05-29T12:25Z Claude note ratcheted small-ceiling 10MB->5MB; shipped ~2.4MB after 0147 (strip) + 0148 (drop net/http) — 5MB keeps comfortable headroom while tripping on real bloat
 --- body ---
 ## Context
 
@@ -45,7 +46,9 @@ dependencies, and deterministic (no flaky wall-clock in the blocking path).
   top 132 KB (all dynamic, libc offloaded), git 3.9 MB / git-core 11 MB. erg
   is mid-pack vs its real peer git; its ~6 MB is the Go runtime *floor* (zero
   third-party deps), not bloat. The size ceiling guards step-changes above
-  that floor, not normal drift. Reference for the "small" ceiling: **10 MB**.
+  that floor, not normal drift. Reference for the "small" ceiling: **5 MB**
+  (ratcheted from 10 MB on 2026-05-29 once 0147+0148 landed and cut the
+  shipped binary to ~2.4 MB — see the size-ceiling guard below).
 
 ## The six guards
 
@@ -112,10 +115,11 @@ rebuild-blob pays for it). Two facets:
 - *Zero third-party deps (root cause, blocking):* this is the standalone
   Guard A — third-party packages are what actually move binary size; keeping
   go.mod stdlib-only is the real size discipline.
-- *Size ceiling (backstop, blocking):* assert built binary ≤ **10 MB**.
-  Shipped size is ~6.2 MB (static + stripped), so 10 MB is comfortable
-  headroom that absorbs Go-version drift yet trips immediately on a fat dep
-  or embedded asset. The ceiling guards a *step-change* above the Go runtime
+- *Size ceiling (backstop, blocking):* assert built binary ≤ **5 MB**.
+  Shipped size is ~2.4 MB (static + stripped, and smaller since 0148 dropped
+  net/http and its cgo DNS resolver), so 5 MB is comfortable headroom that
+  absorbs Go-version drift yet trips immediately on a fat dep or embedded
+  asset. The ceiling guards a *step-change* above the Go runtime
   floor — it does **not** chase the C tools' KB range (unreachable in Go;
   that would be a re-platform, see Notes), it prevents regression.
 
@@ -147,7 +151,7 @@ rebuild-blob pays for it). Two facets:
 2. **fast / small guards** — RESOLVED: fast = deterministic op-count guards
    (parse-once + linear N-vs-2N) blocking, plus a generous non-flaky
    wall-clock backstop ("raise, don't delete"). small = zero-dep (root
-   cause) + a **10 MB** ceiling (shipped ~6.2 MB). Essential contracts for
+   cause) + a **5 MB** ceiling (shipped ~2.4 MB after 0147+0148). Essential contracts for
    an invoked, committed-to-repo tool, not budgets.
 3. **Invariant vocabulary** — RESOLVED and **done on this branch**: AGENTS.md
    now lists *fast* and *small* as first-class — six equals.
@@ -173,7 +177,7 @@ rebuild-blob pays for it). Two facets:
 - [ ] fast guards are deterministic and blocking (parse-once + linear
       N-vs-2N op-count); any wall-clock check is a generous non-flaky
       backstop. Never flakes CI.
-- [ ] small guard enforces the **10 MB** ceiling (with zero-dep as the
+- [ ] small guard enforces the **5 MB** ceiling (with zero-dep as the
       root-cause guard); negative control proves it trips on bloat.
 - [ ] Suite runs offline with **no new deps**; `ldd`/namespace bits skip
       gracefully when absent.
