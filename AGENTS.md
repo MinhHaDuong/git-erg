@@ -4,6 +4,43 @@ This file defines stable operating policy for autonomous agent runs.
 Operational snapshot (ready/blocked/sequencing) lives in `STATE.md`.
 Policy changes belong here; `STATE.md` should remain status-only.
 
+## Earning a feature
+
+A feature is **pulled by verified empirical need, not pushed from a
+wishlist.** The default answer to "should we build this?" is *no*. The
+burden of proof is on adding, never on deferring. An idea that has sat on
+the `STATE.md` dreamlist is there on merit until evidence moves it — being
+written down is not a need.
+
+What counts as evidence: a measured slowness with numbers, a real failure
+or near-miss, a user (human or agent) who actually hit the friction, an
+audit that surfaced the pain. What does not count: "would be nice", "for
+completeness", "while we're here", symmetry, or an abstraction that merely
+feels tidier. If you cannot name who felt the lack and how, it is not ready.
+
+Respect the core invariants. They are non-negotiable, and a proposal that
+fights one starts deep in the negative:
+
+- **Offline / disconnected** — no network calls, ever.
+- **Zero runtime dependencies** — one static binary plus POSIX.
+- **POSIX-first** — a hand edit must always win; nothing may make the plain
+  `.erg` file the second-class source of truth (this is why a stale cache is
+  a bug, not an optimisation).
+- **No external state encoded in tickets** — no `pending`/`claimed`/`doing`.
+  We *removed* that abstraction deliberately (0143/0144); do not smuggle it
+  back under a new name.
+
+Audits are the evidence engine. Prefer an audit that discovers real need
+over a feature built on a guess — the audit tells you whether the feature
+is felt at all. Build the thing the audit justifies, not the thing the
+wishlist remembered.
+
+Simplicity is a feature, and declining is legitimate work. Closing a ticket
+as YAGNI (0131), reducing a command to a thin alias (0144), or saying "no"
+with a reason is a win, not a failure to ship. The smallest correct system
+that meets a *demonstrated* need beats a larger one that anticipates an
+imagined one.
+
 ## Autonomous Run Policy
 
 Purpose: allow unattended sweeps without paralysis, risky edits, or
