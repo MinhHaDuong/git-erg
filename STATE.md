@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-05-29T12:40Z — Closed 0146 (design-contract guardrails): shipped `tests/test_contract.sh`, a falsifiable guard (each with a negative control) for the deterministic five invariants — agnostic, offline, standalone, stateless, small (5 MB ceiling) — wired into `make test` as the `contract` suite. The `fast` guards (parse-once + linear N-vs-2N op-count + wall-clock backstop) need loader instrumentation, so they split out to **0154** (READY) per 0146's own "land deterministic first; fast can lag". Earlier: 0147 (static+stripped build) and 0148 (self-update via git fetch) landed — the bootstrap binary is now static **and** stripped (~2.9 MB), no network code anywhere. Remaining work: 0149 (data-safety guard suite, READY), 0150 (install/uninstall round-trip, READY), 0154 (fast guards, READY); needs-human: 0151 (security/red-team — standing QA process, max threat model: binary in thousands of repos; trust via git-native signed tags), 0152 (UX try-and-learn — standing AI-assisted QA process). Closed 0153 (signed manifest/revocation) as YAGNI. never-lose-data is the 7th, foremost invariant. 149 closed, 5 open, 3 ready._
+_Last updated: 2026-05-29T13:25Z — Closed 0149 (data-safety guard suite): shipped `tests/test_datasafety.sh` + `src/go/atomicwrite_test.go` and a shared atomic ticket-write path (`writeTicketAtomic`/`atomicWriteFile`) — temp-then-rename, validate-before-replace, write-confinement, mode-preserving, read-only-respecting — that all mutating commands (close/log/tag/untag/migrate) now funnel through; wired in as the `datasafety` suite. Finding: there was no shared atomic path before (all mutations used truncating `os.WriteFile`); now consolidated, no follow-up. Earlier: Closed 0146 (design-contract guardrails): shipped `tests/test_contract.sh`, a falsifiable guard (each with a negative control) for the deterministic five invariants — agnostic, offline, standalone, stateless, small (5 MB ceiling) — wired into `make test` as the `contract` suite. The `fast` guards (parse-once + linear N-vs-2N op-count + wall-clock backstop) need loader instrumentation, so they split out to **0154** (READY) per 0146's own "land deterministic first; fast can lag". Earlier: 0147 (static+stripped build) and 0148 (self-update via git fetch) landed — the bootstrap binary is now static **and** stripped (~2.9 MB), no network code anywhere. Remaining work: 0150 (install/uninstall round-trip, READY), 0154 (fast guards, READY); needs-human: 0151 (security/red-team — standing QA process, max threat model: binary in thousands of repos; trust via git-native signed tags), 0152 (UX try-and-learn — standing AI-assisted QA process). Closed 0153 (signed manifest/revocation) as YAGNI. never-lose-data is the 7th, foremost invariant. 150 closed, 4 open, 2 ready._
 
 ## North star:
 
@@ -17,7 +17,7 @@ An agent-friendly local ticket system for development in disconnected environmen
 
 ## Stats
 
-- Tickets: 149 closed, 5 open — ready: 0149, 0150, 0154; needs-human: 0151, 0152
+- Tickets: 150 closed, 4 open — ready: 0150, 0154; needs-human: 0151, 0152
 - Tests: green — ok git-erg
 - Open PRs: none
 
