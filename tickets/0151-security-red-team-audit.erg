@@ -13,6 +13,7 @@ Tag: needs-human
 2026-05-29T10:40Z Claude note dropped the bespoke route — 0153 closed YAGNI. Basic-tier trust = git-native signed release tags (how git/Junio Hamano do it: tag -s / verify-tag); revocation, if ever needed, = key revocation + advisory + new release, not a polled list.
 2026-05-29T11:10Z Claude note infrastructure-class design audit (docs/audit-infrastructure-class.md): committing the binary is the single decision that confers infrastructure-class status; the do-not-require-Go / adoption-first decision keeps that binary, so these controls (reproducible build + signed tags) are OBLIGATORY, not precautionary. The vendor-and-rebuild alternative would shed the class but requires Go on every box — rejected for adoption reasons.
 
+2026-05-29T13:45Z Claude note raid-151 split: children 0155-0158 (automatable subset); human-gated items stay on 0151
 --- body ---
 ## Context
 
@@ -131,6 +132,19 @@ repos, so "low" is rarely low.
 - [ ] An AI-assisted red-team checklist exists and has run once; the process
       + cadence are documented so it re-runs — not one-and-done.
 - [ ] Findings recorded; high-severity items filed as fix tickets.
+
+## Children (automatable subset — raid 151)
+
+- **0155** — `erg version`: full SHA-256, name algorithm, verification hint
+- **0156** — `make verify`: reproducible-build rebuild+byte-diff, Go toolchain pin
+- **0157** — Security hardening tests: path-traversal, input-DoS, negative controls
+- **0158** — Threat model doc, red-team checklist, opsec tier documentation
+
+## Deferred to human (stays on 0151)
+
+- Signed release tags (`git tag -s`) — requires maintainer GPG key
+- Threat-model formal sign-off
+- Red-team findings severity assignment
 
 ## Notes
 

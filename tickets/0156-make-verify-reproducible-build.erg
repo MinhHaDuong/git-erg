@@ -1,0 +1,52 @@
+%erg 0.1
+Title: make verify — reproducible-build rebuild and byte-diff
+Created: 2026-05-29
+Author: Claude
+Blocked-by: 0151
+
+--- log ---
+2026-05-29T14:00Z Claude created — child of 0151 (security audit); keystone reproducibility control
+
+--- body ---
+## Context
+
+0151 keystone exit criterion: "Committed `tickets/erg` is byte-reproducible
+from source; a CI check rebuilds the recorded revision and diffs it." No
+`make verify` target exists today. The build embeds wall-clock `buildDate` and
+`vcsRevision` via `-ldflags -X`, so a naive rebuild never matches. The target
+must recover the committed binary's stamps (via `erg version` output or by
+checking out the embedded revision) and re-inject them.
+
+Secondary: `go.mod` says `go 1.21` with no `toolchain` directive; the host
+has go1.22.2. Cross-machine byte-equality requires pinning. Add a `toolchain`
+directive.
+
+## Relevant files
+- `Makefile` — build flags, `GO_LDFLAGS` (single source of truth)
+- `src/go/go.mod` — needs `toolchain` directive
+- `src/go/version.go` — `selfHash`, `readVersionInfo` (extract stamps)
+- `tickets/erg` — the committed bootstrap binary to verify against
+
+## Actions
+1. Add `toolchain go1.22.2` to `src/go/go.mod` (pin to current host version).
+2. Add a `verify` target to `Makefile` that:
+   a. Reads `buildDate` and `vcsRevision` from `tickets/erg version` output.
+   b. Rebuilds with those exact stamps: same `GO_BUILD_ENV`, `GO_BUILD_FLAGS`,
+      `-ldflags` with the recovered values instead of `$$(date)` / `$$(git rev-parse)`.
+   c. Compares SHA-256 of the rebuild against `tickets/erg`.
+   d. Prints PASS/FAIL with both hashes.
+3. Add `test-verify` to `TEST_SUITES` and a `tests/test_verify.sh` that runs
+   `make verify` and asserts PASS.
+
+## Test
+```sh
+# Red: make verify should exist and pass
+make verify
+```
+
+## Exit criteria
+- [ ] `make verify` rebuilds the committed binary with recovered stamps and
+      reports PASS when hashes match
+- [ ] `go.mod` has a `toolchain` directive pinning the Go version
+- [ ] A test suite (`test-verify`) exercises the target
+- [ ] `make test` passes

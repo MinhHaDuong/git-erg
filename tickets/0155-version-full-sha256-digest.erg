@@ -1,0 +1,49 @@
+%erg 0.1
+Title: erg version — full SHA-256 digest, name algorithm, verification hint
+Created: 2026-05-29
+Author: Claude
+Blocked-by: 0151
+
+--- log ---
+2026-05-29T14:00Z Claude created — child of 0151 (security audit); automatable subset
+
+--- body ---
+## Context
+
+0151 exit criterion: "`erg version` names the algorithm (SHA-256) and exposes
+the full digest; the displayed hash is recomputable with stock tools." Today
+`version.go:109` prints only the first 12 hex characters (`h[:12]`), does not
+name the algorithm, and offers no verification hint. This is a small, clean
+code change that unblocks the reproducibility and opsec-documentation work.
+
+## Relevant files
+- `src/go/version.go` — `cmdVersion`, line 109 (`h[:12]`)
+- `src/go/helptext.go` — help text for version command
+- `tests/test_version.sh` — existing version discovery tests
+- `tests/test_update.sh` — version output assertions (grep for hash pattern)
+
+## Actions
+1. In `cmdVersion` (`version.go`), change `h[:12]` to print the full 64-char
+   hex digest, and prefix the line with the algorithm name:
+   `  sha256:  <full 64-char hex>`
+2. Add a verification hint line to stdout:
+   `  verify:  sha256sum tickets/erg`
+   (only when the binary path contains `tickets/erg` — the common in-repo case).
+3. Update `helpVersion` to document the full digest and the verify hint.
+4. Update `test_version.sh` to assert the full 64-char hex and `sha256` label.
+5. Update `test_update.sh` hash-pattern assertions (currently match `[0-9a-f]{12}`).
+6. Ensure `erg version` for discovered "other binaries" also shows full hash.
+
+## Test
+```sh
+# Red: assert full SHA-256 in version output
+OUT=$(build/erg version)
+echo "$OUT" | grep -qE '^\s+sha256:\s+[0-9a-f]{64}$'
+```
+
+## Exit criteria
+- [ ] `erg version` prints the full 64-char SHA-256 digest
+- [ ] The algorithm is named (`sha256:`) in the output
+- [ ] A `verify:` hint line shows how to recompute with stock tools
+- [ ] Discovered "other binaries" also show full hash
+- [ ] `make test` passes (all test suites)

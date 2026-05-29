@@ -1,0 +1,72 @@
+%erg 0.1
+Title: Security hardening tests — path-traversal, input-DoS, negative controls
+Created: 2026-05-29
+Author: Claude
+Blocked-by: 0151
+
+--- log ---
+2026-05-29T14:00Z Claude created — child of 0151 (security audit); falsifiable hardening subset
+
+--- body ---
+## Context
+
+0151 exit criterion: "Falsifiable hardening tests in CI (path-traversal,
+input-DoS, update-integrity), each with a negative control." The existing
+test suites cover contract invariants (0146) and data safety (0149) but not
+adversarial input. This ticket adds a `security` test suite exercising the
+attack surfaces enumerated in the 0151 threat model.
+
+Update-integrity tests already exist in `test_update.sh` (hijack refusal,
+offline, override). This ticket extends with path-traversal and input-DoS;
+it does not duplicate the update tests.
+
+## Relevant files
+- `src/go/main.go` — `resolveDir`, `resolveTicketByID` (path construction)
+- `src/go/new.go` — `cmdNew`, `slugify` (filename from title)
+- `src/go/rm.go` — `cmdRm` (ID resolution + deletion)
+- `src/go/archive.go` — `cmdArchive` (path construction)
+- `src/go/atomicwrite.go` — `withinStore` (confinement, explicitly NOT security boundary)
+- `src/go/erg.go` — `parseErgBytes` (parser, untrusted input)
+- `src/go/ref.go` — `parseRef` (Blocked-by values)
+- `src/go/validate.go` — validator rules
+
+## Actions
+1. Create `tests/test_security.sh` with these test groups:
+
+   **Path traversal (ID/ref injection):**
+   - `erg close ../../etc/passwd REASON` → must refuse (not escape store)
+   - `erg log ../../etc/passwd LINE` → must refuse
+   - `erg rm ../../etc/passwd` → must refuse
+   - `erg new "normal title" ../../tmp` → must refuse or confine
+   - Crafted .erg file with `Blocked-by: ../../../../etc/passwd` → must reject
+   - Negative control: legitimate `erg close 9001 REASON` on a fixture → succeeds
+
+   **Symlink escape:**
+   - Create symlink `tickets/9002-symlink.erg` → `/tmp/target`; mutating
+     commands must not follow the symlink out of the store
+   - Negative control: real file at same path → succeeds
+
+   **Input DoS:**
+   - 10 MB .erg file → parser must not OOM or hang (bounded time)
+   - 100,000-line log section → bounded parse time
+   - Title with 10,000 characters → no ReDoS in slugify or titleStatusEdgeWord
+   - Negative control: normal-sized .erg file → parses quickly
+
+   **ID injection:**
+   - Filename with embedded path separator: `0042/../../../etc.erg` → reject
+   - Negative control: normal `0042-title.erg` → accepts
+
+2. Add `security` to `TEST_SUITES` in Makefile.
+3. Each test has an explicit negative control proving the check trips.
+
+## Test
+```sh
+# Red: security suite should exist
+make test-security
+```
+
+## Exit criteria
+- [ ] `test_security.sh` covers path-traversal, symlink, input-DoS, ID injection
+- [ ] Each positive test has a negative control (falsifiable)
+- [ ] All tests pass on the current binary
+- [ ] `make test` passes (all suites including security)
