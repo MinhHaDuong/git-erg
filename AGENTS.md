@@ -63,9 +63,11 @@ legwork (red-team passes, persona dry-runs), a falsifiable subset runs in CI,
 and humans gate the findings (0151 security, 0152 UX). For a binary embarked
 in thousands of repos, the security bar is maximal — supply-chain and mass-RCE
 class — and reproducible builds are the keystone control, **verifiable locally
-and offline** (rebuild the in-repo `src/go/` with git+go; no phone-home) and
-made discoverable (`make verify`, an `erg version` hint) so users actually
-run it.
+and offline** (rebuild the in-repo `src/go/` with git+go; no phone-home). The
+displayed hash uses a widely-available algorithm (SHA-256, recomputable with
+stock tools), and we kindly teach two opsec tiers — basic (local vs
+self-reported vs published hash) and advanced (AI-review the source, rebuild,
+hash that) — discoverably, so users actually verify.
 
 Simplicity is a feature, and declining is legitimate work. Closing a ticket
 as YAGNI (0131), reducing a command to a thin alias (0144), or saying "no"
