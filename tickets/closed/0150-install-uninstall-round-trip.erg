@@ -2,10 +2,12 @@
 Title: Install/uninstall round-trip leaves a byte-clean tree
 Created: 2026-05-29
 Author: Claude
+Closed: autoclosed — PR #168
 
 --- log ---
 2026-05-29T09:00Z Claude created — easy-to-uninstall as a falsifiable round-trip guard (corollary of stateless + standalone)
 
+2026-05-29T14:11Z MinhHaDuong closed — autoclosed — PR #168
 --- body ---
 ## Context
 
