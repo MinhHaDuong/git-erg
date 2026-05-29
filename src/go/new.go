@@ -118,7 +118,15 @@ func createExclusive(path, content string) error {
 	}
 	if _, err := fmt.Fprint(f, content); err != nil {
 		f.Close()
+		// O_EXCL just created this file; a failed write would otherwise leave a
+		// truncated/empty ticket on disk. Remove it so a failed `erg new` leaves
+		// no partial artifact behind.
+		os.Remove(path)
 		return err
 	}
-	return f.Close()
+	if err := f.Close(); err != nil {
+		os.Remove(path)
+		return err
+	}
+	return nil
 }

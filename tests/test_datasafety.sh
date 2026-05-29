@@ -102,12 +102,16 @@ Body text with    odd   spacing and a trailing line.
 - another
 EOF
 # Snapshot body (everything after the body separator) and the log line count.
-body_before=$(awk '/^--- body ---$/{f=1;next} f' "$WS/0001-rt.erg")
+# Body is extracted to files and compared with cmp — byte-for-byte, so a
+# trailing-newline-only difference is caught (command substitution would strip
+# it and mask such a change).
+extract_body() { awk '/^--- body ---$/{f=1;next} f' "$1" > "$2"; }
+extract_body "$WS/0001-rt.erg" "$WS/.body_before"
 logcount_before=$(awk '/^--- log ---$/{f=1;next} /^--- body ---$/{f=0} f && NF' "$WS/0001-rt.erg" | wc -l)
 $ERG log 0001 "claude note round-trip check" "$WS" >/dev/null 2>&1
-body_after=$(awk '/^--- body ---$/{f=1;next} f' "$WS/0001-rt.erg")
+extract_body "$WS/0001-rt.erg" "$WS/.body_after"
 logcount_after=$(awk '/^--- log ---$/{f=1;next} /^--- body ---$/{f=0} f && NF' "$WS/0001-rt.erg" | wc -l)
-if [ "$body_before" = "$body_after" ]; then
+if cmp -s "$WS/.body_before" "$WS/.body_after"; then
     pass "lossless: body preserved verbatim across erg log"
 else
     fail "lossless: body changed across erg log"
@@ -120,8 +124,8 @@ fi
 
 # The property also holds for close/tag/untag — the other log/header mutators
 # (the ticket names "close/tag/untag/rm --force"). They funnel through the same
-# appendLogLine + writeTicketAtomic path; assert the body survives each.
-body_of() { awk '/^--- body ---$/{f=1;next} f' "$1"; }
+# appendLogLine + writeTicketAtomic path; assert the body survives each
+# byte-for-byte (cmp on extracted files, same as the log case above).
 write_rt2() {
     cat > "$WS/0002-rt.erg" <<'EOF'
 %erg 0.1
@@ -140,17 +144,19 @@ Verbatim    spacing and bullets:
 - two
 EOF
 }
-write_rt2; want_body=$(body_of "$WS/0002-rt.erg")
+write_rt2; extract_body "$WS/0002-rt.erg" "$WS/.b_want"
 $ERG close 0002 "done" "$WS" >/dev/null 2>&1
-if [ "$want_body" = "$(body_of "$WS/0002-rt.erg")" ]; then
+extract_body "$WS/0002-rt.erg" "$WS/.b_after"
+if cmp -s "$WS/.b_want" "$WS/.b_after"; then
     pass "lossless: body preserved verbatim across erg close"
 else
     fail "lossless: body changed across erg close"
 fi
-write_rt2; want_body=$(body_of "$WS/0002-rt.erg")
+write_rt2; extract_body "$WS/0002-rt.erg" "$WS/.b_want"
 $ERG tag 0002 needs-human "$WS" >/dev/null 2>&1
 $ERG untag 0002 needs-human "$WS" >/dev/null 2>&1
-if [ "$want_body" = "$(body_of "$WS/0002-rt.erg")" ]; then
+extract_body "$WS/0002-rt.erg" "$WS/.b_after"
+if cmp -s "$WS/.b_want" "$WS/.b_after"; then
     pass "lossless: body preserved verbatim across erg tag + untag"
 else
     fail "lossless: body changed across erg tag/untag"

@@ -49,7 +49,10 @@ func TestAtomicWriteFileReplacesViaRename(t *testing.T) {
 		t.Fatal("write was in-place (same inode) — not a temp-then-rename atomic replace")
 	}
 
-	got, _ := os.ReadFile(path)
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if string(got) != "new contents\n" {
 		t.Fatalf("content = %q, want %q", got, "new contents\n")
 	}
@@ -81,7 +84,10 @@ func TestAtomicWriteFileLeavesNoTemp(t *testing.T) {
 	if err := atomicWriteFile(path, []byte("x\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	entries, _ := os.ReadDir(dir)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(entries) != 1 || entries[0].Name() != "0001-x.erg" {
 		var names []string
 		for _, e := range entries {
@@ -105,6 +111,28 @@ func TestAtomicWriteFilePreservesMode(t *testing.T) {
 	}
 	if info.Mode().Perm() != 0644 {
 		t.Fatalf("mode = %o, want 0644", info.Mode().Perm())
+	}
+}
+
+// TestWriteTicketAtomicPreservesExistingMode is the negative control for mode
+// preservation: an atomic replace makes a new inode, so writeTicketAtomic must
+// carry the original file's permissions forward rather than resetting them to
+// 0644. A tightened 0600 ticket must not silently widen to 0644.
+func TestWriteTicketAtomicPreservesExistingMode(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "0001-x.erg")
+	if err := os.WriteFile(path, []byte(validTicket), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeTicketAtomic(dir, path, []byte(validTicket)); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0600 {
+		t.Fatalf("mode = %o, want preserved 0600", info.Mode().Perm())
 	}
 }
 

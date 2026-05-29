@@ -43,7 +43,12 @@ func (e *errOutsideStore) Error() string {
 // withinStore reports whether target resolves inside storeRoot's subtree.
 // Both paths are made absolute first so a relative target ("../etc/x") or an
 // absolute one that escapes the store is caught. storeRoot itself counts as
-// inside (rel == ".").
+// inside (rel == "."). The check is purely lexical — it does NOT resolve
+// symlinks. That is deliberate: this is a fail-safe against fat-fingered paths,
+// not a security boundary, and a symlink *at* the target path is harmless
+// anyway (os.Rename replaces the symlink itself with an in-store regular file
+// rather than following it out). Adversarial symlink/path-traversal hardening
+// is ticket 0151's scope.
 func withinStore(storeRoot, target string) (bool, error) {
 	absStore, err := filepath.Abs(storeRoot)
 	if err != nil {
@@ -148,7 +153,15 @@ func writeTicketAtomic(storeRoot, path string, content []byte) error {
 			return fmt.Errorf("refusing to write invalid %%erg content to %s: %s", path, errs[0])
 		}
 	}
-	return atomicWriteFile(path, content, 0644)
+	// Preserve the existing file's mode. An atomic replace creates a NEW inode,
+	// so — unlike os.WriteFile on an existing file — without this the ticket's
+	// permissions would be reset to 0644 (e.g. a 0600 ticket would widen to
+	// 0644). A brand-new file (no original on disk) defaults to 0644.
+	perm := os.FileMode(0644)
+	if info, statErr := os.Stat(path); statErr == nil {
+		perm = info.Mode().Perm()
+	}
+	return atomicWriteFile(path, content, perm)
 }
 
 // parseErgErrs returns just the parse-time errors for content, discarding the
