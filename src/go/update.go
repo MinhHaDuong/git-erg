@@ -35,6 +35,19 @@ guidance: 'erg migrate DIR', 'git diff tickets/', 'git commit'. The update
 command never mutates ticket files itself — migration is a separate, reviewable step.
 `
 
+// resolveUpdateURL applies the update-source precedence: the ERG_UPDATE_URL
+// environment variable wins, then the .ergrc [update] url, then the compiled-in
+// default. Empty strings are treated as unset at each level.
+func resolveUpdateURL(envURL, configURL, defaultURL string) string {
+	if envURL != "" {
+		return envURL
+	}
+	if configURL != "" {
+		return configURL
+	}
+	return defaultURL
+}
+
 // cmdUpdate implements `erg update`. See helpUpdate for the user-facing summary.
 func cmdUpdate(_ []string) int {
 	self, err := os.Executable()
@@ -49,8 +62,8 @@ func cmdUpdate(_ []string) int {
 		return 1
 	}
 
-	url := os.Getenv("ERG_UPDATE_URL")
-	if url == "" {
+	var configURL string
+	if os.Getenv("ERG_UPDATE_URL") == "" {
 		ticketDir := os.Getenv("ERG_TICKET_DIR")
 		if ticketDir == "" {
 			if d, findErr := findTicketsDir(); findErr == nil {
@@ -58,14 +71,12 @@ func cmdUpdate(_ []string) int {
 			}
 		}
 		if ticketDir != "" {
-			if cfg, cfgErr := loadConfig(ticketDir); cfgErr == nil && cfg != nil && cfg.UpdateURL != "" {
-				url = cfg.UpdateURL
+			if cfg, cfgErr := loadConfig(ticketDir); cfgErr == nil && cfg != nil {
+				configURL = cfg.UpdateURL
 			}
 		}
-		if url == "" {
-			url = updateURL
-		}
 	}
+	url := resolveUpdateURL(os.Getenv("ERG_UPDATE_URL"), configURL, updateURL)
 
 	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Get(url)
