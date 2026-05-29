@@ -5,6 +5,7 @@ Author: Claude
 
 --- log ---
 2026-05-29T07:30Z Claude created
+2026-05-29T07:45Z Claude note decided open-decision 1 — make the binary genuinely static (CGO_ENABLED=0); the current dynamic link is an accidental cgo default, not a choice
 
 --- body ---
 ## Context
@@ -26,9 +27,14 @@ dependencies, and deterministic (no flaky wall-clock in the blocking path).
 ## Empirical starting state (verified 2026-05-29)
 
 - `go.mod` declares **zero** third-party modules. ✅ standalone (deps half)
-- The binary is **dynamically linked** to libc (cgo). ❌ not static today.
+- The binary is **dynamically linked** to libc — *by accident*: the Makefile
+  build sets no `CGO_ENABLED=0`, so cgo defaults on whenever the build host
+  has a C compiler. Nobody chose dynamic. → resolved: go static (decision 1).
 - `net/http` is imported in **`src/go/update.go` only** — the sanctioned
-  `erg update` network path. Offline is "offline *except* `update`."
+  `erg update` network path, and the **only** cgo trigger (it drags in the
+  cgo DNS resolver via `net`). `os/user` is not imported anywhere, so going
+  static costs nothing the tool uses: the pure-Go resolver serves the one
+  HTTPS self-update fetch fine. Offline is "offline *except* `update`."
 - Binary size ≈ **7.9 MB**. Reference point for the "small" ceiling.
 
 ## The six guards
@@ -49,11 +55,18 @@ dependencies, and deterministic (no flaky wall-clock in the blocking path).
   network namespace (`unshare -n` *if present*, skip-if-absent — no hard
   dep) and assert exit 0.
 
-**3. standalone** — single binary, zero third-party deps.
+**3. standalone** — single binary, zero third-party deps, no libc dependency.
 - Guard A (true today): `go list -deps ./...` / `go.mod` contain only
   stdlib — no third-party `require`.
-- Guard B (static link) is **blocked on a decision** (see Open decisions);
-  do not assert static until the release build is actually static.
+- Guard B (static link): **first** make the build static — add
+  `CGO_ENABLED=0` (and defensively the `osusergo,netgo` tags) to the
+  Makefile build/bootstrap targets — **then** assert it:
+  - Linux: `ldd build/erg` ⇒ `not a dynamic executable` (skip-if-`ldd`-absent).
+  - Portable form: assert the binary is cgo-free / has no third-party dynamic
+    deps (on darwin "static" is impossible — goal there is only `libSystem`).
+  This is what makes a travels-with-repo binary run on musl/Alpine and on
+  older glibc, instead of failing to load — i.e. makes "standalone" true
+  rather than accidental. The build change and the guard land together.
 
 **4. stateless** — the files are the only state.
 - Run the read commands (`list`, `ready`, `check`, `validate`, `next-id`)
@@ -88,17 +101,23 @@ dependencies, and deterministic (no flaky wall-clock in the blocking path).
 - `tests/test_contract.sh` (new) — the six guards (shell-drivable parts).
 - `src/go/contract_test.go` (new, maybe) — import-graph / parse-once guards
   that are cleaner in Go than in shell.
-- `Makefile` — `TEST_SUITES += contract`; the existing "every test_*.sh is
-  in TEST_SUITES" check already enforces wiring.
+- `Makefile` — (a) add `CGO_ENABLED=0` (+ `-tags osusergo,netgo`) to the
+  `build` and bootstrap targets so the released/committed binary is static;
+  (b) `TEST_SUITES += contract` (the existing "every test_*.sh is in
+  TEST_SUITES" check already enforces wiring).
 - `AGENTS.md` — the four invariants section; reconcile with the six (see
   Open decisions).
 
-## Open decisions (need a human call before/within implementation)
+## Open decisions
 
-1. **Static binary**: make the release build truly static (CGO_ENABLED=0,
-   which forces dealing with `net/http`/`os/user`), or downgrade the
-   "standalone" claim to "zero third-party deps + single file"? Guard B
-   depends on the answer.
+1. **Static binary** — RESOLVED (2026-05-29): build static via
+   `CGO_ENABLED=0`. The dynamic link was an accidental cgo default, not a
+   choice; the only cgo trigger is `net/http`'s resolver in `update.go`
+   (`os/user` is unused), so the pure-Go resolver covers it at zero
+   functional cost — while letting the travels-with-repo binary run on
+   musl/Alpine and old glibc instead of failing to load. Caveats recorded:
+   static does **not** grant cross-arch portability (still amd64; other
+   arches rebuild), and darwin cannot be fully static (goal: cgo-free).
 2. **fast / small ceilings**: pick the corpus size + time ceiling (or adopt
    the parse-once proxy and drop timing), and the binary-size ceiling.
 3. **Invariant vocabulary**: AGENTS.md lists four invariants; the contract
@@ -112,6 +131,9 @@ dependencies, and deterministic (no flaky wall-clock in the blocking path).
       (guard fails when the invariant is deliberately broken).
 - [ ] offline guard pins the network surface to `update` and fails if any
       other command imports/uses networking.
+- [ ] build is static (`CGO_ENABLED=0`); standalone guard asserts it
+      (Linux `ldd` ⇒ not dynamic / cgo-free elsewhere) with a negative
+      control; bootstrap `tickets/erg` rebuilt static.
 - [ ] stateless guard proves no writes outside the store for read commands.
 - [ ] fast guard is deterministic (parse-once) or non-blocking timing; never
       flakes CI. small guard enforces a size ceiling.
