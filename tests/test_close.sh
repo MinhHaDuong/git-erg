@@ -420,5 +420,66 @@ else
     fail "ERG_AUTHOR: close log line uses override (output: $OUT)"
 fi
 
+# --- FILE form outside the default store: step 3 clears edges in the file's own store ---
+# Regression: close FILE with no DIR must scan the corpus the file lives in,
+# not an auto-discovered store, or it leaves Blocked-by edges dangling.
+STORE=$(mktemp -d)
+cat > "$STORE/0001-blocker.erg" <<'EOF'
+%erg 0.1
+Title: Blocker
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+cat > "$STORE/0002-dep.erg" <<'EOF'
+%erg 0.1
+Title: Dependent
+Created: 2026-01-01
+Author: claude
+Blocked-by: 0001
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+OTHER=$(mktemp -d)
+cat > "$OTHER/0009-decoy.erg" <<'EOF'
+%erg 0.1
+Title: Decoy store
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+# Resolve $ERG to an absolute path: the default is the relative build/erg, which
+# would not exist from inside the subshell's cd.
+case "$ERG" in
+    /*) ERG_ABS="$ERG" ;;
+    *)  ERG_ABS="$PWD/$ERG" ;;
+esac
+# Run from an unrelated ticket store; pass an absolute FILE path into STORE, no DIR.
+OUT=$(cd "$OTHER" && "$ERG_ABS" close "$STORE/0001-blocker.erg" "done")
+if [ "$OUT" = "CLOSED" ] && ! grep -q "Blocked-by: 0001" "$STORE/0002-dep.erg"; then
+    pass "file-form: step 3 clears edges in the file's own store (not the cwd store)"
+else
+    left=$(grep -E 'Blocked-by' "$STORE/0002-dep.erg" || true)
+    fail "file-form: step 3 clears edges in the file's own store (out=$OUT, left: $left)"
+fi
+if "$ERG" check "$STORE" >/dev/null 2>&1; then
+    pass "file-form: file's own store stays check-clean after close"
+else
+    diag=$("$ERG" check "$STORE" 2>&1 || true)
+    fail "file-form: file's own store stays check-clean (got: $diag)"
+fi
+rm -rf "$STORE" "$OTHER"
+
 echo "close: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

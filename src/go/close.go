@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -45,22 +46,36 @@ func cmdClose(args []string) int {
 	if len(args) >= 3 {
 		explicit = args[2]
 	}
-	ticketDir, err := resolveDir(explicit)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "close: %v\n", err)
-		return 1
-	}
 
 	if strings.TrimSpace(reason) == "" {
 		fmt.Fprintln(os.Stderr, "close: reason is required and must be non-empty")
 		return 1
 	}
 
-	// Resolve to file path.
-	var ticketPath string
+	// Resolve to a file path and the corpus to scan for dependents (step 3).
+	// For the FILE form with no explicit DIR, the corpus is the store the file
+	// actually lives in — inferred from its directory — not an auto-discovered
+	// store, which would otherwise leave Blocked-by edges dangling in the
+	// file's real store (mirrors the cmdRm guard).
+	var ticketPath, ticketDir string
+	var err error
 	if strings.HasSuffix(idOrFile, ".erg") {
 		ticketPath = idOrFile
+		scanArg := explicit
+		if scanArg == "" {
+			scanArg = filepath.Dir(ticketPath)
+		}
+		ticketDir, err = resolveDir(scanArg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "close: %v\n", err)
+			return 1
+		}
 	} else {
+		ticketDir, err = resolveDir(explicit)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "close: %v\n", err)
+			return 1
+		}
 		ticketPath, err = resolveTicketByID(ticketDir, idOrFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "close: %v\n", err)
