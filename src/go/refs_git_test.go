@@ -3,6 +3,7 @@ package main
 import (
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -27,15 +28,6 @@ func gitOut(t *testing.T, repo string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-func containsStr(s []string, want string) bool {
-	for _, v := range s {
-		if v == want {
-			return true
-		}
-	}
-	return false
-}
-
 func TestLoadGitRefs(t *testing.T) {
 	t.Run("non-repo returns nil", func(t *testing.T) {
 		if got := loadGitRefs(t.TempDir()); got != nil {
@@ -57,13 +49,13 @@ func TestLoadGitRefs(t *testing.T) {
 		refs := loadGitRefs(repo)
 
 		for _, want := range []string{"main", "feat/0001-foo", "0002-bar", "origin/main", "origin/feat/0003-baz"} {
-			if !containsStr(refs, want) {
+			if !slices.Contains(refs, want) {
 				t.Errorf("refs %v missing %q", refs, want)
 			}
 		}
 		// The remote HEAD symref's short name is the bare remote name
 		// ("origin"), not "origin/HEAD". It must be excluded as a symbolic ref.
-		if containsStr(refs, "origin") {
+		if slices.Contains(refs, "origin") {
 			t.Errorf("refs %v should exclude remote HEAD symref (short name 'origin')", refs)
 		}
 	})
