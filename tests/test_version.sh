@@ -42,13 +42,18 @@ else
     fail "version: did not discover ./tickets/erg in CWD: $OUT"
 fi
 
-# Test: live erg version prints the full 64-char SHA-256 digest, named sha256:.
+# Test: live erg version prints the full SHA-256 digest, named sha256:, and that
+# digest is the REAL hash of the binary — recomputable with stock tools. Shape
+# alone is not enough: the security requirement is recomputability, so compare
+# the printed value byte-for-byte against sha256sum of the same binary.
 # Run with discovery suppressed so only the running binary's line is matched.
 SELF_OUT=$(ERG_VERSION_NO_DISCOVER=1 "$ERG_ABS" version 2>&1)
-if echo "$SELF_OUT" | grep -qE '^[[:space:]]+sha256:[[:space:]]+[0-9a-f]{64}$'; then
-    pass "version: prints full 64-char SHA-256 digest"
+PRINTED=$(echo "$SELF_OUT" | sed -n 's/^[[:space:]]*sha256:[[:space:]]*\([0-9a-f]\{64\}\)$/\1/p')
+ACTUAL=$(sha256sum "$ERG_ABS" | cut -d' ' -f1)
+if [ -n "$PRINTED" ] && [ "$PRINTED" = "$ACTUAL" ]; then
+    pass "version: printed sha256 equals sha256sum of the binary (recomputable)"
 else
-    fail "version: missing full sha256 digest: $SELF_OUT"
+    fail "version: printed sha256 ('$PRINTED') != sha256sum ('$ACTUAL'): $SELF_OUT"
 fi
 
 echo "version: $PASS passed, $FAIL failed"

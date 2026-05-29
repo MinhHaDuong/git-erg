@@ -65,7 +65,9 @@ Prints the following fields for the running binary:
 
   - path:     resolved absolute path (symlinks followed).
   - sha256:   full 64-char hex SHA-256 of the binary file; recompute and verify
-              with stock tools, e.g. ` + "`sha256sum tickets/erg`" + `.
+              with stock tools by hashing the resolved 'path:' printed above,
+              e.g. ` + "`sha256sum <path>`" + ` (or ` + "`shasum -a 256`" + `,
+              ` + "`openssl dgst -sha256`" + `).
   - built:    build date injected at compile time via -ldflags (or "[unknown]").
   - revision: VCS commit hash injected at compile time via -ldflags (if present).
   - arch:     GOOS/GOARCH of the running binary.
@@ -118,7 +120,10 @@ func cmdVersion(_ []string) int {
 	}
 	fmt.Printf("  arch:    %s/%s\n", runtime.GOOS, runtime.GOARCH)
 	if strings.HasSuffix(self, "tickets/erg") {
-		fmt.Println("  verify:  sha256sum tickets/erg")
+		// Hash the resolved absolute path, not a cwd-relative "tickets/erg":
+		// the command must recompute the digest printed above no matter what
+		// directory `erg version` was invoked from.
+		fmt.Printf("  verify:  sha256sum %s\n", self)
 	}
 
 	if os.Getenv("ERG_VERSION_NO_DISCOVER") != "" {
