@@ -471,7 +471,7 @@ fi
 mkdir -p "$FIXTURES/no-stale"
 cat > "$FIXTURES/no-stale/0001-open.erg" <<'EOF'
 %erg 0.1
-Title: Open blocker
+Title: A blocker ticket
 Created: 2026-01-01
 Author: a
 
@@ -480,7 +480,7 @@ Author: a
 EOF
 cat > "$FIXTURES/no-stale/0002-blocked.erg" <<'EOF'
 %erg 0.1
-Title: Blocked by open
+Title: Depends on the blocker
 Created: 2026-01-01
 Author: a
 Blocked-by: 0001
@@ -614,6 +614,43 @@ if echo "$out" | grep -q "blank line inside header block"; then
     fail "clean file must not warn on interior header blank (got: $out)"
 else
     pass "clean file has no interior-header-blank warning"
+fi
+
+# --- Rule 14 is enforced corpus-wide by check ---
+mkdir -p "$FIXTURES/title-rule"
+cat > "$FIXTURES/title-rule/0001-bad.erg" <<'EOF'
+%erg 0.1
+Title: open the config reader to subdir overrides
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+out=$($ERG check "$FIXTURES/title-rule" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "status word 'open'"; then
+    pass "rule 14: check surfaces title status word corpus-wide"
+else
+    fail "rule 14: check surfaces title status word corpus-wide (rc=$rc, got: $out)"
+fi
+
+# --- Rule 14: closed ticket grandfathered under check too ---
+cat > "$FIXTURES/title-rule/0001-bad.erg" <<'EOF'
+%erg 0.1
+Title: open the config reader to subdir overrides
+Created: 2026-01-01
+Author: a
+Closed: superseded
+
+--- log ---
+2026-01-01T10:00Z a closed — superseded
+--- body ---
+EOF
+out=$($ERG check "$FIXTURES/title-rule" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ]; then
+    pass "rule 14: check grandfathers closed ticket"
+else
+    fail "rule 14: check grandfathers closed ticket (rc=$rc, got: $out)"
 fi
 
 # live-corpus check moved to: make validate

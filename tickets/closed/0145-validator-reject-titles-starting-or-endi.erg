@@ -2,10 +2,12 @@
 Title: validator: reject titles starting or ending with status words
 Created: 2026-05-28
 Author: Claude
+Closed: Implemented rule 14: validate/check reject Titles beginning or ending with status words (ready/done/closed/open). Decision: grandfather closed tickets (path- or header-closed), enforce on open + new.
 
 --- log ---
 2026-05-28T16:29Z Claude created
 
+2026-05-29T05:29Z Claude closed — Implemented rule 14: validate/check reject Titles beginning or ending with status words (ready/done/closed/open). Decision: grandfather closed tickets (path- or header-closed), enforce on open + new.
 --- body ---
 ## Context
 

@@ -1,0 +1,10 @@
+%erg 0.1
+Title: respect the open flag when the reader is closed mid-stream
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+A status word appearing mid-title is fine: only the first and last word matter.

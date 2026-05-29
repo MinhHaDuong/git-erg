@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-05-12T14:00Z — Closed 0131 (YAGNI). All tickets closed. 0 open, 0 deferred._
+_Last updated: 2026-05-29T00:00Z — Closed 0142 (erg rm) and 0145 (Title status-word rule). All tickets closed. 0 open, 0 deferred._
 
 ## North star:
 
@@ -12,8 +12,8 @@ An agent-friendly local ticket system for development in disconnected environmen
 
 ## Stats
 
-- Tickets: 137 closed, 0 open
-- Tests: green — ok git-erg (37.3% coverage)
+- Tickets: 145 closed, 0 open
+- Tests: green — ok git-erg
 - Open PRs: none
 
 ## Notes

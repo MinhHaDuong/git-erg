@@ -113,19 +113,34 @@ func cmdClose(args []string) int {
 
 // removeBlockedByRef scans ticketDir for open tickets that have a
 // Blocked-by header referencing closedID, removes those lines, and
-// appends a log entry recording the removal. Uses loadErgs for
-// consistent parsing/filtering, then re-reads only the matching files
-// to perform the byte-level rewrite.
+// appends a log entry recording the removal. Thin wrapper over
+// clearBlockedByRefs: close only ever rewrites OPEN dependents (a closed
+// dependent's historical Blocked-by line is left intact).
 func removeBlockedByRef(ticketDir, closedID, timestamp, author string) {
+	logLine := fmt.Sprintf("%s %s note blocker %s closed — Blocked-by removed.", timestamp, author, closedID)
+	clearBlockedByRefs(ticketDir, closedID, logLine, false)
+}
+
+// clearBlockedByRefs scans ticketDir for tickets whose Blocked-by header
+// references targetID, strips those lines, and appends logLine to each
+// rewritten ticket. Uses loadErgs for consistent parsing/filtering, then
+// re-reads only the matching files to perform the byte-level rewrite. When
+// includeClosed is false, already-closed dependents are skipped (close's
+// behaviour: their historical refs are preserved). When true, closed
+// dependents are rewritten too (rm's behaviour: a dangling ref left in a
+// closed ticket would still trip the unknown-ref corpus check). The rewrite
+// machinery — removeBlockedByLine, appendLogLine, collapseHeaderBlanks — is
+// shared with close. Iterates all matching tickets; idempotent but not atomic.
+func clearBlockedByRefs(ticketDir, targetID, logLine string, includeClosed bool) {
 	tickets, _ := loadErgs(ticketDir)
 	for i := range tickets {
 		t := &tickets[i]
-		if t.IsClosed() {
+		if !includeClosed && t.IsClosed() {
 			continue
 		}
 		found := false
 		for _, ref := range t.BlockedBys {
-			if ref.ID == closedID || ref.Raw == closedID {
+			if ref.ID == targetID || ref.Raw == targetID {
 				found = true
 				break
 			}
@@ -137,12 +152,11 @@ func removeBlockedByRef(ticketDir, closedID, timestamp, author string) {
 		if err != nil {
 			continue
 		}
-		updated := removeBlockedByLine(string(data), closedID)
-		logLine := fmt.Sprintf("%s %s note blocker %s closed — Blocked-by removed.", timestamp, author, closedID)
+		updated := removeBlockedByLine(string(data), targetID)
 		updated = appendLogLine(updated, logLine)
 		updated = string(collapseHeaderBlanks([]byte(updated)))
 		if err := os.WriteFile(t.Path, []byte(updated), 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "close: warning: cannot write %s: %v\n", t.Path, err)
+			fmt.Fprintf(os.Stderr, "warning: cannot write %s: %v\n", t.Path, err)
 		}
 	}
 }

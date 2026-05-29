@@ -20,10 +20,10 @@ trap cleanup EXIT
 echo "=== erg new ==="
 
 # --- Basic creation: correct filename emitted ---
-RAW=$($ERG new "Add branch-as-claim to erg ready" "$TDIR/basic")
+RAW=$($ERG new "Add branch-as-claim to the ready filter" "$TDIR/basic")
 if echo "$RAW" | grep -q "^CREATED "; then pass "erg new output starts with CREATED"; else fail "erg new output starts with CREATED (got: $RAW)"; fi
 OUT=$(echo "$RAW" | sed 's/^CREATED //')
-if [ "$OUT" = "0001-add-branch-as-claim-to-erg-ready.erg" ]; then
+if [ "$OUT" = "0001-add-branch-as-claim-to-the-ready-filter.erg" ]; then
     pass "correct filename emitted"
 else
     fail "correct filename emitted (got: $OUT)"

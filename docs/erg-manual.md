@@ -1,7 +1,7 @@
 # erg manual
 
 Author: minh.ha-duong@cnrs.fr
-Generated from: erg built 2026-05-28T17:31:14Z rev fe2b6c0
+Generated from: erg built 2026-05-29T05:29:54Z rev 6d05037
 
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
@@ -37,9 +37,13 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
       the first occurrence of each is the section separator, subsequent
       occurrences are body text (legitimate bodies may quote the literals).
   13. No dependency cycles among local Blocked-by refs.
+  14. Title does not begin or end with a status word (ready, done, closed,
+      open) — these read as a status assertion about the ticket rather than
+      the thing being changed. Enforced on open tickets; closed tickets are
+      grandfathered (existing closed history is never flagged).
 
 Error format: 'filename:LINE: message' when a specific line applies
-(rules 1-7, 9, 11); 'filename: message' when no line applies (rules 8, 12).
+(rules 1-7, 9, 11, 14); 'filename: message' when no line applies (rules 8, 12).
 Line numbers are 1-indexed.
 
 For corpus-level checks (duplicate IDs, cycles), use: erg check [dir]
@@ -255,6 +259,31 @@ archiving, or manually delete the stale Blocked-by line.
 
 The command creates DIR/closed/ if it does not exist. It will not overwrite
 an existing file at the destination.
+
+## erg rm ID|FILE [DIR] [--force]
+
+Delete a ticket file outright — no Closed: header, no archive, no record.
+
+Use rm only for tickets that should never have existed: a duplicate, a
+typo-titled file, a fat-fingered draft, spam. For work that was done or
+abandoned with history worth keeping, use 'erg close' (keeps the file, adds
+a Closed: header) or 'erg archive' (moves it under closed/). Only rm removes
+the record entirely.
+
+Deletion is destructive and irreversible from the tool's side, so rm verifies
+the dependency graph before touching the filesystem:
+
+  - By default, if any ticket in the corpus (open OR closed) has a Blocked-by:
+    referencing the target ID, rm refuses: it prints each dependent and exits
+    non-zero WITHOUT deleting anything. The closed tickets are scanned too — a
+    closed ticket may carry a historical Blocked-by: line, and deleting its
+    blocker would leave a dangling ref that 'erg check' flags.
+  - With --force, rm deletes the target and strips the now-dangling Blocked-by:
+    lines from every dependent (open or closed), appending a log entry to each:
+    `TIMESTAMP AUTHOR note blocker ID removed — ticket deleted.`
+
+ID may be a 4-digit ticket ID or a full filename (e.g. 0042-some-title.erg).
+A non-existent or ambiguous ID is reported with the usual resolver error.
 
 ## erg migrate [DIR]
 

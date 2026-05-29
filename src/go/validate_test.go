@@ -593,3 +593,83 @@ func TestGlobLocalIDs(t *testing.T) {
 		}
 	})
 }
+
+// titleErg builds a minimal .erg with the given Title. When closed is true a
+// non-empty Closed: header is added so the ticket is grandfathered (rule 14).
+func titleErg(title string, closed bool) []byte {
+	c := "%erg 0.1\nTitle: " + title + "\nCreated: 2026-01-01\nAuthor: claude\n"
+	if closed {
+		c += "Closed: superseded\n"
+	}
+	c += "\n--- log ---\n--- body ---\n"
+	return []byte(c)
+}
+
+// TestTitleStatusWordRule pins rule 14 (ticket 0145): a Title may not begin
+// or end with a status word, the rule names the offending word and edge, it
+// ignores surrounding punctuation, a mid-title status word is fine, and
+// closed tickets are grandfathered.
+func TestTitleStatusWordRule(t *testing.T) {
+	cases := []struct {
+		name     string
+		title    string
+		closed   bool
+		wantErr  bool
+		wantWord string // substring required when wantErr (e.g. "'ready'")
+		wantEdge string // "begins with" or "ends with" when wantErr
+	}{
+		{name: "begins ready", title: "ready: demote claimed signal", wantErr: true, wantWord: "'ready'", wantEdge: "begins with"},
+		{name: "begins done", title: "done queue draining", wantErr: true, wantWord: "'done'", wantEdge: "begins with"},
+		{name: "begins closed", title: "closed-loop retry handling", wantErr: true, wantWord: "'closed'", wantEdge: "begins with"},
+		{name: "begins open", title: "open the config reader", wantErr: true, wantWord: "'open'", wantEdge: "begins with"},
+		{name: "ends ready", title: "make the queue ready", wantErr: true, wantWord: "'ready'", wantEdge: "ends with"},
+		{name: "ends done", title: "mark the migration done", wantErr: true, wantWord: "'done'", wantEdge: "ends with"},
+		{name: "ends closed", title: "ensure the handle is closed", wantErr: true, wantWord: "'closed'", wantEdge: "ends with"},
+		{name: "ends open", title: "leave the port open", wantErr: true, wantWord: "'open'", wantEdge: "ends with"},
+		{name: "ends with trailing punctuation", title: "ensure the handle is closed.", wantErr: true, wantWord: "'closed'", wantEdge: "ends with"},
+		{name: "case-insensitive", title: "Ready to ship the thing", wantErr: true, wantWord: "'ready'", wantEdge: "begins with"},
+		{name: "mid-title status word ok", title: "respect the open flag in the parser", wantErr: false},
+		{name: "status word as substring ok", title: "openness audit for the reader", wantErr: false},
+		{name: "clean title ok", title: "add the rm command", wantErr: false},
+		{name: "grandfathered closed begins", title: "ready: demote claimed signal", closed: true, wantErr: false},
+		{name: "grandfathered closed ends", title: "make the queue ready", closed: true, wantErr: false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, errs := parseErgBytes(titleErg(c.title, c.closed), "0001-x.erg")
+			got := errsContain(errs, "status word")
+			if got != c.wantErr {
+				t.Fatalf("status-word error = %v, want %v (errs: %v)", got, c.wantErr, errs)
+			}
+			if c.wantErr {
+				if !errsContain(errs, c.wantWord) {
+					t.Errorf("expected error naming word %s, got: %v", c.wantWord, errs)
+				}
+				if !errsContain(errs, c.wantEdge) {
+					t.Errorf("expected error naming edge %q, got: %v", c.wantEdge, errs)
+				}
+			}
+		})
+	}
+}
+
+// TestTitleStatusWordRule_Fixtures runs the golden invalid-title fixtures:
+// every file must yield a status-word error pointing at filename:LINE.
+func TestTitleStatusWordRule_Fixtures(t *testing.T) {
+	fixtures, _ := filepath.Glob("testdata/invalid-title/*.erg")
+	if len(fixtures) == 0 {
+		t.Fatal("no testdata/invalid-title fixtures found")
+	}
+	for _, path := range fixtures {
+		t.Run(filepath.Base(path), func(t *testing.T) {
+			_, errs := parseErg(path)
+			if !errsContain(errs, "status word") {
+				t.Errorf("expected a status-word error, got: %v", errs)
+			}
+			// Error must point at the Title line (filename:LINE form).
+			if !errsContain(errs, filepath.Base(path)+":2:") {
+				t.Errorf("expected error pointing at %s:2, got: %v", filepath.Base(path), errs)
+			}
+		})
+	}
+}

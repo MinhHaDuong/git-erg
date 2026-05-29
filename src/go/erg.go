@@ -72,6 +72,57 @@ func isAlphanumeric(c byte) bool {
 	return isLetter(c) || (c >= '0' && c <= '9')
 }
 
+// titleStatusWords are the status-vocabulary words a Title may not begin or
+// end with (rule 14, ticket 0145). They are pseudo-tags consumed by
+// `erg list` filters and the lifecycle states agents reason about.
+var titleStatusWords = map[string]bool{
+	"ready":  true,
+	"done":   true,
+	"closed": true,
+	"open":   true,
+}
+
+// titleStatusEdgeWord reports whether the first or last word of title (after
+// ignoring surrounding punctuation and whitespace) is a status word. A "word"
+// is a maximal run of ASCII letters; comparison is case-insensitive. When a
+// violation is found it returns the offending word (lowercased), the position
+// ("begins with" or "ends with"), and true. The start edge is reported in
+// preference to the end edge when both match.
+func titleStatusEdgeWord(title string) (word, position string, bad bool) {
+	var first, last string
+	start := -1
+	for i := 0; i < len(title); i++ {
+		if isLetter(title[i]) {
+			if start < 0 {
+				start = i
+			}
+			continue
+		}
+		if start >= 0 {
+			w := strings.ToLower(title[start:i])
+			if first == "" {
+				first = w
+			}
+			last = w
+			start = -1
+		}
+	}
+	if start >= 0 {
+		w := strings.ToLower(title[start:])
+		if first == "" {
+			first = w
+		}
+		last = w
+	}
+	if titleStatusWords[first] {
+		return first, "begins with", true
+	}
+	if titleStatusWords[last] {
+		return last, "ends with", true
+	}
+	return "", "", false
+}
+
 // parseHeaderLine extracts "Key: value" from a line. Accepts both "Key:"
 // and "Key :" (whitespace before colon is tolerated). Both key and value
 // are trimmed of surrounding whitespace before return.
@@ -377,6 +428,21 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	if created != "" && !isoDateRE.MatchString(created) {
 		errs = append(errs, fmt.Sprintf(
 			"%s:%d: Created '%s' is not a valid ISO date (YYYY-MM-DD)", name, createdLine, created))
+	}
+
+	// Rule 14: Title must not begin or end with a status word (ready, done,
+	// closed, open). Those are status vocabulary in this system — pseudo-tags
+	// consumed by `erg list` filters and the lifecycle states agents reason
+	// about — so at a title's edge they read as a status assertion about the
+	// ticket itself rather than as a reference to the command or concept being
+	// changed (ticket 0145). Closed tickets are grandfathered: the rule is
+	// enforced on open + new only, so existing closed history is never broken.
+	if title != "" && !(pathIsClosed(path) || closed != "") {
+		if word, pos, bad := titleStatusEdgeWord(title); bad {
+			errs = append(errs, fmt.Sprintf(
+				"%s:%d: Title %s status word '%s' — reserved for ticket status; rephrase so the Title does not start or end with: closed, done, open, ready",
+				name, titleLine, pos, word))
+		}
 	}
 
 	// Rule 8: filename matches NNNN-slug.erg.
