@@ -1,0 +1,79 @@
+%erg 0.1
+Title: Prevent next-id cascade from stray high-ID ticket file
+Created: 2026-05-29
+Author: Claude
+
+--- log ---
+2026-05-29T15:10Z Claude created — UX audit finding F03 (verified); one stray file poisons erg new
+
+--- body ---
+## Context
+
+The UX audit (0152, PR #174) found that a single stray file matching the
+`NNNN-*.erg` pattern with a high ID poisons all future ticket creation.
+Reproduced: with a `9999-bad.erg` present, `erg next-id` returns `10000`;
+`erg new` then creates `10000-<slug>.erg`, a 5-digit filename that
+immediately fails `erg validate` (pattern is `NNNN-slug.erg`, 4 digits).
+Every subsequent `erg new` repeats the failure — the store is stuck
+producing invalid filenames until the stray file is removed by hand.
+
+Note: test fixture IDs ≥9000 are reserved (STATE.md), so a `9xxx` file is
+plausible in real corpora. The interaction between a 4-digit filename
+contract and an unbounded next-id is the bug.
+
+## Relevant files
+
+- `src/go/nextid.go` — `cmdNextID` and the ID-scanning logic
+- `src/go/new.go` — `cmdNew`, which consumes next-id to name the file
+- `tests/test_nextid.sh`, `tests/test_new.sh` — integration tests
+
+## Actions
+
+1. Decide the contract (smallest correct fix; confirm with author if
+   ambiguous):
+   - Option A: `next-id` ignores files whose numeric ID is outside the
+     4-digit range (≥10000) when computing the next ID, OR
+   - Option B: `next-id` errors clearly when the highest valid ID is 9999
+     (range exhausted) rather than silently rolling to 10000.
+2. Ensure `erg new` never emits a filename that would fail `erg validate`
+   — if next-id cannot produce a valid 4-digit ID, fail loudly with a
+   message naming the offending high-ID file.
+3. Keep behavior unchanged for normal corpora (IDs 0001–9998).
+
+## Test
+
+Add to `tests/test_nextid.sh` (red step): place a `9999-bad.erg` in a
+temp store and assert `next-id` does NOT return a 5-digit ID:
+
+```sh
+echo "stray" > "$TDIR/tickets/9999-bad.erg"
+out=$($ERG next-id "$TDIR/tickets")
+case "$out" in
+    [0-9][0-9][0-9][0-9]) pass "next-id stays 4-digit with a 9999 file" ;;
+    *) fail "next-id returned non-4-digit '$out' (cascade bug)" ;;
+esac
+```
+
+The negative control is current behavior (`10000`), which the test flags
+— so it catches the wrong implementation, not just a different one.
+
+## Verification
+
+- [ ] With a `9999-*.erg` present, `next-id` returns a valid 4-digit ID
+      or fails with a clear range-exhausted message (per chosen option)
+- [ ] `erg new` never produces a filename that fails `erg validate`
+- [ ] Normal corpora (no stray high-ID file) behave exactly as before
+- [ ] New test fails pre-fix, passes post-fix
+
+## Invariants
+
+- Never lose data: do not rewrite or delete the stray file; only change
+  ID selection.
+- Filename contract (`NNNN-slug.erg`, 4 digits) is preserved.
+- `make test` stays green.
+
+## Exit criteria
+
+- A stray high-ID file can no longer make `erg new` produce invalid
+  filenames; the failure mode is either avoided or surfaced loudly, and a
+  regression test guards it.

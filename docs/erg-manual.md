@@ -342,10 +342,16 @@ Print self-diagnostic info and discover other erg binaries.
 Prints the following fields for the running binary:
 
   - path:     resolved absolute path (symlinks followed).
-  - hash:     first 12 hex characters of the SHA-256 of the binary file.
+  - sha256:   full 64-char hex SHA-256 of the binary file; recompute and verify
+              with stock tools by hashing the resolved 'path:' printed above,
+              e.g. `sha256sum <path>` (or `shasum -a 256`,
+              `openssl dgst -sha256`).
   - built:    build date injected at compile time via -ldflags (or "[unknown]").
   - revision: VCS commit hash injected at compile time via -ldflags (if present).
   - arch:     GOOS/GOARCH of the running binary.
+  - verify:   a ready-to-paste `sha256sum` command for the binary's resolved
+              path. Shown only for the in-repo bootstrap copy (a path ending in
+              /tickets/erg), where verifying the committed binary matters most.
 
 After printing the running binary info, `erg version` discovers other erg binaries
 in well-known locations (./build/erg, ./tickets/erg, ~/.local/bin/erg, and PATH
