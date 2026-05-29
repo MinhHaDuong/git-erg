@@ -13,10 +13,10 @@
 #   make ready      List ready tickets
 #   make install-erg-binary              Install erg to ~/.local/bin
 
-TEST_SUITES := validate check list ready update close migrate nextid log tag new init main archive rm datasafety pipeline help version hook godoc docs contract roundtrip
+TEST_SUITES := validate check list ready update close migrate nextid log tag new init main archive rm datasafety pipeline help version hook godoc docs contract roundtrip verify
 TEST_TARGETS := $(TEST_SUITES:%=test-%)
 
-.PHONY: build test unit-test _test-lint docs $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary
+.PHONY: build test unit-test _test-lint docs $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary verify
 
 ERG_BIN := $(CURDIR)/build/erg
 BOOTSTRAP_BIN := $(CURDIR)/tickets/erg
@@ -70,6 +70,23 @@ update-bootstrap-binary:
 		$(GO_BUILD_FLAGS) \
 		-ldflags "$(GO_LDFLAGS)" \
 		-o $(BOOTSTRAP_BIN) .
+
+verify: ## Rebuild tickets/erg from its embedded revision and byte-diff it
+	@BUILD_DATE=$$(ERG_VERSION_NO_DISCOVER=1 $(BOOTSTRAP_BIN) version | awk '/built:/{print $$2}'); \
+	REVISION=$$(ERG_VERSION_NO_DISCOVER=1 $(BOOTSTRAP_BIN) version | awk '/revision:/{print $$2}'); \
+	GOTC=$$(go version -m $(BOOTSTRAP_BIN) | grep -oE 'go1\.[0-9.]+' | head -1); \
+	echo "verify: buildDate=$$BUILD_DATE revision=$$REVISION toolchain=$$GOTC"; \
+	WORKDIR=$$(mktemp -d); \
+	git clone --quiet --shared $(CURDIR) $$WORKDIR; \
+	git -C $$WORKDIR checkout --quiet $$REVISION; \
+	( cd $$WORKDIR/src/go && $(GO_BUILD_ENV) GOTOOLCHAIN=$$GOTC go build $(GO_BUILD_FLAGS) \
+		-ldflags "-s -w -X main.buildDate=$$BUILD_DATE -X main.vcsRevision=$$REVISION" \
+		-o $$WORKDIR/erg-verify-out . ); \
+	WANT=$$(sha256sum $(BOOTSTRAP_BIN) | awk '{print $$1}'); \
+	GOT=$$(sha256sum $$WORKDIR/erg-verify-out | awk '{print $$1}'); \
+	echo "  committed: $$WANT"; echo "  rebuilt:   $$GOT"; \
+	rm -rf $$WORKDIR; \
+	if [ "$$WANT" = "$$GOT" ]; then echo "verify: PASS"; else echo "verify: FAIL — committed binary is NOT reproducible"; exit 1; fi
 
 install-erg-binary:
 	@mkdir -p $(HOME)/.local/bin
