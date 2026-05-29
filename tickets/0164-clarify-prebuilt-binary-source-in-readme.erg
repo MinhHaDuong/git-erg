@@ -1,0 +1,82 @@
+%erg 0.1
+Title: Clarify where the prebuilt erg binary comes from in README
+Created: 2026-05-29
+Author: Claude
+
+--- log ---
+2026-05-29T15:30Z Claude created — UX audit finding F10 (verified); "use a prebuilt one" with no source
+
+--- body ---
+## Context
+
+The UX audit (0152, PR #174) found that the README's "Install into a
+project" step 2 says:
+
+> Drop the `erg` binary into it — use a prebuilt one, or `make build`
+> from `src/go/`
+
+with no indication of *where* a "prebuilt one" comes from. A beginner who
+doesn't already have the binary has no path forward. Verified: README
+line ~98; there is **no** GitHub releases workflow and **no** download
+mechanism in `.github/workflows/`. The "prebuilt one" is in fact the
+committed bootstrap binary `tickets/erg` (Linux x86-64) that already
+travels in every clone — the README simply never says so.
+
+So this is a documentation-clarity fix, not a request to build a release
+pipeline (that would fight the "smallest correct system" bar and overlap
+with 0151's reproducible-build work).
+
+## Relevant files
+
+- `README.md` — "Install into a project" (~line 95) and "Binary policy"
+  (~line 136) sections
+- `tickets/erg` — the committed bootstrap binary that IS the prebuilt one
+
+## Actions
+
+1. Reword step 2 to point at the concrete source: the committed
+   `tickets/erg` bootstrap binary (Linux x86-64), present in every clone;
+   otherwise `make build`. Cross-link the existing "Binary policy"
+   section which already explains the committed-binary rationale.
+2. Keep the existing "No prebuilt binary for your platform? You don't
+   need one" note (README ~line 106) — it already handles non-Linux; just
+   make the Linux-x86-64 happy path explicit and self-contained.
+3. Do NOT add a releases page or download URL — out of scope; the
+   committed binary is the distribution model.
+
+## Test
+
+Source-inspection guard in `tests/test_docs.sh`:
+
+```sh
+# The install step must name a concrete binary source, not a bare "prebuilt one"
+if grep -A2 'Drop the .*erg.* binary' README.md | grep -qi 'tickets/erg\|make build'; then
+    pass "README install step names a concrete binary source"
+else
+    fail "README install step says 'prebuilt one' with no concrete source"
+fi
+```
+
+Catches the wrong implementation (vague wording restored), not a mere
+rephrasing — the negative control is today's text.
+
+## Verification
+
+- [ ] README install step names the committed `tickets/erg` as the
+      prebuilt binary source
+- [ ] A reader with only a fresh clone can follow the install path
+      without external downloads
+- [ ] No releases/download infrastructure added
+- [ ] Guard test fails pre-fix, passes post-fix
+
+## Invariants
+
+- Honor the distribution model: committed binary + source, no network
+  (offline invariant; no releases pipeline).
+- `make test` / `make validate` stay green.
+
+## Exit criteria
+
+- The README install path is self-contained: it tells a reader exactly
+  where the prebuilt binary is (the committed `tickets/erg`), guarded by
+  a doc test, with no new distribution infrastructure.

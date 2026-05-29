@@ -115,5 +115,16 @@ else
     pass "uninstall subcommand removed"
 fi
 
+# --- unpacked AGENTS.md is pure ASCII (no U+FFFD, no stray Unicode) ---
+# The original bug (0160) was a U+FFFD replacement character introduced by a
+# Unicode round-trip. Asserting pure ASCII is strictly stronger than checking
+# for U+FFFD alone and forecloses the whole corruption class.
+
+if LC_ALL=C grep -nq '[^[:print:][:space:]]' "$REPO/tickets/AGENTS.md"; then
+    fail "init-unpacked AGENTS.md contains non-ASCII or non-printable bytes"
+else
+    pass "init-unpacked AGENTS.md is pure ASCII"
+fi
+
 echo "init: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

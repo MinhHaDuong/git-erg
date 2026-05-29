@@ -99,7 +99,11 @@ func cmdNew(args []string) int {
 		return 1
 	}
 
-	id := nextID(ticketDir)
+	id, err := nextID(ticketDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 	slug := slugify(title)
 	filename := fmt.Sprintf("%s-%s.erg", id, slug)
 	path := filepath.Join(ticketDir, filename)

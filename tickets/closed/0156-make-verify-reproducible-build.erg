@@ -2,11 +2,13 @@
 Title: make verify — reproducible-build rebuild and byte-diff
 Created: 2026-05-29
 Author: Claude
-Blocked-by: 0151
+Closed: autoclosed — PR #171
 
 --- log ---
 2026-05-29T14:00Z Claude created — child of 0151 (security audit); keystone reproducibility control
+2026-05-29T19:00Z Claude note dropped Blocked-by: 0151 — a child is not blocked by its parent tracker; the link lives in 0151's Children list + this log (child merges before the parent closes)
 
+2026-05-29T18:57Z MinhHaDuong closed — autoclosed — PR #171
 --- body ---
 ## Context
 

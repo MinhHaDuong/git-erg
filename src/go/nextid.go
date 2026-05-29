@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -16,7 +17,9 @@ import (
 
 // parseIDFromFilename extracts the leading numeric prefix from an .erg
 // filename (e.g. "0042-some-title.erg" → 42). Returns 0 if the file does not
-// end in .erg or the prefix is not numeric.
+// end in .erg, the prefix is not numeric, or the numeric ID is >= 10000 (outside
+// the valid 4-digit range). Stray files with IDs >= 10000 are silently ignored
+// so they do not poison next-id into returning a 5-digit result.
 func parseIDFromFilename(name string) int {
 	if !strings.HasSuffix(name, ".erg") {
 		return 0
@@ -26,7 +29,7 @@ func parseIDFromFilename(name string) int {
 		stem = stem[:idx]
 	}
 	n, err := strconv.Atoi(stem)
-	if err != nil {
+	if err != nil || n >= 10000 {
 		return 0
 	}
 	return n
@@ -107,7 +110,11 @@ func maxIDInRef(ctx context.Context, repoTop, ref, relpath string) int {
 // timeout, nextID falls back to the Pass 1+2 result with a stderr warning.
 const branchScanDeadline = 200 * time.Millisecond
 
-// nextID returns the next available ticket ID as a zero-padded 4-digit string.
+// errRangeExhausted is returned by nextID when all 4-digit IDs are used up.
+var errRangeExhausted = errors.New("next-id: range exhausted (max 4-digit ID is 9999)")
+
+// nextID returns the next available ticket ID as a zero-padded 4-digit string,
+// or an error if the 4-digit range (0001–9999) is exhausted.
 // The scan combines three sources:
 //
 //  1. The filesystem walk of dir itself.
@@ -129,20 +136,20 @@ const branchScanDeadline = 200 * time.Millisecond
 // worktrees may return the same ID. The pre-commit hook on merge catches
 // duplicates on the same branch; the cross-worktree window has narrowed but
 // is not eliminated.
-func nextID(dir string) string {
+func nextID(dir string) (string, error) {
 	maxID := maxIDInDir(dir)
 
 	top := worktreeTopFor(dir)
 	if top == "" {
-		return fmt.Sprintf("%04d", maxID+1)
+		return formatNextID(maxID)
 	}
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
-		return fmt.Sprintf("%04d", maxID+1)
+		return formatNextID(maxID)
 	}
 	rel, err := filepath.Rel(top, absDir)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return fmt.Sprintf("%04d", maxID+1)
+		return formatNextID(maxID)
 	}
 
 	for _, wt := range loadGitWorktrees(dir) {
@@ -173,7 +180,17 @@ func nextID(dir string) string {
 			"WARNING: next-id branch-tip scan exceeded 200ms; result may miss IDs on un-checked-out branches")
 	}
 
-	return fmt.Sprintf("%04d", maxID+1)
+	return formatNextID(maxID)
+}
+
+// formatNextID returns the next ID string for maxID, or errRangeExhausted if
+// maxID >= 9999 (meaning the next ID would be 10000 or more, violating the
+// 4-digit NNNN-slug.erg filename contract).
+func formatNextID(maxID int) (string, error) {
+	if maxID >= 9999 {
+		return "", errRangeExhausted
+	}
+	return fmt.Sprintf("%04d", maxID+1), nil
 }
 
 // summaryNextID is the one-liner printed by printUsage via the commands registry.
@@ -228,6 +245,11 @@ func cmdNextID(args []string) int {
 			return 1
 		}
 	}
-	fmt.Println(nextID(ticketDir))
+	id, err := nextID(ticketDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	fmt.Println(id)
 	return 0
 }
