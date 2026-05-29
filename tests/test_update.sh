@@ -35,7 +35,7 @@ git_init() {
 
 # Test: erg version exits 0 and prints structured output with hash and arch
 VER=$("$ERG" version)
-if echo "$VER" | grep -qE '^[[:space:]]+hash:[[:space:]]+[0-9a-f]{12}$' && echo "$VER" | grep -q 'arch:'; then
+if echo "$VER" | grep -qE '^[[:space:]]+sha256:[[:space:]]+[0-9a-f]{64}$' && echo "$VER" | grep -q 'arch:'; then
     pass "version prints structured info"
 else
     fail "version output: $VER"
@@ -233,7 +233,7 @@ cat > "$STUB" <<STUBEOF
 if [ "\$1" = "version" ]; then
     echo "erg version"
     echo "  path:    $VERSION_TMPDIR/erg"
-    echo "  hash:    aabbccddeeff"
+    echo "  sha256:  aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899"
     echo "  built:   2020-01-01T00:00:00Z"
     echo "  revision: $SELF_REVISION"
     echo "  arch:    linux/amd64"
@@ -257,7 +257,7 @@ cat > "$STUB2" <<STUBEOF2
 if [ "\$1" = "version" ]; then
     echo "erg version"
     echo "  path:    $VERSION_TMPDIR2/erg"
-    echo "  hash:    deadbeefcafe"
+    echo "  sha256:  deadbeefcafe00112233445566778899aabbccddeeff00112233445566778899"
     echo "  built:   2020-01-01T00:00:00Z"
     echo "  revision: olddeadbeef"
     echo "  arch:    linux/amd64"

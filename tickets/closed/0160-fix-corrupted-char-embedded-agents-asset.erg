@@ -2,10 +2,12 @@
 Title: Fix corrupted character in embedded AGENTS.md asset
 Created: 2026-05-29
 Author: Claude
+Closed: autoclosed — PR #178
 
 --- log ---
 2026-05-29T15:10Z Claude created — UX audit finding F02 (verified); erg init ships corrupted bytes
 
+2026-05-29T18:55Z MinhHaDuong closed — autoclosed — PR #178
 --- body ---
 ## Context
 
