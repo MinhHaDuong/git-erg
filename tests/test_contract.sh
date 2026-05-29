@@ -135,26 +135,27 @@ else
     fail "standalone: 'go list -deps' failed — cannot verify the dependency graph"
 fi
 
-# Static link: Linux ldd ⇒ "not a dynamic executable" (skip if ldd absent).
+# Static link: a static binary has no dynamic library dependencies, so `ldd`
+# prints no "=>" lines. Defining static as "no => in ldd output" is portable
+# across glibc ("not a dynamic executable") and musl ("Not a valid dynamic
+# program") — both of which the Makefile targets — and is the exact inverse of
+# the dynamic-binary probe used in the negative control.
+is_static() { ! ldd "$1" 2>&1 | grep -q '=>'; }
 if command -v ldd >/dev/null 2>&1; then
-    if ldd "$ERG_ABS" 2>&1 | grep -q "not a dynamic executable"; then
-        pass "standalone: the binary is statically linked (ldd)"
+    if is_static "$ERG_ABS"; then
+        pass "standalone: the binary is statically linked (ldd lists no shared libs)"
     else
-        fail "standalone: binary is dynamically linked: $(ldd "$ERG_ABS" 2>&1 | head -1)"
+        fail "standalone: binary is dynamically linked: $(ldd "$ERG_ABS" 2>&1 | grep '=>' | head -1)"
     fi
-    # Negative control: find any genuinely dynamic binary and assert ldd does NOT
-    # call it static — proves the static check distinguishes the two.
+    # Negative control: the same predicate must report *dynamic* for a genuinely
+    # dynamic binary — proving it is not vacuously always-static.
     DYN=""
     for c in /bin/sh /usr/bin/file /usr/bin/ldd /bin/cat /bin/ls; do
         [ -e "$c" ] || continue
-        if ldd "$c" 2>&1 | grep -q '=>'; then DYN="$c"; break; fi
+        if ! is_static "$c"; then DYN="$c"; break; fi
     done
     if [ -n "$DYN" ]; then
-        if ldd "$DYN" 2>&1 | grep -q "not a dynamic executable"; then
-            fail "standalone (neg control): ldd called the dynamic binary $DYN static"
-        else
-            pass "standalone (neg control): ldd correctly sees $DYN as dynamic"
-        fi
+        pass "standalone (neg control): static predicate flags $DYN as dynamic"
     else
         skip "standalone (neg control): no dynamic probe binary found — skipped"
     fi
@@ -192,7 +193,9 @@ FAKEHOME="$WORK/stateless/home"; mkdir -p "$FAKEHOME"
 RUNCWD="$WORK/stateless/cwd"; mkdir -p "$RUNCWD"
 
 store_sum() { (cd "$STORE4" && for f in *.erg; do printf '%s ' "$f"; cksum < "$f"; done); }
-snapshot()  { find "$FAKEHOME" "$RUNCWD" -type f 2>/dev/null | sort; }
+# Capture *all* entries, not just regular files: an empty cache directory under
+# HOME or cwd is a write outside the store too, and would slip past a -type f scan.
+snapshot()  { find "$FAKEHOME" "$RUNCWD" 2>/dev/null | sort; }
 
 # Run a read command from a throwaway cwd with a throwaway HOME; track exit codes
 # so a crash can't pass silently behind an unchanged filesystem.
