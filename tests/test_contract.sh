@@ -1,14 +1,14 @@
 #!/bin/sh
-# Contract guardrail tests — the design-contract invariants from AGENTS.md (0146).
+# Contract guardrail tests — the design-contract invariants from AGENTS.md.
 #
 # The project rests on six claims: agnostic, offline, standalone, stateless,
-# fast, small. This suite guards the deterministic five; each guard is
-# *falsifiable* — it ships with a negative control that proves the check
-# actually trips when the invariant is violated.
+# fast, small. This suite guards all six; each guard is *falsifiable* — it
+# ships with a negative control that proves the check actually trips when the
+# invariant is violated.
 #
-# `fast` (parse-once + linear-vs-quadratic op-counts) needs loader
-# instrumentation and is tracked separately — see the ticket noted in
-# tickets/ — so it is intentionally absent here.
+# The `fast` invariant's deterministic guards (parse-once + linear-vs-quadratic
+# op-counts) live in src/go/contract_test.go; this file hosts the wall-clock
+# backstop (non-blocking, generous ceiling — raise don't delete).
 #
 # The suite obeys the contract it tests: POSIX shell + the Go toolchain only,
 # runs fully offline, no third-party test deps. ldd / dynamic-namespace bits
@@ -265,6 +265,46 @@ if size_within "$BLOAT"; then
     fail "small (neg control): a $(wc -c < "$BLOAT")-byte file slipped under the ceiling"
 else
     pass "small (neg control): size check rejects a real >5 MB artifact"
+fi
+
+# --- 6. fast (wall-clock backstop): generous absolute ceiling ---------------
+# The parse-once and linear-scaling guards live in src/go/contract_test.go
+# (deterministic, counter-based). This is the non-blocking wall-clock safety
+# net: it trips only on catastrophic regression, not on a slow CI box.
+# Rule: if it ever flakes, RAISE the ceiling — do not delete this test.
+FAST_STORE="$WORK/fast-corpus"
+mkdir -p "$FAST_STORE"
+FAST_N=500
+i=1
+while [ "$i" -le "$FAST_N" ]; do
+    ID=$(printf '%04d' "$i")
+    cat > "$FAST_STORE/${ID}-synth-${ID}.erg" <<ERGEOF
+%erg 0.1
+Title: Synthetic ticket $ID
+Created: 2026-01-01
+Author: bench
+
+--- log ---
+2026-01-01T00:00Z bench created
+
+--- body ---
+Body text for synthetic ticket $ID.
+ERGEOF
+    i=$((i + 1))
+done
+
+FAST_CEILING=10   # seconds — ~10x headroom over typical <1s runtime
+START_TS=$(date +%s)
+"$ERG_ABS" check "$FAST_STORE" >/dev/null 2>&1; CHECK_RC=$?
+END_TS=$(date +%s)
+ELAPSED=$((END_TS - START_TS))
+
+if [ "$CHECK_RC" -eq 0 ] && [ "$ELAPSED" -le "$FAST_CEILING" ]; then
+    pass "fast (wall-clock): erg check on $FAST_N tickets completed in ${ELAPSED}s ≤ ${FAST_CEILING}s ceiling"
+elif [ "$CHECK_RC" -ne 0 ]; then
+    fail "fast (wall-clock): erg check on $FAST_N tickets exited $CHECK_RC"
+else
+    fail "fast (wall-clock): erg check on $FAST_N tickets took ${ELAPSED}s — exceeds ${FAST_CEILING}s ceiling (raise ceiling if this is a slow CI box, do not delete)"
 fi
 
 echo "contract: $PASS passed, $FAIL failed, $SKIP skipped"

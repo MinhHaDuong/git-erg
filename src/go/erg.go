@@ -9,6 +9,13 @@ import (
 	"strings"
 )
 
+// parseCount tracks how many times parseErgBytes is called. Test-visible
+// only — used by contract tests to verify parse-once and linear-scaling
+// invariants. The increment is a single integer add; no production cost.
+var parseCount int
+
+func resetParseCount() { parseCount = 0 }
+
 // IsClosed reports whether the ticket is closed under the v1 criterion:
 // either a path component test fires, or a `Closed:` preamble header is
 // present with a non-empty value.
@@ -202,6 +209,7 @@ func parseErg(path string) (Erg, []string) {
 // as a separator only on first sighting; later occurrences inside the
 // body are body text (rule 12 relaxation, ticket 0116).
 func parseErgBytes(data []byte, path string) (Erg, []string) {
+	parseCount++
 	var errs []string
 	// Strip UTF-8 BOM if present
 	raw := data
