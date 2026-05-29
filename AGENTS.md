@@ -21,14 +21,26 @@ feels tidier. If you cannot name who felt the lack and how, it is not ready.
 Respect the core invariants. They are non-negotiable, and a proposal that
 fights one starts deep in the negative:
 
-- **Offline / disconnected** — no network calls, ever.
-- **Zero runtime dependencies** — one static binary plus POSIX.
-- **POSIX-first** — a hand edit must always win; nothing may make the plain
-  `.erg` file the second-class source of truth (this is why a stale cache is
-  a bug, not an optimisation).
-- **No external state encoded in tickets** — no `pending`/`claimed`/`doing`.
-  We *removed* that abstraction deliberately (0143/0144); do not smuggle it
-  back under a new name.
+The six are equals — none is a lesser "nice to have":
+
+- **Agnostic** (POSIX-first) — a hand edit must always win; the plain `.erg`
+  file is the contract and the binary is optional. Nothing may make the file
+  the second-class source of truth (this is why a stale cache is a bug, not
+  an optimisation).
+- **Offline / disconnected** — no network calls, ever. The one sanctioned
+  exception is `erg update`, and even that should move to `git fetch` so the
+  binary carries no network code at all.
+- **Standalone** — one *static* binary plus POSIX; zero third-party
+  dependencies (the fat stdlib is what lets us hold that line).
+- **Stateless** — the files are the only state; no external state encoded in
+  tickets (no `pending`/`claimed`/`doing` — we *removed* that abstraction in
+  0143/0144; do not smuggle it back under a new name).
+- **Fast** — erg is *invoked* (pre-commit hook every commit, CI every push,
+  agents in loops), never resident, so per-invocation cost is the product.
+  Work stays linear in the corpus; no redundant passes.
+- **Small** — the binary is committed and travels with every clone, so size
+  is paid by everyone. Stay near the Go runtime floor (≤ ~10 MB); guard
+  against dependency bloat (see 0146).
 
 Audits are the evidence engine. Prefer an audit that discovers real need
 over a feature built on a guess — the audit tells you whether the feature

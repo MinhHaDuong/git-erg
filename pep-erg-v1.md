@@ -297,6 +297,37 @@ Supporting other architectures is a design goal for final v1. It involves
 - Design coexistence of arch-specific local and traveling version
 - Installation documentation and automation
 
+**Why Go over Rust/C, revisited against the six traits (2026-05-29):**
+The contract is *agnostic, offline, standalone, fast, small, stateless*.
+Agnostic/offline/stateless are architecture, language-neutral; the language
+only decides small, fast, standalone, and development pragmatics.
+
+- **C** wins size (KB-class, like `awk` at 167 KB) and startup, but is
+  effectively disqualified for a *data-custody* tool maintained by a small
+  team: manual memory management is a standing data-loss/CVE risk that fights
+  the "never lose data" goal directly, for a few MB of savings.
+- **Rust** is the only credible challenger — it wins small + fast and keeps
+  memory safety, with a clean static `musl` target. Its costs are a full
+  rewrite, slower edit/compile cycles, and friction with the zero-dependency
+  trait (idiomatic Rust reaches for crates like serde/clap; avoiding them
+  means hand-rolling). A rewrite is the ultimate push-from-wishlist and has
+  no evidence behind it. Rust is the **documented fallback** if a hard
+  size/startup requirement ever lands with measurement.
+- **Go** (chosen) is weakest only on binary size — and that size *is the flip
+  side of the trait we rely on most*: the fat stdlib that lets us hold zero
+  third-party dependencies is the same ~6 MB runtime. Measured: a
+  `CGO_ENABLED=0 -trimpath -ldflags "-s -w"` build is **6.2 MB and fully
+  static** — smaller than the prior dynamic build, mid-pack against its real
+  peer (`git` main 3.9 MB, `git-core` 11 MB), and the floor is the language,
+  not bloat. Go uniquely nails trivial cross-compilation (`GOOS`/`GOARCH`),
+  zero-dep via stdlib, memory safety, and solo/agent development velocity —
+  the axes that actually serve agnostic / travels-everywhere / maintainable.
+
+Conclusion: stay on Go; bank the static + strip wins. "Small" therefore means
+*smallest sensible Go binary*, not parity with C — KB-class would be a
+re-platform decision, evidence-gated, not a tuning task. The design-contract
+guardrails (ticket 0146) lock these properties in as tests.
+
 
 ### 11. Postel's Law: tolerant on read, strict on write
 
