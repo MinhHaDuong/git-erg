@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-05-29T09:55Z — Closed 0148 (self-update via git fetch): `erg update` now shells out to git (`fetch origin HEAD` + `cat-file blob`) instead of an embedded `net/http` client — the binary carries no network code, the offline invariant holds everywhere, and updates are fork-kind (from origin, override via ERG_UPDATE_URL/.ergrc git remote). Design-contract + custody work remaining: 0147 (static+stripped build, READY), 0146 (six form-guards, Blocked-by 0147), 0149 (data-safety guard suite, READY), 0150 (install/uninstall round-trip, READY); needs-human: 0151 (security/red-team — standing QA process, max threat model: binary in thousands of repos; trust via git-native signed tags), 0152 (UX try-and-learn — standing AI-assisted QA process). Closed 0153 (signed manifest/revocation) as YAGNI — use git signed tags, not bespoke signing infra. Added never-lose-data as a 7th, foremost invariant. 147 closed, 6 open, 3 ready._
+_Last updated: 2026-05-29T10:10Z — Merged main: 0147 (static+stripped build) and 0148 (self-update via git fetch) both landed. `erg update` now shells out to git (`fetch origin HEAD` + `cat-file blob`) instead of an embedded `net/http` client — the binary carries no network code and no cgo trigger, so combined with 0147's flags the bootstrap binary is now static **and** stripped (~2.9 MB). Offline invariant holds everywhere; updates are fork-kind (from origin, override via ERG_UPDATE_URL/.ergrc git remote). 0147's closure unblocked 0146. Remaining work: 0146 (guardrail tests for the six design-contract invariants, READY), 0149 (data-safety guard suite, READY), 0150 (install/uninstall round-trip, READY); needs-human: 0151 (security/red-team — standing QA process, max threat model: binary in thousands of repos; trust via git-native signed tags), 0152 (UX try-and-learn — standing AI-assisted QA process). Closed 0153 (signed manifest/revocation) as YAGNI — use git signed tags, not bespoke signing infra. never-lose-data is the 7th, foremost invariant. 148 closed, 5 open, 3 ready._
 
 ## North star:
 
@@ -17,7 +17,7 @@ An agent-friendly local ticket system for development in disconnected environmen
 
 ## Stats
 
-- Tickets: 147 closed, 6 open — ready: 0147, 0149, 0150; blocked: 0146 (by 0147); needs-human: 0151, 0152
+- Tickets: 148 closed, 5 open — ready: 0146, 0149, 0150; needs-human: 0151, 0152
 - Tests: green — ok git-erg
 - Open PRs: none
 
