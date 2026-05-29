@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-05-29T07:10Z — Feature freeze lifted (conference done). Queue intentionally empty: new work must be pulled by verified empirical need, not pushed from the dreamlist (see AGENTS.md "Earning a feature"). 145 closed, 0 open._
+_Last updated: 2026-05-29T07:30Z — Freeze lifted. Opened 0146 (design-contract guardrail tests) — the one dreamlist item justified by structural need: the six invariants (agnostic/offline/standalone/fast/small/stateless) are currently unguarded. 145 closed, 1 open._
 
 ## North star:
 
@@ -17,7 +17,7 @@ An agent-friendly local ticket system for development in disconnected environmen
 
 ## Stats
 
-- Tickets: 145 closed, 0 open
+- Tickets: 145 closed, 1 open (0146 — design-contract guardrail tests)
 - Tests: green — ok git-erg
 - Open PRs: none
 

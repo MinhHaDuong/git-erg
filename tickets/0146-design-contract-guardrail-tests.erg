@@ -1,0 +1,132 @@
+%erg 0.1
+Title: Guardrail tests for the six design-contract invariants
+Created: 2026-05-29
+Author: Claude
+
+--- log ---
+2026-05-29T07:30Z Claude created
+
+--- body ---
+## Context
+
+The project rests on six design-contract claims — **agnostic, offline,
+standalone, fast, small, stateless** — but *nothing enforces them*. The
+need here is structural, not a past incident: the contract is currently
+unguarded, so a future change can silently violate a foundational claim
+(add a network call, pull in a dependency, write a cache to `$HOME`) and no
+test will notice. This is the one dreamlist item that earns its place by
+the AGENTS.md bar: it protects irreversible erosion of the north star.
+
+The bar this ticket sets for *itself*: every guard must be **falsifiable**
+(it must fail when the invariant is actually violated — include a negative
+control), and the guard suite must **obey the contract it tests** — pure
+shell + the Go toolchain, runs offline, no new runtime or test
+dependencies, and deterministic (no flaky wall-clock in the blocking path).
+
+## Empirical starting state (verified 2026-05-29)
+
+- `go.mod` declares **zero** third-party modules. ✅ standalone (deps half)
+- The binary is **dynamically linked** to libc (cgo). ❌ not static today.
+- `net/http` is imported in **`src/go/update.go` only** — the sanctioned
+  `erg update` network path. Offline is "offline *except* `update`."
+- Binary size ≈ **7.9 MB**. Reference point for the "small" ceiling.
+
+## The six guards
+
+**1. agnostic** — the file is the contract, the binary is optional.
+- Author a `.erg` by hand (heredoc, LF, UTF-8) → `erg validate` accepts it
+  (you don't need the binary to write a valid ticket).
+- Extract a header field (`Title`/`Closed`/`Tag`) with POSIX `grep`/`awk`
+  and assert it agrees with the binary's parse of the same file.
+- Falsifies if the format ever requires the binary (binary index, non-text).
+
+**2. offline** — no network anywhere except the explicit `update` command.
+- Static guard (zero-dep, the primary): assert no network package
+  (`net/http`, `net/rpc`, `net/smtp`, `net.Dial*`) is reachable from any
+  command **other than `update`**. Pins the blast radius to one auditable
+  file; fails the moment a second command dials out.
+- Optional dynamic guard: run the non-`update` commands under a dropped
+  network namespace (`unshare -n` *if present*, skip-if-absent — no hard
+  dep) and assert exit 0.
+
+**3. standalone** — single binary, zero third-party deps.
+- Guard A (true today): `go list -deps ./...` / `go.mod` contain only
+  stdlib — no third-party `require`.
+- Guard B (static link) is **blocked on a decision** (see Open decisions);
+  do not assert static until the release build is actually static.
+
+**4. stateless** — the files are the only state.
+- Run the read commands (`list`, `ready`, `check`, `validate`, `next-id`)
+  with a throwaway `$HOME` and temp cwd; snapshot the filesystem before/
+  after and assert **nothing is created or modified outside the target
+  store** (read commands modify nothing at all). Directly enforces the
+  AGENTS.md "no stale cache / hand edit wins" rule — a cache to `~/.cache`
+  trips it. (`erg update` writes the binary by design and is excluded.)
+- Idempotence/order-independence: a read command's output is identical on
+  repeat and independent of which command ran before it.
+
+**5. fast** — *the weak leg; a catastrophe ceiling, not an SLA.*
+- Prefer a **deterministic** proxy over wall-clock: assert the corpus is
+  parsed at most once per invocation (instrument the loader). Non-flaky.
+- If a timing test is kept, run it on a synthetic large corpus (e.g. 1000
+  tickets) with a *generous* ceiling to catch O(N²) blowups only, and keep
+  it **non-blocking** (env-gated) so CI never flakes on it.
+
+**6. small** — guard against bloat / scope creep.
+- Assert built binary size is under a ceiling generous over today's 7.9 MB
+  (catches a fat dependency landing — overlaps standalone/offline).
+
+## Constraints (the suite obeys the contract)
+
+- Allowed tools: POSIX coreutils, the Go toolchain, and Linux-ubiquitous
+  `ldd`/`file` *with graceful skip*. No `jq`, no required `strace`, no
+  network. No new module deps.
+- Deterministic in the blocking path; anything timing-based is non-blocking.
+
+## Relevant files
+
+- `tests/test_contract.sh` (new) — the six guards (shell-drivable parts).
+- `src/go/contract_test.go` (new, maybe) — import-graph / parse-once guards
+  that are cleaner in Go than in shell.
+- `Makefile` — `TEST_SUITES += contract`; the existing "every test_*.sh is
+  in TEST_SUITES" check already enforces wiring.
+- `AGENTS.md` — the four invariants section; reconcile with the six (see
+  Open decisions).
+
+## Open decisions (need a human call before/within implementation)
+
+1. **Static binary**: make the release build truly static (CGO_ENABLED=0,
+   which forces dealing with `net/http`/`os/user`), or downgrade the
+   "standalone" claim to "zero third-party deps + single file"? Guard B
+   depends on the answer.
+2. **fast / small ceilings**: pick the corpus size + time ceiling (or adopt
+   the parse-once proxy and drop timing), and the binary-size ceiling.
+3. **Invariant vocabulary**: AGENTS.md lists four invariants; the contract
+   has six (adds *fast*, *small*). Add fast/small there as "budget guards"
+   distinct from the hard contracts, or keep them test-only?
+
+## Exit criteria
+
+- [ ] One **falsifiable** guard per invariant (agnostic, offline,
+      standalone-deps, stateless), each with a demonstrated negative control
+      (guard fails when the invariant is deliberately broken).
+- [ ] offline guard pins the network surface to `update` and fails if any
+      other command imports/uses networking.
+- [ ] stateless guard proves no writes outside the store for read commands.
+- [ ] fast guard is deterministic (parse-once) or non-blocking timing; never
+      flakes CI. small guard enforces a size ceiling.
+- [ ] Suite runs offline with **no new deps**; `ldd`/namespace bits skip
+      gracefully when absent.
+- [ ] Wired into `make test` (`TEST_SUITES += contract`); `make test` and
+      `make validate` green; docs/bootstrap refreshed if surface changes.
+- [ ] Open decisions resolved and recorded (the static-link and
+      ceiling/vocabulary calls).
+
+## Notes
+
+- This may split if it grows: the offline + standalone + small guards are
+  one cluster (dependency/network surface), stateless + agnostic another
+  (file-is-truth), fast a lonely third. Land the deterministic clusters
+  first; fast can lag.
+- Guards are contracts, not perf work — keep them coarse. The point is to
+  catch a *violation*, not to chase a number.
