@@ -61,8 +61,10 @@ func TestLoadGitRefs(t *testing.T) {
 				t.Errorf("refs %v missing %q", refs, want)
 			}
 		}
-		if containsStr(refs, "origin/HEAD") {
-			t.Errorf("refs %v should exclude remote HEAD symref", refs)
+		// The remote HEAD symref's short name is the bare remote name
+		// ("origin"), not "origin/HEAD". It must be excluded as a symbolic ref.
+		if containsStr(refs, "origin") {
+			t.Errorf("refs %v should exclude remote HEAD symref (short name 'origin')", refs)
 		}
 	})
 }

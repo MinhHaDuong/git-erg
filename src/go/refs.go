@@ -39,8 +39,12 @@ func isRefBoundary(s string, i int) bool {
 // nil on any git error (no repo, etc.) so callers degrade silently — refs
 // are an optional annotation, not a precondition.
 func loadGitRefs(dir string) []string {
+	// Skip symbolic refs (e.g. refs/remotes/origin/HEAD) structurally: the
+	// %(if)%(symref) test emits an empty line for them, which the loop drops.
+	// Matching on a "/HEAD" short-name suffix does not work — a remote HEAD
+	// symref's short name is just the remote name ("origin"), not "origin/HEAD".
 	cmd := exec.Command("git", "-C", dir, "for-each-ref",
-		"--format=%(refname:short)",
+		"--format=%(if)%(symref)%(then)%(else)%(refname:short)%(end)",
 		"refs/heads", "refs/remotes")
 	cmd.Stderr = io.Discard
 	out, err := cmd.Output()
@@ -50,7 +54,7 @@ func loadGitRefs(dir string) []string {
 	var refs []string
 	for _, line := range strings.Split(string(out), "\n") {
 		line = strings.TrimSpace(line)
-		if line == "" || strings.HasSuffix(line, "/HEAD") {
+		if line == "" {
 			continue
 		}
 		refs = append(refs, line)
