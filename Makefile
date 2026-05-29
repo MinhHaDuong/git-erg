@@ -8,7 +8,7 @@
 #   make build      Build the erg binary
 #   make test       Run Go unit tests and shell integration tests
 #   make unit-test  Run Go unit tests with coverage report
-#   make test-scaling  Empirical N-vs-2N scaling guard (slow; not in `test`)
+#   make test-scaling  Empirical 4x-ladder scaling guard (slow; not in `test`)
 #   make docs       Generate docs/erg-manual.md from erg --help --all
 #   make validate   Validate tickets in tickets/
 #   make ready      List ready tickets
@@ -64,9 +64,10 @@ test: unit-test $(TEST_TARGETS)
 # default suite: slow, and a regression check rather than a per-merge gate.
 # No `build` prerequisite — the test drives the commands in-process, never the
 # binary. The -run pattern matches the linear test, its negative control, and
-# the corpus-validity check (all named TestScaling*).
+# the corpus-validity check (all named TestScaling*). -count=1 disables the
+# test result cache so the profiling table is always printed on demand.
 test-scaling:
-	cd src/go && go test -tags scaling -run TestScaling -v .
+	cd src/go && go test -tags scaling -run TestScaling -count=1 -v .
 
 validate: build
 	$(ERG_BIN) check tickets/

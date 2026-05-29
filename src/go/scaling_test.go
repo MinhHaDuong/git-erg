@@ -129,7 +129,7 @@ func buildCorpus(t *testing.T, dir string, n int) {
 // the odds of a collection cycle landing inside the timed region.
 func measure(t *testing.T, fn func()) (bytes uint64, elapsed time.Duration) {
 	t.Helper()
-	devnull, err := os.Open(os.DevNull)
+	devnull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
 	if err != nil {
 		t.Fatalf("open %s: %v", os.DevNull, err)
 	}
@@ -221,6 +221,16 @@ var scalingCommands = []struct {
 func TestScalingLinear(t *testing.T) {
 	for _, c := range scalingCommands {
 		t.Run(c.name, func(t *testing.T) {
+			// Guard against a command silently starting to fail: a non-zero
+			// exit would taint the scaling signal (an error path allocates
+			// differently). Run once on a small corpus and assert success
+			// before trusting the ladder. Checked here, not in profileLadder,
+			// because the negative control's probe returns a count, not a status.
+			dir := t.TempDir()
+			buildCorpus(t, dir, scalingSizes[0])
+			if ret := c.invoke(dir); ret != 0 {
+				t.Fatalf("%s returned non-zero exit %d — scaling signal is untrustworthy", c.name, ret)
+			}
 			if maxRatio := profileLadder(t, c.name, c.invoke); maxRatio > ratioCeiling {
 				t.Errorf("%s: worst alloc-bytes ratio %.2f exceeds %.1f — super-linear allocation (4x is linear, ~16x quadratic)",
 					c.name, maxRatio, ratioCeiling)
