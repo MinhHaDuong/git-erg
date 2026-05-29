@@ -1,6 +1,6 @@
 //go:build scaling
 
-// Resource-hygiene guard (ticket 0165), sibling to scaling_test.go.
+// Resource-hygiene guard (ticket 0169), sibling to scaling_test.go.
 //
 // scaling_test.go gates allocation *volume* (TotalAlloc) — the signal for an
 // O(N^2) churn regression. It is blind to OS-resource leaks. This file adds two
