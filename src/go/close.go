@@ -161,13 +161,18 @@ func clearBlockedByRefs(ticketDir, targetID, logLine string, includeClosed bool)
 	}
 }
 
-// removeBlockedByLine removes "Blocked-by: <id>" lines matching id from content.
+// removeBlockedByLine removes Blocked-by header lines matching id from content.
+// It parses each line with parseHeaderLine — the same parser that populated
+// Erg.BlockedBys for dependency detection — so it strips every form the parser
+// tolerates (e.g. "Blocked-by : 0001" with whitespace before the colon or
+// trailing whitespace), not just the canonical "Blocked-by: <id>" spelling.
+// Detecting a dependent but failing to remove its edge would leave a dangling
+// ref that `erg check` then flags.
 func removeBlockedByLine(content, id string) string {
 	lines := strings.Split(content, "\n")
 	out := make([]string, 0, len(lines))
-	prefix := "Blocked-by: " + id
 	for _, line := range lines {
-		if strings.TrimRight(line, " \t") == prefix {
+		if key, val, ok := parseHeaderLine(line); ok && key == "Blocked-by" && val == id {
 			continue
 		}
 		out = append(out, line)

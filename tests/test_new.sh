@@ -44,6 +44,25 @@ else
     fail "generated file passes erg validate"
 fi
 
+# --- Rule 14: erg new refuses a status-word-edge title (would self-invalidate) ---
+out=$($ERG new "ready: do the thing" "$TDIR/r14" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "status word 'ready'"; then
+    pass "rule 14: erg new rejects status-word-edge title"
+else
+    fail "rule 14: erg new rejects status-word-edge title (rc=$rc, got: $out)"
+fi
+if [ ! -d "$TDIR/r14" ] || [ -z "$(ls -A "$TDIR/r14" 2>/dev/null)" ]; then
+    pass "rule 14: erg new creates no file on rejection"
+else
+    fail "rule 14: erg new creates no file on rejection (found: $(ls -A "$TDIR/r14"))"
+fi
+# Mid-title status word is still allowed.
+if $ERG new "respect the open flag mid title" "$TDIR/r14ok" >/dev/null 2>&1; then
+    pass "rule 14: erg new allows mid-title status word"
+else
+    fail "rule 14: erg new allows mid-title status word"
+fi
+
 # --- Sequential IDs: second ticket gets ID 0002 ---
 OUT2=$($ERG new "Second ticket" "$TDIR/basic" | sed 's/^CREATED //')
 if echo "$OUT2" | grep -q "^0002-"; then

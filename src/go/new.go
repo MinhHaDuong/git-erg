@@ -58,6 +58,17 @@ func cmdNew(args []string) int {
 	}
 
 	title := args[0]
+
+	// Rule 14 applies to open + new tickets: refuse to create a ticket whose
+	// Title begins or ends with a status word, otherwise `erg new` would emit
+	// a file that the very next `erg validate`/`erg check` rejects.
+	if word, pos, bad := titleStatusEdgeWord(title); bad {
+		fmt.Fprintf(os.Stderr,
+			"new: Title %s status word '%s' — reserved for ticket status; rephrase so the Title does not start or end with: closed, done, open, ready\n",
+			pos, word)
+		return 1
+	}
+
 	var ticketDir string
 	if len(args) >= 2 {
 		ticketDir = filepath.Clean(args[1])

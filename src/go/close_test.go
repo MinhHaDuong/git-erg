@@ -68,6 +68,12 @@ func TestRemoveBlockedByLine(t *testing.T) {
 			id:      "0042",
 			want:    "%erg 0.1\n\n--- log ---\n",
 		},
+		{
+			name:    "whitespace before colon (parser-tolerated form) still matched",
+			content: "%erg 0.1\nBlocked-by : 0042\n\n--- log ---\n",
+			id:      "0042",
+			want:    "%erg 0.1\n\n--- log ---\n",
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

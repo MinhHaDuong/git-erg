@@ -66,22 +66,35 @@ func cmdRm(args []string) int {
 		explicit = positional[1]
 	}
 
-	ticketDir, err := resolveDir(explicit)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "rm: %v\n", err)
-		return 1
-	}
-
 	// Resolve to a file path, reusing the same ID/FILE resolution and error
 	// messages as the other mutating commands.
-	var ticketPath string
+	var ticketPath, ticketDir string
+	var err error
 	if strings.HasSuffix(idOrFile, ".erg") {
 		ticketPath = idOrFile
 		if _, err := os.Stat(ticketPath); err != nil {
 			fmt.Fprintf(os.Stderr, "rm: no ticket found at %s\n", ticketPath)
 			return 1
 		}
+		// Scan the corpus the file actually lives in for dependents. An
+		// explicit DIR wins; otherwise infer the store from the file's own
+		// directory rather than auto-discovering an unrelated store, which
+		// would bypass the DAG guard for a FILE path outside the default store.
+		scanArg := explicit
+		if scanArg == "" {
+			scanArg = filepath.Dir(ticketPath)
+		}
+		ticketDir, err = resolveDir(scanArg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "rm: %v\n", err)
+			return 1
+		}
 	} else {
+		ticketDir, err = resolveDir(explicit)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "rm: %v\n", err)
+			return 1
+		}
 		ticketPath, err = resolveTicketByID(ticketDir, idOrFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "rm: %v\n", err)

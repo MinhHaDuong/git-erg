@@ -164,5 +164,50 @@ else
     fail "file-form: rm accepts a full path (rc=$rc, got: $out)"
 fi
 
+# --- FILE form outside the default store: guard scans the file's own store ---
+# Regression: rm FILE with no DIR must infer the corpus from the file's
+# directory, not auto-discover an unrelated store (which would bypass the guard).
+STORE=$(mktemp -d)
+write_open            "$STORE/0001-blocker.erg"          "Blocker"
+write_open_blocked_by "$STORE/0002-blocked.erg" "Blocked" "0001"
+OTHER=$(mktemp -d)
+write_open "$OTHER/0009-unrelated.erg" "Unrelated decoy store"
+# cd into an unrelated ticket store, give an absolute FILE path into STORE, no DIR.
+out=$(cd "$OTHER" && "$ERG" rm "$STORE/0001-blocker.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "0002" && [ -f "$STORE/0001-blocker.erg" ]; then
+    pass "file-form: guard scans the file's own store (not the cwd store)"
+else
+    fail "file-form: guard scans the file's own store (rc=$rc, got: $out)"
+fi
+rm -rf "$STORE" "$OTHER"
+
+# --- --force clears a whitespace-before-colon dependency (parser-tolerated) ---
+WS=$(mktemp -d)
+write_open "$WS/0001-blocker.erg" "Blocker"
+cat > "$WS/0002-ws-dep.erg" <<'EOF'
+%erg 0.1
+Title: Dependent with spaced colon
+Created: 2026-01-01
+Author: claude
+Blocked-by : 0001
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+out=$($ERG rm --force 0001 "$WS" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] && ! grep -Eq "^Blocked-by" "$WS/0002-ws-dep.erg"; then
+    pass "force: clears 'Blocked-by : 0001' (whitespace-before-colon) line"
+else
+    fail "force: clears 'Blocked-by : 0001' line (rc=$rc, left: $(grep -E '^Blocked-by' "$WS/0002-ws-dep.erg"))"
+fi
+if $ERG check "$WS" >/dev/null 2>&1; then
+    pass "force: corpus check-clean after whitespace-form cascade"
+else
+    fail "force: corpus check-clean after whitespace-form cascade (got: $($ERG check "$WS" 2>&1))"
+fi
+rm -rf "$WS"
+
 echo "rm: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
