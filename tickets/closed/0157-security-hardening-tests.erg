@@ -2,11 +2,13 @@
 Title: Security hardening tests — path-traversal, input-DoS, negative controls
 Created: 2026-05-29
 Author: Claude
-Blocked-by: 0151
+Closed: autoclosed — PR #172
 
 --- log ---
 2026-05-29T14:00Z Claude created — child of 0151 (security audit); falsifiable hardening subset
+2026-05-29T19:00Z Claude note dropped Blocked-by: 0151 — a child is not blocked by its parent tracker; the link lives in 0151's Children list + this log (child merges before the parent closes)
 
+2026-05-29T19:01Z MinhHaDuong closed — autoclosed — PR #172
 --- body ---
 ## Context
 

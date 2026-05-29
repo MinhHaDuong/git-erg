@@ -102,6 +102,25 @@ func cmdRm(args []string) int {
 		}
 	}
 
+	// Confine the delete to the resolved store, matching the write path's
+	// fail-safe rail (0149 writeTicketAtomic/withinStore). rm's FILE form
+	// resolved ticketPath then called os.Remove directly, never withinStore —
+	// so an explicit store DIR the FILE escapes (e.g. `erg rm /tmp/outside.erg
+	// <store>`) would delete a file outside it. Delete is as irreversible as a
+	// write, so the same rail applies. This is a fat-finger guard, not a
+	// security boundary (a determined caller passes the file's own dir as DIR);
+	// it stops the common mistake before it lands. The ID form resolves within
+	// ticketDir already, so the gate is a no-op there.
+	if ok, werr := withinStore(ticketDir, ticketPath); werr != nil {
+		fmt.Fprintf(os.Stderr, "rm: %v\n", werr)
+		return 1
+	} else if !ok {
+		absStore, _ := filepath.Abs(ticketDir)
+		fmt.Fprintf(os.Stderr, "rm: refusing to delete %s: target is outside the ticket store %s "+
+			"(pass the directory that contains the file, or omit DIR to infer it)\n", ticketPath, absStore)
+		return 1
+	}
+
 	target, _ := parseErg(ticketPath)
 	targetID := target.FilenameID()
 

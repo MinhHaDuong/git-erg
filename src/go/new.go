@@ -70,6 +70,20 @@ func cmdNew(args []string) int {
 
 	var ticketDir string
 	if len(args) >= 2 {
+		// Explicit DIR is an intentional escape hatch, NOT confined.
+		//
+		// The other mutating commands (close/log/tag/rm) treat an explicit DIR
+		// as the trusted store: resolveDir accepts any directory the caller
+		// names. `new` creates that store (MkdirAll), so confining it against a
+		// "discovered" or cwd store is ill-defined — for `new` the named DIR *is*
+		// the store. 0149's withinStore is a fat-finger guard, not a security
+		// boundary; here the directory is precisely what the user fat-fingered or
+		// chose, so there is nothing to guard against. Confining against cwd would
+		// also break the legitimate absolute-DIR form every caller already relies
+		// on (e.g. `erg new TITLE /path/to/tickets`, and the test suites). So an
+		// explicit DIR — relative subdir or absolute — is honoured verbatim. The
+		// unconfined surface needs attacker-controlled CLI args, not a committed
+		// .erg, so the parser-input attack surface is unaffected.
 		ticketDir = filepath.Clean(args[1])
 	} else {
 		var err error
