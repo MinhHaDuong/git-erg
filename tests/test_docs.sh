@@ -51,6 +51,16 @@ else
     pass "README erg validate examples use file paths, not bare IDs"
 fi
 
+# README install step must name a concrete binary source, not a bare
+# "prebuilt one" (regression guard for 0164 / finding F10). The fix points at
+# the committed tickets/erg; the negative control is the old vague wording.
+install_step=$(grep -A2 'Drop the .*erg.* binary' README.md || true)
+if echo "$install_step" | grep -q 'tickets/erg'; then
+    pass "README install step names the committed tickets/erg as the prebuilt source"
+else
+    fail "README install step is vague about where the prebuilt binary comes from"
+fi
+
 # CONTRIBUTING.md exists and its add-a-subcommand checklist names every
 # touch-point (regression guard for 0163 / findings F16+F17). A stub guide
 # missing the checklist must fail.
