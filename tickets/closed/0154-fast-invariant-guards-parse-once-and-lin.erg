@@ -2,11 +2,13 @@
 Title: Fast invariant guards — parse-once and linear op-counts
 Created: 2026-05-29
 Author: Claude
+Closed: autoclosed — PR #169
 
 --- log ---
 2026-05-29T12:37Z Claude created — split out of 0146; the deterministic five guards (agnostic, offline, standalone, stateless, small) shipped in tests/test_contract.sh, fast deferred here per 0146's "land deterministic first; fast can lag"
 
 2026-05-29T12:38Z Claude note carries the fast guards 0146 deferred (parse-once + linear N-vs-2N op-count + wall-clock backstop)
+2026-05-29T14:40Z MinhHaDuong closed — autoclosed — PR #169
 --- body ---
 ## Context
 
