@@ -10,6 +10,16 @@ func (r Ref) IsForge() bool {
 	return r.Kind == RefForge
 }
 
+// MatchesLocalID reports whether r is a local Blocked-by reference to the
+// given 4-digit ticket ID. This is the single predicate shared by dependency
+// detection (cmdRm's dependent scan, clearBlockedByRefs) and edge removal
+// (removeBlockedByLine), so "this ticket is a dependent" and "strip this
+// Blocked-by line" can never disagree — the class of bug where a dependent is
+// detected but its edge is left dangling.
+func (r Ref) MatchesLocalID(id string) bool {
+	return r.Kind == RefLocal && r.ID == id
+}
+
 // parseRef parses a Blocked-by value into a Ref, or returns a precise
 // error naming the failure mode. Stays purely syntactic — no network,
 // no ticket-existence check.

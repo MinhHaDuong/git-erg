@@ -207,9 +207,13 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
       the first occurrence of each is the section separator, subsequent
       occurrences are body text (legitimate bodies may quote the literals).
   13. No dependency cycles among local Blocked-by refs.
+  14. Title does not begin or end with a status word (ready, done, closed,
+      open) — these read as a status assertion about the ticket rather than
+      the thing being changed. Enforced on open tickets; closed tickets are
+      grandfathered (existing closed history is never flagged).
 
 Error format: 'filename:LINE: message' when a specific line applies
-(rules 1-7, 9, 11); 'filename: message' when no line applies (rules 8, 12).
+(rules 1-7, 9, 11, 14); 'filename: message' when no line applies (rules 8, 12).
 Line numbers are 1-indexed.
 
 For corpus-level checks (duplicate IDs, cycles), use: erg check [dir]

@@ -637,7 +637,7 @@ fi
 # --- Closed: substring in body prose accepted (line-start match required) ---
 cat > "$FIXTURES/0111-closed-in-prose.erg" <<'EOF'
 %erg 0.1
-Title: Closed in prose
+Title: Mentions a status key in prose
 Created: 2026-01-01
 Author: a
 
@@ -1040,6 +1040,78 @@ if echo "$stderr_out" | grep -q "blank line inside header block"; then
     fail "clean file must not emit interior-blank warning (got: $stderr_out)"
 else
     pass "clean file emits no interior-blank warning"
+fi
+
+# --- Rule 14: Title begins with a status word is rejected ---
+cat > "$FIXTURES/0401-title-start.erg" <<'EOF'
+%erg 0.1
+Title: ready: demote claimed signal from blocker to marker
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T09:00Z claude created
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0401-title-start.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "status word 'ready'" && echo "$out" | grep -q "0401-title-start.erg:2:"; then
+    pass "rule 14: Title starting with status word rejected (names word + line)"
+else
+    fail "rule 14: Title starting with status word rejected (rc=$rc, got: $out)"
+fi
+
+# --- Rule 14: Title ends with a status word is rejected ---
+cat > "$FIXTURES/0402-title-end.erg" <<'EOF'
+%erg 0.1
+Title: make the work queue ready
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T09:00Z claude created
+--- body ---
+EOF
+out=$($ERG validate "$FIXTURES/0402-title-end.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "status word 'ready'"; then
+    pass "rule 14: Title ending with status word rejected"
+else
+    fail "rule 14: Title ending with status word rejected (rc=$rc, got: $out)"
+fi
+
+# --- Rule 14: status word mid-title is accepted ---
+cat > "$FIXTURES/0403-title-mid.erg" <<'EOF'
+%erg 0.1
+Title: respect the open flag in the parser
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T09:00Z claude created
+--- body ---
+EOF
+if $ERG validate "$FIXTURES/0403-title-mid.erg" >/dev/null 2>&1; then
+    pass "rule 14: status word mid-title accepted"
+else
+    fail "rule 14: status word mid-title accepted"
+fi
+
+# --- Rule 14: closed ticket grandfathered (status word at edge tolerated) ---
+cat > "$FIXTURES/0404-title-closed.erg" <<'EOF'
+%erg 0.1
+Title: ready: demote claimed signal from blocker to marker
+Created: 2026-01-01
+Author: claude
+Closed: superseded
+
+--- log ---
+2026-01-01T09:00Z claude created
+2026-01-01T10:00Z claude closed — superseded
+--- body ---
+EOF
+if $ERG validate "$FIXTURES/0404-title-closed.erg" >/dev/null 2>&1; then
+    pass "rule 14: closed ticket grandfathered"
+else
+    fail "rule 14: closed ticket grandfathered"
 fi
 
 echo "validate: $PASS passed, $FAIL failed"

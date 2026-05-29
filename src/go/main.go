@@ -14,6 +14,7 @@
 //	erg tag      ID TAGNAME [DIR]
 //	erg untag    ID TAGNAME [DIR]
 //	erg archive  [id...] [dir]
+//	erg rm       ID|FILE [dir] [--force]
 //	erg migrate  [dir]
 //	erg init     [dir]
 //	erg version
@@ -208,6 +209,8 @@ func main() {
 		exitCode = cmdUntag(rest)
 	case "archive":
 		exitCode = cmdArchive(rest)
+	case "rm":
+		exitCode = cmdRm(rest)
 	case "migrate":
 		exitCode = cmdMigrate(rest)
 	case "init":

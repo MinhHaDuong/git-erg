@@ -152,5 +152,19 @@ else
     fail "missing body separator: exits non-zero with error (rc=$rc, got: $err)"
 fi
 
+# --- Rule 11: a single-word LINE is rejected (would write an invalid log line) ---
+err=$($ERG log 0042 "garbage" "$FIXTURES" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$err" | grep -q "valid log entry"; then
+    pass "rule 11: single-word LINE rejected"
+else
+    fail "rule 11: single-word LINE rejected (rc=$rc, got: $err)"
+fi
+# And nothing was written — the target file still validates and gained no line.
+if $ERG validate "$FIXTURES/0042-smoke.erg" >/dev/null 2>&1 && ! grep -qw "garbage" "$FIXTURES/0042-smoke.erg"; then
+    pass "rule 11: target unchanged after rejected log (no bad line written)"
+else
+    fail "rule 11: target unchanged after rejected log"
+fi
+
 echo "log: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
