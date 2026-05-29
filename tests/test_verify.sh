@@ -25,6 +25,14 @@ if echo "$OUT" | grep -q 'verify: PASS'; then
 	exit 0
 fi
 
+# The verify target itself emits 'verify: SKIP' when it cannot obtain the
+# embedded revision (e.g. a shallow clone where the ancestor commit is absent).
+# That is an environment limitation, not a reproducibility regression.
+if echo "$OUT" | grep -q 'verify: SKIP'; then
+	echo "test_verify: SKIP (embedded revision unavailable — shallow clone)"
+	exit 0
+fi
+
 # Toolchain download / availability failure → environment limitation, not a
 # reproducibility regression. Match only toolchain-fetch / network errors,
 # never the verify FAIL line ("NOT reproducible", no skip keyword) nor a
