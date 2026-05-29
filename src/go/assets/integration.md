@@ -50,6 +50,30 @@ Add this line to your `AGENTS.md` (or equivalent agent-visible file):
 git-erg local tickets: see tickets/AGENTS.md
 ```
 
+## Uninstall
+
+To remove erg from your project, delete the five files it placed in
+`tickets/` and the pre-commit hook (if you installed one in step 1):
+
+```sh
+rm tickets/.ergrc tickets/AGENTS.md tickets/spec-erg-v1.md tickets/integration.md tickets/erg
+rm .git/hooks/pre-commit   # if you added the hook from step 1
+```
+
+If you installed erg to `~/.local/bin` via `make install-erg-binary`,
+also remove that copy:
+
+```sh
+rm ~/.local/bin/erg
+```
+
+**Your tickets are not removed.** Files you created (`tickets/*.erg`,
+`tickets/closed/`) are yours — erg never deletes them. Remove them
+yourself if you no longer need them.
+
+If you added the `AGENTS.md` line from step 2, remove that line
+manually from your agent-visible file.
+
 ## Optional: .gitignore
 
 Add `tickets/erg` to `.gitignore` if you do not want to commit the
