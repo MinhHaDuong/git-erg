@@ -89,6 +89,7 @@ project does not need. The design rationale is in `pep-erg-v1.md` §8.
 - Normative specification:  `tickets/spec-erg-v1.md`.
 - Reference implementation: `src/go/` (source), `tickets/erg` (bootstrap binary).
 - Design rationale: `pep-erg-v1.md`.
+- Contributing (build, test, adding a subcommand): `CONTRIBUTING.md`.
 
 ## Install into a project
 

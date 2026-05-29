@@ -1,0 +1,65 @@
+# Contributing to git-erg
+
+Thanks for helping out. git-erg is a small, single-static-binary Go tool
+plus a POSIX-first text format. This guide covers the contributor loop;
+agent operating policy lives in `AGENTS.md`, and the test policy lives in
+`tests/README.md`.
+
+## Prerequisites
+
+- **Go 1.21+** (see `src/go/go.mod`). Needed only to build/test the binary;
+  the POSIX path needs nothing.
+- A POSIX `sh` for the integration tests.
+
+## Build and test
+
+```bash
+make build          # build the binary to build/erg
+make test           # Go unit tests + all shell integration suites
+make test-<suite>   # run one shell suite, e.g. make test-init
+make unit-test      # Go unit tests with a coverage report
+make validate       # validate the tickets/ corpus
+```
+
+`make test` is the gate: it must exit 0 before you open a merge request.
+Tests always run against `build/erg` (rebuilt from source), never the
+committed `tickets/erg` bootstrap binary.
+
+## Branches and merge requests
+
+- Work on a branch; `main` is for merges only.
+- One change per commit; the message explains *why this change and not
+  another*.
+- Open one merge request per ticket. Put a `**Ticket:**
+  tickets/NNNN-...erg` line in the body so the ticket auto-closes on merge.
+- Keep the diff inside the change-scope allowlist in `AGENTS.md` section 3.
+
+## Adding a subcommand
+
+A subcommand touches five places. Two automated tests
+(`TestDispatchRegistrySync` in `src/go/erg_test.go` and the Makefile
+`_test-lint` target) catch the easy-to-forget ones, so follow all five:
+
+1. **Command file**: create `src/go/<cmd>.go` with `summary<Cmd>`,
+   `help<Cmd>`, and `cmd<Cmd>(args []string) int`. Use an existing
+   small command (`src/go/init.go`) as the template.
+2. **Registry**: add a `commandEntry` to the `commands` slice in
+   `src/go/helptext.go` (this drives `--help` and `--help --all`).
+3. **Dispatch**: add a `case "<cmd>":` to the switch in `src/go/main.go`
+   calling `cmd<Cmd>(rest)`.
+   (Steps 2 and 3 must stay in sync; `TestDispatchRegistrySync`
+   fails if one is missing.)
+4. **Test**: create `tests/test_<cmd>.sh` (see `tests/README.md` for the
+   fixture conventions).
+5. **Test registration**: add `<cmd>` to `TEST_SUITES` in the `Makefile`.
+   (The `_test-lint` target fails if a `tests/test_*.sh` file has no
+   matching `TEST_SUITES` entry.)
+
+Then `make test`; both guard tests run as part of it.
+
+## Where things live
+
+- Source of truth: `src/go/` (the binary is a built cache, see README
+  "Binary policy").
+- Format spec: `tickets/spec-erg-v1.md`. Design rationale: `pep-erg-v1.md`.
+- Test policy and fixture strategy: `tests/README.md`.
