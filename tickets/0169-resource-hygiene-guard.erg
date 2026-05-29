@@ -30,7 +30,7 @@ are noted for review and a future check.
 
 ## Relevant files
 - src/go/resource_test.go — new, //go:build scaling (sibling to scaling_test.go)
-- Makefile — test-scaling -run filter widened to name all three tests
+- Makefile — existing test-scaling -run TestScaling filter already picks up the new tests
 
 ## Actions
 1. Add resource_test.go (build tag scaling), reusing buildCorpus from
