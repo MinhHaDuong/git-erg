@@ -1,0 +1,68 @@
+%erg 0.1
+Title: Scaling regression guard — empirical N-vs-2N for corpus-heavy commands
+Created: 2026-05-29
+Author: Claude
+
+--- log ---
+2026-05-29T16:51Z Claude created — follow-up to 0154; adds an empirical end-to-end scaling guard to complement the counter-based op-count guard and the wall-clock backstop
+
+2026-05-29T17:20Z Claude note assertion signal is allocation VOLUME (TotalAlloc bytes), not allocation count (Mallocs): mutation testing showed `append` amortises an O(N^2)-byte build into O(N log N) malloc events, so count misses it but bytes trip ~16x. Compute-bound zero-alloc O(N^2) still slips past — owned by 0154 wall-clock backstop + review (defense-in-depth, accepted on #169)
+
+--- body ---
+## Context
+
+0154 shipped two `fast`-invariant guards: a deterministic parse-once /
+op-count counter (`src/go/contract_test.go`) and a non-blocking wall-clock
+backstop (`tests/test_contract.sh`). Verification of 0154 surfaced a real
+limit: the op-count counter is pinned to corpus size by construction, so an
+O(N²) *algorithm* inside a per-item loop can pass it silently. The wall-clock
+backstop catches catastrophe but not a 2×→4× regression.
+
+This ticket adds the empirical guard the author asked for: measure real
+allocation count and wall-clock time of the corpus-heavy commands across a
+geometric ladder of corpus sizes and assert the growth is linear. Allocation
+count is deterministic for fixed input (immune to CI-box speed), so it is the
+assertion signal; time is logged for inspection.
+
+It is slow (builds large stores, runs six commands) and is a regression guard,
+not a per-merge check — so it is build-tagged out of the default suite and run
+on demand.
+
+## Relevant files
+- `src/go/scaling_test.go` — new, `//go:build scaling`
+- `Makefile` — new `test-scaling` target; excluded from `test`
+- `src/go/erg.go` `loadErgs`, `src/go/validate.go` `validateCorpus`,
+  `detectCycles` — the scanned-once / DAG-walk paths under test
+
+## Actions
+1. Add a non-trivial corpus generator: a realistic acyclic DAG (multiple
+   Blocked-by edges per ticket, fan-in), a `closed/` subdirectory (recursive
+   walk + folder-closure path), tags from the default vocabulary, varied
+   bodies — not an identical-ticket chain.
+2. Profile the corpus-heavy commands 0154 named (`check`, `list`, `ready`,
+   `next-id`, and the dependent-scan mutators `close`, `rm`) across a
+   3-point 4× ladder {64, 256, 1024}.
+3. Assert linear scaling: malloc-count ratio between consecutive sizes stays
+   below the linear/quadratic separator (4× expected linear, 16× quadratic).
+4. Add `make test-scaling`; keep it out of `make test` / `make unit-test`.
+
+## Test
+- `make test-scaling` runs `TestScalingLinear` (tag `scaling`); all six
+  commands report ratios near 4.0 and the suite passes.
+- `make test` / `go test ./...` do NOT compile or run the tagged file
+  (verify the binary/coverage run is unchanged).
+
+## Verification
+- [ ] `make test-scaling` green; ratios logged near 4.0 for every command
+- [ ] `make test` unaffected (tagged file excluded)
+- [ ] Corpus is non-trivial: multi-edge DAG, closed/ subdir, tags
+
+## Invariants
+- No new dependencies; stdlib + Go toolchain only.
+- Default `make test` runtime and coverage unchanged.
+- The generated corpus validates clean (errors → 0; warnings allowed).
+
+## Exit criteria
+- A build-tagged scaling test exercising check/list/ready/next-id/close/rm
+  on a non-trivial store, asserting linear growth, run via `make test-scaling`
+  and excluded from the default suite. `make check` / `make test` green.

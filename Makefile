@@ -8,6 +8,7 @@
 #   make build      Build the erg binary
 #   make test       Run Go unit tests and shell integration tests
 #   make unit-test  Run Go unit tests with coverage report
+#   make test-scaling  Empirical N-vs-2N scaling guard (slow; not in `test`)
 #   make docs       Generate docs/erg-manual.md from erg --help --all
 #   make validate   Validate tickets in tickets/
 #   make ready      List ready tickets
@@ -16,7 +17,7 @@
 TEST_SUITES := validate check list ready update close migrate nextid log tag new init main archive rm datasafety pipeline help version hook godoc docs contract roundtrip
 TEST_TARGETS := $(TEST_SUITES:%=test-%)
 
-.PHONY: build test unit-test _test-lint docs $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary
+.PHONY: build test unit-test test-scaling _test-lint docs $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary
 
 ERG_BIN := $(CURDIR)/build/erg
 BOOTSTRAP_BIN := $(CURDIR)/tickets/erg
@@ -58,6 +59,11 @@ unit-test: build
 
 test: unit-test $(TEST_TARGETS)
 	@echo "ALL TESTS PASSED"
+
+# Empirical scaling regression guard (ticket 0159). Build-tagged out of the
+# default suite: slow, and a regression check rather than a per-merge gate.
+test-scaling: build
+	cd src/go && go test -tags scaling -run TestScalingLinear -v .
 
 validate: build
 	$(ERG_BIN) check tickets/
