@@ -2,10 +2,13 @@
 Title: Build a static, stripped erg binary via Makefile flags
 Created: 2026-05-29
 Author: Claude
+Closed: Static stripped binary shipping via Makefile flags; bootstrap rebuilt
 
 --- log ---
 2026-05-29T08:30Z Claude created — split out of 0146 (build change is independent of the guard tests)
 
+2026-05-29T09:46Z Claude note Makefile hardened (CGO_ENABLED=0, osusergo/netgo, -trimpath, -s -w) factored into GO_BUILD_ENV/GO_BUILD_FLAGS/GO_LDFLAGS; build/erg and tickets/erg now static, 6.1 MB; make test green
+2026-05-29T09:46Z Claude closed — Static stripped binary shipping via Makefile flags; bootstrap rebuilt
 --- body ---
 ## Context
 
@@ -60,10 +63,10 @@ runs on musl + old glibc, where the dynamic build silently failed).
 
 ## Exit criteria
 
-- [ ] Flags live in one Makefile variable, applied to both `build` and
+- [x] Flags live in one Makefile variable, applied to both `build` and
       `update-bootstrap-binary`; the `-X` build-stamp ldflags preserved.
-- [ ] `build/erg` and `tickets/erg` are static and ~6.2 MB.
-- [ ] `make test` / `make validate` green; bootstrap `tickets/erg` rebuilt and
+- [x] `build/erg` and `tickets/erg` are static and ~6.2 MB.
+- [x] `make test` / `make validate` green; bootstrap `tickets/erg` rebuilt and
       committed via the normal flow.
 
 ## Notes

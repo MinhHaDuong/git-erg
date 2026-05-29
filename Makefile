@@ -21,10 +21,21 @@ TEST_TARGETS := $(TEST_SUITES:%=test-%)
 ERG_BIN := $(CURDIR)/build/erg
 BOOTSTRAP_BIN := $(CURDIR)/tickets/erg
 
+# Build hardening (single source of truth for both build recipes below).
+# - CGO_ENABLED=0 + -tags osusergo,netgo: fully static, no libc dependency, so
+#   the committed/cloned binary runs on musl (Alpine) and old glibc too.
+# - -trimpath: drop absolute build paths.
+# - -s -w (in ldflags): strip symbol table + DWARF (~31% smaller).
+# The -X build-stamp flags are appended so version/revision are still embedded.
+GO_BUILD_ENV   := CGO_ENABLED=0
+GO_BUILD_FLAGS := -tags osusergo,netgo -trimpath
+GO_LDFLAGS      = -s -w -X main.buildDate=$$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.vcsRevision=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
+
 build:
 	mkdir -p build
-	cd src/go && go build \
-		-ldflags "-X main.buildDate=$$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.vcsRevision=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown)" \
+	cd src/go && $(GO_BUILD_ENV) go build \
+		$(GO_BUILD_FLAGS) \
+		-ldflags "$(GO_LDFLAGS)" \
 		-o $(ERG_BIN) .
 
 _test-lint:
@@ -55,8 +66,9 @@ ready: build
 	$(ERG_BIN) ready tickets/
 
 update-bootstrap-binary:
-	cd src/go && go build \
-		-ldflags "-X main.buildDate=$$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.vcsRevision=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown)" \
+	cd src/go && $(GO_BUILD_ENV) go build \
+		$(GO_BUILD_FLAGS) \
+		-ldflags "$(GO_LDFLAGS)" \
 		-o $(BOOTSTRAP_BIN) .
 
 install-erg-binary:

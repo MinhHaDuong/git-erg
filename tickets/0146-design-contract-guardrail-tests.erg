@@ -2,7 +2,6 @@
 Title: Guardrail tests for the six design-contract invariants
 Created: 2026-05-29
 Author: Claude
-Blocked-by: 0147
 
 --- log ---
 2026-05-29T07:30Z Claude created
@@ -10,6 +9,7 @@ Blocked-by: 0147
 2026-05-29T08:10Z Claude note decided open-decisions 2 and 3 — fast guard = deterministic op-counts (not wall-clock); small = zero-dep + 10MB ceiling; promote fast+small to first-class invariants (six equals). Build adds -s -w -trimpath (static + ~6.2MB). Language stays Go (rationale in pep-erg-v1.md); self-update may move from net/http to git fetch (git already a dep, drops the only network/cgo surface)
 2026-05-29T08:30Z Claude note split into independent work — build hardening → 0147 (Blocked-by); self-update via git fetch → 0148 (needs-human). This ticket is now just the guard tests. AGENTS six-invariants + pep §10 why-Go rationale already landed on this branch.
 
+2026-05-29T09:46Z Claude note blocker 0147 closed — Blocked-by removed.
 --- body ---
 ## Context
 
