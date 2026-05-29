@@ -1,0 +1,102 @@
+%erg 0.1
+Title: Signed version manifest — trustable publication, deprecation, revocation
+Created: 2026-05-29
+Author: Claude
+Tag: needs-human
+Closed: YAGNI — bespoke signed-manifest/revocation/key-management infra is unjustified for a solo-maintained tool with no observed compromise, and it fights offline/zero-dep. Use git-native signed release tags for trustable provenance (how git itself does it: tag -s / verify-tag), keep reproducible-build verification (0151); revocation if ever needed = key revocation + advisory + new release, not a polled list.
+
+--- log ---
+2026-05-29T10:25Z Claude created — split from 0151 tier (a); a bare published hash isn't trustable, and we need to flag old + retire compromised versions; key management → needs-human
+
+2026-05-29T09:31Z Claude closed — YAGNI — bespoke signed-manifest/revocation/key-management infra is unjustified for a solo-maintained tool with no observed compromise, and it fights offline/zero-dep. Use git-native signed release tags for trustable provenance (how git itself does it: tag -s / verify-tag), keep reproducible-build verification (0151); revocation if ever needed = key revocation + advisory + new release, not a polled list.
+--- body ---
+## Context
+
+0151's *basic* verification tier compares a binary against a "published
+reference hash" — but a bare hash is only as trustworthy as the channel it
+sits in: an attacker who can push a release/commit publishes a matching hash
+for their own binary. For a binary embarked in thousands of repos, tier (a)
+needs a **signed publication** rooted in a key the attacker doesn't control,
+plus a **lifecycle**.
+
+Two different questions, and reproducibility only answers the first:
+
+- *Is this the real binary?* → reproducible build + hash (0151 advanced tier;
+  needs no key).
+- *Is this version still safe to run?* → a signed, refreshable statement that
+  can **deprecate** old versions and **revoke** compromised ones. Rebuilding
+  from source cannot tell you a version was later found poisoned. This ticket
+  owns that second question.
+
+## What it must provide
+
+- **Trust root.** A maintainer signing key; users obtain the *public* key
+  out-of-band (the unavoidable bootstrap — document where and how).
+- **Signed manifest** listing: current version + full SHA-256; deprecated /
+  minimum-supported versions; revoked (known-compromised) hashes/revisions.
+- **Offline verification.** Signature + manifest check needs only a small,
+  widely-available verifier and the bundled public key — no phone-home.
+  `erg version`/`verify` checks the local binary's hash against the manifest
+  and reacts: `ok` / `[outdated]` / `[REVOKED — refuse]`.
+
+## Deprecation (flag old)
+
+Build on the existing obsolescence detection (0054/0070 — `erg version
+[outdated]`, today a build-date heuristic in `version.go`). Replace the
+heuristic's authority with the signed manifest's `current` / `min-supported`.
+
+## Revocation (retire compromised)
+
+A signed revocation list of compromised hashes/revisions; erg refuses or
+loudly warns on a match. **Freshness is the hard part offline:** the list is
+refreshed on `git fetch`/sync and checked locally; a fully-disconnected client
+cannot learn of a *new* revocation — so the check is "as fresh as your last
+sync" (mirrors `next-id`'s last-fetch-cache stance). Warn plainly; never
+silently trust a stale list.
+
+## Tooling choice (decide; align with invariants)
+
+Prefer git-native or tiny single-purpose verifiers — **git signed tags**
+(GPG/SSH-signed) or **minisign/signify** (small, offline-verifiable) — over
+heavy/online-only stacks (sigstore/cosign want a transparency-log round-trip;
+offline bundles exist but add weight). Signing/verifying is an opt-in opsec
+step, so a separate verifier dependency is tolerable — but document it
+honestly against the zero-dep ethos.
+
+## Key management (the cost — human-gated)
+
+Generate / protect / rotate / recover the signing key; define what happens if
+it is lost or compromised (rotate, re-sign, revoke the old key). This is real
+operational burden for a solo maintainer — design a *minimal viable* process,
+not a CA. Never unattended (AGENTS.md §2: secret/credential handling).
+
+## Relevant files
+
+- `version.go` / `update.go` — hash display, manifest check, `[outdated]` /
+  `[revoked]` states.
+- Manifest + signature publication location (repo / releases).
+- `README.md` / `integration.md` — trust root + verify steps.
+- `Makefile` — optional `sign` / `verify-signature` targets.
+
+## Exit criteria
+
+- [ ] Signed manifest format + documented trust root (where users get the key).
+- [ ] Offline signature + hash verification (no phone-home), bundled pubkey.
+- [ ] Deprecation: `current` / `min-supported` from the signed manifest drives
+      the `[outdated]` state, replacing the build-date heuristic's authority.
+- [ ] Revocation: a revoked hash makes erg refuse / loudly warn; the
+      offline-freshness limit is documented and surfaced.
+- [ ] Key-management process documented (generate, protect, rotate, recover).
+- [ ] Tooling choice recorded with rationale (vs the offline/zero-dep ethos).
+
+## Notes
+
+- **needs-human** — key management is credential handling (AGENTS.md §2),
+  never unattended.
+- This serves 0151's *basic* tier + the lifecycle. The *advanced* tier in 0151
+  (AI-review source → rebuild → hash) needs **no key** and remains the
+  trust-minimizing fallback — but it can't deprecate or revoke, which is why
+  this signed-publication layer exists alongside it.
+- Tension to weigh: signatures + revocation add a freshness/network surface
+  and key-management cost that cut against offline/zero-dep. Keep the signed
+  layer *opt-in* and the rebuild-from-source path always available without it.

@@ -1,0 +1,140 @@
+%erg 0.1
+Title: Security audit — threat model and red-team resistance
+Created: 2026-05-29
+Author: Claude
+Tag: needs-human
+
+--- log ---
+2026-05-29T09:00Z Claude created — "resists red team" is a posture, not a checkmark; needs-human
+2026-05-29T09:20Z Claude note reframed — standing AI-assisted QA process (not one-shot); threat model maxed for a binary embarked in thousands of repos (supply-chain + mass-RCE); reproducible builds added as the keystone control
+2026-05-29T09:55Z Claude note verification must be local + offline (rebuild the in-repo src/go with git+go, no phone-home) and discoverable — make verify + erg version hint, documented; cluestick the user
+2026-05-29T10:10Z Claude note clarified the displayed-hash intent — (1) keep a widely-available algorithm (SHA-256, stock tools), name it and expose the full digest; (2) kindly teach two opsec tiers: basic = local vs self-reported vs published hash; advanced = AI-review source, rebuild, hash that
+2026-05-29T10:25Z Claude note tier (a) needs a trustable SIGNED publication, not a bare hash, plus deprecate-old + revoke-compromised lifecycle — split to 0153 (needs-human; key management). Reproducibility answers "real binary?"; signed manifest answers "still safe?"
+2026-05-29T10:40Z Claude note dropped the bespoke route — 0153 closed YAGNI. Basic-tier trust = git-native signed release tags (how git/Junio Hamano do it: tag -s / verify-tag); revocation, if ever needed, = key revocation + advisory + new release, not a polled list.
+
+--- body ---
+## Context
+
+"Resists red team" cannot be a green checkmark, and it cannot be closed by a
+one-shot audit — security is a **standing QA process**, not a boolean or a
+single report. And the threat model here is **maximal, not small**: the
+binary is *embarked in thousands of repos*, committed and travelling with
+every project that adopts git-erg, executing in their pre-commit hooks and CI.
+That makes it a **supply-chain and mass-RCE target** — one vuln, or one
+poisoned binary, is exploitable across every adopter at once. Treat it that
+way.
+
+The work: a maximal threat model, a falsifiable hardening subset wired into
+CI, and a **repeatable, AI-assisted red-team process** (re-run per release and
+per change to the relevant surface), with a human gate on findings and on
+threat-model changes.
+
+## Threat model (maximal — a binary in thousands of repos)
+
+- **Supply chain / reproducible builds (keystone).** The committed
+  `tickets/erg` is an opaque blob in thousands of repos. Anyone must be able
+  to **rebuild it bit-for-bit from `src/go/`** (pinned Go version,
+  `CGO_ENABLED=0 -trimpath`, build stamp the only intended variance) and
+  verify the committed binary matches — else a poisoned commit could swap the
+  binary undetectably. An unverifiable committed binary *is* the liability.
+  *Building block already present:* `erg version` prints the binary's SHA-256
+  + the build revision (`selfHash`, `version.go`), and `update` already
+  hash-compares. Two requirements on the displayed hash and how we teach its
+  use:
+
+  1. **Widely-available algorithm.** Keep **SHA-256** — every platform
+     recomputes it with stock tools (`sha256sum`, `shasum -a 256`,
+     `openssl dgst -sha256`, `certutil` on Windows). Name the algorithm in
+     `erg version` and expose the **full** digest (the 12-char prefix is a
+     friendly fingerprint, not a verification value), so a user can recompute
+     and compare without guesswork.
+  2. **Kindly remind the user of verification opsec** — two tiers, a gentle
+     cluestick, not a nag:
+     - *Basic:* recompute locally (`sha256sum tickets/erg`) and check it
+       agrees with the self-reported `erg version` hash and the hash on a
+       **maintainer-signed git release tag** (`git tag -s`, verified with
+       `git verify-tag` / `--show-signature`). A bare hash is only as
+       trustworthy as its channel; a signed tag is how git itself publishes
+       trust — git-native, no bespoke manifest/revocation, no new dependency.
+       (We considered a signed manifest + revocation list; closed YAGNI in
+       0153 — that is not how git/Junio Hamano do it, and we have no observed
+       compromise to justify the key-management cost.)
+     - *Advanced:* don't trust the blob at all — have a powerful AI review the
+       in-repo `src/go/`, rebuild it locally (git+go, **offline**), hash the
+       rebuild, and confirm it matches the committed binary. `make verify`
+       automates the rebuild+diff; the AI source review is the human/AI step.
+
+  All of this is local and offline by design (`src/go/` travels in the repo;
+  no phone-home) and discoverable (`erg version` points at it; README /
+  integration.md document both tiers). Wording + discoverability are
+  UX-reviewed (0152).
+- **Update channel.** `erg update` (today `net/http`; 0148 → `git fetch`)
+  must not be coercible into installing an attacker binary — integrity
+  (hash/signature), trusted origin, no silent downgrade / MITM. A compromised
+  update propagates to every repo that runs it.
+- **Mass code-execution surface.** erg runs in hooks/CI everywhere; a parser
+  RCE or command-injection is exploitable across all adopters simultaneously.
+- **Untrusted `.erg` input.** Anyone can commit / PR a `.erg`; hooks/CI parse
+  it. No RCE, **path traversal** (crafted ID/path-ref escaping `tickets/`),
+  or **DoS** (huge file, deep nesting, ReDoS in the parser).
+- **Path / ID injection.** IDs and path-refs feed filesystem paths
+  (`resolveDir`, `resolveTicketByID`, `new`/`rm`/`archive`) — no `..`,
+  absolute-path, or symlink escape.
+- **Secret hygiene.** erg never reads, writes, or logs secrets; never leaks
+  env/keys into tickets or output ("never leak keys").
+
+Every finding carries a **severity multiplier**: it ships to thousands of
+repos, so "low" is rarely low.
+
+## QA process (repeatable, AI-assisted)
+
+- **Falsifiable subset in CI** (every push): reproducible-build check (rebuild
+  + byte-diff against committed `tickets/erg`); path-traversal fixtures
+  rejected; input-DoS bounds; update-integrity (hash mismatch refuses).
+- **AI-assisted red-team pass** (per release / per relevant change): an agent
+  works a red-team checklist — craft malicious refs/IDs, oversized/ReDoS
+  inputs, attempt an update hijack in a sandbox — and reports. Cheap to
+  re-run, so run it often.
+- **Human gate:** review findings, approve threat-model changes, set severity.
+  High-severity findings become their own fix tickets.
+
+## Relevant files
+
+- Reproducibility & verification: `Makefile` build flags (0147 — pinned Go,
+  `CGO_ENABLED=0 -trimpath`), a `make verify` target, CI rebuild + diff;
+  `version.go` (name SHA-256, expose the full digest) / `update.go`
+  (`selfHash`); a published reference hash (releases / out-of-band); and
+  README / integration.md (the two opsec tiers + the cluestick).
+- Parser + ref resolution: `erg.go`, `ref.go`, `main.go`
+  (`resolveDir`/`resolveTicketByID`).
+- Path construction: `new.go`, `rm.go`, `archive.go`.
+- `update.go` (coordinate update-integrity with 0148).
+
+## Exit criteria
+
+- [ ] Maximal threat model documented (supply-chain framing + severity
+      multiplier).
+- [ ] Committed `tickets/erg` is byte-reproducible from source; a CI check
+      rebuilds the recorded revision and diffs it (reusing `selfHash`).
+- [ ] `erg version` names the algorithm (SHA-256) and exposes the full digest;
+      the displayed hash is recomputable with stock tools.
+- [ ] Release tags are signed (git-native `git tag -s`) and the verify step
+      (`git verify-tag`) is documented — this is the trustable publication.
+      No bespoke manifest/revocation (0153 closed YAGNI).
+- [ ] Local + offline advanced path: `make verify` rebuilds the recorded
+      revision and diffs against the committed binary (git+go only, no network).
+- [ ] Both opsec tiers are documented and the user is kindly pointed at them
+      (cluestick), not left to find them.
+- [ ] Falsifiable hardening tests in CI (path-traversal, input-DoS,
+      update-integrity), each with a negative control.
+- [ ] An AI-assisted red-team checklist exists and has run once; the process
+      + cadence are documented so it re-runs — not one-and-done.
+- [ ] Findings recorded; high-severity items filed as fix tickets.
+
+## Notes
+
+- **needs-human** (AGENTS.md §2 security gate). The "never leak keys" /
+  red-team half; data-safety *integrity* is 0149.
+- The **reproducible-build verification** is falsifiable and could be split
+  into a Ready guard (cross-ref 0146/0147) ahead of the rest of the audit —
+  flagged for the human to decide.

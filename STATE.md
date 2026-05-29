@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-05-29T00:00Z — Closed 0142 (erg rm) and 0145 (Title status-word rule). All tickets closed. 0 open, 0 deferred._
+_Last updated: 2026-05-29T09:00Z — Freeze lifted. Design-contract + custody work: 0147 (static+stripped build, READY), 0146 (six form-guards, Blocked-by 0147), 0149 (data-safety guard suite, READY), 0150 (install/uninstall round-trip, READY); needs-human: 0148 (self-update via git fetch), 0151 (security/red-team — standing QA process, max threat model: binary in thousands of repos; trust via git-native signed tags), 0152 (UX try-and-learn — standing AI-assisted QA process). Closed 0153 (signed manifest/revocation) as YAGNI — use git signed tags, not bespoke signing infra. Added never-lose-data as a 7th, foremost invariant. 146 closed, 7 open, 3 ready._
 
 ## North star:
 
@@ -8,11 +8,16 @@ An agent-friendly local ticket system for development in disconnected environmen
 
 ## Milestones
 
-- Feature freeze. Let's not spend more time on that tooling this month, we have a conference to prepare. Only correctness fixes.
+- Feature freeze lifted — conference is past. This does **not** mean drain the
+  dreamlist into `ready`. The bar is now "verified empirical need" (AGENTS.md);
+  the queue stays empty until evidence pulls something into it.
+- Next move, if any, is evidence-first: the `audit:` items (usage in idh,
+  UX friendliness, data-safety) generate the need that would justify — or
+  kill — the `feat:` items below. Audits before features.
 
 ## Stats
 
-- Tickets: 145 closed, 0 open
+- Tickets: 146 closed, 7 open — ready: 0147, 0149, 0150; blocked: 0146 (by 0147); needs-human: 0148, 0151, 0152
 - Tests: green — ok git-erg
 - Open PRs: none
 
@@ -23,6 +28,13 @@ An agent-friendly local ticket system for development in disconnected environmen
 - **Testing policy**: Go unit tests own pure-function correctness; shell integration tests own CLI black-box behavior. Test fixture IDs ≥9000 reserved for unclaimed-ticket tests.
 
 ## Deferred ideas, nice to have or never-ending
+
+These are deferred *on purpose*, not just un-started. Each one is either
+premature (no measured pain), in tension with a core invariant (offline,
+zero-dep, no encoded state — note 0143/0144 removed the "claimed/pending"
+abstraction), or waiting on an audit to prove it is felt. Do not promote one
+to `ready` without the evidence the bar in AGENTS.md demands.
+
 - feat: O(1) everything, tickets store cache.
 - feat: Pre-create 00XX-is-next-ticket.erg.
 - feat: erg list + filters. (Delivered in 0138: positive/negative tag filters,

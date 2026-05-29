@@ -1,0 +1,82 @@
+%erg 0.1
+Title: Data-safety guard suite — never lose or corrupt a ticket
+Created: 2026-05-29
+Author: Claude
+
+--- log ---
+2026-05-29T09:00Z Claude created — never-lose-data promoted to a first-class invariant; this is its guard suite
+2026-05-29T09:40Z Claude note added write-confinement rail — erg confines writes to the resolved store (fail-safe against user errors and eager agents, can be removed); behaviour + guard
+
+--- body ---
+## Context
+
+erg's one job is custody of tickets; losing or corrupting one is the worst,
+irreversible failure — and nothing currently guards the data-safety
+invariants as a suite. The mutating commands (`new`, `close`, `log`, `tag`,
+`untag`, `rm`, `archive`, `migrate`, `update`) each rewrite or move files,
+and each does its own `os.Rename`/`WriteFile`/`.tmp` dance — there is no
+single obviously-shared atomic-write path. Step one is to confirm whether
+mutations funnel through one audited helper; if they don't, that is a finding
+(and possibly a precursor fix).
+
+The realistic data-loss vector is not a red-teamer — it is a **user error or
+an eager creative agent**: a fat-fingered `DIR`/ID, or an agent computing a
+target outside `tickets/`. The cheapest rail against that is to **confine
+erg's writes to the resolved store** (below). It is a fail-safe, not a
+security boundary — it "can be removed" and a determined caller bypasses it —
+but it stops the common mistake before it lands.
+
+## The guards (each falsifiable, with a negative control)
+
+- **Atomic replace** — every mutation writes a temp then renames over the
+  target; a concurrent reader never sees a partial file. Test: no command
+  truncates-in-place.
+- **Validate-before-replace** — a mutation that would yield an invalid
+  `%erg` file refuses and leaves the original untouched (never write garbage
+  over a good ticket).
+- **Lossless round-trip** — parse→write preserves the append-only log and
+  the body verbatim; `close`/`tag`/`untag`/`rm --force` never drop or reorder
+  log/body content (except the documented interior-blank normalisation).
+  Golden before/after differs only in the intended line.
+- **No-clobber** — `new`/`next-id` never overwrite an existing ID (`O_EXCL`);
+  a collision errors rather than replacing.
+- **Crash/interrupt safety** — a killed `erg` mid-mutation leaves either the
+  complete old file or the complete new one, never a zero-length/truncated
+  file. Test via a wrapper that interrupts around the rename.
+- **DAG guard (regression of 0142)** — `rm` still refuses to orphan
+  dependents without `--force`.
+- **Write-confinement (fail-safe rail + behaviour addition)** — before any
+  write/rename, the absolute target must resolve *inside* the store root, else
+  refuse. Catches user errors and overeager agents writing outside `tickets/`.
+  Not a security boundary (the adversarial version of this boundary is 0151's
+  path-traversal); here it is mistake-prevention. Cross-ref 0146 stateless
+  (read commands write nothing outside the store).
+
+## Constraints (suite obeys the contract)
+
+Shell + Go toolchain, offline, no new deps, deterministic. Each guard must
+fail if its safety property is removed.
+
+## Relevant files
+
+- `tests/test_datasafety.sh` (new) + `Makefile` `TEST_SUITES += datasafety`;
+  Go unit tests for the write/rename helper if one is introduced.
+- Touch points: `new.go`, `close.go`, `log.go`, `tag.go`, `rm.go`,
+  `archive.go`, `migrate.go`, `update.go`.
+
+## Exit criteria
+
+- [ ] Falsifiable guard per property (atomic, validate-before-replace,
+      lossless round-trip, no-clobber, crash-safety, DAG), each with a
+      negative control.
+- [ ] Write-confinement enforced at runtime (mutations refuse an out-of-store
+      target) and guarded with a negative control.
+- [ ] Finding recorded on whether mutations share one atomic-write path; if
+      not, a follow-up to consolidate is filed.
+- [ ] Wired into `make test`; `make test`/`make validate` green.
+
+## Notes
+
+- This is the **never-lose-data** half of the dreamlist `audit security`
+  line; the **never-leak-keys / red-team** half is 0151.
+- Pairs with the never-lose-data invariant now in AGENTS.md (the one job).

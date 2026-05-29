@@ -1,0 +1,76 @@
+%erg 0.1
+Title: Build a static, stripped erg binary via Makefile flags
+Created: 2026-05-29
+Author: Claude
+
+--- log ---
+2026-05-29T08:30Z Claude created — split out of 0146 (build change is independent of the guard tests)
+
+--- body ---
+## Context
+
+The committed `tickets/erg` is **dynamically linked to libc — by accident**:
+the Makefile build sets no `CGO_ENABLED=0`, so cgo defaults on when the build
+host has a C compiler. A glibc-dynamic binary fails to load on musl/Alpine and
+on older glibc — and this binary is *committed and travels with every clone*,
+so the failure lands on whoever pulls the repo. It is also larger than it
+needs to be: stripping symbols + DWARF recovers ~31%.
+
+Measured (2026-05-29): `go build` (cgo) 9.1 MB dynamic; `CGO_ENABLED=0` 9.0 MB
+static; `CGO_ENABLED=0 -trimpath -ldflags "-s -w"` **6.2 MB and static** —
+smaller than today's committed 7.6 MB *and* portable.
+
+## Decision
+
+Add the hardening flags to the Makefile build recipe (single source of truth):
+`CGO_ENABLED=0`, `-tags osusergo,netgo` (defensive), `-trimpath`, and `-s -w`
+appended to the existing `-ldflags` — on **both** the `build` target
+(`build/erg`) and the `update-bootstrap-binary` target (`tickets/erg`). Keep
+the existing `-X main.buildDate=… -X main.vcsRevision=…` ldflags intact.
+
+## Kind to forks and the upload flow
+
+Putting the flags in the Makefile — not in a workflow — is what makes this
+safe for everyone:
+
+- CI's `rebuild-binary.yml` runs `make update-bootstrap-binary` and re-commits
+  `tickets/erg`. With the flags in the recipe, the **uploaded** binary is
+  static/stripped automatically — no `.github/workflows` edit needed.
+- A **fork** that pushes to its own `main` triggers the same workflow and gets
+  the same static binary. Nothing fork-specific to configure.
+- Users rebuilding from source (`make build`, `install-erg-binary`) get the
+  identical result.
+
+The change is purely additive build flags: it breaks no existing flow, and
+static is strictly *more* portable for anyone who downloads or clones (now
+runs on musl + old glibc, where the dynamic build silently failed).
+
+## Relevant files
+
+- `Makefile` — `build` and `update-bootstrap-binary` targets only. Factor the
+  flags into one variable so the two recipes cannot drift.
+- No `.github/workflows` change required (CI already calls `make`).
+
+## Test
+
+- `ldd build/erg` ⇒ `not a dynamic executable` (skip-if-`ldd`-absent; on
+  darwin assert cgo-free instead — full static is impossible there).
+- built binary size < 10 MB.
+- binary still runs: `erg version` and a smoke `erg check tickets/`.
+
+## Exit criteria
+
+- [ ] Flags live in one Makefile variable, applied to both `build` and
+      `update-bootstrap-binary`; the `-X` build-stamp ldflags preserved.
+- [ ] `build/erg` and `tickets/erg` are static and ~6.2 MB.
+- [ ] `make test` / `make validate` green; bootstrap `tickets/erg` rebuilt and
+      committed via the normal flow.
+
+## Notes
+
+- Unblocks 0146's standalone (static-link) and small (size-ceiling) guards —
+  0146 is `Blocked-by: 0147` so the build lands before the test that asserts
+  it ("build and guard land together", as separate units).
+- Orthogonal to cross-arch: still amd64; other arches rebuild from source.
+- No UPX (per-invocation decompression hurts the *fast* invariant); `-s -w`,
+  not external `strip(1)` (which can mangle Go's pclntab).

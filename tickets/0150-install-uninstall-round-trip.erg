@@ -1,0 +1,65 @@
+%erg 0.1
+Title: Install/uninstall round-trip leaves a byte-clean tree
+Created: 2026-05-29
+Author: Claude
+
+--- log ---
+2026-05-29T09:00Z Claude created — easy-to-uninstall as a falsifiable round-trip guard (corollary of stateless + standalone)
+
+--- body ---
+## Context
+
+"Easy to uninstall" is a corollary of *stateless* + *standalone*, and it is
+the kindest property for someone trying erg out: they can back out cleanly.
+It is also mechanically falsifiable — unlike a one-shot round-trip, test it
+as a **matrix** of real routes with usage in between (you never uninstall a
+pristine install; you uninstall after working).
+
+**Finding up front:** there is *no* `erg uninstall` command, no uninstall
+Makefile target, and no uninstall docs today — removal is entirely manual and
+undocumented. This ticket tests the manual route and *documents* it; whether
+to add an `erg uninstall` command is a separate feature decision (needs
+evidence), not assumed here.
+
+## The matrix (each cell round-trips to a byte-identical tree, zero orphans)
+
+- **Install routes:** (a) `erg init` into a fresh `tickets/`; (b) the
+  `install-erg-binary` Makefile path; (c) committed bootstrap binary + the
+  pre-commit hook from `integration.md`.
+- **Usage in between:** create / close / tag / log / rm / archive a few
+  tickets and run `list`/`ready`/`check` — exercise the tool so the store and
+  any side effects are non-trivial before removal.
+- **Uninstall routes:** (a) documented manual removal (`rm tickets/erg`, the
+  hook, generated assets); (b) `erg uninstall` *if/when* it exists.
+- **Assertion:** after uninstall, everything *except the user's own ticket
+  files* is byte-identical to pre-install (snapshot diff); no orphaned
+  dotfiles, caches, or hooks. Whether the user's tickets are removed is an
+  explicit, documented choice.
+
+## Constraints
+
+Shell, throwaway tempdir + `$HOME`, offline, deterministic; snapshot the tree
+before install and after uninstall and diff.
+
+## Relevant files
+
+- `tests/test_roundtrip.sh` (new) + `Makefile` `TEST_SUITES += roundtrip`.
+- `src/go/init.go`, the `install-erg-binary` target, `integration.md` (the
+  documented manual-uninstall steps live or land here).
+
+## Exit criteria
+
+- [ ] Each install × uninstall route round-trips to a clean tree *after real
+      usage*; orphan check passes.
+- [ ] The manual-uninstall steps are documented (integration.md) and the test
+      follows them exactly.
+- [ ] What uninstall does/doesn't delete (the user's tickets) is explicit.
+- [ ] Wired into `make test`; green.
+
+## Notes
+
+- The narrower "read commands write nothing outside the store" snapshot stays
+  in 0146 (stateless). This ticket owns the install/uninstall *lifecycle*.
+- Prior art (closed): 0029 (init/uninstall round-trip), 0032 (implement
+  init/uninstall), 0082 (init simplified to unpack-only). Reconcile with
+  whatever those left in place.

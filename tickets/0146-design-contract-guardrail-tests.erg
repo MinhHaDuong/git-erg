@@ -1,0 +1,195 @@
+%erg 0.1
+Title: Guardrail tests for the six design-contract invariants
+Created: 2026-05-29
+Author: Claude
+Blocked-by: 0147
+
+--- log ---
+2026-05-29T07:30Z Claude created
+2026-05-29T07:45Z Claude note decided open-decision 1 — make the binary genuinely static (CGO_ENABLED=0); the current dynamic link is an accidental cgo default, not a choice
+2026-05-29T08:10Z Claude note decided open-decisions 2 and 3 — fast guard = deterministic op-counts (not wall-clock); small = zero-dep + 10MB ceiling; promote fast+small to first-class invariants (six equals). Build adds -s -w -trimpath (static + ~6.2MB). Language stays Go (rationale in pep-erg-v1.md); self-update may move from net/http to git fetch (git already a dep, drops the only network/cgo surface)
+2026-05-29T08:30Z Claude note split into independent work — build hardening → 0147 (Blocked-by); self-update via git fetch → 0148 (needs-human). This ticket is now just the guard tests. AGENTS six-invariants + pep §10 why-Go rationale already landed on this branch.
+
+--- body ---
+## Context
+
+The project rests on six design-contract claims — **agnostic, offline,
+standalone, fast, small, stateless** — but *nothing enforces them*. The
+need here is structural, not a past incident: the contract is currently
+unguarded, so a future change can silently violate a foundational claim
+(add a network call, pull in a dependency, write a cache to `$HOME`) and no
+test will notice. This is the one dreamlist item that earns its place by
+the AGENTS.md bar: it protects irreversible erosion of the north star.
+
+The bar this ticket sets for *itself*: every guard must be **falsifiable**
+(it must fail when the invariant is actually violated — include a negative
+control), and the guard suite must **obey the contract it tests** — pure
+shell + the Go toolchain, runs offline, no new runtime or test
+dependencies, and deterministic (no flaky wall-clock in the blocking path).
+
+## Empirical starting state (verified 2026-05-29)
+
+- `go.mod` declares **zero** third-party modules. ✅ standalone (deps half)
+- The binary is **dynamically linked** to libc — *by accident*: the Makefile
+  build sets no `CGO_ENABLED=0`, so cgo defaults on whenever the build host
+  has a C compiler. Nobody chose dynamic. → resolved: go static (decision 1).
+- `net/http` is imported in **`src/go/update.go` only** — the sanctioned
+  `erg update` network path, and the **only** cgo trigger (it drags in the
+  cgo DNS resolver via `net`). `os/user` is not imported anywhere, so going
+  static costs nothing the tool uses: the pure-Go resolver serves the one
+  HTTPS self-update fetch fine. Offline is "offline *except* `update`".
+  net/http+TLS measures ~0.64 MB of symbols — see the git-fetch lever below.
+- Binary size: 7.6 MB committed; a clean `CGO_ENABLED=0` build is 9.0 MB,
+  and **`CGO_ENABLED=0 -trimpath -ldflags "-s -w"` is 6.2 MB and static** —
+  smaller than today *and* portable. Measured peers: awk 167 KB, make 254 KB,
+  top 132 KB (all dynamic, libc offloaded), git 3.9 MB / git-core 11 MB. erg
+  is mid-pack vs its real peer git; its ~6 MB is the Go runtime *floor* (zero
+  third-party deps), not bloat. The size ceiling guards step-changes above
+  that floor, not normal drift. Reference for the "small" ceiling: **10 MB**.
+
+## The six guards
+
+**1. agnostic** — the file is the contract, the binary is optional.
+- Author a `.erg` by hand (heredoc, LF, UTF-8) → `erg validate` accepts it
+  (you don't need the binary to write a valid ticket).
+- Extract a header field (`Title`/`Closed`/`Tag`) with POSIX `grep`/`awk`
+  and assert it agrees with the binary's parse of the same file.
+- Falsifies if the format ever requires the binary (binary index, non-text).
+
+**2. offline** — no network anywhere except the explicit `update` command.
+- Static guard (zero-dep, the primary): assert no network package
+  (`net/http`, `net/rpc`, `net/smtp`, `net.Dial*`) is reachable from any
+  command **other than `update`**. Pins the blast radius to one auditable
+  file; fails the moment a second command dials out.
+- Optional dynamic guard: run the non-`update` commands under a dropped
+  network namespace (`unshare -n` *if present*, skip-if-absent — no hard
+  dep) and assert exit 0.
+- **git-fetch lever → split out as 0148** (needs-human): moving `erg update`
+  off `net/http` to `git fetch` deletes the only network code and the last
+  cgo trigger. Write this guard to *welcome* it: once 0148 lands, the guard
+  tightens from "no network except `update`" to "no networking anywhere",
+  with no exception to carve out.
+
+**3. standalone** — single binary, zero third-party deps, no libc dependency.
+- Guard A (true today): `go list -deps ./...` / `go.mod` contain only
+  stdlib — no third-party `require`.
+- Guard B (static link): the static+stripped build itself is **0147**
+  (`Blocked-by`); this ticket only *asserts the result* once 0147 lands:
+  - Linux: `ldd build/erg` ⇒ `not a dynamic executable` (skip-if-`ldd`-absent).
+  - Portable form: assert the binary is cgo-free / has no third-party dynamic
+    deps (on darwin "static" is impossible — goal there is only `libSystem`).
+  This is what makes a travels-with-repo binary run on musl/Alpine and on
+  older glibc, instead of failing to load — i.e. makes "standalone" true
+  rather than accidental. The build change and the guard land together.
+
+**4. stateless** — the files are the only state.
+- Run the read commands (`list`, `ready`, `check`, `validate`, `next-id`)
+  with a throwaway `$HOME` and temp cwd; snapshot the filesystem before/
+  after and assert **nothing is created or modified outside the target
+  store** (read commands modify nothing at all). Directly enforces the
+  AGENTS.md "no stale cache / hand edit wins" rule — a cache to `~/.cache`
+  trips it. (`erg update` writes the binary by design and is excluded.)
+- Idempotence/order-independence: a read command's output is identical on
+  repeat and independent of which command ran before it.
+
+**5. fast** — essential, not a nicety: erg is *invoked* (pre-commit hook on
+every commit, CI on every push, agents in loops), never resident, so
+per-invocation cost is the product. Guard it by **measuring work, not
+wall-clock** (deterministic, non-flaky):
+- *Parse-once (headline, blocking):* instrument the corpus loader; assert
+  each command parses each `.erg` at most once per invocation.
+- *Linear, not quadratic (blocking):* build synthetic corpora of N and 2N
+  and assert the loader's **operation count** ~doubles (not ~quadruples) —
+  a ratio on counts is immune to slow CI boxes. Catches the real risk: the
+  dependent/ref scans in `check`/`rm`/`close` going O(N²).
+- *Wall-clock backstop (non-flaky):* one generous absolute ceiling on a
+  large corpus, sized ~10× headroom so it trips only on true catastrophe.
+  Rule: if it ever flakes, **raise it, don't delete it**. The op-count
+  guards are the primary defence; this is the smoke alarm.
+
+**6. small** — essential (committed binary: every clone/fetch and every
+rebuild-blob pays for it). Two facets:
+- *Zero third-party deps (root cause, blocking):* this is the standalone
+  Guard A — third-party packages are what actually move binary size; keeping
+  go.mod stdlib-only is the real size discipline.
+- *Size ceiling (backstop, blocking):* assert built binary ≤ **10 MB**.
+  Shipped size is ~6.2 MB (static + stripped), so 10 MB is comfortable
+  headroom that absorbs Go-version drift yet trips immediately on a fat dep
+  or embedded asset. The ceiling guards a *step-change* above the Go runtime
+  floor — it does **not** chase the C tools' KB range (unreachable in Go;
+  that would be a re-platform, see Notes), it prevents regression.
+
+## Constraints (the suite obeys the contract)
+
+- Allowed tools: POSIX coreutils, the Go toolchain, and Linux-ubiquitous
+  `ldd`/`file` *with graceful skip*. No `jq`, no required `strace`, no
+  network. No new module deps.
+- Deterministic in the blocking path; anything timing-based is non-blocking.
+
+## Relevant files
+
+- `tests/test_contract.sh` (new) — the six guards (shell-drivable parts).
+- `src/go/contract_test.go` (new, maybe) — import-graph / parse-once guards
+  that are cleaner in Go than in shell.
+- `Makefile` — `TEST_SUITES += contract` only. (The static+strip build flags
+  are 0147; this ticket adds no build change.)
+- `AGENTS.md` (six invariants) and `pep-erg-v1.md` §10 (why-Go rationale) are
+  **already updated on this branch** — not pending work here.
+
+## Open decisions (all resolved or split out)
+
+1. **Static binary** — RESOLVED: build static via `CGO_ENABLED=0`. The
+   dynamic link was an accidental cgo default; `net/http` in `update.go` is
+   the only cgo trigger (`os/user` unused). **Split out as 0147** (Makefile
+   flags) — this ticket is `Blocked-by: 0147` and only asserts the result.
+   Caveats: static is orthogonal to cross-arch (still amd64), and darwin
+   can only be cgo-free.
+2. **fast / small guards** — RESOLVED: fast = deterministic op-count guards
+   (parse-once + linear N-vs-2N) blocking, plus a generous non-flaky
+   wall-clock backstop ("raise, don't delete"). small = zero-dep (root
+   cause) + a **10 MB** ceiling (shipped ~6.2 MB). Essential contracts for
+   an invoked, committed-to-repo tool, not budgets.
+3. **Invariant vocabulary** — RESOLVED and **done on this branch**: AGENTS.md
+   now lists *fast* and *small* as first-class — six equals.
+4. **Self-update transport** — **split out as 0148** (needs-human): `erg
+   update` moves from `net/http` to `git fetch` (git already a dep; `curl`
+   rejected). This guard is written to welcome it (offline tightens to "no
+   networking anywhere" once 0148 lands).
+5. **Language** — RESOLVED and **done**: stay Go; rationale recorded in
+   `pep-erg-v1.md` §10 (the existing language section), Rust as the
+   evidence-gated fallback.
+
+## Exit criteria
+
+- [ ] One **falsifiable** guard per invariant (agnostic, offline,
+      standalone-deps, stateless), each with a demonstrated negative control
+      (guard fails when the invariant is deliberately broken).
+- [ ] offline guard pins the network surface to `update` and fails if any
+      other command imports/uses networking.
+- [ ] standalone guard asserts static (Linux `ldd` ⇒ not dynamic / cgo-free
+      elsewhere) with a negative control — depends on **0147** having shipped
+      the static build.
+- [ ] stateless guard proves no writes outside the store for read commands.
+- [ ] fast guards are deterministic and blocking (parse-once + linear
+      N-vs-2N op-count); any wall-clock check is a generous non-flaky
+      backstop. Never flakes CI.
+- [ ] small guard enforces the **10 MB** ceiling (with zero-dep as the
+      root-cause guard); negative control proves it trips on bloat.
+- [ ] Suite runs offline with **no new deps**; `ldd`/namespace bits skip
+      gracefully when absent.
+- [ ] Wired into `make test` (`TEST_SUITES += contract`); `make test` and
+      `make validate` green.
+
+## Notes
+
+- This may split if it grows: the offline + standalone + small guards are
+  one cluster (dependency/network surface), stateless + agnostic another
+  (file-is-truth), fast a lonely third. Land the deterministic clusters
+  first; fast can lag.
+- Guards are contracts, not perf work — keep them coarse. The point is to
+  catch a *violation*, not to chase a number.
+- "small" enforces *smallest sensible **Go** binary*, not parity with C
+  tools (awk = 167 KB). KB-class would mean re-platforming off Go — a
+  separate, evidence-gated decision, not something this guard can or should
+  force. The runtime floor is the price of Go's fat stdlib, which is exactly
+  what lets the project hold zero third-party deps.
