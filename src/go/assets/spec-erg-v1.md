@@ -154,6 +154,10 @@ Filename pattern: `{ID}-{slug}.erg`
 - Slug: lowercase kebab-case, ASCII only (`[a-z0-9-]`)
 - Slug is truncated to 40 characters by `erg new`; trailing hyphens are stripped after truncation.
 
+**Worktree boundary.** When the store is auto-discovered (no explicit DIR),
+erg refuses to use a store that lies in a different git worktree than the
+working directory. Pass DIR explicitly to override.
+
 ```sh
 erg next-id tickets/
 ```
