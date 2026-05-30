@@ -168,7 +168,7 @@ func cmdVersion(args []string) int {
 	if home != "" {
 		candidates = append(candidates, candidate{
 			filepath.Join(home, ".local", "bin", "erg"),
-			"see README Install section for the download command",
+			"see README \"Install into a project\" for the curl command, adjust -o path",
 		})
 	}
 
