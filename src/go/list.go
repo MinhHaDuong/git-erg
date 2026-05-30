@@ -214,6 +214,9 @@ func cmdList(args []string) int {
 			includeAll = true
 		case a == "not":
 			negateNext = true
+		case strings.HasPrefix(a, "-"):
+			fmt.Fprintf(os.Stderr, "list: unknown flag %q\nUsage: erg list [DIR] [LABEL...] [not LABEL...] [--all] [--json]\n", a)
+			return 1
 		case isDirArg(a):
 			if negateNext {
 				fmt.Fprintln(os.Stderr, "list: 'not' must be followed by a label name")

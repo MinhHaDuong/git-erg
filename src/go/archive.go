@@ -36,7 +36,10 @@ func cmdArchive(args []string) int {
 	for _, a := range args {
 		if len(a) == 4 && allDigits(a) {
 			ids = append(ids, a)
-		} else if !strings.HasPrefix(a, "-") {
+		} else if strings.HasPrefix(a, "-") {
+			fmt.Fprintf(os.Stderr, "archive: unknown flag %q\nUsage: erg archive [ID...] [DIR]\n", a)
+			return 1
+		} else {
 			explicit = a
 		}
 	}

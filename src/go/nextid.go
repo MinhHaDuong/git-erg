@@ -234,9 +234,17 @@ the losing agent renames its ticket with a new ID from a fresh invocation.
 
 // cmdNextID implements `erg next-id [dir]`. See helpNextID for the user-facing summary.
 func cmdNextID(args []string) int {
+	var positional []string
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			fmt.Fprintf(os.Stderr, "next-id: unknown flag %q\nUsage: erg next-id [DIR]\n", a)
+			return 1
+		}
+		positional = append(positional, a)
+	}
 	var ticketDir string
-	if len(args) > 0 {
-		ticketDir = args[0]
+	if len(positional) > 0 {
+		ticketDir = positional[0]
 	} else {
 		var err error
 		ticketDir, err = findTicketsDir()

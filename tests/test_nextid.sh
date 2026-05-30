@@ -189,5 +189,13 @@ else
     fail "stray 5-digit file ignored, next-id returns 0006 (got: $out)"
 fi
 
+# unknown flag rejection (ticket 0180)
+    out=$($ERG next-id --bogus 2>&1) && rc=0 || rc=$?
+    if [ "$rc" -ne 0 ] && echo "$out" | grep -q "unknown flag"; then
+        pass "unknown flag rejected with usage message"
+    else
+        fail "unknown flag not rejected (rc=$rc, got: $out)"
+    fi
+
 echo "next-id: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

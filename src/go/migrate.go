@@ -47,9 +47,17 @@ Review the diff with 'git diff tickets/' and commit manually.
 
 // cmdMigrate implements `erg migrate [dir]`. See helpMigrate for the user-facing summary.
 func cmdMigrate(args []string) int {
+	var positional []string
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			fmt.Fprintf(os.Stderr, "migrate: unknown flag %q\nUsage: erg migrate [DIR]\n", a)
+			return 1
+		}
+		positional = append(positional, a)
+	}
 	var explicit string
-	if len(args) > 0 {
-		explicit = args[0]
+	if len(positional) > 0 {
+		explicit = positional[0]
 	}
 	dir, err := resolveDir(explicit)
 	if err != nil {
