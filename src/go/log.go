@@ -24,7 +24,7 @@ The resulting log entry format is:
 
 LINE must be non-empty. It must contain at least two whitespace-separated tokens
 (e.g. "claude note retried with narrower scope"). The timestamp is prepended
-automatically; erg validate (rule 11) enforces the structural format — timestamp
+automatically; erg validate (rule 11) enforces the structural format -- timestamp
 followed by at least two tokens. By convention the first token is an actor
 (who) and the second is a verb (what), but those names are not machine-checked.
 
