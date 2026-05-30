@@ -22,10 +22,11 @@ The resulting log entry format is:
 
   ` + "`YYYY-MM-DDThh:mmZ LINE`" + `
 
-LINE must be non-empty. It must follow the format 'actor verb [detail]'
-(e.g. "claude note retried with narrower scope"). The timestamp, actor, and verb
-tokens are required; the detail token is optional. The log-line format is
-enforced by erg validate (rule 11).
+LINE must be non-empty. It must contain at least two whitespace-separated tokens
+(e.g. "claude note retried with narrower scope"). The timestamp is prepended
+automatically; erg validate (rule 11) enforces the structural format -- timestamp
+followed by at least two tokens. By convention the first token is an actor
+(who) and the second is a verb (what), but those names are not machine-checked.
 
 Prints "LOGGED" on success. Exits non-zero if the ticket is not found or has no
 ` + "`--- body ---`" + ` separator (which would indicate a malformed file).

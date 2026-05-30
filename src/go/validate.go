@@ -207,7 +207,10 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
   9. Blocked-by values parse as local-ref (NNNN, exactly 4 digits) or
      forge-ref (host/owner/repo#N, e.g. github.com/acme/myrepo#42).
   10. Local Blocked-by refs point to existing ticket IDs in the same directory.
-  11. Log lines match 'YYYY-MM-DDThh:mmZ actor verb [detail]' format.
+  11. Log lines match structural format: timestamp (YYYY-MM-DDThh:mmZ)
+      followed by at least two whitespace-separated tokens. By convention
+      these are 'actor verb [detail]', but the validator checks structure,
+      not the semantic meaning of those tokens.
   12. Both separators (` + "`--- log ---`" + `, ` + "`--- body ---`" + `) appear at least once;
       the first occurrence of each is the section separator, subsequent
       occurrences are body text (legitimate bodies may quote the literals).
