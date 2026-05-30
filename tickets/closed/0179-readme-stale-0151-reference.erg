@@ -2,10 +2,12 @@
 Title: README: remove stale "not yet complete" reference to closed ticket 0151
 Created: 2026-05-30
 Author: Claude
+Closed: autoclosed — PR #206
 
 --- log ---
 2026-05-30T14:20Z Claude created — missed in PR #204; two lines still say "(not yet complete)"
 
+2026-05-30T14:44Z MinhHaDuong closed — autoclosed — PR #206
 --- body ---
 ## Context
 

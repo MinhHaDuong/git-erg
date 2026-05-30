@@ -146,14 +146,14 @@ authoritative artifact is `src/go/`, which travels in every clone. `tickets/erg`
 is a committed Linux x86-64 bootstrap *convenience* for environments where Go
 may be unavailable (CI runners, agents) and where the POSIX path isn't enough —
 built from the vendored source, not a separate source of trust (bit-for-bit
-reproducibility is the goal, tracked in ticket 0151). (Rationale and the
+reproducibility is the goal, delivered in ticket 0151). (Rationale and the
 supply-chain trade-offs: `docs/audit-infrastructure-class.md`.) I look forward
 to working with macOS, ARM or Windows early adopters.
 
 Because the binary is a cache of the source, the aim is that anyone can rebuild
 it bit-for-bit and verify the committed blob matches — that reproducibility is
-what justifies shipping a binary at all, and is the keystone control tracked in
-ticket 0151 (not yet complete). CI builds always compile from source and do not
+what justifies shipping a binary at all, and is the keystone control delivered in
+ticket 0151. CI builds always compile from source and do not
 rely on the committed binary: all tests and development builds must use
 `build/erg`, rebuilt from source via `make build`.
 
