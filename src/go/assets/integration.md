@@ -44,6 +44,8 @@ fi
 
 ## 2. Agent instructions
 
+*(Skip if you are not using AI coding agents.)*
+
 Add this line to your `AGENTS.md` (or equivalent agent-visible file):
 
 ```
