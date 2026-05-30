@@ -18,7 +18,7 @@ Atomically close a ticket.
 Closing a ticket is a three-step operation:
 
   1. Inserts a Closed: REASON header at the end of the preamble (before ` + "`--- log ---`" + `).
-  2. Appends a timestamped log line: ` + "`TIMESTAMP AUTHOR closed -- REASON`" + `.
+  2. Appends a timestamped log line: ` + "`TIMESTAMP AUTHOR closed \u2014 REASON`" + `.
   3. Scans every open ticket in DIR for Blocked-by: ID and removes those lines,
      appending a log entry to each modified ticket:
      ` + "`TIMESTAMP AUTHOR note blocker ID closed \u2014 Blocked-by removed.`" + `
