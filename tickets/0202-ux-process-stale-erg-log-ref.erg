@@ -1,0 +1,25 @@
+%erg 0.1
+Title: fix: UX-PROCESS.md references closed ticket 0152 in erg log step
+Created: 2026-05-30
+Author: claude
+
+--- log ---
+2026-05-30T21:15Z claude created
+
+--- body ---
+## Context
+UX-PROCESS.md step 3 ("After the run") says:
+  erg log 0152 "Claude dry-run Path <A|B> -- N items: ..."
+Ticket 0152 was closed and archived on 2026-05-30. Logging to a closed
+ticket is semantically wrong and may fail.
+
+The parallel doc SECURITY-PROCESS.md had the same issue with ticket 0151
+and was fixed in PR #228 by dropping the step entirely (the run output
+is the durable record, not a breadcrumb on a closed tracker).
+
+## Actions
+1. Remove or rewrite UX-PROCESS.md step 3 referencing erg log 0152.
+
+## Exit criteria
+- [ ] UX-PROCESS.md does not reference ticket 0152 in an operational step
+- [ ] `make test` passes
