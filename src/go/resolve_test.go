@@ -285,6 +285,70 @@ func TestFindTicketsDir_CrossWorktreeRefused(t *testing.T) {
 	}
 }
 
+// TestCrossWorktreeCommandRejection verifies that cmdList, cmdReady, and cmdNew
+// all fail with the "different worktree" diagnostic when the auto-discovered store
+// is in a different git worktree than cwd.
+func TestCrossWorktreeCommandRejection(t *testing.T) {
+	gitOrSkip(t)
+	root := t.TempDir()
+	initRepoWithCommit(t, root)
+	// Create a tickets dir in the main worktree with one ticket.
+	mainTickets := filepath.Join(root, "tickets")
+	if err := os.MkdirAll(mainTickets, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(mainTickets, "0001-test.erg"),
+		[]byte("%erg 0.1\nTitle: Test\nCreated: 2026-01-01\nAuthor: a\n\n--- log ---\n--- body ---\n"),
+		0644); err != nil {
+		t.Fatal(err)
+	}
+	ergBin := filepath.Join(mainTickets, "erg")
+	if err := os.WriteFile(ergBin, []byte(""), 0755); err != nil {
+		t.Fatal(err)
+	}
+	// Create a linked worktree.
+	wtPath := filepath.Join(t.TempDir(), "wt")
+	gitRun(t, root, "worktree", "add", "-b", "t0200-cmd", wtPath)
+
+	origExe := osExecutable
+	osExecutable = func() (string, error) { return ergBin, nil }
+	defer func() { osExecutable = origExe }()
+
+	saved, _ := os.Getwd()
+	defer os.Chdir(saved) //nolint:errcheck
+	if err := os.Chdir(wtPath); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+
+	for _, tc := range []struct {
+		name string
+		run  func() (string, string)
+	}{
+		{"cmdList", func() (string, string) {
+			var out, errOut string
+			out, errOut = captureOutput(t, func() { cmdList(nil) })
+			return out, errOut
+		}},
+		{"cmdReady", func() (string, string) {
+			var out, errOut string
+			out, errOut = captureOutput(t, func() { cmdReady(nil) })
+			return out, errOut
+		}},
+		{"cmdNew", func() (string, string) {
+			var out, errOut string
+			out, errOut = captureOutput(t, func() { cmdNew([]string{"test ticket"}) })
+			return out, errOut
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, stderr := tc.run()
+			if !strings.Contains(stderr, "different worktree") {
+				t.Errorf("%s: expected 'different worktree' diagnostic on stderr, got: %q", tc.name, stderr)
+			}
+		})
+	}
+}
+
 func TestResolveTicketByID(t *testing.T) {
 	tmp := t.TempDir()
 	os.WriteFile(filepath.Join(tmp, "0042-fix-bug.erg"), []byte("%erg 0.1\n"), 0644)
