@@ -175,10 +175,18 @@ sha256sum tickets/erg          # or: shasum -a 256, openssl dgst -sha256, certut
 tickets/erg version            # compare against the sha256: line it reports
 ```
 
-If those two agree, the blob matches what it claims to be. When a maintainer-
-signed release tag is available, `git verify-tag <tag>` confirms the published
-hash came from the maintainer (git-native trust — signed tags are planned, see
-the threat model).
+If those two agree, the blob matches what it claims to be. Signed release tags
+are available from `2026-05-30` onwards — `git verify-tag <tag>` confirms the
+published hash came from the maintainer (git-native trust). Import the key
+first:
+
+```bash
+gpg --recv-keys 4A46C91E03B83B23   # from keys.openpgp.org
+# or: gpg --import signing-key.asc  # from this repo
+```
+
+Key fingerprint: `04E2 A281 FC44 DCA6 9C71  4A6A 4A46 C91E 03B8 3B23`
+UID: `Minh Ha-Duong (git-erg signing) <minh.ha-duong@cnrs.fr>`
 
 **Advanced — don't trust the blob, rebuild it.** The source travels in the
 repo, so you can rebuild offline and byte-compare:
