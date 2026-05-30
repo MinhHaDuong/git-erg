@@ -71,8 +71,8 @@ rm tickets/.ergrc tickets/AGENTS.md tickets/spec-erg-v1.md tickets/integration.m
 rm .git/hooks/pre-commit   # if you added the hook from step 1
 ```
 
-If you installed erg to `~/.local/bin` via `make install-erg-binary`,
-also remove that copy:
+If you also copied erg to `~/.local/bin` (contributors: `make
+install-erg-binary`), remove that copy too:
 
 ```sh
 rm ~/.local/bin/erg
