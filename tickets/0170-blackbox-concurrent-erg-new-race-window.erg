@@ -1,0 +1,57 @@
+%erg 0.1
+Title: blackbox: concurrent erg new race window
+Created: 2026-05-30
+Author: MinhHaDuong
+
+--- log ---
+2026-05-30T07:04Z MinhHaDuong created
+
+--- body ---
+## Context
+
+This is a confirmed bug. Reproduced 2026-05-30:
+
+```
+$ for i in 1..8 do (erg new "Worker $i task" DIR &) done
+CREATED 0001-worker-1-task.erg
+CREATED 0001-worker-2-task.erg
+...  (all 8 succeed)
+$ erg check DIR
+ERG CHECK FAILED: duplicate ID '0001' in 8 files
+```
+
+`erg new` uses `nextID()` (reads max existing ID + 1) then `createExclusive()` (O_EXCL write).
+`O_EXCL` prevents clobbering the exact same path, but **different titles produce different slugs
+and therefore different paths** — all 8 succeed, all named `0001-worker-N-task.erg`. The
+duplicate-ID detection is in `erg check`, not in `erg new`. After the race the store is silently
+broken until someone runs `check`.
+
+The harness spawns parallel agents that each create tickets — this is the exact failure mode.
+
+## Root cause
+
+`nextID()` is a pure read (max+1). Two concurrent readers see the same max (or an empty store)
+and both compute `0001`. `createExclusive`'s O_EXCL is keyed on the full path including slug, not
+on the 4-digit NNNN prefix. So same-ID-different-slug bypasses the guard entirely.
+
+## Fix
+
+Optimistic post-check, consistent with erg's stateless and optimistic design:
+
+After `createExclusive` succeeds, glob for `NNNN-*.erg` in the store. If more than one file
+matches, delete the just-created file and retry — `cmdNew` calls `nextID` again and attempts
+the next free slot. No lock files, no claim artifacts, no serialization. Collisions are detected
+after the fact and retried, the same way git handles concurrent operations.
+
+Claim files and store locks are ruled out: both introduce side-state that violates the stateless
+contract.
+
+## Exit criteria
+
+- [ ] `test_new.sh` (or `test_concurrent_new.sh`): N=10 parallel `erg new` with distinct titles
+      → `erg check` exits 0, no duplicate IDs, each successful CREATED has a unique NNNN prefix
+- [ ] Negative control: N=10 sequential `erg new` → all 10 succeed with distinct IDs
+- [ ] Test has a sync barrier (named pipe or sleep) so all subshells race genuinely
+- [ ] Test marked integration (spawns background jobs)
+- [ ] `make check` passes after the fix
+

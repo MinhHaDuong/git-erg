@@ -1,0 +1,95 @@
+%erg 0.1
+Title: migrate tag to label: spec, source, docs, erg migrate
+Created: 2026-05-30
+Author: MinhHaDuong
+
+--- log ---
+2026-05-30T08:00Z MinhHaDuong created
+
+--- body ---
+## Context
+
+`Tag:` was chosen over `Label:` for historical reasons unrelated to erg's design. The research
+(2026-05-30) confirmed there is no open standard — the `labels` convention comes from GitHub and
+GitLab, who use it to avoid collision with `git tag` (a versioning construct). erg has no git-tag
+collision problem, but `labels` is the dominant convention and erg's controlled-vocabulary model
+is semantically closer to "labels" (curated set, project-managed) than to "tags" (folksonomy,
+free-form). Renaming removes gratuitous divergence with no functional cost.
+
+The rename is cosmetic for agents — arrays of strings, same structure, same semantics. The
+migration burden is real: spec, source, config, tests, docs, and existing ticket stores all say
+`Tag:`. The `erg migrate` command is the right vehicle for corpus migration.
+
+Scope confirmed:
+- `src/go/assets/spec-erg-v1.md` — `Tag:` header, `[tags]` config section, `erg tag`/`untag` commands
+- `src/go/assets/.ergrc` — `[tags]` section header and comment
+- `src/go/erg.go`, `ergspecv1.go` — `Tags []string` field, `"Tag"` in allowed-header set
+- `src/go/tag.go` — file likely renamed or repurposed; `cmdTag`/`cmdUntag`
+- `src/go/list.go`, `main.go`, `migrate.go`, `validate.go`, `config.go` — all `tag`/`Tag` references
+- `src/go/assets/integration.md` — integration notes mentioning tags
+- `pep-erg-v1.md` — section 12 ("Tag header") title and body
+- `docs/erg-manual.md` — all `tag`/`Tag`/`[tags]` references
+- `tests/test_tag.sh`, `test_list.sh`, `test_ready.sh`, `test_validate.sh`, and all other test fixtures
+- All `*_test.go` files using `Tag:` headers in fixture content
+
+## Part 1 — Spec and PEP
+
+- `src/go/assets/spec-erg-v1.md`: rename `Tag:` header to `Label:`, `.ergrc [tags]` to `[labels]`,
+  commands `erg tag`/`erg untag` to `erg label`/`erg unlabel`
+- Sync `tickets/spec-erg-v1.md` (the committed copy)
+- `pep-erg-v1.md` section 12: rename "Tag header" to "Label header", update body
+
+## Part 2 — Source
+
+- `src/go/ergspecv1.go`: rename `Tags []string` field to `Labels []string`; add `"Label"` to
+  allowed-header set; the old `"Tags:"` → `"Tag:"` migration hint becomes `"Tag:"` → `"Label:"`
+- `src/go/erg.go`: parser case `"Tag"` → `"Label"`; `Tags:` legacy hint → `Tag:` legacy hint
+- `src/go/tag.go`: rename file to `label.go`; rename `cmdTag` → `cmdLabel`, `cmdUntag` → `cmdUnlabel`
+- `src/go/main.go`: update dispatch table (`tag` → `label`, `untag` → `unlabel`); keep `tag`/`untag`
+  as deprecated aliases with a one-release notice printed to stderr
+- `src/go/list.go`: `Tags` field in JSON output → `labels`; filter argument help text
+- `src/go/config.go` or equivalent: `[tags]` config key → `[labels]`
+- `src/go/migrate.go`: add migration case `Tag:` → `Label:` (same pattern as existing `Tags:` → `Tag:`)
+
+## Part 3 — `erg migrate` corpus migration
+
+Add a new migration pass to `erg migrate`:
+
+```
+Tag: → Label: rewrite: N tickets
+```
+
+- Rewrite every `Tag:` header to `Label:` in preamble
+- Rewrite `.ergrc` `[tags]` section header to `[labels]`
+- Idempotent: a corpus already using `Label:` is a no-op
+- Report counts as with existing migration passes
+
+## Part 4 — Tests and docs
+
+- `tests/test_tag.sh` → `tests/test_label.sh` (rename file; update all internal references)
+- All test fixtures using `Tag:` headers → `Label:`
+- `*_test.go` fixture strings: `Tag:` → `Label:`, `Tags []string` → `Labels []string`
+- `docs/erg-manual.md`: all `tag`/`Tag`/`[tags]` → `label`/`Label`/`[labels]`
+- `src/go/assets/integration.md`: update tag references
+
+## Exit criteria
+
+- [ ] `spec-erg-v1.md` uses `Label:` header, `[labels]` config, `erg label`/`erg unlabel` commands
+- [ ] `pep-erg-v1.md` section 12 updated
+- [ ] All Go source uses `Labels []string`, `"Label"` header key, `cmdLabel`/`cmdUnlabel`
+- [ ] `erg tag` and `erg untag` still accepted as aliases, print deprecation notice to stderr
+- [ ] `erg migrate` rewrites `Tag:` → `Label:` corpus-wide, idempotent
+- [ ] `erg migrate` rewrites `.ergrc [tags]` → `[labels]`
+- [ ] All test suites updated (`test_label.sh` replaces `test_tag.sh`)
+- [ ] `erg check` passes on a corpus migrated by `erg migrate`
+- [ ] `make check` passes
+
+## Notes
+
+Do not rename the `.ergrc` config key in the same commit as the source rename — migrate will
+need to read the old key (`[tags]`) to produce the new one (`[labels]`). Sequence: source reads
+both keys (new preferred, old as fallback with deprecation warning) → migrate rewrites both →
+after one release cycle, drop the old key read.
+
+The `erg label`/`erg unlabel` command rename may be sequenced separately from the header rename
+if the PR becomes too large — the header is the breaking change, the command rename is ergonomic.

@@ -1,0 +1,47 @@
+%erg 0.1
+Title: blackbox: idempotency sweep -- rm, archive, init
+Created: 2026-05-30
+Author: MinhHaDuong
+
+--- log ---
+2026-05-30T07:04Z MinhHaDuong created
+
+--- body ---
+## Context
+
+Per the user's request: "Idempotency: verify command tests cover it explicitly, add what's missing."
+
+Already covered in existing test suites:
+- `close` on already-closed ticket → `test_close.sh` (CLOSED already, exit 0)
+- `tag` twice → `test_tag.sh` (TAGGED already, no duplicate header)
+- `untag` on untagged → `test_tag.sh` (NOT TAGGED, no-op)
+- `migrate` twice → `test_migrate.sh` (second run: no-op, already-clean count)
+- `archive` no-clobber → `test_datasafety.sh` (destination exists: source preserved)
+
+Gaps found:
+
+**`erg rm` on already-deleted ticket** — what exit code and message? The test suite covers `rm`
+on a ticket with dependents (DAG guard) and `rm --force`, but not `rm DELETED_ID` where the
+file is already gone. Expected: non-zero exit, message on stderr, nothing written.
+
+**`erg archive` second-run exit code** — `test_datasafety.sh` asserts source is preserved when
+destination exists, but does not assert the exit code of the second `archive` run. The current
+code logs a skip message to stderr and continues — exit 0 or exit 1? This should be pinned.
+
+**`erg init` twice** — `test_init.sh` covers init on a fresh dir, but not init on an already-
+initialized dir. Does `init` overwrite `.ergrc`, `AGENTS.md`, `spec-erg-v1.md`? Overwriting would
+silently discard user edits. Expected: refuse to overwrite existing files (or skip with a message),
+exit non-zero if any file would be clobbered.
+
+## Exit criteria
+
+- [ ] `test_rm.sh`: add test — `erg rm DELETED_ID DIR` (file already removed) → non-zero exit,
+      empty stdout, message on stderr
+- [ ] `test_archive.sh` or `test_datasafety.sh`: pin exit code of second `erg archive` run when
+      destinations already exist — assert exit 0 (skip-and-continue is not a fatal error) AND
+      that the skip message appears on stderr
+- [ ] `test_init.sh`: add test — `erg init DIR` twice → second run refuses to overwrite existing
+      files, source files unchanged (byte-for-byte), appropriate exit code
+- [ ] Each new test has a paired negative control (first run succeeds normally)
+- [ ] If `erg init` currently clobbers on second run, fix the behavior in the same PR
+- [ ] `make check` passes

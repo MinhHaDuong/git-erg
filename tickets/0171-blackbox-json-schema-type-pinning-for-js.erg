@@ -1,0 +1,63 @@
+%erg 0.1
+Title: blackbox: JSON schema type pinning for --json output
+Created: 2026-05-30
+Author: MinhHaDuong
+Blocked-by: 0175
+
+--- log ---
+2026-05-30T07:04Z MinhHaDuong created
+
+--- body ---
+## Context
+
+`erg list --json` and `erg ready --json` are parsed by harness skills (list, nightbeat, raid).
+`test_list.sh` already checks field *presence* (`id`, `title`, `closed`, `tags`, `blocked_by`,
+`refs`) and some values. `test_ready.sh` checks `refs == []` and id/tags. Neither suite pins
+field *types*. A field rename (e.g. `blocked_by` → `blockedBy`) or type change (array → null
+when empty) silently breaks callers.
+
+The field-name decisions are now resolved (2026-05-30 research + design session):
+- `closed` stays a boolean — string `state` was tried and rejected (agents fill it creatively)
+- `tags` renames to `labels` (ticket 0175) — aligns with GitHub/GitLab convention; no standard exists
+
+This ticket must run after 0175 lands. The assertions below use the post-0175 field names.
+
+The contract to pin: the JSON is an array; each entry has `id` (string), `title` (string),
+`closed` (boolean), `labels` (array, never null), `blocked_by` (array, never null), `refs`
+(array, never null). Additive new fields are permitted and must not fail the type checks.
+
+## What to test
+
+Use `jq -e` assertions (exit 1 on false, so the test catches failures). Examples:
+
+```sh
+echo "$output" | jq -e 'type == "array"'
+echo "$output" | jq -e 'length > 0'                              # guard: makes all(.[]; …) non-vacuous
+echo "$output" | jq -e 'all(.[]; .id | type == "string")'
+echo "$output" | jq -e 'all(.[]; .closed | type == "boolean")'
+echo "$output" | jq -e 'all(.[]; .labels | type == "array")'
+echo "$output" | jq -e 'all(.[]; .blocked_by | type == "array")'
+echo "$output" | jq -e 'all(.[]; .refs | type == "array")'
+```
+
+Negative control: assert `jq -e 'all(.[]; .labels | type == "null")'` fails on the same output —
+proving the type assertions actually fire rather than trivially passing on an empty array.
+
+## Exit criteria
+
+- [ ] Type assertions added to `test_list.sh` for `erg list --json`
+- [ ] Type assertions added to `test_ready.sh` for `erg ready --json`
+- [ ] Each assertion has a paired negative control that demonstrates it can fail
+- [ ] Both suites pass with the current binary
+- [ ] `make check` passes
+
+## Notes
+
+Run after 0175 merges. The `tags` field will be `labels` in the binary output at that point;
+writing assertions against `tags` now would pin the wrong name.
+
+Capture the actual field set from `erg list --json` on a real fixture before writing assertions —
+do not hardcode from memory. A future additive field must not break the tests.
+
+The `length > 0` guard is mandatory: `all(.[]; …)` returns true vacuously for an empty array,
+so type checks pass even if the field is absent. Assert `length > 0` first.

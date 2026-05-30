@@ -1,0 +1,53 @@
+%erg 0.1
+Title: blackbox: stderr routing audit and pin
+Created: 2026-05-30
+Author: MinhHaDuong
+
+--- log ---
+2026-05-30T07:04Z MinhHaDuong created
+
+--- body ---
+## Context
+
+A script that pipes `erg list | jq` or captures `erg new` output breaks silently if an error
+message leaks to stdout. The convention is: success output to stdout, all diagnostics to stderr.
+
+A source audit of `src/go/*.go` shows all `fmt.Fprintf(os.Stderr, ...)` calls look correct. But
+the audit was done by grep — it does not verify that every *error return path* actually reaches
+one of those calls. And there is no blackbox pin: removing `os.Stderr` from a `fmt.Fprintf` call
+would not be caught by any existing test.
+
+## Part 1 — Source audit
+
+Grep every `fmt.Print*` call (not to `os.Stderr`, not to a file handle) in `src/go/*.go`
+(excluding `_test.go`). Each such call is a success-path stdout write — verify it is on the
+success path and not reachable from an error branch. Document findings in the commit message.
+
+If any error-path stdout write is found, fix it in the same PR.
+
+## Part 2 — Blackbox pin
+
+For each command that has an error mode (all mutating commands), add a test that:
+
+1. Triggers a known error (e.g. `erg close NONEXISTENT reason DIR`)
+2. Captures stdout only (`2>/dev/null`)
+3. Asserts stdout is empty
+
+Negative control: the same command with valid arguments produces non-empty stdout (or exits 0
+with output), confirming the assertion would fire if the check were reversed.
+
+Commands to cover (error triggers):
+- `erg close NONEXISTENT reason DIR` → "no ticket found"
+- `erg log NONEXISTENT "line" DIR` → "no ticket found"
+- `erg rm NONEXISTENT DIR` → "no ticket found"
+- `erg new "" DIR` → "title is required"
+- `erg validate /nonexistent.erg` → file not found
+
+Add to `test_main.sh` or a new `test_stderr.sh`.
+
+## Exit criteria
+
+- [ ] Source audit complete; any error-path stdout writes fixed
+- [ ] Blackbox tests added: for each command above, error produces empty stdout
+- [ ] Each blackbox test has a paired negative control (valid input → non-empty stdout)
+- [ ] `make check` passes

@@ -1,0 +1,50 @@
+%erg 0.1
+Title: blackbox: UTC timestamp survives TZ env override
+Created: 2026-05-30
+Author: MinhHaDuong
+
+--- log ---
+2026-05-30T07:04Z MinhHaDuong created
+
+--- body ---
+## Context
+
+The spec mandates `YYYY-MM-DDTHH:MMZ` (UTC, Z-suffix) in log lines. `new.go` and `log.go` both
+call `time.Now().UTC()` before formatting, which is correct. `test_log.sh` already checks that a
+log line matches `[0-9]{2}Z <author>`, which would catch `.UTC()` → `time.Now()` regression
+(Go formats local time as `2006-01-02T15:04-0700`, no `Z`).
+
+The remaining gap is format-precision, not timezone correctness: the existing regex `[0-9]{2}Z`
+would pass if erg emitted `15:04:05Z` (with seconds) or `15:04+00:00` (offset-instead-of-Z). No
+test pins the exact format `HH:MMZ` with no seconds and literal `Z` (not `+00:00`). A `TZ=`
+override test documents the intent and catches that specific regression class.
+
+## What to test
+
+Run `erg log` under a non-UTC timezone and check the exact format:
+
+```sh
+TZ=America/Los_Angeles $ERG log TICKET "author note tz-check" "$DIR"
+grep "T[0-9][0-9]:[0-9][0-9]Z " "$TICKET_FILE"   # must end in Z, not -0700
+```
+
+Also check `erg new`'s `Created:` header — it's date-only (`2026-05-30`), so timezone only matters
+for the boundary between days. Verify `TZ=Pacific/Auckland $ERG new ...` produces the correct
+date-only `Created:` line (no time component, no offset suffix).
+
+Negative control: assert that a line containing `-0700` (local offset) does NOT match the Z
+pattern — proving the regex is not vacuously broad.
+
+## Exit criteria
+
+- [ ] `test_log.sh` extended: `TZ=America/Los_Angeles erg log ...` and assert log line ends in `Z`
+- [ ] `test_new.sh` extended: `TZ=Pacific/Auckland erg new ...` and assert `Created:` is
+      `YYYY-MM-DD` with no time or offset suffix
+- [ ] Negative control present for each: a local-offset string fails the match
+- [ ] `make check` passes
+
+## Notes
+
+Do not assert the exact time value (that would be flaky). Assert the format: `Z` suffix for log
+lines, date-only for `Created:`. The timezone check is a format regression guard, not a
+clock-accuracy test.
