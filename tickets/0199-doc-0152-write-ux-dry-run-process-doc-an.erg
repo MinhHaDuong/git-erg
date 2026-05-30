@@ -1,0 +1,17 @@
+%erg 0.1
+Title: doc(0152): write UX dry-run process doc and link from AGENTS.md
+Created: 2026-05-30
+Author: MinhHaDuong
+
+--- log ---
+2026-05-30T19:19Z MinhHaDuong created
+
+--- body ---
+## Context
+Exit criterion 3 of ticket 0152: "The process + cadence are documented so
+it re-runs — not one-and-done."
+
+## Exit criteria
+- [x] UX-PROCESS.md written at repo root with cold prompts, output format,
+      post-run filing steps, and CI/dry-run split
+- [x] AGENTS.md links to UX-PROCESS.md
