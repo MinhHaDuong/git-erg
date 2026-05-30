@@ -86,7 +86,7 @@ Tag: → Label: rewrite: N tickets
 - [ ] `erg migrate` rewrites `.ergrc [tags]` → `[labels]`
 - [ ] All test suites updated (`test_label.sh` replaces `test_tag.sh`)
 - [ ] Repo corpus migrated: `tickets/*.erg` use `Label:`; `erg check tickets/` passes
-- [ ] `make check` passes
+- [ ] `make test` and `make validate` pass (the actual gates; there is no `make check` target)
 
 ## Notes
 

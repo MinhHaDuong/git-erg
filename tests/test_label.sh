@@ -250,5 +250,17 @@ else
     fail "unlabel removes whitespace-before-colon Label line (out=$OUT, left: $(grep -E '^Label' "$FIXTURES/7011-ws-label.erg"))"
 fi
 
+# --- Hard rename: old 'tag'/'untag' commands are gone (no deprecated aliases) ---
+if $ERG tag 7001 needs-human "$FIXTURES" >/dev/null 2>&1; then
+    fail "erg tag is removed (hard rename, no alias)"
+else
+    pass "erg tag is removed (hard rename, no alias)"
+fi
+if $ERG untag 7001 needs-human "$FIXTURES" >/dev/null 2>&1; then
+    fail "erg untag is removed (hard rename, no alias)"
+else
+    pass "erg untag is removed (hard rename, no alias)"
+fi
+
 echo "label: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
