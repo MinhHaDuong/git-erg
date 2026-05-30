@@ -2,10 +2,12 @@
 Title: test_check.sh: add cross-directory duplicate ID case
 Created: 2026-05-30
 Author: claude
+Closed: canary test added in test_check.sh
 
 --- log ---
 2026-05-30T19:30Z claude created
 
+2026-05-30T19:37Z MinhHaDuong closed — canary test added in test_check.sh
 --- body ---
 ## Context
 
