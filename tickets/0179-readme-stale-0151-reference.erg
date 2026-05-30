@@ -1,0 +1,25 @@
+%erg 0.1
+Title: README: remove stale "not yet complete" reference to closed ticket 0151
+Created: 2026-05-30
+Author: Claude
+
+--- log ---
+2026-05-30T14:20Z Claude created — missed in PR #204; two lines still say "(not yet complete)"
+
+--- body ---
+## Context
+
+PR #204 closed ticket 0151 (signed release tags, threat model sign-off). Two
+lines in README.md were not updated and still read as if 0151 is open:
+
+- Line 149: "reproducibility is the goal, tracked in ticket 0151"
+- Line 156: "is the keystone control tracked in ticket 0151 (not yet complete)"
+
+## Actions
+
+1. Update line 149: drop the ticket reference or note it is complete.
+2. Update line 156: remove "(not yet complete)" — reproducibility is shipped.
+
+## Exit criteria
+- [ ] README.md contains no "not yet complete" reference to ticket 0151
+- [ ] `make test` passes
