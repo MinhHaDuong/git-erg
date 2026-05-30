@@ -70,7 +70,6 @@ For each friction item:
    are batched unless they cluster around a theme.
 2. File a ticket with `erg new "<concise title>"` and paste the relevant
    friction log entry + transcript excerpt into the body as evidence.
-3. Log the run on ticket 0152: `erg log 0152 "Claude dry-run Path <A|B> — N items: <severities and ticket IDs>"`
 
 ## What CI checks independently
 
