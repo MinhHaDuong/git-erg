@@ -8,12 +8,12 @@ import (
 
 // Config holds project-level settings loaded from tickets/.ergrc.
 type Config struct {
-	TagsSection bool
-	Tags        []string
-	UpdateURL   string
+	LabelsSection bool
+	Labels        []string
+	UpdateURL     string
 }
 
-var defaultTags = []string{"needs-human", "deferred"}
+var defaultLabels = []string{"needs-human", "deferred"}
 
 // loadConfig reads and parses .ergrc from dir. Returns (nil, nil) when
 // the file is absent — callers fall back to built-in defaults.
@@ -38,15 +38,15 @@ func parseErgrc(content string) *Config {
 		}
 		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
 			section = trimmed[1 : len(trimmed)-1]
-			if section == "tags" {
-				cfg.TagsSection = true
-				cfg.Tags = []string{}
+			if section == "labels" {
+				cfg.LabelsSection = true
+				cfg.Labels = []string{}
 			}
 			continue
 		}
 		switch section {
-		case "tags":
-			cfg.Tags = append(cfg.Tags, trimmed)
+		case "labels":
+			cfg.Labels = append(cfg.Labels, trimmed)
 		case "update":
 			if k, v, ok := parseINIKeyValue(trimmed); ok && k == "url" {
 				cfg.UpdateURL = v
@@ -64,17 +64,17 @@ func parseINIKeyValue(line string) (string, string, bool) {
 	return strings.TrimSpace(line[:idx]), strings.TrimSpace(line[idx+1:]), true
 }
 
-// effectiveTagSet returns the tag vocabulary as a map[string]bool.
-func effectiveTagSet(cfg *Config) map[string]bool {
-	var tags []string
-	if cfg != nil && cfg.TagsSection {
-		tags = cfg.Tags
+// effectiveLabelSet returns the label vocabulary as a map[string]bool.
+func effectiveLabelSet(cfg *Config) map[string]bool {
+	var labels []string
+	if cfg != nil && cfg.LabelsSection {
+		labels = cfg.Labels
 	} else {
-		tags = defaultTags
+		labels = defaultLabels
 	}
-	m := make(map[string]bool, len(tags))
-	for _, t := range tags {
-		m[t] = true
+	m := make(map[string]bool, len(labels))
+	for _, l := range labels {
+		m[l] = true
 	}
 	return m
 }

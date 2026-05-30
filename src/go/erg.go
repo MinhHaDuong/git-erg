@@ -18,7 +18,7 @@ func resetParseCount() { parseCount = 0 }
 
 // corpusOpCount tracks the number of per-ticket operations performed
 // inside validateCorpus (ref-resolution lookups, cycle-detection edge
-// walks, tag-vocabulary checks). Test-visible only — used by contract
+// walks, label-vocabulary checks). Test-visible only — used by contract
 // tests to verify linear-scaling of corpus validation. A single integer
 // add per operation; no production cost.
 var corpusOpCount int
@@ -89,7 +89,7 @@ func isAlphanumeric(c byte) bool {
 }
 
 // titleStatusWords are the status-vocabulary words a Title may not begin or
-// end with (rule 14, ticket 0145). They are pseudo-tags consumed by
+// end with (rule 14, ticket 0145). They are pseudo-labels consumed by
 // `erg list` filters and the lifecycle states agents reason about.
 var titleStatusWords = map[string]bool{
 	"ready":  true,
@@ -234,9 +234,9 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	var logLineNums []int
 	var title, created, author, closed string
 	var titleLine, createdLine, authorLine int
-	var tags []string
+	var labels []string
 	var blockedBys []Ref
-	var blockedByLines, tagLines []int
+	var blockedByLines, labelLines []int
 	section := "magic" // magic | headers | gap | log | body
 	hasMagic := false
 	legacyV1 := false
@@ -326,7 +326,11 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 								name, lineNum))
 						case "Tags":
 							errs = append(errs, fmt.Sprintf(
-								"%s:%d: 'Tags:' has been renamed to 'Tag:' — run `erg migrate` to convert",
+								"%s:%d: 'Tags:' has been renamed to 'Label:' — run `erg migrate` to convert",
+								name, lineNum))
+						case "Tag":
+							errs = append(errs, fmt.Sprintf(
+								"%s:%d: 'Tag:' has been renamed to 'Label:' — run `erg migrate` to convert",
 								name, lineNum))
 						default:
 							errs = append(errs, fmt.Sprintf(
@@ -378,11 +382,11 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 					}
 					blockedBys = append(blockedBys, ref)
 					blockedByLines = append(blockedByLines, lineNum)
-				case "Tag":
+				case "Label":
 					// parseHeaderLine already trims val; skip empties.
 					if val != "" {
-						tags = append(tags, val)
-						tagLines = append(tagLines, lineNum)
+						labels = append(labels, val)
+						labelLines = append(labelLines, lineNum)
 					}
 				}
 			}
@@ -463,7 +467,7 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	}
 
 	// Rule 14: Title must not begin or end with a status word (ready, done,
-	// closed, open). Those are status vocabulary in this system — pseudo-tags
+	// closed, open). Those are status vocabulary in this system — pseudo-labels
 	// consumed by `erg list` filters and the lifecycle states agents reason
 	// about — so at a title's edge they read as a status assertion about the
 	// ticket itself rather than as a reference to the command or concept being
@@ -517,8 +521,8 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 		Author:     author,
 		Closed:     closed,
 		BlockedBys: blockedBys,
-		Tags:       tags,
-		TagLines:   tagLines,
+		Labels:     labels,
+		LabelLines: labelLines,
 		LogLines:   logLines,
 		Body:       strings.Join(bodyLines, "\n"),
 	}, errs
@@ -601,7 +605,7 @@ func splitLines(content string) ([]string, bool) {
 // leaving the rest of the file — the terminating blank before `--- log ---`,
 // the log, and the body — byte-for-byte unchanged. Returns data unmodified
 // when there is no interior blank. Feeds the write-time autofix paths
-// (close/tag/untag) and the migrate sweep (ticket 0141).
+// (close/label/unlabel) and the migrate sweep (ticket 0141).
 func collapseHeaderBlanks(data []byte) []byte {
 	lines, hadTrailingNewline := splitLines(string(data))
 	interior := interiorHeaderBlanks(lines)

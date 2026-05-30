@@ -329,44 +329,44 @@ else
     fail "forge ref with leading zero rejected (rc=$rc, got: $out)"
 fi
 
-# --- Tag: valid value accepted ---
-cat > "$FIXTURES/0030-tags-valid.erg" <<'EOF'
+# --- Label: valid value accepted ---
+cat > "$FIXTURES/0030-labels-valid.erg" <<'EOF'
 %erg 0.1
-Title: Tag valid
+Title: Label valid
+Created: 2026-01-01
+Author: a
+Label: needs-human
+Label: deferred
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+EOF
+if $ERG validate "$FIXTURES/0030-labels-valid.erg" >/dev/null 2>&1; then
+    pass "Label: valid values accepted"
+else
+    fail "Label: valid values accepted"
+fi
+
+# --- Legacy Tag: header rejected with migration hint ---
+cat > "$FIXTURES/0031-tag-legacy.erg" <<'EOF'
+%erg 0.1
+Title: Tag legacy
 Created: 2026-01-01
 Author: a
 Tag: needs-human
-Tag: deferred
 
 --- log ---
 2026-01-01T10:00Z a created
 
 --- body ---
 EOF
-if $ERG validate "$FIXTURES/0030-tags-valid.erg" >/dev/null 2>&1; then
-    pass "Tag: valid values accepted"
+out=$($ERG validate "$FIXTURES/0031-tag-legacy.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "renamed to 'Label:'"; then
+    pass "Tag: legacy header rejected with migration hint"
 else
-    fail "Tag: valid values accepted"
-fi
-
-# --- Legacy Tags: header rejected with migration hint ---
-cat > "$FIXTURES/0031-tags-legacy.erg" <<'EOF'
-%erg 0.1
-Title: Tags legacy
-Created: 2026-01-01
-Author: a
-Tags: needs-human
-
---- log ---
-2026-01-01T10:00Z a created
-
---- body ---
-EOF
-out=$($ERG validate "$FIXTURES/0031-tags-legacy.erg" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "renamed to 'Tag:'"; then
-    pass "Tags: legacy header rejected with migration hint"
-else
-    fail "Tags: legacy header rejected with migration hint (rc=$rc, got: $out)"
+    fail "Tag: legacy header rejected with migration hint (rc=$rc, got: $out)"
 fi
 
 # --- Nonexistent path emits WARNING and exits 0 ---
@@ -891,22 +891,22 @@ else
     fail "unknown header (X-Foo) rejected (rc=$rc, got: $out)"
 fi
 
-# --- Tag: invalid value rejected (per-file validate) ---
-cat > "$FIXTURES/0123-bad-tag.erg" <<'EOF'
+# --- Label: invalid value rejected (per-file validate) ---
+cat > "$FIXTURES/0123-bad-label.erg" <<'EOF'
 %erg 0.1
-Title: Bad tag
+Title: Bad label
 Created: 2026-01-01
 Author: a
-Tag: bogus
+Label: bogus
 
 --- log ---
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0123-bad-tag.erg" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "unknown Tag value 'bogus'"; then
-    pass "Tag: bogus value rejected"
+out=$($ERG validate "$FIXTURES/0123-bad-label.erg" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -q "unknown Label value 'bogus'"; then
+    pass "Label: bogus value rejected"
 else
-    fail "Tag: bogus value rejected (rc=$rc, got: $out)"
+    fail "Label: bogus value rejected (rc=$rc, got: $out)"
 fi
 
 # --- Blocked-by: unknown local ID rejected (isolated dir — no 9999 fixture) ---
@@ -937,8 +937,8 @@ Author: claude
 Closed: completed in PR #99
 Blocked-by: 0001
 Blocked-by: github.com/foo/bar#42
-Tag: needs-human
-Tag: deferred
+Label: needs-human
+Label: deferred
 
 --- log ---
 2026-01-01T09:00Z claude created
@@ -985,7 +985,7 @@ Title: Interior blank
 Created: 2026-01-01
 Author: claude
 
-Tag: needs-human
+Label: needs-human
 
 --- log ---
 2026-01-01T09:00Z claude created

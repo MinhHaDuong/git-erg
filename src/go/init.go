@@ -22,7 +22,7 @@ Unpack embedded bootstrap assets into the project.
 
 Writes (or refreshes) four files relative to DIR (default: current directory):
 
-  - tickets/.ergrc — project configuration (tag vocabulary, update remote).
+  - tickets/.ergrc — project configuration (label vocabulary, update remote).
   - tickets/AGENTS.md — agent operating instructions for the ticket workflow.
   - tickets/spec-erg-v1.md — the %erg 0.1 format specification.
   - tickets/integration.md — setup guide for the pre-commit hook and CI integration.

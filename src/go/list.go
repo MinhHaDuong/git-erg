@@ -20,14 +20,14 @@ type listEntry struct {
 	id, title, file string
 	closed          bool
 	blocked         bool
-	tags            []string
+	labels          []string
 	blockedBy       []blockedByEntry
 	refs            []string // git refs + worktree paths referencing this ticket
 }
 
 // has reports whether the entry carries the given filter term. closed, open,
-// and blocked are computed pseudo-tags (open == not closed); any other name is
-// matched against the ticket's literal Tag: headers.
+// and blocked are computed pseudo-labels (open == not closed); any other name is
+// matched against the ticket's literal Label: headers.
 func (e listEntry) has(term string) bool {
 	switch term {
 	case "closed":
@@ -37,8 +37,8 @@ func (e listEntry) has(term string) bool {
 	case "blocked":
 		return e.blocked
 	default:
-		for _, t := range e.tags {
-			if t == term {
+		for _, l := range e.labels {
+			if l == term {
 				return true
 			}
 		}
@@ -113,7 +113,7 @@ func loadListEntries(dir string) ([]listEntry, []string) {
 			file:      t.Filename(),
 			closed:    t.IsClosed(),
 			blocked:   len(blockedBy) > 0,
-			tags:      t.Tags,
+			labels:    t.Labels,
 			blockedBy: blockedBy,
 		})
 	}
@@ -136,19 +136,19 @@ func loadListEntries(dir string) ([]listEntry, []string) {
 }
 
 // summaryList is the one-liner printed by printUsage via the commands registry.
-const summaryList = "List tickets, filtered by tag (alias: ls)"
+const summaryList = "List tickets, filtered by label (alias: ls)"
 
-const helpList = `## erg list [DIR] [TAG...] [not TAG...] [--all] [--json]
+const helpList = `## erg list [DIR] [LABEL...] [not LABEL...] [--all] [--json]
 
 List tickets, one per line, sorted by ID. Each line carries any [refs] —
 git branches, remote-tracking branches, and worktree paths that reference the
-ticket per the spec-erg-v1.md matching rule — plus (tags: …) and (blocked-by:
+ticket per the spec-erg-v1.md matching rule — plus (labels: …) and (blocked-by:
 …) when present. The refs scan is local-only (git for-each-ref, git worktree
 list); no network calls.
 
-Tag arguments filter the list as a conjunction: a bare TAG keeps only tickets
-carrying it, and "not TAG" drops tickets carrying it. Beyond the literal Tag:
-vocabulary, three computed pseudo-tags are accepted:
+Label arguments filter the list as a conjunction: a bare LABEL keeps only tickets
+carrying it, and "not LABEL" drops tickets carrying it. Beyond the literal Label:
+vocabulary, three computed pseudo-labels are accepted:
 
   - closed   — the ticket is closed (Closed: header or closed/ path).
   - open     — the ticket is not closed.
@@ -160,35 +160,35 @@ tickets are shown. --all drops that default so closed tickets appear too
 (marked [closed]). Tickets are sorted by ID ascending.
 
 DIR selects the ticket store: an argument naming an existing directory (or one
-containing '/'), e.g. 'erg ls tickets/'. The pseudo-tags closed/open/blocked are
+containing '/'), e.g. 'erg ls tickets/'. The pseudo-labels closed/open/blocked are
 always filter terms, so 'erg ls closed' lists closed tickets even from inside a
 store that contains a closed/ directory.
 
 Without --json, prints a human-readable line per ticket. With --json, prints a
 JSON array where each element has the fields: id, title, file, closed, refs,
-tags, blocked_by.
+labels, blocked_by.
 
 Alias: erg ls.
 
 Examples:
   erg ls                      open tickets
-  erg ls needs-human          open tickets tagged needs-human
-  erg ls not deferred         open tickets not tagged deferred
+  erg ls needs-human          open tickets labeled needs-human
+  erg ls not deferred         open tickets not labeled deferred
   erg ls closed               closed tickets
   erg ls --all blocked        all blocked tickets, open or closed
 `
 
-// pseudoTagSet holds the computed filter terms. They are always filters, never
+// pseudoLabelSet holds the computed filter terms. They are always filters, never
 // directory arguments — so `erg ls closed` filters even from inside a store
 // that happens to contain a closed/ subdirectory.
-var pseudoTagSet = map[string]bool{"closed": true, "open": true, "blocked": true}
+var pseudoLabelSet = map[string]bool{"closed": true, "open": true, "blocked": true}
 
 // isDirArg reports whether a bare argument denotes the ticket store directory
 // rather than a filter term. An argument is a directory when it names an
 // existing directory, contains a path separator, or is the current/parent
-// directory. The pseudo-tags closed/open/blocked are reserved as filter terms.
+// directory. The pseudo-labels closed/open/blocked are reserved as filter terms.
 func isDirArg(arg string) bool {
-	if pseudoTagSet[arg] {
+	if pseudoLabelSet[arg] {
 		return false
 	}
 	if strings.Contains(arg, "/") || arg == "." || arg == ".." {
@@ -198,7 +198,7 @@ func isDirArg(arg string) bool {
 	return err == nil && info.IsDir()
 }
 
-// cmdList implements `erg list [dir] [tag...] [not tag...] [--all] [--json]`.
+// cmdList implements `erg list [dir] [label...] [not label...] [--all] [--json]`.
 func cmdList(args []string) int {
 	useJSON := false
 	includeAll := false
@@ -216,7 +216,7 @@ func cmdList(args []string) int {
 			negateNext = true
 		case isDirArg(a):
 			if negateNext {
-				fmt.Fprintln(os.Stderr, "list: 'not' must be followed by a tag name")
+				fmt.Fprintln(os.Stderr, "list: 'not' must be followed by a label name")
 				return 1
 			}
 			if explicitDir != "" {
@@ -234,7 +234,7 @@ func cmdList(args []string) int {
 		}
 	}
 	if negateNext {
-		fmt.Fprintln(os.Stderr, "list: 'not' must be followed by a tag name")
+		fmt.Fprintln(os.Stderr, "list: 'not' must be followed by a label name")
 		return 1
 	}
 
@@ -310,8 +310,8 @@ func printListText(heading string, entries []listEntry) {
 		if len(e.refs) > 0 {
 			suffix += fmt.Sprintf(" [%s]", strings.Join(e.refs, ", "))
 		}
-		if len(e.tags) > 0 {
-			suffix += fmt.Sprintf(" (tags: %s)", strings.Join(e.tags, ", "))
+		if len(e.labels) > 0 {
+			suffix += fmt.Sprintf(" (labels: %s)", strings.Join(e.labels, ", "))
 		}
 		if len(e.blockedBy) > 0 {
 			labels := make([]string, len(e.blockedBy))
@@ -336,7 +336,7 @@ func printListJSON(entries []listEntry) {
 		File      string          `json:"file"`
 		Closed    bool            `json:"closed"`
 		Refs      []string        `json:"refs"`
-		Tags      []string        `json:"tags"`
+		Labels    []string        `json:"labels"`
 		BlockedBy []blockedByJSON `json:"blocked_by"`
 	}
 
@@ -346,9 +346,9 @@ func printListJSON(entries []listEntry) {
 		for j, b := range e.blockedBy {
 			bb[j] = blockedByJSON{Kind: b.kind, ID: b.id, Ref: b.ref}
 		}
-		tags := e.tags
-		if tags == nil {
-			tags = []string{}
+		labels := e.labels
+		if labels == nil {
+			labels = []string{}
 		}
 		refs := e.refs
 		if refs == nil {
@@ -356,7 +356,7 @@ func printListJSON(entries []listEntry) {
 		}
 		result[i] = entryJSON{
 			ID: e.id, Title: e.title, File: e.file,
-			Closed: e.closed, Refs: refs, Tags: tags, BlockedBy: bb,
+			Closed: e.closed, Refs: refs, Labels: labels, BlockedBy: bb,
 		}
 	}
 

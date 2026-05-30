@@ -200,14 +200,14 @@ else
     fail "JSON output works"
 fi
 
-# --- Ready excludes tickets carrying skip tags ---
+# --- Ready excludes tickets carrying skip labels ---
 rm -f "$FIXTURES/ready/"*.erg
-cat > "$FIXTURES/ready/0040-tagged.erg" <<'EOF'
+cat > "$FIXTURES/ready/0040-labeled.erg" <<'EOF'
 %erg 0.1
 Title: Needs human triage
 Created: 2026-01-01
 Author: a
-Tag: needs-human
+Label: needs-human
 
 --- log ---
 2026-01-01T10:00Z a created
@@ -216,16 +216,16 @@ Tag: needs-human
 EOF
 output=$($ERG ready "$FIXTURES/ready")
 if echo "$output" | grep -q "0040"; then
-    fail "skip-tagged ticket excluded from ready"
+    fail "skip-labeled ticket excluded from ready"
 else
-    pass "skip-tagged ticket excluded from ready"
+    pass "skip-labeled ticket excluded from ready"
 fi
 
-# --- JSON output includes tags array for ready entries ---
+# --- JSON output includes labels array for ready entries ---
 rm -f "$FIXTURES/ready/"*.erg
-cat > "$FIXTURES/ready/0041-untagged.erg" <<'EOF'
+cat > "$FIXTURES/ready/0041-unlabeled.erg" <<'EOF'
 %erg 0.1
-Title: Untagged ready ticket
+Title: Unlabeled ready ticket
 Created: 2026-01-01
 Author: a
 
@@ -235,10 +235,10 @@ Author: a
 --- body ---
 EOF
 output=$($ERG ready --json "$FIXTURES/ready")
-if echo "$output" | grep -q '"tags": \[\]'; then
-    pass "ready JSON includes tags array"
+if echo "$output" | grep -q '"labels": \[\]'; then
+    pass "ready JSON includes labels array"
 else
-    fail "ready JSON includes tags array"
+    fail "ready JSON includes labels array"
 fi
 
 # Blocked-ticket JSON shape (forge / local blocker structure) is covered by

@@ -2,7 +2,7 @@
 Title: Self-update via git fetch instead of an embedded HTTP client
 Created: 2026-05-29
 Author: Claude
-Tag: needs-human
+Label: needs-human
 Closed: Implemented: http->git transport for erg update; offline invariant now holds everywhere
 
 --- log ---

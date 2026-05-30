@@ -59,12 +59,12 @@ inode_of() { stat -c %i "$1" 2>/dev/null || ls -i "$1" | awk '{print $1}'; }
 WS="$FIXTURES/atomic"
 mkdir -p "$WS"
 write_open "$WS/0001-atom.erg" "Atom"
-for cmd in log tag close; do
+for cmd in log label close; do
     case "$cmd" in
     log) write_open "$WS/0001-atom.erg" "Atom"; before=$(inode_of "$WS/0001-atom.erg")
          $ERG log 0001 "claude note touched" "$WS" >/dev/null 2>&1 ;;
-    tag) write_open "$WS/0001-atom.erg" "Atom"; before=$(inode_of "$WS/0001-atom.erg")
-         $ERG tag 0001 needs-human "$WS" >/dev/null 2>&1 ;;
+    label) write_open "$WS/0001-atom.erg" "Atom"; before=$(inode_of "$WS/0001-atom.erg")
+         $ERG label 0001 needs-human "$WS" >/dev/null 2>&1 ;;
     close) write_open "$WS/0001-atom.erg" "Atom"; before=$(inode_of "$WS/0001-atom.erg")
          $ERG close 0001 "done" "$WS" >/dev/null 2>&1 ;;
     esac
@@ -122,8 +122,8 @@ else
     fail "lossless: log line count $logcount_before → $logcount_after (expected +1)"
 fi
 
-# The property also holds for close/tag/untag — the other log/header mutators
-# (the ticket names "close/tag/untag/rm --force"). They funnel through the same
+# The property also holds for close/label/unlabel — the other log/header mutators
+# (the ticket names "close/label/unlabel/rm --force"). They funnel through the same
 # appendLogLine + writeTicketAtomic path; assert the body survives each
 # byte-for-byte (cmp on extracted files, same as the log case above).
 write_rt2() {
@@ -153,13 +153,13 @@ else
     fail "lossless: body changed across erg close"
 fi
 write_rt2; extract_body "$WS/0002-rt.erg" "$WS/.b_want"
-$ERG tag 0002 needs-human "$WS" >/dev/null 2>&1
-$ERG untag 0002 needs-human "$WS" >/dev/null 2>&1
+$ERG label 0002 needs-human "$WS" >/dev/null 2>&1
+$ERG unlabel 0002 needs-human "$WS" >/dev/null 2>&1
 extract_body "$WS/0002-rt.erg" "$WS/.b_after"
 if cmp -s "$WS/.b_want" "$WS/.b_after"; then
-    pass "lossless: body preserved verbatim across erg tag + untag"
+    pass "lossless: body preserved verbatim across erg label + unlabel"
 else
-    fail "lossless: body changed across erg tag/untag"
+    fail "lossless: body changed across erg label/unlabel"
 fi
 
 # ---------------------------------------------------------------------------

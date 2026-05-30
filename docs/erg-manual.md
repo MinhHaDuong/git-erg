@@ -25,7 +25,7 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
   2. All required headers present AND non-empty: Title, Created, Author.
   3. No unknown headers (Status: is unknown; run 'erg migrate' to convert it).
   4. Non-repeatable headers (Title, Created, Author, Closed) appear at most once.
-  5. Tag: values are from the vocabulary (default: needs-human, deferred; see tickets/.ergrc [tags]).
+  5. Label: values are from the vocabulary (default: needs-human, deferred; see tickets/.ergrc [labels]).
   6. Closed: header has a non-empty value and does not appear in the log or body sections.
   7. Created is a valid ISO date (YYYY-MM-DD).
   8. Filename matches NNNN-slug.erg (4-digit ID, lowercase ASCII kebab slug).
@@ -71,17 +71,17 @@ Additionally emits warnings (non-fatal) for:
 
 Exit codes: 0 on pass (warnings are printed but do not affect exit code), 1 on any violation.
 
-## erg list [DIR] [TAG...] [not TAG...] [--all] [--json]
+## erg list [DIR] [LABEL...] [not LABEL...] [--all] [--json]
 
 List tickets, one per line, sorted by ID. Each line carries any [refs] —
 git branches, remote-tracking branches, and worktree paths that reference the
-ticket per the spec-erg-v1.md matching rule — plus (tags: …) and (blocked-by:
+ticket per the spec-erg-v1.md matching rule — plus (labels: …) and (blocked-by:
 …) when present. The refs scan is local-only (git for-each-ref, git worktree
 list); no network calls.
 
-Tag arguments filter the list as a conjunction: a bare TAG keeps only tickets
-carrying it, and "not TAG" drops tickets carrying it. Beyond the literal Tag:
-vocabulary, three computed pseudo-tags are accepted:
+Label arguments filter the list as a conjunction: a bare LABEL keeps only tickets
+carrying it, and "not LABEL" drops tickets carrying it. Beyond the literal Label:
+vocabulary, three computed pseudo-labels are accepted:
 
   - closed   — the ticket is closed (Closed: header or closed/ path).
   - open     — the ticket is not closed.
@@ -93,20 +93,20 @@ tickets are shown. --all drops that default so closed tickets appear too
 (marked [closed]). Tickets are sorted by ID ascending.
 
 DIR selects the ticket store: an argument naming an existing directory (or one
-containing '/'), e.g. 'erg ls tickets/'. The pseudo-tags closed/open/blocked are
+containing '/'), e.g. 'erg ls tickets/'. The pseudo-labels closed/open/blocked are
 always filter terms, so 'erg ls closed' lists closed tickets even from inside a
 store that contains a closed/ directory.
 
 Without --json, prints a human-readable line per ticket. With --json, prints a
 JSON array where each element has the fields: id, title, file, closed, refs,
-tags, blocked_by.
+labels, blocked_by.
 
 Alias: erg ls.
 
 Examples:
   erg ls                      open tickets
-  erg ls needs-human          open tickets tagged needs-human
-  erg ls not deferred         open tickets not tagged deferred
+  erg ls needs-human          open tickets labeled needs-human
+  erg ls not deferred         open tickets not labeled deferred
   erg ls closed               closed tickets
   erg ls --all blocked        all blocked tickets, open or closed
 
@@ -120,12 +120,12 @@ A ticket is ready when all of the following hold:
   - Not blocked: no Blocked-by pointing at an open local ticket, and no
     forge-ref Blocked-by (forge refs are offline-unknown, treated as
     blocking).
-  - Carries none of the skip tags (default: needs-human, deferred;
-    configurable via tickets/.ergrc [tags]).
+  - Carries none of the skip labels (default: needs-human, deferred;
+    configurable via tickets/.ergrc [labels]).
 
 Equivalent to 'erg list open not blocked not needs-human not deferred', and
 shares its output: a human-readable line per ticket, or --json for a JSON
-array with the fields id, title, file, closed, refs, tags, blocked_by.
+array with the fields id, title, file, closed, refs, labels, blocked_by.
 
 Each line is annotated with the comma-separated [refs] — git branch short
 names, remote-tracking branch short names (with their <remote>/ prefix),
@@ -224,24 +224,24 @@ enforced by erg validate (rule 11).
 Prints "LOGGED" on success. Exits non-zero if the ticket is not found or has no
 `--- body ---` separator (which would indicate a malformed file).
 
-## erg tag ID TAGNAME [DIR]
+## erg label ID LABELNAME [DIR]
 
-Add a Tag: header to the ticket's preamble and append a log line.
+Add a Label: header to the ticket's preamble and append a log line.
 
-The tag value must be in the project vocabulary (tickets/.ergrc [tags]
+The label value must be in the project vocabulary (tickets/.ergrc [labels]
 section; default: needs-human, deferred). If the ticket already has the
-tag, prints "TAGGED (already)" and exits 0 without modifying the file.
+label, prints "LABELED (already)" and exits 0 without modifying the file.
 
-Exits non-zero if the tag is not in the vocabulary or the ticket is not found.
+Exits non-zero if the label is not in the vocabulary or the ticket is not found.
 
-## erg untag ID TAGNAME [DIR]
+## erg unlabel ID LABELNAME [DIR]
 
-Remove a Tag: header from the ticket's preamble and append a log line.
+Remove a Label: header from the ticket's preamble and append a log line.
 
-The tag value must be in the project vocabulary. If the ticket does not
-have the tag, prints "NOT TAGGED" and exits 0 without modifying the file.
+The label value must be in the project vocabulary. If the ticket does not
+have the label, prints "NOT LABELED" and exits 0 without modifying the file.
 
-Exits non-zero if the tag is not in the vocabulary or the ticket is not found.
+Exits non-zero if the label is not in the vocabulary or the ticket is not found.
 
 ## erg archive [ID...] [DIR]
 
@@ -296,15 +296,16 @@ rules are:
     'Closed: migrated from Status: closed' to the preamble.
   - 'Status: open', 'Status: doing', or 'Status: pending' → drop the line;
     the ticket becomes not-closed (the correct new state).
-  - 'Tags:' preamble line → rewrite the key to 'Tag:' (singular; the header is
-    repeatable and singular names are the v1 convention). The value is preserved.
+  - 'Tag:' (or legacy 'Tags:') preamble line → rewrite the key to 'Label:'. The
+    value is preserved; legacy 'Tags:' converges to 'Label:' in a single run.
+  - '.ergrc' '[tags]' section header → rewritten to '[labels]'.
   - Legacy '%erg v1' magic line → rewritten to '%erg 0.1'.
   - Interior blank lines inside the header block → swept (ticket 0141:
     accept on read, autofix on write). The first blank line still terminates
     the header block; only blanks between header lines are removed.
   - No legacy line and no interior blanks → no-op.
 
-After migration, erg validate will reject any remaining Status: or Tags: lines.
+After migration, erg validate will reject any remaining Status:, Tags:, or Tag: lines.
 
 When DIR is named "tickets" (the canonical layout), also performs a one-time
 project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
@@ -323,7 +324,7 @@ Unpack embedded bootstrap assets into the project.
 
 Writes (or refreshes) four files relative to DIR (default: current directory):
 
-  - tickets/.ergrc — project configuration (tag vocabulary, update remote).
+  - tickets/.ergrc — project configuration (label vocabulary, update remote).
   - tickets/AGENTS.md — agent operating instructions for the ticket workflow.
   - tickets/spec-erg-v1.md — the %erg 0.1 format specification.
   - tickets/integration.md — setup guide for the pre-commit hook and CI integration.

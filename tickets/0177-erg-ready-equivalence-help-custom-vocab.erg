@@ -1,0 +1,46 @@
+%erg 0.1
+Title: Tighten erg ready "Equivalent to" help text for custom label vocabularies
+Created: 2026-05-30
+Author: claude
+
+--- log ---
+2026-05-30T10:30Z claude created
+
+--- body ---
+## Context
+
+`erg ready`'s help text (and the generated `docs/erg-manual.md`) states it is
+"Equivalent to `erg list open not blocked not needs-human not deferred`". But
+`cmdReady` negates **every** label in `effectiveLabelSet(cfg)` — i.e. all
+entries of `tickets/.ergrc [labels]`, not just the two defaults. Under a custom
+`[labels]` vocabulary the stated equivalence is wrong/misleading.
+
+Surfaced by Copilot on PR #192 (the Tag→Label rename, ticket 0175). The
+imprecision is **pre-existing** — it predates the rename, which only changed
+`tags`→`labels` in that sentence — so it was left out of 0175's scope.
+
+## Relevant files
+- `src/go/ready.go` — `helpReady` const (the "Equivalent to..." line) and
+  `cmdReady` (the `effectiveLabelSet` negation loop).
+- `docs/erg-manual.md` — generated from `erg --help --all`; regenerate via
+  `make docs` after editing the help const, do not hand-edit.
+
+## Actions
+1. Reword the `helpReady` "Equivalent to..." sentence so it is accurate under
+   any vocabulary, e.g. "Equivalent to `erg list open not blocked` with every
+   configured label (`.ergrc [labels]`; default needs-human, deferred) also
+   negated." Keep it concise.
+2. `make docs` to regenerate `docs/erg-manual.md`.
+
+## Test
+- `tests/test_godoc.sh` or `tests/test_ready.sh`: assert the help text does NOT
+  claim a fixed `not needs-human not deferred` equivalence (string check), so a
+  future edit can't silently reintroduce the imprecise wording.
+
+## Exit criteria
+- [ ] `helpReady` no longer asserts a default-only equivalence as if universal
+- [ ] `docs/erg-manual.md` regenerated and consistent
+- [ ] `make test` and `make validate` pass
+
+## Notes
+Cosmetic/doc-only — no behavior change to `cmdReady`.

@@ -2,7 +2,7 @@
 Title: Signed version manifest — trustable publication, deprecation, revocation
 Created: 2026-05-29
 Author: Claude
-Tag: needs-human
+Label: needs-human
 Closed: YAGNI — bespoke signed-manifest/revocation/key-management infra is unjustified for a solo-maintained tool with no observed compromise, and it fights offline/zero-dep. Use git-native signed release tags for trustable provenance (how git itself does it: tag -s / verify-tag), keep reproducible-build verification (0151); revocation if ever needed = key revocation + advisory + new release, not a polled list.
 
 --- log ---

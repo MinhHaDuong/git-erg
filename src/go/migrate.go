@@ -22,15 +22,16 @@ rules are:
     'Closed: migrated from Status: closed' to the preamble.
   - 'Status: open', 'Status: doing', or 'Status: pending' → drop the line;
     the ticket becomes not-closed (the correct new state).
-  - 'Tags:' preamble line → rewrite the key to 'Tag:' (singular; the header is
-    repeatable and singular names are the v1 convention). The value is preserved.
+  - 'Tag:' (or legacy 'Tags:') preamble line → rewrite the key to 'Label:'. The
+    value is preserved; legacy 'Tags:' converges to 'Label:' in a single run.
+  - '.ergrc' '[tags]' section header → rewritten to '[labels]'.
   - Legacy '%erg v1' magic line → rewritten to '%erg 0.1'.
   - Interior blank lines inside the header block → swept (ticket 0141:
     accept on read, autofix on write). The first blank line still terminates
     the header block; only blanks between header lines are removed.
   - No legacy line and no interior blanks → no-op.
 
-After migration, erg validate will reject any remaining Status: or Tags: lines.
+After migration, erg validate will reject any remaining Status:, Tags:, or Tag: lines.
 
 When DIR is named "tickets" (the canonical layout), also performs a one-time
 project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
@@ -58,7 +59,7 @@ func cmdMigrate(args []string) int {
 
 	migratedClosed := 0
 	migratedOther := 0
-	migratedTags := 0
+	migratedLabels := 0
 	migratedMagic := 0
 	migratedBlanks := 0
 	alreadyClean := 0
@@ -85,8 +86,8 @@ func cmdMigrate(args []string) int {
 		case res.statusStripped:
 			migratedOther++
 		}
-		if res.tagsRenamed {
-			migratedTags++
+		if res.labelsRewritten {
+			migratedLabels++
 		}
 		if res.magicRewritten {
 			migratedMagic++
@@ -104,10 +105,15 @@ func cmdMigrate(args []string) int {
 	total := migratedClosed + migratedOther
 	fmt.Printf("migrated: %d tickets (%d closed, %d open/doing/pending stripped)\n",
 		total, migratedClosed, migratedOther)
-	fmt.Printf("Tags: → Tag: rewrite: %d tickets\n", migratedTags)
+	fmt.Printf("Tag: → Label: rewrite: %d tickets\n", migratedLabels)
 	fmt.Printf("%%erg v1 → %%erg 0.1 rewrite: %d tickets\n", migratedMagic)
 	fmt.Printf("interior header blank sweep: %d tickets\n", migratedBlanks)
 	fmt.Printf("already clean: %d tickets\n", alreadyClean)
+
+	// Rewrite the .ergrc [tags] section header to [labels] (idempotent).
+	if migrateErgrc(dir) {
+		fmt.Println(".ergrc [tags] → [labels] rewrite: 1 file")
+	}
 
 	// Layout migration: only run when dir is named "tickets" (canonical layout).
 	if filepath.Base(dir) == "tickets" {
@@ -244,12 +250,12 @@ func migrateHook(root string) {
 
 // migrateResult summarizes what migrateFile rewrote in a single .erg file.
 type migrateResult struct {
-	changed        bool // file was rewritten on disk
-	wasClosed      bool // at least one removed Status: line carried value "closed"
-	statusStripped bool // at least one Status: line was removed (closed or open/doing/pending)
-	tagsRenamed    bool // at least one preamble `Tags:` line was renamed to `Tag:`
-	magicRewritten bool // legacy `%erg v1` magic line was rewritten to `%erg 0.1`
-	blanksSwept    bool // at least one interior header blank line was removed
+	changed         bool // file was rewritten on disk
+	wasClosed       bool // at least one removed Status: line carried value "closed"
+	statusStripped  bool // at least one Status: line was removed (closed or open/doing/pending)
+	labelsRewritten bool // at least one preamble `Tag:`/`Tags:` line was rewritten to `Label:`
+	magicRewritten  bool // legacy `%erg v1` magic line was rewritten to `%erg 0.1`
+	blanksSwept     bool // at least one interior header blank line was removed
 }
 
 // migrateFile rewrites a single .erg file in place. The rewrite is preamble-bounded
@@ -306,11 +312,21 @@ func migrateFile(path string) (migrateResult, error) {
 			continue
 		}
 		if i < preambleEnd && isTagsHeaderLine(line) {
-			// Rewrite `Tags:` → `Tag:` preserving the value (and any
-			// inline comment). Original casing of the value is kept.
-			rewritten := "Tag:" + line[len("Tags:"):]
+			// Rewrite legacy `Tags:` → `Label:` preserving the value (and any
+			// inline comment). Original casing of the value is kept. Converges
+			// in one run — no intermediate `Tag:` stop.
+			rewritten := "Label:" + line[len("Tags:"):]
 			out = append(out, rewritten)
-			res.tagsRenamed = true
+			res.labelsRewritten = true
+			continue
+		}
+		if i < preambleEnd && isTagHeaderLine(line) {
+			// Rewrite `Tag:` → `Label:` preserving the value (and any inline
+			// comment). isTagsHeaderLine is checked first above, so a `Tags:`
+			// line never reaches here (the 4-char `Tag:` prefix excludes it).
+			rewritten := "Label:" + line[len("Tag:"):]
+			out = append(out, rewritten)
+			res.labelsRewritten = true
 			continue
 		}
 		out = append(out, line)
@@ -379,9 +395,47 @@ func isStatusHeaderLine(line string) bool {
 // isTagsHeaderLine reports whether a line begins with the literal
 // `Tags:` header key (case-insensitive on the key itself, parallel to
 // isStatusHeaderLine). Used to rewrite legacy `Tags:` preamble lines
-// to the singular `Tag:` form.
+// to the `Label:` form.
 func isTagsHeaderLine(line string) bool {
 	return hasHeaderKey(line, "Tags:", true)
+}
+
+// isTagHeaderLine reports whether a line begins with the literal `Tag:`
+// header key (case-insensitive on the key itself). Used to rewrite legacy
+// `Tag:` preamble lines to the `Label:` form. The 4-char `Tag:` prefix does
+// not match `Tags:` (5 chars), so the two rewrite passes are disjoint.
+func isTagHeaderLine(line string) bool {
+	return hasHeaderKey(line, "Tag:", true)
+}
+
+// migrateErgrc rewrites the `[tags]` section header to `[labels]` in dir/.ergrc,
+// returning true when the file existed and was changed. Operates on the raw
+// section-header line only (text-level, no loadConfig dependency); section
+// comments and entries are preserved verbatim. Idempotent: a .ergrc already
+// using `[labels]`, or absent entirely, is a no-op (returns false).
+func migrateErgrc(dir string) bool {
+	path := filepath.Join(dir, ".ergrc")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	original := string(data)
+	lines := strings.Split(original, "\n")
+	changed := false
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "[tags]" {
+			lines[i] = strings.Replace(line, "[tags]", "[labels]", 1)
+			changed = true
+		}
+	}
+	if !changed {
+		return false
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "migrate: rewrite .ergrc: %v\n", err)
+		return false
+	}
+	return true
 }
 
 // hasStatusHeader scans dir for any .erg file containing a `Status:` line

@@ -72,7 +72,7 @@ func cmdNew(args []string) int {
 	if len(args) >= 2 {
 		// Explicit DIR is an intentional escape hatch, NOT confined.
 		//
-		// The other mutating commands (close/log/tag/rm) treat an explicit DIR
+		// The other mutating commands (close/log/label/rm) treat an explicit DIR
 		// as the trusted store: resolveDir accepts any directory the caller
 		// names. `new` creates that store (MkdirAll), so confining it against a
 		// "discovered" or cwd store is ill-defined — for `new` the named DIR *is*

@@ -2,7 +2,7 @@
 Title: Audit lint findings — Go CLI codebase
 Created: 2026-05-11
 Author: MinhHaDuong
-Tag: deferred
+Label: deferred
 Closed: all exit criteria met — PR #132 delivered A1-A7; go vet clean, tests pass, all code changes verified
 
 --- log ---
