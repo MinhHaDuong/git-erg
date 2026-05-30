@@ -1,0 +1,36 @@
+%erg 0.1
+Title: Add standing regression test — unknown-flag rejection across all commands
+Created: 2026-05-30
+Author: Claude
+
+--- log ---
+2026-05-30T18:00Z Claude created — celebrate sweep 0180; class recurred across 3 tickets (0166, 0178, 0180); 0185 pending
+
+--- body ---
+## Context
+
+The unknown-flag rejection convention has been applied across three PRs
+(0166, 0178, 0180) and still has residuals (0185). The pattern recurs
+because there is no standing test that would catch a new command missing
+the guard at PR time.
+
+A parameterized shell test that iterates over every command and asserts
+`erg <cmd> --bogus` exits non-zero with "unknown flag" on stderr would:
+- Catch any new command added without the guard.
+- Prevent regressions if the guard is accidentally removed.
+- Make the convention self-enforcing rather than audit-dependent.
+
+## Actions
+
+1. Write `tests/test_unknown_flags.sh` that loops over every command in
+   the commands registry and runs `erg <cmd> --bogus`, asserting rc != 0
+   and stderr contains "unknown flag".
+2. Exclude commands that legitimately take no flags and silently ignore
+   args (if any), documenting the exclusion explicitly.
+3. Add the test to the test runner (Makefile or test_pipeline).
+
+## Exit criteria
+
+- [ ] `tests/test_unknown_flags.sh` passes for every guarded command
+- [ ] The test is exercised by `make test`
+- [ ] A new command without the guard causes the test to fail
