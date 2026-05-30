@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 )
 
 // summaryReady is the one-liner printed by printUsage via the commands registry.
@@ -43,6 +44,9 @@ func cmdReady(args []string) int {
 		switch {
 		case a == "--json":
 			useJSON = true
+		case strings.HasPrefix(a, "-"):
+			fmt.Fprintf(os.Stderr, "ready: unknown flag %q\nUsage: erg ready [DIR] [--json]\n", a)
+			return 1
 		case explicit == "":
 			explicit = a
 		default:

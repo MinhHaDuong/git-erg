@@ -273,5 +273,13 @@ else
 fi
 rm -rf "$VERSION_TMPDIR2"
 
+# unknown flag rejection (ticket 0185)
+out=$($ERG update --bogus 2>&1) || rc=$?
+if [ "${rc:-0}" -ne 0 ] && echo "$out" | grep -q "unknown flag"; then
+    pass "unknown flag rejected with usage message"
+else
+    fail "unknown flag not rejected (rc=${rc:-0}, got: $out)"
+fi
+
 echo "update: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
