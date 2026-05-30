@@ -2,10 +2,12 @@
 Title: Enforce ASCII across src/go (source + embedded assets) with a guard test
 Created: 2026-05-29
 Author: Claude
+Closed: autoclosed — PR #202
 
 --- log ---
 2026-05-29T19:20Z Claude created
 
+2026-05-30T13:31Z MinhHaDuong closed — autoclosed — PR #202
 --- body ---
 ## Context
 
