@@ -7,6 +7,8 @@ Label: needs-human
 --- log ---
 2026-05-29T09:00Z Claude created — UX is a quality goal measured by judgment, not a unit test; the evidence engine for feats; needs-human
 2026-05-29T09:20Z Claude note reframed — standing AI-assisted QA process (not one-shot): agents do persona dry-runs each release, a falsifiable smoke subset runs in CI, humans gate severity
+2026-05-30T00:00Z haduong decisions — D1: trust AI dry-runs; D4: cadence per release; D5: all four audiences, agents are first-class; D3: both install paths in scope (see body)
+2026-05-30T14:25Z Claude dry-run Path B complete — 4 friction items found: HIGH 0181 (no download cmd), MEDIUM 0182 (circular verify), LOW 0183 (AGENTS.md fallback), LOW 0184 (erg new missing from README)
 
 --- body ---
 ## Context
@@ -21,16 +23,33 @@ is also the **evidence engine**: how we learn whether speculative feats (e.g.
 
 AI does the legwork; humans judge.
 
-- **AI persona dry-runs** (per release / per UX-surface change): agents
-  role-play the four audiences — beginner, expert trying it out, another
-  agent, developer — through the cold-clone *first five minutes* (install,
-  create + close a ticket, recover from an induced error) and report friction
-  with transcripts. Cheap to re-run, so re-run it.
+- **AI persona dry-runs** (per release): agents role-play the four audiences
+  — beginner, expert trying it out, another agent, developer — through the
+  cold-clone *first five minutes* on **two install paths** (see below) and
+  report friction with transcripts. Cheap to re-run, so re-run it.
+  Agents are first-class users: the agent-delegated path is the primary test.
 - **Falsifiable smoke in CI** (every push): the README install steps actually
   execute on a clean image; a "steps/time to first ticket" script stays under
   a budget; help-completeness (every command documented — regression of 0068).
+  CI covers Path A mechanically; the dry-run covers it with judgment.
 - **Human gate:** judge severity, decide which friction is real and which
   becomes a feat — with the transcript as the attached evidence.
+
+## Two install paths under test
+
+**Path A — human dev:** download the binary → `erg init` in a project →
+create + close a ticket → recover from an induced error.
+- Key friction point: *how does the dev get the binary?* (release page,
+  curl one-liner, package manager, ...). This will expose the download UX.
+- Note: multi-arch support is a related concern; defer to its own ticket once
+  the dry-run evidence shows what "download" actually looks like in practice.
+
+**Path B — agent-delegated:** cold prompt ("Install the local tickets
+management system MinhHaDuong/git-erg, create an example ticket") → agent
+discovers, installs, and bootstraps from natural language.
+- Tests discoverability, README clarity, and whether `erg init`'s output
+  (`AGENTS.md`, spec, `integration.md`) is self-explaining enough for a cold
+  agent to proceed without hand-holding.
 
 ## What to evaluate
 
@@ -68,3 +87,5 @@ place, pulled by observed friction rather than pushed from the wishlist.
 - **needs-human**, evidence-driven. Prior UX work (closed): 0071–0074
   (UX audit P0–P3), 0124 (error-message format), 0068 (help-completeness
   regression test). Build no feat off this until the friction is observed.
+- Multi-arch support: noted as a likely follow-on once Path A dry-run reveals
+  the binary download story. File a separate ticket then.
