@@ -5,27 +5,29 @@ Author: MinhHaDuong
 
 --- log ---
 2026-05-30T17:55Z MinhHaDuong created
-2026-05-30T20:10Z claude reimagine tag 2026-05-30 exists — premise corrected
 
-2026-05-30T18:25Z claude note clarified tag-based URL and added discovery pointer
 --- body ---
 ## Source
 Path A UX dry-run (0152), severity: **High**
 
-## Context (reimagined)
-The tag `2026-05-30` IS a real signed release tag (verified: `git ls-remote
---tags origin`). The URL works and fetches a binary the maintainer attested.
-The original concern (404 or stale binary) is unfounded for now.
-
-The real gap: a user reading the README months later doesn't know whether
-`2026-05-30` is the latest release. There is no pointer to where newer tags
-are announced. The existing prose says "replace 2026-05-30 with the new tag
-name" — but doesn't say where to look.
+## Context
+The README install step 2 gives:
+```bash
+curl -fsSL https://github.com/MinhHaDuong/git-erg/raw/2026-05-30/tickets/erg \
+  -o tickets/erg && chmod +x tickets/erg
+```
+The date `2026-05-30` is the writing date, not a version tag. A user following
+this README days or months later will either get a 404 (date doesn't exist as a
+ref) or silently get a stale binary. There's no explanation of what the date
+means or where to find a newer one.
 
 ## Fix
-Keep the tag-pinned URL (deliberate design, per commit fa16e4b). Add a
-one-liner pointing to the releases page or `git tag` so users can discover
-the current tag. Clarify that the date IS a release tag, not a writing date.
+Use a stable URL. Options:
+- `raw/main/tickets/erg` — always latest, no version pinning
+- `gh release download` against a proper semver tag — explicit versioning
+
+If the intent is security pinning (reproducible install), the date-as-ref model
+needs an explanation and a pointer to where new release refs are announced.
 
 ## Exit criteria
 - [ ] curl URL in README install step 2 uses a stable or well-explained ref
