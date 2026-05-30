@@ -2,10 +2,12 @@
 Title: blackbox: idempotency sweep -- rm, archive, init
 Created: 2026-05-30
 Author: MinhHaDuong
+Closed: autoclosed — PR #190
 
 --- log ---
 2026-05-30T07:04Z MinhHaDuong created
 
+2026-05-30T09:53Z MinhHaDuong closed — autoclosed — PR #190
 --- body ---
 ## Context
 

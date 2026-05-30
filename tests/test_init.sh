@@ -93,10 +93,29 @@ fi
 
 OUT2=$($ERG init "$REPO" 2>&1)
 
-if echo "$OUT2" | grep -q "0 created, 0 refreshed, 4 unchanged"; then
+if echo "$OUT2" | grep -q "0 created, 0 refreshed, 0 skipped (local edits), 4 unchanged"; then
     pass "re-init is idempotent (4 unchanged)"
 else
-    fail "re-init is idempotent (expected '0 created, 0 refreshed, 4 unchanged', got: $OUT2)"
+    fail "re-init is idempotent (expected '0 created, 0 refreshed, 0 skipped (local edits), 4 unchanged', got: $OUT2)"
+fi
+
+# --- re-init refuses to overwrite user-edited files ---
+printf "# user edit\n" >> "$REPO/tickets/.ergrc"
+OUT3=$($ERG init "$REPO" 2>&1) && RC3=0 || RC3=$?
+if [ "$RC3" -ne 0 ]; then
+    pass "re-init with local edits: exits non-zero"
+else
+    fail "re-init with local edits: exits non-zero (rc=$RC3)"
+fi
+if grep -q "# user edit" "$REPO/tickets/.ergrc"; then
+    pass "re-init with local edits: modified file preserved"
+else
+    fail "re-init with local edits: modified file was overwritten"
+fi
+if echo "$OUT3" | grep -q "local edits"; then
+    pass "re-init with local edits: mentions 'local edits' in output"
+else
+    fail "re-init with local edits: expected 'local edits' in output (got: $OUT3)"
 fi
 
 # --- output mentions integration.md ---

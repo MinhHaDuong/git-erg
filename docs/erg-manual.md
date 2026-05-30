@@ -310,7 +310,7 @@ After migration, erg validate will reject any remaining Status:, Tags:, or Tag: 
 When DIR is named "tickets" (the canonical layout), also performs a one-time
 project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
 renames archive/ to closed/ if archive/ exists and closed/ does not, refreshes
-init assets via cmdInit, and rewrites .git/hooks/pre-commit if it references
+init assets (overwrites diverged files without prompting), and rewrites .git/hooks/pre-commit if it references
 the legacy tickets/tools/go/erg path or the legacy 'validate tickets/' CLI
 form. The hook rewrite is content-based and idempotent; hooks without legacy
 patterns are left untouched.
@@ -322,7 +322,7 @@ Review the diff with 'git diff tickets/' and commit manually.
 
 Unpack embedded bootstrap assets into the project.
 
-Writes (or refreshes) four files relative to DIR (default: current directory):
+Writes four files relative to DIR (default: current directory):
 
   - tickets/.ergrc — project configuration (label vocabulary, update remote).
   - tickets/AGENTS.md — agent operating instructions for the ticket workflow.
@@ -334,7 +334,9 @@ refuses if it is absent. This requirement ensures that agents do not accidentall
 initialize an empty directory that was never meant to be a ticket store.
 
 Each asset is compared byte-for-byte with the embedded version; unchanged files
-are skipped and counted separately from newly created or refreshed files.
+are skipped and counted separately from newly created files. If an existing file
+differs from the embedded version (indicating local edits), it is skipped with a
+message on stderr and the command exits non-zero. Local edits are never overwritten.
 
 ## erg version
 
