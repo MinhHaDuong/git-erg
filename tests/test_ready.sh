@@ -318,6 +318,97 @@ else
     fail "open ticket with no matching ref has refs=[] in JSON (output: $output)"
 fi
 
+# --- JSON schema type pinning (ticket 0171) ---
+# Dedicated fixture: one ready ticket so the output is non-empty.
+rm -f "$FIXTURES/ready/"*.erg
+cat > "$FIXTURES/ready/9001-typepin.erg" <<'EOF'
+%erg 0.1
+Title: Type pin fixture
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+output=$($ERG ready --json "$FIXTURES/ready")
+
+if echo "$output" | jq -e 'length > 0' >/dev/null 2>&1; then
+    pass "ready --json type pin: output is non-empty"
+else
+    fail "ready --json type pin: output is non-empty (output: $output)"
+fi
+if echo "$output" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    pass "ready --json type pin: top-level is array"
+else
+    fail "ready --json type pin: top-level is array (output: $output)"
+fi
+
+# Positive type assertions.
+if echo "$output" | jq -e 'all(.[]; .id | type == "string")' >/dev/null 2>&1; then
+    pass "ready --json type pin: id is string"
+else
+    fail "ready --json type pin: id is string (output: $output)"
+fi
+if echo "$output" | jq -e 'all(.[]; .title | type == "string")' >/dev/null 2>&1; then
+    pass "ready --json type pin: title is string"
+else
+    fail "ready --json type pin: title is string (output: $output)"
+fi
+if echo "$output" | jq -e 'all(.[]; .closed | type == "boolean")' >/dev/null 2>&1; then
+    pass "ready --json type pin: closed is boolean"
+else
+    fail "ready --json type pin: closed is boolean (output: $output)"
+fi
+if echo "$output" | jq -e 'all(.[]; .labels | type == "array")' >/dev/null 2>&1; then
+    pass "ready --json type pin: labels is array"
+else
+    fail "ready --json type pin: labels is array (output: $output)"
+fi
+if echo "$output" | jq -e 'all(.[]; .blocked_by | type == "array")' >/dev/null 2>&1; then
+    pass "ready --json type pin: blocked_by is array"
+else
+    fail "ready --json type pin: blocked_by is array (output: $output)"
+fi
+if echo "$output" | jq -e 'all(.[]; .refs | type == "array")' >/dev/null 2>&1; then
+    pass "ready --json type pin: refs is array"
+else
+    fail "ready --json type pin: refs is array (output: $output)"
+fi
+
+# Negative controls: wrong types must fail on the same non-empty output.
+if echo "$output" | jq -e 'all(.[]; .id | type == "number")' >/dev/null 2>&1; then
+    fail "ready --json neg ctrl: id is not number"
+else
+    pass "ready --json neg ctrl: id is not number"
+fi
+if echo "$output" | jq -e 'all(.[]; .title | type == "number")' >/dev/null 2>&1; then
+    fail "ready --json neg ctrl: title is not number"
+else
+    pass "ready --json neg ctrl: title is not number"
+fi
+if echo "$output" | jq -e 'all(.[]; .closed | type == "string")' >/dev/null 2>&1; then
+    fail "ready --json neg ctrl: closed is not string"
+else
+    pass "ready --json neg ctrl: closed is not string"
+fi
+if echo "$output" | jq -e 'all(.[]; .labels | type == "null")' >/dev/null 2>&1; then
+    fail "ready --json neg ctrl: labels is not null"
+else
+    pass "ready --json neg ctrl: labels is not null"
+fi
+if echo "$output" | jq -e 'all(.[]; .blocked_by | type == "null")' >/dev/null 2>&1; then
+    fail "ready --json neg ctrl: blocked_by is not null"
+else
+    pass "ready --json neg ctrl: blocked_by is not null"
+fi
+if echo "$output" | jq -e 'all(.[]; .refs | type == "null")' >/dev/null 2>&1; then
+    fail "ready --json neg ctrl: refs is not null"
+else
+    pass "ready --json neg ctrl: refs is not null"
+fi
+
+rm -f "$FIXTURES/ready/"*.erg
+
 # --- Matching local + remote + worktree all annotate; word-boundary respected ---
 # Isolated temp git repo (dev repo stays clean). Uses id 9098 (≥9000 reserved
 # for test fixtures per STATE.md). Plumbing avoids commit signing.

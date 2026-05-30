@@ -256,6 +256,88 @@ else
     fail "list --json: forge blocker shape (output: $output)"
 fi
 
+# --- JSON schema type pinning (ticket 0171) ---
+# The contract: array of objects; each has id (string), title (string),
+# closed (boolean), labels (array), blocked_by (array), refs (array).
+# Additive fields (e.g. "file") are tolerated — only the 6 above are pinned.
+output=$($ERG list --json --all "$FIXTURES/store")
+
+# Non-vacuity guard: all(.[]; …) is true on an empty array.
+if echo "$output" | jq -e 'length > 0' >/dev/null 2>&1; then
+    pass "list --json type pin: output is non-empty"
+else
+    fail "list --json type pin: output is non-empty (output: $output)"
+fi
+if echo "$output" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    pass "list --json type pin: top-level is array"
+else
+    fail "list --json type pin: top-level is array (output: $output)"
+fi
+
+# Positive type assertions.
+if echo "$output" | jq -e 'all(.[]; .id | type == "string")' >/dev/null 2>&1; then
+    pass "list --json type pin: id is string"
+else
+    fail "list --json type pin: id is string (output: $output)"
+fi
+if echo "$output" | jq -e 'all(.[]; .title | type == "string")' >/dev/null 2>&1; then
+    pass "list --json type pin: title is string"
+else
+    fail "list --json type pin: title is string (output: $output)"
+fi
+if echo "$output" | jq -e 'all(.[]; .closed | type == "boolean")' >/dev/null 2>&1; then
+    pass "list --json type pin: closed is boolean"
+else
+    fail "list --json type pin: closed is boolean (output: $output)"
+fi
+if echo "$output" | jq -e 'all(.[]; .labels | type == "array")' >/dev/null 2>&1; then
+    pass "list --json type pin: labels is array"
+else
+    fail "list --json type pin: labels is array (output: $output)"
+fi
+if echo "$output" | jq -e 'all(.[]; .blocked_by | type == "array")' >/dev/null 2>&1; then
+    pass "list --json type pin: blocked_by is array"
+else
+    fail "list --json type pin: blocked_by is array (output: $output)"
+fi
+if echo "$output" | jq -e 'all(.[]; .refs | type == "array")' >/dev/null 2>&1; then
+    pass "list --json type pin: refs is array"
+else
+    fail "list --json type pin: refs is array (output: $output)"
+fi
+
+# Negative controls: wrong types must fail on the same non-empty output.
+if echo "$output" | jq -e 'all(.[]; .id | type == "number")' >/dev/null 2>&1; then
+    fail "list --json neg ctrl: id is not number"
+else
+    pass "list --json neg ctrl: id is not number"
+fi
+if echo "$output" | jq -e 'all(.[]; .title | type == "number")' >/dev/null 2>&1; then
+    fail "list --json neg ctrl: title is not number"
+else
+    pass "list --json neg ctrl: title is not number"
+fi
+if echo "$output" | jq -e 'all(.[]; .closed | type == "string")' >/dev/null 2>&1; then
+    fail "list --json neg ctrl: closed is not string"
+else
+    pass "list --json neg ctrl: closed is not string"
+fi
+if echo "$output" | jq -e 'all(.[]; .labels | type == "null")' >/dev/null 2>&1; then
+    fail "list --json neg ctrl: labels is not null"
+else
+    pass "list --json neg ctrl: labels is not null"
+fi
+if echo "$output" | jq -e 'all(.[]; .blocked_by | type == "null")' >/dev/null 2>&1; then
+    fail "list --json neg ctrl: blocked_by is not null"
+else
+    pass "list --json neg ctrl: blocked_by is not null"
+fi
+if echo "$output" | jq -e 'all(.[]; .refs | type == "null")' >/dev/null 2>&1; then
+    fail "list --json neg ctrl: refs is not null"
+else
+    pass "list --json neg ctrl: refs is not null"
+fi
+
 # --- JSON refs is [] (not null/missing) for tickets with no matching ref ---
 output=$($ERG list --json "$FIXTURES/store")
 if echo "$output" | jq -e 'all(.[]; .refs == [])' >/dev/null 2>&1; then
