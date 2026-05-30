@@ -1,0 +1,28 @@
+%erg 0.1
+Title: Remove duplicate open 0181 ticket at top level
+Created: 2026-05-30
+Author: claude
+
+--- log ---
+2026-05-30T18:30Z claude created
+
+--- body ---
+## Context
+
+`tickets/0181-readme-add-binary-download-command-for-f.erg` exists at the
+top level as an open ticket, but the same ticket was closed and archived at
+`tickets/closed/0181-...erg` (Closed: autoclosed - PR #207).
+
+This causes `erg check` to report a duplicate ID violation, which breaks CI
+on the main branch. Discovered while validating PR #214 (ticket 0194).
+
+CI on main has been failing for multiple runs because of this:
+  FAIL: default dir passes
+  check: 42 passed, 1 failed
+
+## Exit criteria
+
+- [ ] `tickets/0181-readme-add-binary-download-command-for-f.erg` removed from top level
+- [ ] `erg check` passes with no duplicate ID errors
+- [ ] `make test` passes (specifically `test-check: default dir passes`)
+- [ ] CI on main is green

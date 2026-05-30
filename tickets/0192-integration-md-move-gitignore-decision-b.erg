@@ -1,0 +1,30 @@
+%erg 0.1
+Title: integration.md: move gitignore decision before hook installation
+Created: 2026-05-30
+Author: MinhHaDuong
+
+--- log ---
+2026-05-30T17:55Z MinhHaDuong created
+
+--- body ---
+## Source
+Path A UX dry-run (0152), severity: **Medium**
+
+## Context
+`integration.md` presents the pre-commit hook installation (step 1) before the
+`.gitignore` guidance ("Optional" section at the bottom). But the hook actively
+blocks committing `tickets/erg` on feature branches — so the first time a user
+tries to commit everything, the hook fires with an error about a policy they
+haven't read yet.
+
+The gitignore decision (commit the binary on main, ignore it on feature branches)
+is a prerequisite for understanding what the hook does, not an optional afterthought.
+
+## Fix
+Move the gitignore/binary-commit policy note before the hook installation step,
+or add a sentence to step 1: "The hook will prevent committing `tickets/erg` on
+feature branches — see the `.gitignore` section below for the commit policy."
+
+## Exit criteria
+- [ ] A user reading integration.md top-to-bottom understands the binary commit
+      policy before they encounter the hook blocking them
