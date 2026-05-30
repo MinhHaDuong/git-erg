@@ -5,6 +5,10 @@ with your project.
 
 ## 1. Pre-commit hook
 
+The hook prevents committing `tickets/erg` on feature branches — CI
+rebuilds the binary after merge to main. See the `.gitignore` section
+below for the full commit policy.
+
 Append the following to `.git/hooks/pre-commit` (create the file and
 `chmod +x` it if it does not exist):
 
