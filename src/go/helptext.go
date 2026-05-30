@@ -18,7 +18,7 @@ var commands = []commandEntry{
 	{"list", "[DIR] [LABEL...] [not LABEL...] [--all] [--json]", summaryList, helpList},
 	{"ready", "[DIR] [--json]", summaryReady, helpReady},
 	{"next-id", "[DIR]", summaryNextID, helpNextID},
-	{"new", "TITLE [DIR]", summaryNew, helpNew},
+	{"new", "TITLE [DIR] [--author NAME]", summaryNew, helpNew},
 	{"close", "ID|FILE REASON [DIR]", summaryClose, helpClose},
 	{"log", "ID LINE [DIR]", summaryLog, helpLog},
 	{"label", "ID LABELNAME [DIR]", summaryLabel, helpLabel},
