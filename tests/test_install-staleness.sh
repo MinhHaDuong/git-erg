@@ -28,17 +28,18 @@ is_stale() {
 	[ -n "$(find src/go -type f -newer "$BOOTSTRAP_BIN" -print -quit)" ]
 }
 
-SENTINEL_GO="src/go/new.go"
 SENTINEL_ASSET="src/go/assets/spec-erg-v1.md"
 
-# Set the binary to a fixed timestamp far in the past so all current
-# src/go files are strictly newer — confirms the probe fires when expected.
+# Save and restore both the binary and the asset mtime so the test does
+# not leave tracked files with a modified timestamp.
 SAVED_MTIME=$(stat -c '%Y' "$BOOTSTRAP_BIN" 2>/dev/null || stat -f '%m' "$BOOTSTRAP_BIN")
+SAVED_ASSET_MTIME=$(stat -c '%Y' "$SENTINEL_ASSET" 2>/dev/null || stat -f '%m' "$SENTINEL_ASSET")
 
-restore_binary_mtime() {
+restore_mtimes() {
 	touch -t "$(date -d "@$SAVED_MTIME" +%Y%m%d%H%M.%S 2>/dev/null || date -r "$SAVED_MTIME" +%Y%m%d%H%M.%S)" "$BOOTSTRAP_BIN" 2>/dev/null || true
+	touch -t "$(date -d "@$SAVED_ASSET_MTIME" +%Y%m%d%H%M.%S 2>/dev/null || date -r "$SAVED_ASSET_MTIME" +%Y%m%d%H%M.%S)" "$SENTINEL_ASSET" 2>/dev/null || true
 }
-trap restore_binary_mtime EXIT
+trap restore_mtimes EXIT
 
 # Set binary to a timestamp far in the past (2020-01-01) to ensure all
 # current src/go files are strictly newer — sanity-check the probe logic.
@@ -68,11 +69,8 @@ else
 	fail ".go source file newer than binary was NOT detected (regression)"
 fi
 
-# Set binary to future, then touch an asset to be even newer.
-touch -t 203001010000 "$BOOTSTRAP_BIN"
-touch "$SENTINEL_ASSET"  # now() > 2030 is impossible; use past binary instead
-
-# Try again with past binary so asset is definitely newer.
+# Touch the asset and set binary to past so it is definitely newer.
+touch "$SENTINEL_ASSET"
 touch -t 202001010000 "$BOOTSTRAP_BIN"
 if is_stale; then
 	pass "asset file (src/go/assets/) newer than binary is detected as stale"
