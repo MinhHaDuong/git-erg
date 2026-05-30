@@ -1,0 +1,52 @@
+%erg 0.1
+Title: Add fangs to 8 toothless tests surfaced by the fang audit
+Created: 2026-05-30
+Author: claude
+
+--- log ---
+2026-05-30T11:00Z claude created — from the fang-audit mutation run; see FANG-AUDIT.md at repo root
+
+--- body ---
+## Context
+
+A mutation-testing audit of src/go's test harness (report: `FANG-AUDIT.md` at repo root,
+canary PASS, 90/107 mutations caught) found 8 tests that did NOT fail when the code they
+cover was broken — toothless tests. Each survived both an Opus audit and a Sonnet
+adversarial skeptic, and carries a concrete distinguishing input proving the gap is real.
+This ticket strengthens them. No production code changes — tests only.
+
+The tooling that found these is being extracted into a harness skill separately (IDH
+ticket 0182); THIS ticket is the erg-side fix work and stays in the erg project store.
+
+## The 8 findings (see FANG-AUDIT.md for distinguishing input + suggested assertion each)
+1. check_test.go / TestHeaderBlankWarnings — warning interpolates full path, not basename.
+2. close_test.go / TestAppendLogLine — Index vs LastIndex: no multi-separator body case.
+3. contract_test.go / TestLinearOpCount — ratio-only guard misses a dropped counter site.
+4. identity_test.go / TestResolveAuthor — sanitize never fed a control char (\n/\r).
+5. ref_test.go / TestParseRef — 4+-part forge path silently accepted.
+6. ref_test.go / TestParseRef — gh: deprecation branch removable undetected.
+7. refs_test.go / TestRefReferencesID — empty-id short-circuit never exercised.
+8. refs_git_test.go / TestLoadRefMatches — host-worktree omission term removable undetected.
+
+## Scope discipline — promote classes, don't just patch instances
+
+Per the contract-scope principle: where a finding is an instance of a defect CLASS, fix it
+at class altitude (a guard/invariant over the whole surface), NOT one extra assertion.
+
+- **#4 sanitize (SECURITY — ticket-header injection):** highest priority. Do NOT just add
+  one "a\nb"->"ab" case. Add a property-style check that sanitize strips the full set of
+  control chars, AND assert every header-WRITE path routes through sanitize. This is a
+  class guard (cf. the existing ASCII guard, ticket 0167), not an instance pin.
+- **#1 path-leak in warnings:** class = internal absolute paths leaking into user-facing
+  output. Prefer one guard asserting NO corpus-scan warning contains os.PathSeparator over
+  pinning this single message.
+- **#5/#6 malformed/deprecated ref handling:** a table over forge-ref arities and schemes
+  (the class) beats two point cases.
+- **#2/#3/#7/#8:** more local; instance-level assertion strengthening is fine, but add the
+  distinguishing input from the report as a regression case.
+
+## Exit criteria
+- [ ] Each of the 8 gets the distinguishing input from FANG-AUDIT.md as a failing-without-fix case.
+- [ ] #4 and #1 promoted to class guards (not single assertions); #5/#6 made table-driven.
+- [ ] Re-running the fang audit on the touched files shows these flip survived -> caught.
+- [ ] `make test` passes; no production (non-test) code changed.
