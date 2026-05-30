@@ -174,9 +174,9 @@ rmdir "$SEQDIR" 2>/dev/null || true
 # CDIR is outside the repo so nextID Pass 2/3 (sibling worktrees/branches) does
 # not inject existing IDs and break the assertions.
 CDIR=$(mktemp -d)
-BARRIER=$(mktemp -u)
-mkfifo "$BARRIER"
 OUTDIR=$(mktemp -d)
+BARRIER="$OUTDIR/barrier"
+mkfifo "$BARRIER"
 
 # Start 10 workers; each blocks on the barrier FIFO read before invoking erg new.
 for i in 1 2 3 4 5 6 7 8 9 10; do

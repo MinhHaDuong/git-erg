@@ -126,7 +126,12 @@ func cmdNew(args []string) int {
 		content := fmt.Sprintf("%%erg 0.1\nTitle: %s\nCreated: %s\nAuthor: %s\n\n%s\n%s %s created\n\n%s\n", title, today, author, separatorLog, timestamp, author, separatorBody)
 
 		if err := createExclusive(path, content); err != nil {
-			// Another concurrent invocation already claimed this path; retry.
+			if !os.IsExist(err) {
+				// Real I/O error (permission denied, disk full, etc.) -- surface immediately.
+				fmt.Fprintf(os.Stderr, "new: cannot create %s: %v\n", path, err)
+				return 1
+			}
+			// EEXIST: same slug + same ID claimed by a concurrent invocation; retry.
 			continue
 		}
 
@@ -135,8 +140,16 @@ func cmdNew(args []string) int {
 		// the same ID. Delete our file and retry with the next free ID.
 		pattern := filepath.Join(ticketDir, id+"-*.erg")
 		siblings, err := filepath.Glob(pattern)
-		if err != nil || len(siblings) > 1 {
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "new: cannot scan store for ID conflicts: %v\n", err)
 			os.Remove(path)
+			return 1
+		}
+		if len(siblings) > 1 {
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "new: cannot remove conflicting file %s: %v\n", path, err)
+				return 1
+			}
 			continue
 		}
 
