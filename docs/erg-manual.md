@@ -32,7 +32,10 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
   9. Blocked-by values parse as local-ref (NNNN, exactly 4 digits) or
      forge-ref (host/owner/repo#N, e.g. github.com/acme/myrepo#42).
   10. Local Blocked-by refs point to existing ticket IDs in the same directory.
-  11. Log lines match 'YYYY-MM-DDThh:mmZ actor verb [detail]' format.
+  11. Log lines match structural format: timestamp (YYYY-MM-DDThh:mmZ)
+      followed by at least two whitespace-separated tokens. By convention
+      these are 'actor verb [detail]', but the validator checks structure,
+      not the semantic meaning of those tokens.
   12. Both separators (`--- log ---`, `--- body ---`) appear at least once;
       the first occurrence of each is the section separator, subsequent
       occurrences are body text (legitimate bodies may quote the literals).
@@ -227,10 +230,11 @@ The resulting log entry format is:
 
   `YYYY-MM-DDThh:mmZ LINE`
 
-LINE must be non-empty. It must follow the format 'actor verb [detail]'
-(e.g. "claude note retried with narrower scope"). The timestamp, actor, and verb
-tokens are required; the detail token is optional. The log-line format is
-enforced by erg validate (rule 11).
+LINE must be non-empty. It must contain at least two whitespace-separated tokens
+(e.g. "claude note retried with narrower scope"). The timestamp is prepended
+automatically; erg validate (rule 11) enforces the structural format -- timestamp
+followed by at least two tokens. By convention the first token is an actor
+(who) and the second is a verb (what), but those names are not machine-checked.
 
 Prints "LOGGED" on success. Exits non-zero if the ticket is not found or has no
 `--- body ---` separator (which would indicate a malformed file).
