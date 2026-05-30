@@ -20,7 +20,7 @@ const helpInit = `## erg init [DIR]
 
 Unpack embedded bootstrap assets into the project.
 
-Writes (or refreshes) four files relative to DIR (default: current directory):
+Writes four files relative to DIR (default: current directory):
 
   - tickets/.ergrc — project configuration (label vocabulary, update remote).
   - tickets/AGENTS.md — agent operating instructions for the ticket workflow.
@@ -32,24 +32,31 @@ refuses if it is absent. This requirement ensures that agents do not accidentall
 initialize an empty directory that was never meant to be a ticket store.
 
 Each asset is compared byte-for-byte with the embedded version; unchanged files
-are skipped and counted separately from newly created or refreshed files.
+are skipped and counted separately from newly created files. If an existing file
+differs from the embedded version (indicating local edits), it is skipped with a
+message on stderr and the command exits non-zero. Local edits are never overwritten.
 `
 
 // installAssets unpacks the embedded bootstrap assets under root, returning
 // counts of how many files were newly created, refreshed (overwritten with
-// different content), or left unchanged (byte-identical to the embedded
-// copy). Shared by `erg init` and by `erg migrate`'s layout sweep. Error
-// messages are unwrapped — no "init:" prefix — so each caller can label
-// them with its own command name.
-func installAssets(root string) (created, refreshed, unchanged int, err error) {
+// different content), skipped (differed from embedded but refuseDiverged was
+// set), or left unchanged (byte-identical to the embedded copy). Shared by
+// `erg init` and by `erg migrate`'s layout sweep. Error messages are
+// unwrapped — no "init:" prefix — so each caller can label them with its own
+// command name.
+//
+// When refuseDiverged is true, files that differ from the embedded asset are
+// skipped with a message on stderr instead of being overwritten; the skipped
+// count is incremented. When false, differing files are overwritten (refresh).
+func installAssets(root string, refuseDiverged bool) (created, refreshed, skipped, unchanged int, err error) {
 	for _, rel := range initAssetPaths {
 		content, ok := bootstrapAsset(rel)
 		if !ok {
-			return created, refreshed, unchanged, fmt.Errorf("missing embedded asset: %s", rel)
+			return created, refreshed, skipped, unchanged, fmt.Errorf("missing embedded asset: %s", rel)
 		}
 		target := filepath.Join(root, filepath.FromSlash(rel))
 		if mkErr := os.MkdirAll(filepath.Dir(target), 0755); mkErr != nil {
-			return created, refreshed, unchanged, fmt.Errorf("cannot create directory for %s: %w", rel, mkErr)
+			return created, refreshed, skipped, unchanged, fmt.Errorf("cannot create directory for %s: %w", rel, mkErr)
 		}
 		existing, readErr := os.ReadFile(target)
 		exists := readErr == nil
@@ -57,8 +64,13 @@ func installAssets(root string) (created, refreshed, unchanged int, err error) {
 			unchanged++
 			continue
 		}
+		if exists && refuseDiverged {
+			fmt.Fprintf(os.Stderr, "init: %s has local edits — skipping\n", rel)
+			skipped++
+			continue
+		}
 		if wErr := os.WriteFile(target, []byte(content), 0644); wErr != nil {
-			return created, refreshed, unchanged, fmt.Errorf("cannot write %s: %w", rel, wErr)
+			return created, refreshed, skipped, unchanged, fmt.Errorf("cannot write %s: %w", rel, wErr)
 		}
 		if exists {
 			refreshed++
@@ -66,7 +78,7 @@ func installAssets(root string) (created, refreshed, unchanged int, err error) {
 			created++
 		}
 	}
-	return created, refreshed, unchanged, nil
+	return created, refreshed, skipped, unchanged, nil
 }
 
 // cmdInit implements `erg init [dir]`. See helpInit for the user-facing summary.
@@ -83,13 +95,16 @@ func cmdInit(args []string) int {
 		return 1
 	}
 
-	created, refreshed, unchanged, err := installAssets(root)
+	created, refreshed, skipped, unchanged, err := installAssets(root, true)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "init: %v\n", err)
 		return 1
 	}
 
-	fmt.Printf("init: %d created, %d refreshed, %d unchanged\n", created, refreshed, unchanged)
+	fmt.Printf("init: %d created, %d refreshed, %d skipped (local edits), %d unchanged\n", created, refreshed, skipped, unchanged)
+	if skipped > 0 {
+		return 1
+	}
 	fmt.Println("Next: follow tickets/integration.md to set up the pre-commit hook and agent instructions.")
 	return 0
 }
