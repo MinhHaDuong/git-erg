@@ -197,13 +197,13 @@ func cmdCheck(args []string) int {
 		if len(errors) == 1 {
 			errWord = "error"
 		}
-		fmt.Printf("ERG CHECK FAILED (%d %s):\n", len(errors), errWord)
+		fmt.Fprintf(os.Stderr, "ERG CHECK FAILED (%d %s):\n", len(errors), errWord)
 		for _, e := range errors {
-			fmt.Printf("  VIOLATION %s\n", e)
+			fmt.Fprintf(os.Stderr, "  VIOLATION %s\n", e)
 		}
 	}
 	for _, w := range warnings {
-		fmt.Printf("  %s\n", w)
+		fmt.Fprintf(os.Stderr, "  %s\n", w)
 	}
 
 	if hasErrors {
