@@ -1,0 +1,28 @@
+%erg 0.1
+Title: integration.md: clarify AGENTS.md fallback when project has none
+Created: 2026-05-30
+Author: MinhHaDuong
+Closed: doc fix delivered in PR #207
+
+--- log ---
+2026-05-30T14:22Z MinhHaDuong created
+
+2026-05-30T15:56Z MinhHaDuong closed — doc fix delivered in PR #207
+--- body ---
+## Source
+Path B UX dry-run (0152), severity: **Low**
+
+## Context
+`integration.md` step 2 says "Add this line to your `AGENTS.md` (or equivalent
+agent-visible file)." It gives no guidance for a project that has neither
+`AGENTS.md` nor an obvious equivalent. The dry-run agent added it to `README.md`
+as a guess — reasonable but inconsistent across projects.
+
+## Fix
+Add one sentence to step 2:
+"If your project has no `AGENTS.md`, create one at the project root; or add the
+line to `CLAUDE.md`, `README.md`, or whichever file your agent picks up at
+session start."
+
+## Exit criteria
+- [ ] `integration.md` step 2 names the fallback priority explicitly

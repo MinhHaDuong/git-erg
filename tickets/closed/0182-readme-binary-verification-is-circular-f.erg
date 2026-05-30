@@ -1,0 +1,37 @@
+%erg 0.1
+Title: README: binary verification is circular for fresh curl downloads
+Created: 2026-05-30
+Author: MinhHaDuong
+Closed: doc fix delivered in PR #207 — criterion 2 satisfied by pinning curl to signed release tag
+
+--- log ---
+2026-05-30T14:21Z MinhHaDuong created
+2026-05-30T18:30Z claude note criterion 1 (doc accuracy) delivered in PR #207; criterion 2 (independent hash) excised to 0151 (signed release tags, needs-human)
+2026-05-30T19:10Z claude note model clarified: curl pins to signed tag, not main; criterion 2 now satisfied — signed tag 2026-05-30 is the independent reference for the download URL
+
+2026-05-30T15:56Z MinhHaDuong closed — doc fix delivered in PR #207 — criterion 2 satisfied by pinning curl to signed release tag
+--- body ---
+## Source
+Path B UX dry-run (0152), severity: **Medium**
+
+## Context
+The README's verification section says run `erg version` and compare its printed
+sha256 to what you see. But `erg version` generates its sha256 *from itself* —
+there is no independent reference hash. For a fresh `curl` download this is
+self-attestation only; a tampered binary would pass its own check.
+
+The README acknowledges signed release tags will be available "from 2026-05-30
+onwards" but that future state is not yet in place.
+
+## Fix
+Two options (not mutually exclusive):
+1. Note explicitly in the verification section that `erg version` / `sha256sum`
+   only confirms no corruption in transit; authenticity requires a signed release
+   tag (link to where those will appear).
+2. Publish sha256 hashes alongside each GitHub release so a fresh downloader has
+   an independent reference to compare against.
+
+## Exit criteria
+- [ ] Verification docs accurately describe what `erg version` does and does not prove
+- [ ] An independent reference hash (signed tag or release asset) exists for the
+      current binary so a fresh download can be verified end-to-end

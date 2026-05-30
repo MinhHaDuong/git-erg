@@ -1,0 +1,30 @@
+%erg 0.1
+Title: README: add erg new example to Quick start section
+Created: 2026-05-30
+Author: MinhHaDuong
+Closed: doc fix delivered in PR #207
+
+--- log ---
+2026-05-30T14:22Z MinhHaDuong created
+
+2026-05-30T15:56Z MinhHaDuong closed — doc fix delivered in PR #207
+--- body ---
+## Source
+Path B UX dry-run (0152), severity: **Low**
+
+## Context
+The README Quick start section shows `validate`, `check`, and `ready` — but not
+`erg new`, the command to create a ticket. A user skimming the README to evaluate
+the tool never sees how to create a ticket. They must run `erg --help --all` to
+discover it (which is documented, but is a secondary path).
+
+## Fix
+Add one example to Quick start:
+
+```bash
+tickets/erg new "My first task"
+# → CREATED 0001-my-first-task.erg
+```
+
+## Exit criteria
+- [ ] README Quick start includes at least one `erg new` example with expected output
