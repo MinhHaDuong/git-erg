@@ -5,14 +5,14 @@
 //
 //	erg validate FILE...
 //	erg check    [dir]
-//	erg list     [dir] [tag...] [not tag...] [--all] [--json]
+//	erg list     [dir] [label...] [not label...] [--all] [--json]
 //	erg ready    [dir] [--json]
 //	erg next-id  [dir]
 //	erg new      TITLE [DIR]
 //	erg close    ID|FILE REASON [DIR]
 //	erg log      ID LINE [DIR]
-//	erg tag      ID TAGNAME [DIR]
-//	erg untag    ID TAGNAME [DIR]
+//	erg label    ID LABELNAME [DIR]
+//	erg unlabel  ID LABELNAME [DIR]
 //	erg archive  [id...] [dir]
 //	erg rm       ID|FILE [dir] [--force]
 //	erg migrate  [dir]
@@ -203,10 +203,10 @@ func main() {
 		exitCode = cmdClose(rest)
 	case "log":
 		exitCode = cmdLog(rest)
-	case "tag":
-		exitCode = cmdTag(rest)
-	case "untag":
-		exitCode = cmdUntag(rest)
+	case "label":
+		exitCode = cmdLabel(rest)
+	case "unlabel":
+		exitCode = cmdUnlabel(rest)
 	case "archive":
 		exitCode = cmdArchive(rest)
 	case "rm":

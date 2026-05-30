@@ -1,7 +1,7 @@
 # Ticket format spec — %erg 0.1
 
 Author: Minh Ha-Duong <minh.ha-duong@cnrs.fr>
-Last modified: 2026-05-12
+Last modified: 2026-05-30
 Status: Working draft
 
 ## Introduction
@@ -53,7 +53,7 @@ The header block ends at the first blank line that is *not* followed by
 another header line. A blank line that still has header-shaped lines below
 it (before `--- log ---`) is an **interior blank**: it is tolerated on read
 (the headers below it are parsed normally, not discarded), normalised on
-write (`close`, `tag`, and `untag` strip it), swept across the corpus by
+write (`close`, `label`, and `unlabel` strip it), swept across the corpus by
 `erg migrate`, and surfaced as a non-fatal warning by both `erg validate`
 and `erg check`. An interior blank is a hygiene issue, never a hard format
 error — validate and check stay at exit 0. Both separators are required (the
@@ -71,7 +71,7 @@ format literals.
 | `Author` | yes | no | line | Agent or human identifier (non-empty) |
 | `Closed` | no | no | line | Closure reason (PR ref, supersession note, etc.); non-empty |
 | `Blocked-by` | no | yes | ref | Local `NNNN`, path-ref `module/NNNN`, or forge ref `host/owner/repo#N` (see grammar) |
-| `Tag` | no | yes | enum | Configurable via `.ergrc [tags]`; defaults: `needs-human`, `deferred` |
+| `Label` | no | yes | enum | Configurable via `.ergrc [labels]`; defaults: `needs-human`, `deferred` |
 
 **All header values are line-strings — single line, no embedded newlines.**
 The type column distinguishes `line` (single-line text) from `date` /
@@ -83,7 +83,7 @@ value; an empty value is a validation error.
 
 No other headers are valid in v1. No `X-` extensions.
 
-`Tag:` is repeatable; each occurrence adds one tag value. The validator enforces the vocabulary defined in `tickets/.ergrc` `[tags]` section (falls back to built-in defaults when absent); see the validate rules.
+`Label:` is repeatable; each occurrence adds one label value. The validator enforces the vocabulary defined in `tickets/.ergrc` `[labels]` section (falls back to built-in defaults when absent); see the validate rules.
 
 **`Closed:` header:** optional, non-repeatable, preamble only. Value is required and non-empty.
 Forbidden in the log and body sections (header-key match at line start; substrings in prose are fine).
@@ -139,7 +139,7 @@ Otherwise the ticket is **not-closed** (open).
 
 `erg check` emits a corpus hygiene **warning** (non-fatal) when a ticket's folder placement and `Closed:` header disagree. This mismatch does not make the ticket invalid — the disjunctive criterion above is authoritative for the closed/not-closed decision.
 
-There is no `pending` or `claimed` tag by design, external state must not be encoded in ticket description.
+There is no `pending` or `claimed` label by design, external state must not be encoded in ticket description.
 
 A git ref **references ticket `NNNN`** when the literal 4-digit ID appears at a word boundary (start, end, or any of `/`, `-`, `_`) in its short name. A worktree references the ticket when its branch ref does.
 
@@ -212,7 +212,7 @@ Tolerance is graded, not all-or-nothing. The interior header blank (see
 
 - **Accept on read** — the parser extracts the headers below the blank
   instead of discarding them.
-- **Autofix on write** — `close`, `tag`, and `untag` strip the blank when
+- **Autofix on write** — `close`, `label`, and `unlabel` strip the blank when
   they rewrite a ticket, so a file self-heals on its next mutation.
 - **Sweep on migrate** — `erg migrate` normalises every file in one pass,
   the single "make it clean now" lever for files no command has touched.

@@ -80,19 +80,19 @@ func detectCycles(tickets []Erg) []string {
 	return errors
 }
 
-// validateTagVocabulary checks that all tags on a ticket belong to the
+// validateLabelVocabulary checks that all labels on a ticket belong to the
 // effective vocabulary, returning error strings for any that don't.
-func validateTagVocabulary(t *Erg, tagSet map[string]bool, validList []string) []string {
+func validateLabelVocabulary(t *Erg, labelSet map[string]bool, validList []string) []string {
 	var errs []string
 	name := t.Filename()
-	for j, v := range t.Tags {
-		if !tagSet[v] {
+	for j, v := range t.Labels {
+		if !labelSet[v] {
 			lineInfo := ""
-			if j < len(t.TagLines) {
-				lineInfo = fmt.Sprintf(":%d", t.TagLines[j])
+			if j < len(t.LabelLines) {
+				lineInfo = fmt.Sprintf(":%d", t.LabelLines[j])
 			}
 			errs = append(errs, fmt.Sprintf(
-				"%s%s: unknown Tag value '%s' (valid tags: %s)",
+				"%s%s: unknown Label value '%s' (valid labels: %s)",
 				name, lineInfo, v, strings.Join(validList, ", ")))
 		}
 	}
@@ -114,12 +114,12 @@ func validateCorpus(tickets []Erg, parseErrs [][]string, cfg *Config) []string {
 		errors = append(errors, e...)
 	}
 
-	// Rule 5: Tag values must be from the effective vocabulary.
-	tagSet := effectiveTagSet(cfg)
-	validList := sortedKeys(tagSet)
+	// Rule 5: Label values must be from the effective vocabulary.
+	labelSet := effectiveLabelSet(cfg)
+	validList := sortedKeys(labelSet)
 	for i := range tickets {
-		corpusOpCount++ // per-ticket tag-vocabulary check
-		errors = append(errors, validateTagVocabulary(&tickets[i], tagSet, validList)...)
+		corpusOpCount++ // per-ticket label-vocabulary check
+		errors = append(errors, validateLabelVocabulary(&tickets[i], labelSet, validList)...)
 	}
 
 	// Corpus check: no duplicate IDs (not a per-file rule).
@@ -289,10 +289,10 @@ func cmdValidate(args []string) int {
 					"%s: Blocked-by '%s' references unknown ticket ID", name, ref.ID))
 			}
 		}
-		// Rule 5: Tag values from effective vocabulary.
-		tagSet := effectiveTagSet(cfg)
-		validList := sortedKeys(tagSet)
-		allErrors = append(allErrors, validateTagVocabulary(&t, tagSet, validList)...)
+		// Rule 5: Label values from effective vocabulary.
+		labelSet := effectiveLabelSet(cfg)
+		validList := sortedKeys(labelSet)
+		allErrors = append(allErrors, validateLabelVocabulary(&t, labelSet, validList)...)
 		count++
 	}
 

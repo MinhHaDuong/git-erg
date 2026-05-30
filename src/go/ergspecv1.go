@@ -30,8 +30,8 @@ type Erg struct {
 	Author     string   // required, non-empty
 	Closed     string   // optional; first non-empty Closed: value when present
 	BlockedBys []Ref    // possibly empty; one entry per `Blocked-by:` line, parsed at parse time
-	Tags     []string // possibly empty; one entry per `Tag:` line, trimmed; empties skipped
-	TagLines []int    // 1-indexed line numbers for each Tag entry
+	Labels     []string // possibly empty; one entry per `Label:` line, trimmed; empties skipped
+	LabelLines []int    // 1-indexed line numbers for each Label entry
 
 	LogLines []string // one structured event per entry
 	Body     string   // multiline
@@ -64,7 +64,7 @@ type Ref struct {
 // Used to classify header lines as known/unknown during parsing.
 var v1HeaderKeys = map[string]bool{
 	"Title": true, "Created": true, "Author": true,
-	"Closed": true, "Blocked-by": true, "Tag": true,
+	"Closed": true, "Blocked-by": true, "Label": true,
 }
 
 // v1SingletonKeys is the subset of v1HeaderKeys that may appear at most

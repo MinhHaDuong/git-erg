@@ -2,7 +2,7 @@
 Title: Add CLI integration tests via TestMain exec pattern
 Created: 2026-05-11
 Author: MinhHaDuong
-Tag: deferred
+Label: deferred
 Closed: YAGNI — 19 shell test suites already cover the full proposed CLI surface
 
 --- log ---
