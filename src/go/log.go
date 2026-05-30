@@ -33,16 +33,24 @@ Prints "LOGGED" on success. Exits non-zero if the ticket is not found or has no
 
 // cmdLog implements `erg log ID LINE [DIR]`. See helpLog for the user-facing summary.
 func cmdLog(args []string) int {
-	if len(args) < 2 {
+	var positional []string
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			fmt.Fprintf(os.Stderr, "log: unknown flag %q\nUsage: erg log ID LINE [DIR]\n", a)
+			return 1
+		}
+		positional = append(positional, a)
+	}
+	if len(positional) < 2 {
 		fmt.Fprintln(os.Stderr, "Usage: erg log ID LINE [DIR]")
 		return 1
 	}
 
-	id := args[0]
-	line := args[1]
+	id := positional[0]
+	line := positional[1]
 	var explicit string
-	if len(args) >= 3 {
-		explicit = args[2]
+	if len(positional) >= 3 {
+		explicit = positional[2]
 	}
 	ticketDir, err := resolveDir(explicit)
 	if err != nil {

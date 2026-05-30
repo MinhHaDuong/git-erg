@@ -35,16 +35,24 @@ an already-closed ticket does not re-scan dependents.
 
 // cmdClose implements `erg close ID|FILE REASON [DIR]`. See helpClose for the user-facing summary.
 func cmdClose(args []string) int {
-	if len(args) < 2 {
+	var positional []string
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			fmt.Fprintf(os.Stderr, "close: unknown flag %q\nUsage: erg close ID|FILE REASON [DIR]\n", a)
+			return 1
+		}
+		positional = append(positional, a)
+	}
+	if len(positional) < 2 {
 		fmt.Fprintln(os.Stderr, "Usage: erg close ID|FILE REASON [DIR]")
 		return 1
 	}
 
-	idOrFile := args[0]
-	reason := args[1]
+	idOrFile := positional[0]
+	reason := positional[1]
 	var explicit string
-	if len(args) >= 3 {
-		explicit = args[2]
+	if len(positional) >= 3 {
+		explicit = positional[2]
 	}
 
 	if strings.TrimSpace(reason) == "" {
