@@ -50,6 +50,10 @@ Add this line to your `AGENTS.md` (or equivalent agent-visible file):
 git-erg local tickets: see tickets/AGENTS.md
 ```
 
+If your project has no `AGENTS.md`, create one at the project root. You
+can also add the line to `CLAUDE.md`, `.cursorrules`, or whichever file
+your agent reads at session start.
+
 ## Uninstall
 
 To remove erg from your project, delete the binary and the four files
