@@ -2,12 +2,13 @@
 Title: erg validate: enforce log line actor+verb format (rule 11)
 Created: 2026-05-30
 Author: MinhHaDuong
+Closed: merged — raid 188-193
 
 --- log ---
 2026-05-30T17:55Z MinhHaDuong created
 2026-05-30T20:10Z claude reimagine rule 11 IS enforced structurally — premise corrected
 
-2026-05-30T18:15Z claude note clarified rule 11 enforces structure not semantics
+2026-05-30T18:33Z MinhHaDuong closed — merged — raid 188-193
 --- body ---
 ## Source
 Path A UX dry-run (0152), severity: **Medium**

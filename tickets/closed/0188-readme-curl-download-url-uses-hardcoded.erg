@@ -2,12 +2,13 @@
 Title: README: curl download URL uses hardcoded date instead of stable ref
 Created: 2026-05-30
 Author: MinhHaDuong
+Closed: merged — raid 188-193
 
 --- log ---
 2026-05-30T17:55Z MinhHaDuong created
 2026-05-30T20:10Z claude reimagine tag 2026-05-30 exists — premise corrected
 
-2026-05-30T18:25Z claude note clarified tag-based URL and added discovery pointer
+2026-05-30T18:33Z MinhHaDuong closed — merged — raid 188-193
 --- body ---
 ## Source
 Path A UX dry-run (0152), severity: **High**
