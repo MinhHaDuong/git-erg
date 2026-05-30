@@ -14,7 +14,7 @@ const helpArchive = `## erg archive [ID...] [DIR]
 
 Move closed tickets to DIR/closed/.
 
-With no IDs, scans only the direct children of DIR (default: tickets/) — not subdirectories — for tickets that
+With no IDs, scans only the direct children of DIR (default: tickets/) -- not subdirectories -- for tickets that
 have a non-empty Closed: header and are not already inside a closed/ directory,
 then moves each eligible ticket to DIR/closed/. With IDs given, archives only
 the named tickets.
@@ -74,7 +74,7 @@ func cmdArchive(args []string) int {
 		ticketByPath[allTickets[i].Path] = &allTickets[i]
 	}
 
-	// Collect target tickets — reuse allTickets, no second parse.
+	// Collect target tickets -- reuse allTickets, no second parse.
 	var targets []Erg
 	exitCode := 0
 

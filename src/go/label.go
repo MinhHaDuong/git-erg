@@ -79,7 +79,7 @@ func cmdLabel(args []string) int {
 
 	ticket, _ := parseErgBytes(data, ticketPath)
 
-	// Idempotent: already labeled — exit 0 without modifying the file.
+	// Idempotent: already labeled -- exit 0 without modifying the file.
 	for _, l := range ticket.Labels {
 		if l == labelname {
 			fmt.Println("LABELED (already)")
@@ -153,7 +153,7 @@ func cmdUnlabel(args []string) int {
 
 	ticket, _ := parseErgBytes(data, ticketPath)
 
-	// Idempotent: label not present — exit 0 without modifying the file.
+	// Idempotent: label not present -- exit 0 without modifying the file.
 	found := false
 	for _, l := range ticket.Labels {
 		if l == labelname {
@@ -184,8 +184,8 @@ func cmdUnlabel(args []string) int {
 }
 
 // removeLabelLine removes Label header lines whose value equals label. It parses
-// each line with parseHeaderLine — the same parser that populated Erg.Labels for
-// cmdUnlabel's idempotency check — so detection ("ticket has this label") and
+// each line with parseHeaderLine -- the same parser that populated Erg.Labels for
+// cmdUnlabel's idempotency check -- so detection ("ticket has this label") and
 // removal ("strip this Label line") agree on every tolerated spelling
 // (e.g. "Label : deferred" with whitespace before the colon). Matching the full
 // trimmed value also means unlabeling "deferred" never strikes a different

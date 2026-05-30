@@ -13,7 +13,7 @@ const summaryRm = "Delete a ticket (DAG-checked; --force clears dependents)"
 
 const helpRm = `## erg rm ID|FILE [DIR] [--force]
 
-Delete a ticket file outright — no Closed: header, no archive, no record.
+Delete a ticket file outright -- no Closed: header, no archive, no record.
 
 Use rm only for tickets that should never have existed: a duplicate, a
 typo-titled file, a fat-fingered draft, spam. For work that was done or
@@ -26,12 +26,12 @@ the dependency graph before touching the filesystem:
 
   - By default, if any ticket in the corpus (open OR closed) has a Blocked-by:
     referencing the target ID, rm refuses: it prints each dependent and exits
-    non-zero WITHOUT deleting anything. The closed tickets are scanned too — a
+    non-zero WITHOUT deleting anything. The closed tickets are scanned too -- a
     closed ticket may carry a historical Blocked-by: line, and deleting its
     blocker would leave a dangling ref that 'erg check' flags.
   - With --force, rm deletes the target and strips the now-dangling Blocked-by:
     lines from every dependent (open or closed), appending a log entry to each:
-    ` + "`TIMESTAMP AUTHOR note blocker ID removed — ticket deleted.`" + `
+    ` + "`TIMESTAMP AUTHOR note blocker ID removed \u2014 ticket deleted.`" + `
 
 ID may be a 4-digit ticket ID or a full filename (e.g. 0042-some-title.erg).
 A non-existent or ambiguous ID is reported with the usual resolver error.
@@ -104,7 +104,7 @@ func cmdRm(args []string) int {
 
 	// Confine the delete to the resolved store, matching the write path's
 	// fail-safe rail (0149 writeTicketAtomic/withinStore). rm's FILE form
-	// resolved ticketPath then called os.Remove directly, never withinStore —
+	// resolved ticketPath then called os.Remove directly, never withinStore --
 	// so an explicit store DIR the FILE escapes (e.g. `erg rm /tmp/outside.erg
 	// <store>`) would delete a file outside it. Delete is as irreversible as a
 	// write, so the same rail applies. This is a fat-finger guard, not a
@@ -146,7 +146,7 @@ func cmdRm(args []string) int {
 	// Refuse by default when dependents exist: deletion is irreversible, so
 	// the safe default is to stop rather than silently rewrite other tickets.
 	if len(dependents) > 0 && !force {
-		fmt.Fprintf(os.Stderr, "rm: refusing to delete %s — %d ticket(s) depend on it:\n",
+		fmt.Fprintf(os.Stderr, "rm: refusing to delete %s -- %d ticket(s) depend on it:\n",
 			target.Filename(), len(dependents))
 		for _, d := range dependents {
 			fmt.Fprintf(os.Stderr, "  %s: Blocked-by: %s\n", d, targetID)
@@ -166,7 +166,7 @@ func cmdRm(args []string) int {
 	if force && len(dependents) > 0 && targetID != "" {
 		now := time.Now().UTC().Format("2006-01-02T15:04Z")
 		author := resolveAuthor()
-		logLine := fmt.Sprintf("%s %s note blocker %s removed — ticket deleted.", now, author, targetID)
+		logLine := fmt.Sprintf("%s %s note blocker %s removed \u2014 ticket deleted.", now, author, targetID)
 		clearBlockedByRefs(ticketDir, targetID, logLine, true)
 	}
 

@@ -240,7 +240,7 @@ func TestValidateErg(t *testing.T) {
 			// Run the corpus-level rules (10, 13, duplicate IDs) over a
 			// single-ticket "corpus" so rule 10 (local-ref resolution)
 			// still fires when the test fixture asserts on it. Filename
-			// IDs are derived from the file basename; only "NNNN-…"
+			// IDs are derived from the file basename; only "NNNN-..."
 			// fixtures will populate the local-id set, matching today's
 			// expectations.
 			errs := validateCorpus([]Erg{erg}, [][]string{parseErrs}, nil)
@@ -342,7 +342,7 @@ func TestDetectCycles(t *testing.T) {
 
 	t.Run("multiple disjoint cycles", func(t *testing.T) {
 		// Two independent cycles: A->B->A and C->D->C.
-		// Both must be detected — the DFS must not stop after the first cycle.
+		// Both must be detected -- the DFS must not stop after the first cycle.
 		dir := t.TempDir()
 		makeTicket(t, dir, "0001", "0002")
 		makeTicket(t, dir, "0002", "0001")
@@ -389,7 +389,7 @@ func TestValidateErg_GoldenValid(t *testing.T) {
 func TestValidateErg_GoldenInvalid(t *testing.T) {
 	// Each fixture must produce an error message containing the listed
 	// substring. Without per-fixture matching, a fixture could fail for
-	// any unrelated rule and the test would pass — turning the golden
+	// any unrelated rule and the test would pass -- turning the golden
 	// suite into a tautology.
 	wantSubstr := map[string]string{
 		"0001-bad-created-date.erg":  "Created",
@@ -417,7 +417,7 @@ func TestValidateErg_GoldenInvalid(t *testing.T) {
 			}
 			want, ok := wantSubstr[filepath.Base(path)]
 			if !ok {
-				t.Fatalf("no wantSubstr entry for %q — add one to the map", filepath.Base(path))
+				t.Fatalf("no wantSubstr entry for %q -- add one to the map", filepath.Base(path))
 			}
 			if !errsContain(errs, want) {
 				t.Errorf("expected an error containing %q, got: %v", want, errs)
@@ -464,7 +464,7 @@ func TestSeparatorLiteralInBodyAccepted(t *testing.T) {
 		t.Errorf("erg.Body = %q, want %q", erg.Body, body)
 	}
 
-	// (c) parser counts both separators as seen — the absence of the
+	// (c) parser counts both separators as seen -- the absence of the
 	// missing-separator errors is the post-merge assertion (formerly
 	// diag.HasLogSep / diag.HasBodySep).
 	if errsContain(errs, "missing '--- log ---'") {

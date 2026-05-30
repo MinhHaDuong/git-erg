@@ -22,7 +22,7 @@ func sanitizeAuthor(s string) string {
 }
 
 // resolveAuthor returns the first non-empty value from:
-//  1. $ERG_AUTHOR      — explicit override
+//  1. $ERG_AUTHOR      -- explicit override
 //  2. git config user.name
 //  3. $USER
 //  4. "unknown"

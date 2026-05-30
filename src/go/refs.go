@@ -9,7 +9,7 @@ import (
 // refReferencesID reports whether the git ref short name refName references
 // the ticket whose 4-digit ID is id. Per spec-erg-v1.md, a ref references a
 // ticket when the literal ID appears in the short name delimited by word
-// boundaries — start, end, or one of '/', '-', '_'. So "feat/0001-foo"
+// boundaries -- start, end, or one of '/', '-', '_'. So "feat/0001-foo"
 // references 0001, but "feat/00010-foo" does not.
 func refReferencesID(refName, id string) bool {
 	if id == "" || len(refName) < len(id) {
@@ -36,12 +36,12 @@ func isRefBoundary(s string, i int) bool {
 
 // loadGitRefs returns short names of every local and remote-tracking branch
 // in the repository containing dir, excluding remote HEAD symrefs. Returns
-// nil on any git error (no repo, etc.) so callers degrade silently — refs
+// nil on any git error (no repo, etc.) so callers degrade silently -- refs
 // are an optional annotation, not a precondition.
 func loadGitRefs(dir string) []string {
 	// Skip symbolic refs (e.g. refs/remotes/origin/HEAD) structurally: the
 	// %(if)%(symref) test emits an empty line for them, which the loop drops.
-	// Matching on a "/HEAD" short-name suffix does not work — a remote HEAD
+	// Matching on a "/HEAD" short-name suffix does not work -- a remote HEAD
 	// symref's short name is just the remote name ("origin"), not "origin/HEAD".
 	cmd := exec.Command("git", "-C", dir, "for-each-ref",
 		"--format=%(if)%(symref)%(then)%(else)%(refname:short)%(end)",
@@ -105,7 +105,7 @@ func loadGitWorktrees(dir string) []worktreeRef {
 
 // worktreeTopFor returns the absolute path of the worktree containing dir, or
 // "" if dir is not inside a git repository. Used to suppress the dir's own
-// worktree from annotations — its branch is already shown via the local-ref
+// worktree from annotations -- its branch is already shown via the local-ref
 // pass, and the absolute path is just noise.
 func worktreeTopFor(dir string) string {
 	cmd := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel")

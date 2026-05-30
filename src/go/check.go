@@ -54,7 +54,7 @@ func staleBlockedBy(tickets []Erg) []string {
 			}
 			if closedIDs[ref.ID] {
 				warnings = append(warnings, fmt.Sprintf(
-					"WARN %s: Blocked-by %s is already closed — remove the stale Blocked-by line from %s",
+					"WARN %s: Blocked-by %s is already closed -- remove the stale Blocked-by line from %s",
 					t.Filename(), ref.ID, t.Filename()))
 			}
 		}
@@ -74,7 +74,7 @@ func strayGoSource(dir string) []string {
 		for _, e := range entries {
 			n := e.Name()
 			if strings.HasSuffix(n, ".go") || n == "go.mod" || n == "go.sum" {
-				return []string{"WARN: Go source files found in " + d + " — only the binary is needed; remove *.go, go.mod, go.sum"}
+				return []string{"WARN: Go source files found in " + d + " -- only the binary is needed; remove *.go, go.mod, go.sum"}
 			}
 		}
 	}
@@ -97,11 +97,11 @@ func encodingWarnings(dir string) []string {
 		name := filepath.Base(path)
 		if len(data) >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF {
 			warnings = append(warnings, fmt.Sprintf(
-				"WARNING: %s: file starts with UTF-8 BOM — remove the BOM (editor setting)", name))
+				"WARNING: %s: file starts with UTF-8 BOM -- remove the BOM (editor setting)", name))
 		}
 		if bytes.Contains(data, []byte("\r\n")) {
 			warnings = append(warnings, fmt.Sprintf(
-				"WARNING: %s: file contains CRLF line endings — convert to LF (editor setting)", name))
+				"WARNING: %s: file contains CRLF line endings -- convert to LF (editor setting)", name))
 		}
 		return nil
 	})
@@ -124,7 +124,7 @@ func headerBlankWarnings(dir string) []string {
 		}
 		if hasInteriorHeaderBlank(data) {
 			warnings = append(warnings, fmt.Sprintf(
-				"WARN %s: blank line inside header block — run `erg migrate` to normalise", filepath.Base(path)))
+				"WARN %s: blank line inside header block -- run `erg migrate` to normalise", filepath.Base(path)))
 		}
 		return nil
 	})

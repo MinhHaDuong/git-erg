@@ -55,7 +55,7 @@ func selfHash(path string) (string, error) {
 }
 
 // shellSingleQuote wraps s in POSIX single quotes so it is safe to paste into
-// a shell verbatim — even if it contains spaces, $, backticks, or other
+// a shell verbatim -- even if it contains spaces, $, backticks, or other
 // metacharacters. Embedded single quotes are escaped as '\''. Double-quoting
 // (e.g. fmt %q) would NOT suffice: $ and ` stay active inside double quotes.
 // The `verify:` hint exists solely for copy-paste, so this must be exact.
@@ -125,14 +125,14 @@ func cmdVersion(_ []string) int {
 	if buildDate != "" {
 		fmt.Printf("  built:   %s\n", buildDate)
 	} else {
-		fmt.Printf("  built:   [unknown — no build metadata]\n")
+		fmt.Printf("  built:   [unknown -- no build metadata]\n")
 	}
 	if vcsRevision != "" {
 		fmt.Printf("  revision: %s\n", vcsRevision)
 	}
 	fmt.Printf("  arch:    %s/%s\n", runtime.GOOS, runtime.GOARCH)
 	if strings.HasSuffix(self, "/tickets/erg") {
-		// Leading separator so only a real ".../tickets/erg" path matches —
+		// Leading separator so only a real ".../tickets/erg" path matches --
 		// a bare "tickets/erg" suffix would also fire on "/home/me/my-tickets/erg".
 		// Hash the resolved absolute path (single-quoted for safe paste), not a
 		// cwd-relative "tickets/erg": the command must recompute the digest
@@ -180,7 +180,7 @@ func cmdVersion(_ []string) int {
 		}
 		resolved, err := filepath.EvalSymlinks(abs)
 		if err != nil {
-			// File doesn't exist or can't be resolved — skip silently
+			// File doesn't exist or can't be resolved -- skip silently
 			continue
 		}
 
@@ -207,7 +207,7 @@ func cmdVersion(_ []string) int {
 
 		var label string
 		if vcsRevision != "" && otherRevision == vcsRevision {
-			// Same source commit — not outdated regardless of hash difference.
+			// Same source commit -- not outdated regardless of hash difference.
 		} else if vcsRevision != "" && otherRevision != "" {
 			if buildDate != "" && otherDate != "" && buildDate > otherDate {
 				label = fmt.Sprintf("[outdated: run: %s]", c.hint)

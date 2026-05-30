@@ -22,10 +22,10 @@ Unpack embedded bootstrap assets into the project.
 
 Writes four files relative to DIR (default: current directory):
 
-  - tickets/.ergrc — project configuration (label vocabulary, update remote).
-  - tickets/AGENTS.md — agent operating instructions for the ticket workflow.
-  - tickets/spec-erg-v1.md — the %erg 0.1 format specification.
-  - tickets/integration.md — setup guide for the pre-commit hook and CI integration.
+  - tickets/.ergrc -- project configuration (label vocabulary, update remote).
+  - tickets/AGENTS.md -- agent operating instructions for the ticket workflow.
+  - tickets/spec-erg-v1.md -- the %erg 0.1 format specification.
+  - tickets/integration.md -- setup guide for the pre-commit hook and CI integration.
 
 Requires tickets/erg (the binary) to already exist in the project; the command
 refuses if it is absent. This requirement ensures that agents do not accidentally
@@ -42,7 +42,7 @@ message on stderr and the command exits non-zero. Local edits are never overwrit
 // different content), skipped (differed from embedded but refuseDiverged was
 // set), or left unchanged (byte-identical to the embedded copy). Shared by
 // `erg init` and by `erg migrate`'s layout sweep. Error messages are
-// unwrapped — no "init:" prefix — so each caller can label them with its own
+// unwrapped -- no "init:" prefix -- so each caller can label them with its own
 // command name.
 //
 // When refuseDiverged is true, files that differ from the embedded asset are
@@ -65,7 +65,7 @@ func installAssets(root string, refuseDiverged bool) (created, refreshed, skippe
 			continue
 		}
 		if exists && refuseDiverged {
-			fmt.Fprintf(os.Stderr, "init: %s has local edits — skipping\n", rel)
+			fmt.Fprintf(os.Stderr, "init: %s has local edits -- skipping\n", rel)
 			skipped++
 			continue
 		}

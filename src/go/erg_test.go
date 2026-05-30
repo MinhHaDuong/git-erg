@@ -147,7 +147,7 @@ func TestParseErg(t *testing.T) {
 	})
 
 	t.Run("duplicate Title keeps first value", func(t *testing.T) {
-		// Item 4: singleton "first occurrence wins" — Title is a singleton
+		// Item 4: singleton "first occurrence wins" -- Title is a singleton
 		// header; when duplicated, the parser keeps the first value.
 		content := "%erg 0.1\nTitle: First\nTitle: Second\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
@@ -158,7 +158,7 @@ func TestParseErg(t *testing.T) {
 	})
 
 	t.Run("empty Label value skipped", func(t *testing.T) {
-		// Item 5: empty Label: values are silently skipped by the parser —
+		// Item 5: empty Label: values are silently skipped by the parser --
 		// parseHeaderLine trims, and the parser skips empty val for Label.
 		content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nLabel: \n\n--- log ---\n--- body ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
@@ -265,14 +265,14 @@ func TestClosedWhitespaceDivergence(t *testing.T) {
 	})
 
 	t.Run("Closed_space_colon in body does NOT trigger body-section error", func(t *testing.T) {
-		// `Closed : merged` — parseHeaderLine would parse this as key=Closed,
+		// `Closed : merged` -- parseHeaderLine would parse this as key=Closed,
 		// but isClosedHeaderLine does not fire because it expects prefix `Closed:`.
 		// This pins the current divergence; a future ticket may align them.
 		content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\nClosed : merged\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
 		_, parseErrs := parseErg(path)
 		if errsContain(parseErrs, "found in body section") {
-			t.Errorf("expected no 'found in body section' error for 'Closed : merged' — isClosedHeaderLine requires exact 'Closed:' prefix, got: %v", parseErrs)
+			t.Errorf("expected no 'found in body section' error for 'Closed : merged' -- isClosedHeaderLine requires exact 'Closed:' prefix, got: %v", parseErrs)
 		}
 	})
 }
@@ -314,11 +314,11 @@ func TestPathIsClosed(t *testing.T) {
 		{"Closed/0001-foo.erg", true},
 		{"CLOSED/0001-foo.erg", true},
 
-		// Open paths — no closure signal
+		// Open paths -- no closure signal
 		{"tickets/0001-foo.erg", false},
 		{"open/0001-foo.erg", false},
 
-		// "disclosed" must not trigger — the implementation checks HasPrefix
+		// "disclosed" must not trigger -- the implementation checks HasPrefix
 		// on the full component, so "disclosed" does NOT match.
 		{"disclosed/0001-foo.erg", false},
 	}
@@ -334,8 +334,8 @@ func TestPathIsClosed(t *testing.T) {
 }
 
 // TestStaleBlockedBy exercises staleBlockedBy (check.go:33).
-// Item 1: constructs two tickets — one closed blocker, one open ticket
-// referencing it — and asserts the warning fires.
+// Item 1: constructs two tickets -- one closed blocker, one open ticket
+// referencing it -- and asserts the warning fires.
 func TestStaleBlockedBy(t *testing.T) {
 	t.Run("open ticket blocked by closed ticket emits warning", func(t *testing.T) {
 		dir := t.TempDir()

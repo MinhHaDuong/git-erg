@@ -24,7 +24,7 @@ hello
 // TestAtomicWriteFileReplacesViaRename is the negative control for the atomic /
 // crash-safety guard: a temp-then-rename replacement gives the target a NEW
 // inode, so os.SameFile is false. An in-place truncating writer (os.WriteFile)
-// keeps the same inode — this test fails the moment the write stops being a
+// keeps the same inode -- this test fails the moment the write stops being a
 // rename.
 func TestAtomicWriteFileReplacesViaRename(t *testing.T) {
 	dir := t.TempDir()
@@ -46,7 +46,7 @@ func TestAtomicWriteFileReplacesViaRename(t *testing.T) {
 		t.Fatal(err)
 	}
 	if os.SameFile(oldInfo, newInfo) {
-		t.Fatal("write was in-place (same inode) — not a temp-then-rename atomic replace")
+		t.Fatal("write was in-place (same inode) -- not a temp-then-rename atomic replace")
 	}
 
 	got, err := os.ReadFile(path)
@@ -77,7 +77,7 @@ func TestAtomicWriteFileRoundTrip(t *testing.T) {
 }
 
 // TestAtomicWriteFileLeavesNoTemp is the no-clobber/cleanup control: after a
-// successful write the directory holds only the target — no leftover temp.
+// successful write the directory holds only the target -- no leftover temp.
 func TestAtomicWriteFileLeavesNoTemp(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "0001-x.erg")
@@ -139,7 +139,7 @@ func TestWriteTicketAtomicPreservesExistingMode(t *testing.T) {
 // TestAtomicWriteFileRefusesReadOnlyTarget locks the permission contract: a
 // read-only existing target is NOT silently replaced (a bare temp+rename would
 // succeed since it only needs a writable directory). Skipped as root, which
-// bypasses file-permission bits — matching the close suite's own root skip.
+// bypasses file-permission bits -- matching the close suite's own root skip.
 func TestAtomicWriteFileRefusesReadOnlyTarget(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root bypasses file permissions; this path only exercises unprivileged")
@@ -149,7 +149,7 @@ func TestAtomicWriteFileRefusesReadOnlyTarget(t *testing.T) {
 	if err := os.WriteFile(path, []byte("original\n"), 0444); err != nil {
 		t.Fatal(err)
 	}
-	if err := atomicWriteFile(path, []byte("replacement — must not land\n"), 0644); err == nil {
+	if err := atomicWriteFile(path, []byte("replacement -- must not land\n"), 0644); err == nil {
 		t.Fatal("expected atomicWriteFile to refuse a read-only target")
 	}
 	got, err := os.ReadFile(path)
@@ -186,7 +186,7 @@ func TestWriteTicketAtomicRefusesInvalid(t *testing.T) {
 
 // TestWriteTicketAtomicAllowsWhenOriginalInvalid locks the fix for the
 // over-strict gate: when the file on disk is ALREADY invalid, a mutation that
-// leaves it (still) invalid must succeed — the gate only protects clean
+// leaves it (still) invalid must succeed -- the gate only protects clean
 // tickets. Negative control: a refuse-on-any-error gate fails this test, which
 // is exactly the regression that left dangling Blocked-by edges on dependents
 // carrying unrelated violations.
@@ -208,14 +208,14 @@ func TestWriteTicketAtomicAllowsWhenOriginalInvalid(t *testing.T) {
 	}
 	got, _ := os.ReadFile(path)
 	if strings.Contains(string(got), "Blocked-by: 0009") {
-		t.Fatal("mutation did not land — edge not cleared on the invalid dependent")
+		t.Fatal("mutation did not land -- edge not cleared on the invalid dependent")
 	}
 }
 
 // TestCreateExclusiveNoClobber is the no-clobber guard with its negative
 // control: createExclusive (new's O_EXCL path) refuses to overwrite an existing
 // file and leaves its contents intact. Drop O_EXCL and the second call would
-// truncate/overwrite — failing this test.
+// truncate/overwrite -- failing this test.
 func TestCreateExclusiveNoClobber(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "0001-x.erg")
@@ -223,7 +223,7 @@ func TestCreateExclusiveNoClobber(t *testing.T) {
 	if err := createExclusive(path, "first\n"); err != nil {
 		t.Fatalf("first createExclusive: %v", err)
 	}
-	err := createExclusive(path, "second — must not land\n")
+	err := createExclusive(path, "second -- must not land\n")
 	if err == nil {
 		t.Fatal("createExclusive overwrote an existing file (O_EXCL not enforced)")
 	}
@@ -265,7 +265,7 @@ func TestWriteTicketAtomicConfinementParentEscape(t *testing.T) {
 	if err := os.MkdirAll(store, 0755); err != nil {
 		t.Fatal(err)
 	}
-	// Resolves to root/evil.erg — one level above the store.
+	// Resolves to root/evil.erg -- one level above the store.
 	target := filepath.Join(store, "..", "evil.erg")
 	err := writeTicketAtomic(store, target, []byte(validTicket))
 	if err == nil {
@@ -277,7 +277,7 @@ func TestWriteTicketAtomicConfinementParentEscape(t *testing.T) {
 }
 
 // TestWriteTicketAtomicHappyPath confirms a valid, in-store write succeeds and
-// lands the content — so the guards above are refusing the bad case, not every
+// lands the content -- so the guards above are refusing the bad case, not every
 // case.
 func TestWriteTicketAtomicHappyPath(t *testing.T) {
 	store := t.TempDir()

@@ -30,7 +30,7 @@ import (
 
 // manualPreamble is the header printed by `erg --help --all` before the
 // per-command sections. The %s placeholder receives the literal string
-// "Generated from: erg" — no build stamp is embedded so the committed
+// "Generated from: erg" -- no build stamp is embedded so the committed
 // docs/erg-manual.md is stable across machines and CI rebuilds. Runtime
 // build metadata is available via `erg version`.
 const manualPreamble = `# erg manual
@@ -123,7 +123,7 @@ func resolveTicketByID(dir, id string) (string, error) {
 		return "", fmt.Errorf("no ticket found for ID %s in %s", id, dir)
 	}
 	if len(matches) > 1 {
-		return "", fmt.Errorf("ambiguous ID %s — matches: %s", id, strings.Join(matches, ", "))
+		return "", fmt.Errorf("ambiguous ID %s -- matches: %s", id, strings.Join(matches, ", "))
 	}
 	return matches[0], nil
 }
@@ -154,9 +154,9 @@ func main() {
 		cmd = canonical
 	}
 
-	// erg --help --all  OR  erg --help=all  → print all command help
+	// erg --help --all  OR  erg --help=all  -> print all command help
 	if cmd == "--help=all" || (cmd == "--help" || cmd == "-h") && len(rest) > 0 && rest[0] == "--all" {
-		// "Generated from: erg" — no build stamp embedded in the manual.
+		// "Generated from: erg" -- no build stamp embedded in the manual.
 		// The committed docs/erg-manual.md is the same on every machine; the
 		// running binary self-reports build/rev via `erg version`. Including
 		// the stamp here would otherwise churn docs/erg-manual.md on every

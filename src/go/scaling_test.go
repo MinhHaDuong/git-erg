@@ -3,21 +3,21 @@
 // Scaling regression guard (ticket 0159) for the corpus-heavy erg commands.
 //
 // Build-tagged `scaling` so it is excluded from `make test`, `make unit-test`,
-// and plain `go test ./...` — none of which pass `-tags scaling`. It is slow
+// and plain `go test ./...` -- none of which pass `-tags scaling`. It is slow
 // (it builds stores up to ~1000 tickets and profiles five commands) and is a
 // regression guard, not a per-merge check. Run it on demand: `make test-scaling`.
 //
 // 0154 named the real O(N^2) risk as "the dependent/ref scans in check/rm/close".
-// This test measures heap-allocation *volume* (bytes) — deterministic for fixed
-// input, so immune to CI-box speed — and wall-clock time across a 3-point 4x
+// This test measures heap-allocation *volume* (bytes) -- deterministic for fixed
+// input, so immune to CI-box speed -- and wall-clock time across a 3-point 4x
 // ladder {64, 256, 1024}, then asserts each command's allocated bytes grow
 // linearly: the ratio between consecutive sizes must stay below 6.0 (linear is
 // ~4.0; a quadratic regression would show ~16.0). Time is logged, not asserted
 // (it is too CI-box-dependent to gate on).
 //
 // What this catches, and what it does not. Allocation *volume* is the assertion
-// signal because the realistic O(N^2) regressions in this code — a nested scan
-// that builds a per-pair slice/map, re-parsing the corpus inside a loop — move
+// signal because the realistic O(N^2) regressions in this code -- a nested scan
+// that builds a per-pair slice/map, re-parsing the corpus inside a loop -- move
 // O(N^2) bytes and trip the ratio hard. TestScalingLinearNegativeControl is the
 // permanent proof of teeth: it runs a genuinely O(N^2) probe through the same
 // harness and asserts the ratio exceeds the ceiling. Two things slip past the
@@ -26,13 +26,13 @@
 // a purely compute-bound O(N^2) that allocates nothing (e.g. a tight comparison
 // scan over already-parsed structs) leaves both bytes and a few-ms time delta
 // indistinguishable from noise at practical N. That residual is owned by 0154's
-// wall-clock backstop plus code review — the same defense-in-depth posture the
+// wall-clock backstop plus code review -- the same defense-in-depth posture the
 // author accepted for 0154 (#169). This guard is the deterministic layer for the
 // common, allocation-heavy failure mode, not a proof of asymptotic linearity.
 //
-// The corpus is deliberately non-trivial — a realistic acyclic DAG (multiple
+// The corpus is deliberately non-trivial -- a realistic acyclic DAG (multiple
 // Blocked-by edges per ticket, fan-in), a closed/ subdirectory (recursive walk
-// + folder-closure path), labels from the default vocabulary, and varied bodies —
+// + folder-closure path), labels from the default vocabulary, and varied bodies --
 // so the scan, ref-resolution, cycle-detection, and label-vocabulary paths are all
 // exercised, not just a flat parse loop.
 
@@ -198,8 +198,8 @@ func profileLadder(t *testing.T, label string, invoke func(dir string) int) (max
 // time.
 //
 // next-id is deliberately absent. Its dominant work in production is a
-// `git for-each-ref` / `ls-tree` subprocess (nextid.go) that ReadMemStats — a
-// parent-heap probe — cannot see; and against this non-git temp corpus those
+// `git for-each-ref` / `ls-tree` subprocess (nextid.go) that ReadMemStats -- a
+// parent-heap probe -- cannot see; and against this non-git temp corpus those
 // passes no-op entirely, leaving only the trivial Pass-1 WalkDir, which barely
 // allocates. Either way it is not a meaningful allocation-scaling target, so
 // measuring it would report a hollow curve.
@@ -213,7 +213,7 @@ var scalingCommands = []struct {
 	// close/rm exercise the full-corpus dependent scan (clearBlockedByRefs):
 	// ticket 0001 is Blocked-by of 0002, so both rewrite a dependent. The
 	// rewrite itself is in-process (atomic file writes, no git), so the
-	// measured cost is the loadErgs scan — a genuine O(N) in-process target.
+	// measured cost is the loadErgs scan -- a genuine O(N) in-process target.
 	{"close", func(d string) int { return cmdClose([]string{"0001", "scaling bench", d}) }},
 	{"rm", func(d string) int { return cmdRm([]string{"0001", d, "--force"}) }},
 }
@@ -229,18 +229,18 @@ func TestScalingLinear(t *testing.T) {
 			dir := t.TempDir()
 			buildCorpus(t, dir, scalingSizes[0])
 			if ret := c.invoke(dir); ret != 0 {
-				t.Fatalf("%s returned non-zero exit %d — scaling signal is untrustworthy", c.name, ret)
+				t.Fatalf("%s returned non-zero exit %d -- scaling signal is untrustworthy", c.name, ret)
 			}
 			if maxRatio := profileLadder(t, c.name, c.invoke); maxRatio > ratioCeiling {
-				t.Errorf("%s: worst alloc-bytes ratio %.2f exceeds %.1f — super-linear allocation (4x is linear, ~16x quadratic)",
+				t.Errorf("%s: worst alloc-bytes ratio %.2f exceeds %.1f -- super-linear allocation (4x is linear, ~16x quadratic)",
 					c.name, maxRatio, ratioCeiling)
 			}
 		})
 	}
 }
 
-// quadraticProbe deliberately allocates O(N²) bytes: for each ticket it builds
-// a slice of every ticket's filename. It is not a command — it exists only to
+// quadraticProbe deliberately allocates O(N^2) bytes: for each ticket it builds
+// a slice of every ticket's filename. It is not a command -- it exists only to
 // drive the negative control below.
 func quadraticProbe(dir string) int {
 	tickets, _ := loadErgs(dir)
@@ -257,14 +257,14 @@ func quadraticProbe(dir string) int {
 
 // TestScalingLinearNegativeControl is the falsifiable companion to
 // TestScalingLinear (the AGENTS.md / 0146 convention: every guard ships a
-// control that proves it trips). It runs quadraticProbe — genuinely O(N²) in
-// allocated bytes — through the same ladder and asserts the ratio exceeds the
+// control that proves it trips). It runs quadraticProbe -- genuinely O(N^2) in
+// allocated bytes -- through the same ladder and asserts the ratio exceeds the
 // ceiling. If this ever passes, the guard has gone blind and TestScalingLinear's
 // green is worthless.
 func TestScalingLinearNegativeControl(t *testing.T) {
 	maxRatio := profileLadder(t, "quad-ctl", quadraticProbe)
 	if maxRatio <= ratioCeiling {
-		t.Errorf("negative control: O(N²) probe ratio %.2f did not exceed %.1f — the scaling guard is vacuous",
+		t.Errorf("negative control: O(N^2) probe ratio %.2f did not exceed %.1f -- the scaling guard is vacuous",
 			maxRatio, ratioCeiling)
 	}
 }

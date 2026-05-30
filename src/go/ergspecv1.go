@@ -24,7 +24,7 @@ const separatorBody = "--- body ---"
 type Erg struct {
 	Path string
 
-	// v1 headers — typed fields populated from first occurrence
+	// v1 headers -- typed fields populated from first occurrence
 	Title      string   // required, non-empty (validator rule 2)
 	Created    string   // required, non-empty
 	Author     string   // required, non-empty
@@ -43,12 +43,12 @@ type RefKind int
 
 const (
 	RefInvalid RefKind = iota
-	RefLocal           // 0042 — local ticket ID
-	RefForge           // host/owner/repo#N — forge issue
+	RefLocal           // 0042 -- local ticket ID
+	RefForge           // host/owner/repo#N -- forge issue
 )
 
 // Ref is a parsed Blocked-by value. Downstream code (validator, ready)
-// must read these fields rather than re-parse Raw — a single parser is
+// must read these fields rather than re-parse Raw -- a single parser is
 // the source of truth.
 type Ref struct {
 	Raw    string // original text as written in the .erg file

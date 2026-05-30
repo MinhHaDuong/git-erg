@@ -10,7 +10,7 @@ import (
 )
 
 // parseCount tracks how many times parseErgBytes is called. Test-visible
-// only — used by contract tests to verify the parse-once invariant.
+// only -- used by contract tests to verify the parse-once invariant.
 // The increment is a single integer add; no production cost.
 var parseCount int
 
@@ -18,7 +18,7 @@ func resetParseCount() { parseCount = 0 }
 
 // corpusOpCount tracks the number of per-ticket operations performed
 // inside validateCorpus (ref-resolution lookups, cycle-detection edge
-// walks, label-vocabulary checks). Test-visible only — used by contract
+// walks, label-vocabulary checks). Test-visible only -- used by contract
 // tests to verify linear-scaling of corpus validation. A single integer
 // add per operation; no production cost.
 var corpusOpCount int
@@ -70,7 +70,7 @@ func (t *Erg) Filename() string {
 
 // FilenameID extracts the numeric prefix from the filename (e.g., "0042"
 // from "0042-add-auth.erg"). Returns the full stem when no dash is present,
-// which may be empty or non-numeric — callers (close, archive, check) must
+// which may be empty or non-numeric -- callers (close, archive, check) must
 // guard against empty-string returns.
 func (t *Erg) FilenameID() string {
 	stem := strings.TrimSuffix(t.Filename(), ".erg")
@@ -143,14 +143,14 @@ func titleStatusEdgeWord(title string) (word, position string, bad bool) {
 // ("", false) when the Title is acceptable. The message names the offending
 // word and edge; callers prefix it with their own location/context so the
 // wording stays identical across `erg validate`/`erg check` (parseErgBytes)
-// and the `erg new` creation-time guard — one definition, no drift.
+// and the `erg new` creation-time guard -- one definition, no drift.
 func titleStatusWordMessage(title string) (string, bool) {
 	word, pos, bad := titleStatusEdgeWord(title)
 	if !bad {
 		return "", false
 	}
 	return fmt.Sprintf(
-		"Title %s status word '%s' — reserved for ticket status; rephrase so the Title does not start or end with: closed, done, open, ready",
+		"Title %s status word '%s' -- reserved for ticket status; rephrase so the Title does not start or end with: closed, done, open, ready",
 		pos, word), true
 }
 
@@ -264,12 +264,12 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 				section = "headers"
 				continue
 			}
-			// Detect legacy "%erg v1" magic line (exact match only —
+			// Detect legacy "%erg v1" magic line (exact match only --
 			// must not match "%erg v2" or other unknown versions).
 			if trimmed == "%erg v1" {
 				legacyV1 = true
 			}
-			// No magic line — try to parse as old format
+			// No magic line -- try to parse as old format
 			section = "headers"
 			// Fall through to header parsing
 		}
@@ -295,8 +295,8 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 			if trimmed == "" {
 				// A blank line ends the header block only when it is not
 				// followed (skipping further blanks) by another header line
-				// before the log/body separator. An interior blank — one with
-				// more header-shaped lines still below it — is tolerated:
+				// before the log/body separator. An interior blank -- one with
+				// more header-shaped lines still below it -- is tolerated:
 				// headers under it are parsed normally instead of dropped into
 				// the discarded gap (ticket 0141).
 				if blankEndsHeaderBlock(lines, lineIdx) {
@@ -322,19 +322,19 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 						switch key {
 						case "Status":
 							errs = append(errs, fmt.Sprintf(
-								"%s:%d: 'Status:' header is no longer part of %%erg 0.1 — run `erg migrate` to convert",
+								"%s:%d: 'Status:' header is no longer part of %%erg 0.1 -- run `erg migrate` to convert",
 								name, lineNum))
 						case "Tags":
 							errs = append(errs, fmt.Sprintf(
-								"%s:%d: 'Tags:' has been renamed to 'Label:' — run `erg migrate` to convert",
+								"%s:%d: 'Tags:' has been renamed to 'Label:' -- run `erg migrate` to convert",
 								name, lineNum))
 						case "Tag":
 							errs = append(errs, fmt.Sprintf(
-								"%s:%d: 'Tag:' has been renamed to 'Label:' — run `erg migrate` to convert",
+								"%s:%d: 'Tag:' has been renamed to 'Label:' -- run `erg migrate` to convert",
 								name, lineNum))
 						default:
 							errs = append(errs, fmt.Sprintf(
-								"%s:%d: unknown header '%s' (not in v1 closed set) — remove it or run `erg migrate`",
+								"%s:%d: unknown header '%s' (not in v1 closed set) -- remove it or run `erg migrate`",
 								name, lineNum, key))
 						}
 					}
@@ -400,7 +400,7 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 			if isClosedHeaderLine(line) && !closedInLog {
 				closedInLog = true
 				errs = append(errs, fmt.Sprintf(
-					"%s:%d: 'Closed:' header found in log section — only allowed in header section",
+					"%s:%d: 'Closed:' header found in log section -- only allowed in header section",
 					name, lineNum))
 			}
 		case "body":
@@ -408,7 +408,7 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 			if isClosedHeaderLine(line) && !closedInBody {
 				closedInBody = true
 				errs = append(errs, fmt.Sprintf(
-					"%s:%d: 'Closed:' header found in body section — only allowed in header section",
+					"%s:%d: 'Closed:' header found in body section -- only allowed in header section",
 					name, lineNum))
 			}
 		}
@@ -422,7 +422,7 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	if !hasMagic {
 		if legacyV1 {
 			errs = append(errs,
-				fmt.Sprintf("%s: legacy '%%erg v1' magic line — run `erg migrate` to convert to '%%erg 0.1'", name))
+				fmt.Sprintf("%s: legacy '%%erg v1' magic line -- run `erg migrate` to convert to '%%erg 0.1'", name))
 		} else {
 			errs = append(errs,
 				fmt.Sprintf("%s: missing magic first line '%%erg 0.1'", name))
@@ -435,28 +435,28 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	if strings.TrimSpace(title) == "" {
 		if titleLine > 0 {
 			errs = append(errs, fmt.Sprintf(
-				"%s:%d: missing or empty required header 'Title' — add 'Title: <text>' to the preamble", name, titleLine))
+				"%s:%d: missing or empty required header 'Title' -- add 'Title: <text>' to the preamble", name, titleLine))
 		} else {
 			errs = append(errs, fmt.Sprintf(
-				"%s: missing or empty required header 'Title' — add 'Title: <text>' to the preamble", name))
+				"%s: missing or empty required header 'Title' -- add 'Title: <text>' to the preamble", name))
 		}
 	}
 	if strings.TrimSpace(created) == "" {
 		if createdLine > 0 {
 			errs = append(errs, fmt.Sprintf(
-				"%s:%d: missing or empty required header 'Created' — add 'Created: YYYY-MM-DD' to the preamble", name, createdLine))
+				"%s:%d: missing or empty required header 'Created' -- add 'Created: YYYY-MM-DD' to the preamble", name, createdLine))
 		} else {
 			errs = append(errs, fmt.Sprintf(
-				"%s: missing or empty required header 'Created' — add 'Created: YYYY-MM-DD' to the preamble", name))
+				"%s: missing or empty required header 'Created' -- add 'Created: YYYY-MM-DD' to the preamble", name))
 		}
 	}
 	if strings.TrimSpace(author) == "" {
 		if authorLine > 0 {
 			errs = append(errs, fmt.Sprintf(
-				"%s:%d: missing or empty required header 'Author' — add 'Author: <name>' to the preamble", name, authorLine))
+				"%s:%d: missing or empty required header 'Author' -- add 'Author: <name>' to the preamble", name, authorLine))
 		} else {
 			errs = append(errs, fmt.Sprintf(
-				"%s: missing or empty required header 'Author' — add 'Author: <name>' to the preamble", name))
+				"%s: missing or empty required header 'Author' -- add 'Author: <name>' to the preamble", name))
 		}
 	}
 
@@ -467,9 +467,9 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	}
 
 	// Rule 14: Title must not begin or end with a status word (ready, done,
-	// closed, open). Those are status vocabulary in this system — pseudo-labels
+	// closed, open). Those are status vocabulary in this system -- pseudo-labels
 	// consumed by `erg list` filters and the lifecycle states agents reason
-	// about — so at a title's edge they read as a status assertion about the
+	// about -- so at a title's edge they read as a status assertion about the
 	// ticket itself rather than as a reference to the command or concept being
 	// changed (ticket 0145). Closed tickets are grandfathered: the rule is
 	// enforced on open + new only, so existing closed history is never broken.
@@ -486,7 +486,7 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	}
 
 	// Rule 9: Blocked-by values are parsed inline (case "Blocked-by"
-	// above) — errors emitted there. Rule 10 (local-ref resolution
+	// above) -- errors emitted there. Rule 10 (local-ref resolution
 	// against corpus IDs) is corpus-level and lives in validateCorpus.
 
 	// Rule 11: log lines match format.
@@ -499,8 +499,8 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	}
 
 	// Rule 12 (separators): only the *missing* case is an error. The rule
-	// 12 relaxation from ticket 0116 — quoted "--- log ---" / "--- body ---"
-	// literals inside the body are legitimate body text — lives in the
+	// 12 relaxation from ticket 0116 -- quoted "--- log ---" / "--- body ---"
+	// literals inside the body are legitimate body text -- lives in the
 	// per-line walk above (the second occurrence of either literal does not
 	// re-transition section because bodySepSeen is already true). hasLogSep
 	// / hasBodySep go true on ANY sighting; emission fires only when
@@ -552,7 +552,7 @@ func blankEndsHeaderBlock(lines []string, idx int) bool {
 }
 
 // interiorHeaderBlanks returns the 0-based indices of blank lines that fall
-// inside the header block — the blanks the parser tolerates rather than
+// inside the header block -- the blanks the parser tolerates rather than
 // treating as the block terminator. The single blank that legitimately ends
 // the header block (the one before `--- log ---`) is never included. This is
 // the one definition of "interior blank", shared by the read path
@@ -602,8 +602,8 @@ func splitLines(content string) ([]string, bool) {
 }
 
 // collapseHeaderBlanks removes interior blank lines from the header block,
-// leaving the rest of the file — the terminating blank before `--- log ---`,
-// the log, and the body — byte-for-byte unchanged. Returns data unmodified
+// leaving the rest of the file -- the terminating blank before `--- log ---`,
+// the log, and the body -- byte-for-byte unchanged. Returns data unmodified
 // when there is no interior blank. Feeds the write-time autofix paths
 // (close/label/unlabel) and the migrate sweep (ticket 0141).
 func collapseHeaderBlanks(data []byte) []byte {
@@ -641,7 +641,7 @@ func hasInteriorHeaderBlank(data []byte) bool {
 // hasHeaderKey reports whether line begins with the literal header key
 // prefix (e.g. "Closed:"). When foldCase is true, the comparison is
 // case-insensitive on the key portion only. This is a header-key match,
-// not a free substring match — indented examples and prose mentions
+// not a free substring match -- indented examples and prose mentions
 // never trigger.
 func hasHeaderKey(line, key string, foldCase bool) bool {
 	if len(line) < len(key) {
