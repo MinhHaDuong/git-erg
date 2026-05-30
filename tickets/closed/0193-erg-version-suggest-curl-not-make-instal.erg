@@ -2,10 +2,12 @@
 Title: erg version: suggest curl not make install-erg-binary for outdated system binary
 Created: 2026-05-30
 Author: MinhHaDuong
+Closed: merged — raid 188-193
 
 --- log ---
 2026-05-30T17:55Z MinhHaDuong created
 
+2026-05-30T18:33Z MinhHaDuong closed — merged — raid 188-193
 --- body ---
 ## Source
 Path A UX dry-run (0152), severity: **Low**
