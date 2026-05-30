@@ -96,7 +96,17 @@ func fetchRemoteBinary(gitDir, remote, blobPath string) ([]byte, error) {
 }
 
 // cmdUpdate implements `erg update`. See helpUpdate for the user-facing summary.
-func cmdUpdate(_ []string) int {
+func cmdUpdate(args []string) int {
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			fmt.Fprintf(os.Stderr, "update: unknown flag %q\nUsage: erg update\n", a)
+			return 1
+		}
+	}
+	if len(args) > 0 {
+		fmt.Fprintf(os.Stderr, "update: unexpected argument %q\nUsage: erg update\n", args[0])
+		return 1
+	}
 	self, err := os.Executable()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "update: cannot resolve executable: %v\n", err)

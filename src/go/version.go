@@ -94,7 +94,17 @@ comparison to avoid recursion).
 `
 
 // cmdVersion implements `erg version`. See helpVersion for the user-facing summary.
-func cmdVersion(_ []string) int {
+func cmdVersion(args []string) int {
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			fmt.Fprintf(os.Stderr, "version: unknown flag %q\nUsage: erg version\n", a)
+			return 1
+		}
+	}
+	if len(args) > 0 {
+		fmt.Fprintf(os.Stderr, "version: unexpected argument %q\nUsage: erg version\n", args[0])
+		return 1
+	}
 	self, err := os.Executable()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "version: cannot resolve executable: %v\n", err)
