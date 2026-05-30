@@ -32,7 +32,7 @@ func slugify(title string) string {
 // summaryNew is the one-liner printed by printUsage via the commands registry.
 const summaryNew = "Create a new ticket file atomically"
 
-const helpNew = `## erg new TITLE [DIR]
+const helpNew = `## erg new TITLE [DIR] [--author NAME]
 
 Create a new %erg 0.1 ticket file atomically.
 
@@ -49,21 +49,51 @@ with the next free ID. Up to 20 attempts are made before giving up.
 
 The new file contains the required preamble headers (Title, Created, Author),
 an empty log section with a "created" entry, and an empty body section.
-Author is resolved from the ERG_AUTHOR environment variable, or the git user.name,
-or the system username -- whichever is available first.
+
+  --author NAME, -a NAME
+      Override the Author header with NAME. If not given, author is resolved
+      from the ERG_AUTHOR environment variable, or the git user.name, or the
+      system username -- whichever is available first. NAME may not be empty
+      or whitespace-only. Newlines and carriage returns are stripped.
 
 Prints 'CREATED NNNN-slug.erg' on success. Exits non-zero on exhaustion or I/O errors.
 `
 
-// cmdNew implements `erg new TITLE [DIR]`. See helpNew for the user-facing summary.
+// cmdNew implements `erg new TITLE [DIR] [--author NAME]`. See helpNew for the
+// user-facing summary.
 func cmdNew(args []string) int {
-	if len(args) < 1 || strings.TrimSpace(args[0]) == "" {
-		fmt.Fprintln(os.Stderr, "Usage: erg new TITLE [DIR]")
+	var authorFlag string
+	var authorSet bool
+	var positional []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--author" || a == "-a":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "new: --author requires a value")
+				return 1
+			}
+			i++
+			authorFlag = args[i]
+			authorSet = true
+		case strings.HasPrefix(a, "--author="):
+			authorFlag = strings.TrimPrefix(a, "--author=")
+			authorSet = true
+		case strings.HasPrefix(a, "-"):
+			fmt.Fprintf(os.Stderr, "new: unknown flag %q\nUsage: erg new TITLE [DIR] [--author NAME]\n", a)
+			return 1
+		default:
+			positional = append(positional, a)
+		}
+	}
+
+	if len(positional) < 1 || strings.TrimSpace(positional[0]) == "" {
+		fmt.Fprintln(os.Stderr, "Usage: erg new TITLE [DIR] [--author NAME]")
 		fmt.Fprintln(os.Stderr, "  title: non-empty string (required)")
 		return 1
 	}
 
-	title := args[0]
+	title := positional[0]
 
 	// Rule 14 applies to open + new tickets: refuse to create a ticket whose
 	// Title begins or ends with a status word, otherwise `erg new` would emit
@@ -75,7 +105,7 @@ func cmdNew(args []string) int {
 	}
 
 	var ticketDir string
-	if len(args) >= 2 {
+	if len(positional) >= 2 {
 		// Explicit DIR is an intentional escape hatch, NOT confined.
 		//
 		// The other mutating commands (close/log/label/rm) treat an explicit DIR
@@ -90,7 +120,7 @@ func cmdNew(args []string) int {
 		// explicit DIR -- relative subdir or absolute -- is honoured verbatim. The
 		// unconfined surface needs attacker-controlled CLI args, not a committed
 		// .erg, so the parser-input attack surface is unaffected.
-		ticketDir = filepath.Clean(args[1])
+		ticketDir = filepath.Clean(positional[1])
 	} else {
 		var err error
 		ticketDir, err = findTicketsDir()
@@ -106,7 +136,16 @@ func cmdNew(args []string) int {
 	}
 
 	// author is constant across retries; resolve it once outside the loop.
-	author := resolveAuthor()
+	var author string
+	if authorSet {
+		author = sanitizeAuthor(authorFlag)
+		if strings.TrimSpace(author) == "" {
+			fmt.Fprintln(os.Stderr, "new: --author value cannot be empty or whitespace-only")
+			return 1
+		}
+	} else {
+		author = resolveAuthor()
+	}
 	slug := slugify(title)
 
 	const maxAttempts = 20

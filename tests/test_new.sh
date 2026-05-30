@@ -230,5 +230,65 @@ rmdir "$CDIR" 2>/dev/null || true
 find "$OUTDIR" -type f -delete 2>/dev/null || true
 rmdir "$OUTDIR" 2>/dev/null || true
 
+# --- --author flag: explicit author header ---
+mkdir -p "$TDIR/flagauth"
+RAW_F=$($ERG new "flag author test" "$TDIR/flagauth" --author alice)
+FNAME_F=$(echo "$RAW_F" | sed 's/^CREATED //')
+FILE_F="$TDIR/flagauth/$FNAME_F"
+if grep -q "^Author: alice$" "$FILE_F" && grep -q "alice created" "$FILE_F"; then
+    pass "--author flag: Author header and log line use flag value"
+else
+    fail "--author flag: Author header and log line use flag value"
+fi
+
+# --- -a shorthand ---
+mkdir -p "$TDIR/shortauth"
+RAW_S=$($ERG new "short auth test" "$TDIR/shortauth" -a bob)
+FNAME_S=$(echo "$RAW_S" | sed 's/^CREATED //')
+FILE_S="$TDIR/shortauth/$FNAME_S"
+if grep -q "^Author: bob$" "$FILE_S"; then
+    pass "-a flag: Author header uses flag value"
+else
+    fail "-a flag: Author header uses flag value"
+fi
+
+# --- --author=value form ---
+mkdir -p "$TDIR/eqauth"
+RAW_E=$($ERG new "eq auth test" "$TDIR/eqauth" --author=carol)
+FNAME_E=$(echo "$RAW_E" | sed 's/^CREATED //')
+FILE_E="$TDIR/eqauth/$FNAME_E"
+if grep -q "^Author: carol$" "$FILE_E"; then
+    pass "--author=value form: Author header uses flag value"
+else
+    fail "--author=value form: Author header uses flag value"
+fi
+
+# --- --author overrides ERG_AUTHOR env var ---
+mkdir -p "$TDIR/overrideauth"
+RAW_O=$(ERG_AUTHOR=env-author $ERG new "override auth test" "$TDIR/overrideauth" --author flag-author)
+FNAME_O=$(echo "$RAW_O" | sed 's/^CREATED //')
+FILE_O="$TDIR/overrideauth/$FNAME_O"
+if grep -q "^Author: flag-author$" "$FILE_O"; then
+    pass "--author overrides ERG_AUTHOR env var"
+else
+    fail "--author overrides ERG_AUTHOR env var (expected flag-author, got: $(grep '^Author:' "$FILE_O" 2>/dev/null || echo 'no Author line'))"
+fi
+
+# --- unknown flag exits non-zero and does NOT create a --bogus directory ---
+BOGUS_DIR="$TDIR/bogustest"
+mkdir -p "$BOGUS_DIR"
+# Run from $BOGUS_DIR as cwd; the old bug silently created ./--bogus/ relative to cwd
+out_bogus=$( (cd "$BOGUS_DIR" && $ERG new "bogus test" --bogus) 2>&1) && rc_bogus=0 || rc_bogus=$?
+if [ "$rc_bogus" -ne 0 ]; then
+    pass "unknown flag: exits non-zero"
+else
+    fail "unknown flag: exits non-zero (got rc=0)"
+fi
+if [ ! -d "$BOGUS_DIR/--bogus" ]; then
+    pass "unknown flag: --bogus directory not created"
+else
+    fail "unknown flag: --bogus directory was created"
+fi
+
 echo "new: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
