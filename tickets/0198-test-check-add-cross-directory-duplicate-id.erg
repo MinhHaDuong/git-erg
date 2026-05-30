@@ -1,0 +1,66 @@
+%erg 0.1
+Title: test_check.sh: add cross-directory duplicate ID case
+Created: 2026-05-30
+Author: claude
+
+--- log ---
+2026-05-30T19:30Z claude created
+
+--- body ---
+## Context
+
+The `erg check` duplicate-ID test (test_check.sh) only covers two files in the
+same flat directory. It does not cover the case where one copy is in `tickets/`
+and another in `tickets/closed/` -- the cross-directory duplicate that broke CI
+three times during raids 188-193 and 196:
+
+1. tickets/0181 left open after archive -> CI broken on main (fixed PR #215)
+2. tickets/0188-0193 open copies reintroduced by 0194 close-and-archive commit
+   -> CI broken on t0196 branch (fixed inline)
+3. Same 0188-0193 stale copies appeared again on a second branch
+
+Root cause: `erg check` correctly rejects the cross-directory duplicate, but the
+test suite doesn't prove this, so the regression has no canary.
+
+## Relevant files
+
+- `tests/test_check.sh` -- the check test suite; the existing "duplicate IDs
+  rejected" case (around line 35) only uses a flat fixtures directory
+
+## Actions
+
+1. Add a new test case to `tests/test_check.sh` after the existing duplicate-ID
+   case:
+   - Create `$FIXTURES/xdup/` and `$FIXTURES/xdup/closed/`
+   - Place `0001-one.erg` in both (same ID, different subdirs)
+   - Assert `$ERG check "$FIXTURES/xdup"` exits non-zero
+   - Assert the error output contains "duplicate ID"
+2. Run `make test` to confirm the new test goes green (the code already handles
+   this -- the test is a missing canary, not a bug fix).
+
+## Test
+
+```sh
+mkdir -p "$FIXTURES/xdup/closed"
+cat > "$FIXTURES/xdup/0001-one.erg" <<'EOF'
+%erg 0.1
+Title: One
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+cp "$FIXTURES/xdup/0001-one.erg" "$FIXTURES/xdup/closed/0001-one.erg"
+if $ERG check "$FIXTURES/xdup" 2>&1 | grep -q 'duplicate'; then
+    pass "cross-directory duplicate ID rejected"
+else
+    fail "cross-directory duplicate ID rejected"
+fi
+```
+
+## Exit criteria
+
+- [ ] `test_check.sh` has a test case that passes an open+closed cross-directory
+      duplicate to `erg check` and asserts rejection
+- [ ] `make check-fast` passes with the new test included
