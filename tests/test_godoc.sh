@@ -28,6 +28,16 @@ doc_contains() {
     fi
 }
 
+# Helper: check that `go doc -u . SYMBOL` output does NOT contain PATTERN
+doc_lacks() {
+    sym="$1"; pattern="$2"; label="$3"
+    if (cd "$SRC" && go doc -u . "$sym" 2>/dev/null) | grep -qF "$pattern"; then
+        fail "$label — unexpected '$pattern' in: go doc -u . $sym"
+    else
+        pass "$label"
+    fi
+}
+
 # Per-command help is now defined as `const help<Cmd>` in each command file
 # (the cmd* doc comments are one-liners that reference these consts). The
 # checks below target the consts — the single source of truth for the
@@ -48,6 +58,8 @@ doc_contains helpClose "3. Scan" "helpClose step 3"
 # helpReady: readiness criteria
 doc_contains helpReady "ready when all" "helpReady readiness criteria"
 doc_contains helpReady "blocked_by" "helpReady JSON schema"
+doc_contains helpReady "configured label" "helpReady: cites configured labels (not fixed defaults)"
+doc_lacks helpReady "not needs-human not deferred" "helpReady: no fixed default-only equivalence"
 
 # helpCheck: global invariants
 doc_contains helpCheck "No duplicate ticket IDs" "helpCheck duplicate-ID check"

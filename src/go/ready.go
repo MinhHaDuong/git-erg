@@ -22,9 +22,10 @@ A ticket is ready when all of the following hold:
   - Carries none of the skip labels (default: needs-human, deferred;
     configurable via tickets/.ergrc [labels]).
 
-Equivalent to 'erg list open not blocked not needs-human not deferred', and
-shares its output: a human-readable line per ticket, or --json for a JSON
-array with the fields id, title, file, closed, refs, labels, blocked_by.
+Equivalent to 'erg list open not blocked' with every configured label
+(.ergrc [labels]; default: needs-human, deferred) also negated. Shares
+its output: a human-readable line per ticket, or --json for a JSON array
+with the fields id, title, file, closed, refs, labels, blocked_by.
 
 Each line is annotated with the comma-separated [refs] — git branch short
 names, remote-tracking branch short names (with their <remote>/ prefix),
