@@ -101,9 +101,12 @@ The zero-install path above already works. To add the optional `erg` CLI:
    it. From outside a clone, download it:
 
    ```bash
-   curl -fsSL https://github.com/MinhHaDuong/git-erg/raw/main/tickets/erg \
+   curl -fsSL https://github.com/MinhHaDuong/git-erg/raw/2026-05-30/tickets/erg \
      -o tickets/erg && chmod +x tickets/erg
    ```
+
+   This fetches the latest signed release. When a new release tag is published,
+   replace `2026-05-30` with the new tag name.
 
    On any other platform, clone this repo and `make build` from `src/go/`
    (Go needed for this step only). See **Binary policy** below for why the
@@ -192,7 +195,12 @@ the bits on disk match the running code, not that the code is authentic. For
 authenticity, use `make verify` (rebuild from source, below) or a signed
 release tag.
 
-Signed release tags are available from `2026-05-30` onwards —
+**Release cadence, not CI cadence.** Signed tags cover specific releases
+— not every CI rebuild. The `curl` command above pins to the latest signed
+tag, so the binary you download is always the one the maintainer attested.
+`main` may contain newer CI-rebuilt binaries; verify those with `make verify`
+(rebuild from source) instead of a signed tag.
+
 `git verify-tag <tag>` confirms the published hash came from the maintainer
 (git-native trust). Import the key first:
 
