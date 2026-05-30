@@ -28,13 +28,13 @@ Author: a
 --- body ---
 EOF
 
-# Open, tagged, and blocked by an open local ticket.
+# Open, labeled, and blocked by an open local ticket.
 cat > "$FIXTURES/store/0002-blocked.erg" <<'EOF'
 %erg 0.1
 Title: A blocked ticket
 Created: 2026-01-01
 Author: a
-Tag: needs-human
+Label: needs-human
 Blocked-by: 0001
 
 --- log ---
@@ -84,11 +84,11 @@ else
     fail "list: shows blocked-by ref for blocked ticket (output: $output)"
 fi
 
-# --- Tags rendered ---
-if echo "$output" | grep -q "tags: needs-human"; then
-    pass "list: shows tags"
+# --- Labels rendered ---
+if echo "$output" | grep -q "labels: needs-human"; then
+    pass "list: shows labels"
 else
-    fail "list: shows tags (output: $output)"
+    fail "list: shows labels (output: $output)"
 fi
 
 # --- --all includes closed tickets ---
@@ -120,10 +120,10 @@ if echo "$output" | jq -e 'type == "array"' >/dev/null 2>&1; then
 else
     fail "list --json: emits a JSON array (output: $output)"
 fi
-if echo "$output" | jq -e '[.[] | select(.id == "0002")] | .[0] | .title == "A blocked ticket" and .closed == false and (.tags | index("needs-human")) != null and .blocked_by[0].kind == "local" and .blocked_by[0].id == "0001"' >/dev/null 2>&1; then
-    pass "list --json: entry has id, title, closed, tags, blocked_by"
+if echo "$output" | jq -e '[.[] | select(.id == "0002")] | .[0] | .title == "A blocked ticket" and .closed == false and (.labels | index("needs-human")) != null and .blocked_by[0].kind == "local" and .blocked_by[0].id == "0001"' >/dev/null 2>&1; then
+    pass "list --json: entry has id, title, closed, labels, blocked_by"
 else
-    fail "list --json: entry has id, title, closed, tags, blocked_by (output: $output)"
+    fail "list --json: entry has id, title, closed, labels, blocked_by (output: $output)"
 fi
 if echo "$output" | jq -e 'any(.[]; .closed == true)' >/dev/null 2>&1; then
     fail "list --json: closed tickets excluded by default (output: $output)"
@@ -139,11 +139,11 @@ else
     fail "list --json --all: closed ticket present with closed=true (output: $output)"
 fi
 
-# --- tags is always an array (never null) for untagged tickets ---
-if echo "$output" | jq -e '[.[] | select(.id == "0001")] | .[0].tags == []' >/dev/null 2>&1; then
-    pass "list --json: untagged ticket has tags == []"
+# --- labels is always an array (never null) for unlabeled tickets ---
+if echo "$output" | jq -e '[.[] | select(.id == "0001")] | .[0].labels == []' >/dev/null 2>&1; then
+    pass "list --json: unlabeled ticket has labels == []"
 else
-    fail "list --json: untagged ticket has tags == [] (output: $output)"
+    fail "list --json: unlabeled ticket has labels == [] (output: $output)"
 fi
 
 # --- `ls` is an alias for `list` ---
@@ -175,23 +175,23 @@ EOF
 # IDs are matched anchored to the line-start column (^  NNNN) so a ticket's
 # "(blocked-by: NNNN)" suffix never counts as a hit for ticket NNNN.
 
-# --- Positive tag filter: only tickets carrying the tag ---
+# --- Positive label filter: only tickets carrying the label ---
 output=$($ERG list needs-human "$FIXTURES/store")
 if echo "$output" | grep -qE '^  0002' && ! echo "$output" | grep -qE '^  0001'; then
-    pass "list TAG: keeps only tagged tickets"
+    pass "list LABEL: keeps only labeled tickets"
 else
-    fail "list TAG: keeps only tagged tickets (output: $output)"
+    fail "list LABEL: keeps only labeled tickets (output: $output)"
 fi
 
-# --- Negative tag filter: drops tickets carrying the tag ---
+# --- Negative label filter: drops tickets carrying the label ---
 output=$($ERG list not needs-human "$FIXTURES/store")
 if echo "$output" | grep -qE '^  0001' && ! echo "$output" | grep -qE '^  0002'; then
-    pass "list not TAG: drops tagged tickets"
+    pass "list not LABEL: drops labeled tickets"
 else
-    fail "list not TAG: drops tagged tickets (output: $output)"
+    fail "list not LABEL: drops labeled tickets (output: $output)"
 fi
 
-# --- blocked pseudo-tag: local open blocker and forge ref both count ---
+# --- blocked pseudo-label: local open blocker and forge ref both count ---
 output=$($ERG list blocked "$FIXTURES/store")
 if echo "$output" | grep -qE '^  0002' && echo "$output" | grep -qE '^  0005' && ! echo "$output" | grep -qE '^  0001'; then
     pass "list blocked: local + forge blockers included, unblocked excluded"
@@ -207,7 +207,7 @@ else
     fail "list not blocked: drops blocked tickets (output: $output)"
 fi
 
-# --- closed pseudo-tag overrides the implicit open default ---
+# --- closed pseudo-label overrides the implicit open default ---
 output=$($ERG list closed "$FIXTURES/store")
 if echo "$output" | grep -qE '^  0003' && echo "$output" | grep -qE '^  0004' && ! echo "$output" | grep -qE '^  0001'; then
     pass "list closed: shows closed tickets only"
@@ -231,7 +231,7 @@ else
     fail "list open not blocked: conjunction filters correctly (output: $output)"
 fi
 
-# --- trailing 'not' with no tag is an error ---
+# --- trailing 'not' with no label is an error ---
 if $ERG list "$FIXTURES/store" not >/dev/null 2>&1; then
     fail "list: dangling 'not' should error"
 else

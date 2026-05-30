@@ -32,8 +32,8 @@
 //
 // The corpus is deliberately non-trivial — a realistic acyclic DAG (multiple
 // Blocked-by edges per ticket, fan-in), a closed/ subdirectory (recursive walk
-// + folder-closure path), tags from the default vocabulary, and varied bodies —
-// so the scan, ref-resolution, cycle-detection, and tag-vocabulary paths are all
+// + folder-closure path), labels from the default vocabulary, and varied bodies —
+// so the scan, ref-resolution, cycle-detection, and label-vocabulary paths are all
 // exercised, not just a flat parse loop.
 
 package main
@@ -100,7 +100,7 @@ func buildCorpus(t *testing.T, dir string, n int) {
 			fmt.Fprintf(&b, "Blocked-by: %04d\n", dep)
 		}
 		if i%5 == 0 {
-			b.WriteString("Tag: needs-human\n")
+			b.WriteString("Label: needs-human\n")
 		}
 		b.WriteString("\n--- log ---\n")
 		b.WriteString("2026-01-01T00:00Z bench created\n")

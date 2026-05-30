@@ -198,7 +198,7 @@ func isDirArg(arg string) bool {
 	return err == nil && info.IsDir()
 }
 
-// cmdList implements `erg list [dir] [tag...] [not tag...] [--all] [--json]`.
+// cmdList implements `erg list [dir] [label...] [not label...] [--all] [--json]`.
 func cmdList(args []string) int {
 	useJSON := false
 	includeAll := false
@@ -234,7 +234,7 @@ func cmdList(args []string) int {
 		}
 	}
 	if negateNext {
-		fmt.Fprintln(os.Stderr, "list: 'not' must be followed by a tag name")
+		fmt.Fprintln(os.Stderr, "list: 'not' must be followed by a label name")
 		return 1
 	}
 

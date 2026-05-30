@@ -47,13 +47,24 @@ func TestMigrateFile(t *testing.T) {
 			},
 		},
 		{
-			name:        "Tags renamed to Tag preserving value",
-			input:       "%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\nTags: needs-human\n\n--- log ---\n--- body ---\n",
-			wantContent: "%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\nTag: needs-human\n\n--- log ---\n--- body ---\n",
+			name:        "Tag renamed to Label preserving value",
+			input:       "%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\nTag: needs-human\n\n--- log ---\n--- body ---\n",
+			wantContent: "%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\nLabel: needs-human\n\n--- log ---\n--- body ---\n",
 			wantChanged: true,
 			check: func(t *testing.T, r migrateResult) {
-				if !r.tagsRenamed {
-					t.Error("tagsRenamed = false, want true")
+				if !r.labelsRewritten {
+					t.Error("labelsRewritten = false, want true")
+				}
+			},
+		},
+		{
+			name:        "legacy Tags converges to Label in one run",
+			input:       "%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\nTags: needs-human\n\n--- log ---\n--- body ---\n",
+			wantContent: "%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\nLabel: needs-human\n\n--- log ---\n--- body ---\n",
+			wantChanged: true,
+			check: func(t *testing.T, r migrateResult) {
+				if !r.labelsRewritten {
+					t.Error("labelsRewritten = false, want true")
 				}
 			},
 		},
@@ -74,7 +85,7 @@ func TestMigrateFile(t *testing.T) {
 			wantContent: "%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n",
 			wantChanged: false,
 			check: func(t *testing.T, r migrateResult) {
-				if r.statusStripped || r.tagsRenamed || r.magicRewritten || r.blanksSwept {
+				if r.statusStripped || r.labelsRewritten || r.magicRewritten || r.blanksSwept {
 					t.Errorf("expected no transforms on clean file, got %+v", r)
 				}
 			},
@@ -111,6 +122,34 @@ func TestMigrateFile(t *testing.T) {
 			tt.check(t, res)
 		})
 	}
+}
+
+func TestMigrateErgrc(t *testing.T) {
+	t.Run("rewrites [tags] to [labels]", func(t *testing.T) {
+		dir := t.TempDir()
+		path := dir + "/.ergrc"
+		if err := os.WriteFile(path, []byte("[tags]\nneeds-human\ndeferred\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if !migrateErgrc(dir) {
+			t.Fatal("migrateErgrc = false, want true (file changed)")
+		}
+		got, _ := os.ReadFile(path)
+		want := "[labels]\nneeds-human\ndeferred\n"
+		if string(got) != want {
+			t.Errorf("got %q, want %q", string(got), want)
+		}
+		// Idempotent: a second run is a no-op.
+		if migrateErgrc(dir) {
+			t.Error("second migrateErgrc should be a no-op")
+		}
+	})
+
+	t.Run("absent .ergrc is a no-op", func(t *testing.T) {
+		if migrateErgrc(t.TempDir()) {
+			t.Error("migrateErgrc on dir without .ergrc should return false")
+		}
+	})
 }
 
 func TestMigrateFileIdempotent(t *testing.T) {

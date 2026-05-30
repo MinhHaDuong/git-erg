@@ -363,7 +363,7 @@ cat > "$FIXTURES/err2/0001-bad-date2.erg" <<'EOF'
 Title: Bad date
 Created: not-a-date
 Author: a
-Tag: bogus-tag
+Label: bogus-label
 
 --- log ---
 --- body ---
@@ -580,7 +580,7 @@ Title: Interior blank
 Created: 2026-01-01
 Author: a
 
-Tag: needs-human
+Label: needs-human
 
 --- log ---
 --- body ---

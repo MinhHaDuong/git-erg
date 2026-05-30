@@ -172,13 +172,13 @@ else
 fi
 rm -rf "$CLEANDIR"
 
-# --- Tags: → Tag: rewrite (preamble-bounded, value preserved) ---
-cat > "$FIXTURES/0010-tags-legacy.erg" <<'EOF'
+# --- Tag: / legacy Tags: → Label: rewrite (preamble-bounded, value preserved) ---
+cat > "$FIXTURES/0010-labels-legacy.erg" <<'EOF'
 %erg v1
-Title: Legacy Tags
+Title: Legacy labels
 Created: 2026-01-01
 Author: claude
-Tags: needs-human
+Tag: needs-human
 Tags: deferred
 
 --- log ---
@@ -188,56 +188,79 @@ Tags: deferred
 Body code block referencing Tags: should stay literal.
 EOF
 out=$($ERG migrate "$FIXTURES" 2>&1)
-if grep -q "^Tags:" "$FIXTURES/0010-tags-legacy.erg"; then
-    fail "Tags: legacy → preamble rewritten"
+if grep -qE "^Tags?:" "$FIXTURES/0010-labels-legacy.erg"; then
+    fail "Tag:/Tags: legacy → preamble rewritten"
 else
-    pass "Tags: legacy → preamble rewritten"
+    pass "Tag:/Tags: legacy → preamble rewritten"
 fi
-if grep -q "^Tag: needs-human$" "$FIXTURES/0010-tags-legacy.erg" \
-    && grep -q "^Tag: deferred$" "$FIXTURES/0010-tags-legacy.erg"; then
-    pass "Tags: → Tag: values preserved (round-trip)"
+# Both Tag: and legacy Tags: converge to Label: in one run.
+if grep -q "^Label: needs-human$" "$FIXTURES/0010-labels-legacy.erg" \
+    && grep -q "^Label: deferred$" "$FIXTURES/0010-labels-legacy.erg"; then
+    pass "Tag:/Tags: → Label: values preserved (round-trip)"
 else
-    fail "Tags: → Tag: values preserved (round-trip)"
+    fail "Tag:/Tags: → Label: values preserved (round-trip)"
 fi
 # Body code block must NOT be rewritten — the literal "Tags:" stays.
-if grep -q "Body code block referencing Tags: should stay literal." "$FIXTURES/0010-tags-legacy.erg"; then
+if grep -q "Body code block referencing Tags: should stay literal." "$FIXTURES/0010-labels-legacy.erg"; then
     pass "Tags: in body code block preserved verbatim"
 else
     fail "Tags: in body code block preserved verbatim"
 fi
-if echo "$out" | grep -qE "Tags: → Tag: rewrite: [1-9]"; then
-    pass "summary reports Tags→Tag rewrite count"
+if echo "$out" | grep -qE "Tag: → Label: rewrite: [1-9]"; then
+    pass "summary reports Tag→Label rewrite count"
 else
-    fail "summary reports Tags→Tag rewrite count (got: $out)"
+    fail "summary reports Tag→Label rewrite count (got: $out)"
 fi
 
-# --- Tags: → Tag: rewrite is idempotent ---
-cp "$FIXTURES/0010-tags-legacy.erg" "$FIXTURES/snapshot-0010"
+# --- Tag: → Label: rewrite is idempotent ---
+cp "$FIXTURES/0010-labels-legacy.erg" "$FIXTURES/snapshot-0010"
 $ERG migrate "$FIXTURES" >/dev/null
-if cmp -s "$FIXTURES/0010-tags-legacy.erg" "$FIXTURES/snapshot-0010"; then
-    pass "Tags→Tag rewrite is idempotent"
+if cmp -s "$FIXTURES/0010-labels-legacy.erg" "$FIXTURES/snapshot-0010"; then
+    pass "Tag→Label rewrite is idempotent"
 else
-    fail "Tags→Tag rewrite is idempotent"
+    fail "Tag→Label rewrite is idempotent"
 fi
 rm -f "$FIXTURES/snapshot-0010"
 
-# --- erg validate rejects legacy Tags: lines with migration hint ---
-cat > "$FIXTURES/0011-still-tags.erg" <<'EOF'
+# --- .ergrc [tags] → [labels] rewrite (text-level, idempotent) ---
+printf '[tags]\nneeds-human\ndeferred\n' > "$FIXTURES/.ergrc"
+out=$($ERG migrate "$FIXTURES" 2>&1)
+if grep -q "^\[labels\]$" "$FIXTURES/.ergrc" && ! grep -q "^\[tags\]$" "$FIXTURES/.ergrc"; then
+    pass ".ergrc [tags] → [labels] rewritten"
+else
+    fail ".ergrc [tags] → [labels] rewritten"
+fi
+if echo "$out" | grep -q ".ergrc \[tags\] → \[labels\] rewrite: 1 file"; then
+    pass "summary reports .ergrc rewrite"
+else
+    fail "summary reports .ergrc rewrite (got: $out)"
+fi
+# Idempotent: a second run leaves [labels] untouched and reports nothing.
+out=$($ERG migrate "$FIXTURES" 2>&1)
+if echo "$out" | grep -q ".ergrc \[tags\]"; then
+    fail ".ergrc rewrite idempotent (re-reported on clean file)"
+else
+    pass ".ergrc rewrite idempotent (re-reported on clean file)"
+fi
+rm -f "$FIXTURES/.ergrc"
+
+# --- erg validate rejects legacy Tag:/Tags: lines with migration hint ---
+cat > "$FIXTURES/0011-still-tag.erg" <<'EOF'
 %erg v1
-Title: Still has Tags
+Title: Still has Tag
 Created: 2026-01-01
 Author: claude
-Tags: needs-human
+Tag: needs-human
 
 --- log ---
 2026-01-01T10:00Z claude created
 --- body ---
 EOF
-out=$($ERG validate "$FIXTURES/0011-still-tags.erg" 2>&1 || true)
-if echo "$out" | grep -q "renamed to 'Tag:'"; then
-    pass "validate rejects legacy Tags: with migration hint"
+out=$($ERG validate "$FIXTURES/0011-still-tag.erg" 2>&1 || true)
+if echo "$out" | grep -q "renamed to 'Label:'"; then
+    pass "validate rejects legacy Tag: with migration hint"
 else
-    fail "validate rejects legacy Tags: with migration hint (got: $out)"
+    fail "validate rejects legacy Tag: with migration hint (got: $out)"
 fi
 
 # --- erg validate rejects Status: lines (migrate is the only tolerant cmd) ---
@@ -261,14 +284,15 @@ fi
 # --- Interior header blank: swept across the corpus, reported, idempotent ---
 printf '%%erg 0.1\nTitle: Interior blank\nCreated: 2026-01-01\nAuthor: claude\n\nTag: needs-human\nBlocked-by: 0001\n\n--- log ---\n2026-01-01T10:00Z claude created\n\n--- body ---\nBody.\n' > "$FIXTURES/0020-interior-blank.erg"
 out=$($ERG migrate "$FIXTURES" 2>&1)
-# The blank between Author: and Tag: must be gone; the terminating blank
-# before --- log --- must survive (Tag/Blocked-by now sit in the header block).
+# The blank between Author: and the Label header must be gone; the terminating
+# blank before --- log --- must survive (Label/Blocked-by now sit in the header
+# block). The Tag: line is also rewritten to Label: in the same pass.
 if awk '/^Author: claude$/{getline n; if(n==""){found=1}} END{exit !found}' "$FIXTURES/0020-interior-blank.erg"; then
     fail "migrate sweep: interior header blank removed"
 else
     pass "migrate sweep: interior header blank removed"
 fi
-if grep -q "^Tag: needs-human$" "$FIXTURES/0020-interior-blank.erg" \
+if grep -q "^Label: needs-human$" "$FIXTURES/0020-interior-blank.erg" \
     && grep -q "^Blocked-by: 0001$" "$FIXTURES/0020-interior-blank.erg"; then
     pass "migrate sweep: headers below the blank preserved"
 else

@@ -3,7 +3,7 @@ package main
 import "testing"
 
 func TestListEntryHas(t *testing.T) {
-	e := listEntry{closed: false, blocked: true, tags: []string{"needs-human", "deferred"}}
+	e := listEntry{closed: false, blocked: true, labels: []string{"needs-human", "deferred"}}
 	tests := []struct {
 		term string
 		want bool
@@ -31,7 +31,7 @@ func TestListEntryHas(t *testing.T) {
 }
 
 func TestFilterMatches(t *testing.T) {
-	e := listEntry{closed: false, blocked: true, tags: []string{"needs-human"}}
+	e := listEntry{closed: false, blocked: true, labels: []string{"needs-human"}}
 	tests := []struct {
 		name     string
 		positive []string
@@ -120,8 +120,8 @@ func TestIsDirArg(t *testing.T) {
 func TestLoadListEntries(t *testing.T) {
 	dir := t.TempDir()
 
-	// 0001: open, tagged, no blockers.
-	writeErg(t, dir, "0001-alpha.erg", "%erg 0.1\nTitle: Alpha\nCreated: 2024-01-01\nAuthor: test\nTag: needs-human\n\n--- log ---\n--- body ---\n")
+	// 0001: open, labeled, no blockers.
+	writeErg(t, dir, "0001-alpha.erg", "%erg 0.1\nTitle: Alpha\nCreated: 2024-01-01\nAuthor: test\nLabel: needs-human\n\n--- log ---\n--- body ---\n")
 	// 0002: closed, blocks others when referenced.
 	writeErg(t, dir, "0002-beta.erg", "%erg 0.1\nTitle: Beta\nCreated: 2024-01-02\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n")
 	// 0003: blocked by a forge ref (offline-unknown → always blocking).
@@ -147,8 +147,8 @@ func TestLoadListEntries(t *testing.T) {
 		byID[e.id] = e
 	}
 
-	if got := byID["0001"]; got.closed || got.blocked || len(got.tags) != 1 || got.tags[0] != "needs-human" {
-		t.Errorf("0001: closed=%v blocked=%v tags=%v, want open/unblocked/[needs-human]", got.closed, got.blocked, got.tags)
+	if got := byID["0001"]; got.closed || got.blocked || len(got.labels) != 1 || got.labels[0] != "needs-human" {
+		t.Errorf("0001: closed=%v blocked=%v labels=%v, want open/unblocked/[needs-human]", got.closed, got.blocked, got.labels)
 	}
 	if !byID["0002"].closed {
 		t.Error("0002 should be closed")

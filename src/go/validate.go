@@ -200,7 +200,7 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
   2. All required headers present AND non-empty: Title, Created, Author.
   3. No unknown headers (Status: is unknown; run 'erg migrate' to convert it).
   4. Non-repeatable headers (Title, Created, Author, Closed) appear at most once.
-  5. Tag: values are from the vocabulary (default: needs-human, deferred; see tickets/.ergrc [tags]).
+  5. Label: values are from the vocabulary (default: needs-human, deferred; see tickets/.ergrc [labels]).
   6. Closed: header has a non-empty value and does not appear in the log or body sections.
   7. Created is a valid ISO date (YYYY-MM-DD).
   8. Filename matches NNNN-slug.erg (4-digit ID, lowercase ASCII kebab slug).

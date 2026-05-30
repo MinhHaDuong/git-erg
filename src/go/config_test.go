@@ -9,7 +9,7 @@ import (
 
 func TestTDDAnchor_PostTalkRejectedWithoutErgrc(t *testing.T) {
 	dir := t.TempDir()
-	content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: post-talk\n\n--- log ---\n--- body ---\n"
+	content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nLabel: post-talk\n\n--- log ---\n--- body ---\n"
 	writeErg(t, dir, "0001-test.erg", content)
 
 	tickets, parseErrs := loadErgs(dir)
@@ -19,18 +19,18 @@ func TestTDDAnchor_PostTalkRejectedWithoutErgrc(t *testing.T) {
 	}
 	errs := validateCorpus(tickets, parseErrs, cfg)
 
-	if !errsContain(errs, "unknown Tag value") {
-		t.Errorf("expected 'unknown Tag value' error for post-talk with no .ergrc, got: %v", errs)
+	if !errsContain(errs, "unknown Label value") {
+		t.Errorf("expected 'unknown Label value' error for post-talk with no .ergrc, got: %v", errs)
 	}
 }
 
 func TestConfig_CustomErgrc(t *testing.T) {
 	dir := t.TempDir()
-	ergrc := "[tags]\nmy-tag\n"
+	ergrc := "[labels]\nmy-label\n"
 	if err := os.WriteFile(filepath.Join(dir, ".ergrc"), []byte(ergrc), 0644); err != nil {
 		t.Fatal(err)
 	}
-	content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: my-tag\n\n--- log ---\n--- body ---\n"
+	content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nLabel: my-label\n\n--- log ---\n--- body ---\n"
 	writeErg(t, dir, "0001-test.erg", content)
 
 	tickets, parseErrs := loadErgs(dir)
@@ -46,7 +46,7 @@ func TestConfig_CustomErgrc(t *testing.T) {
 
 func TestConfig_MissingErgrcFallback(t *testing.T) {
 	dir := t.TempDir()
-	content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: needs-human\n\n--- log ---\n--- body ---\n"
+	content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nLabel: needs-human\n\n--- log ---\n--- body ---\n"
 	writeErg(t, dir, "0001-test.erg", content)
 
 	tickets, parseErrs := loadErgs(dir)
@@ -56,17 +56,17 @@ func TestConfig_MissingErgrcFallback(t *testing.T) {
 	}
 	errs := validateCorpus(tickets, parseErrs, cfg)
 	if len(errs) > 0 {
-		t.Errorf("expected no errors with default tags, got: %v", errs)
+		t.Errorf("expected no errors with default labels, got: %v", errs)
 	}
 }
 
-func TestConfig_EmptyTagsSection(t *testing.T) {
+func TestConfig_EmptyLabelsSection(t *testing.T) {
 	dir := t.TempDir()
-	ergrc := "[tags]\n"
+	ergrc := "[labels]\n"
 	if err := os.WriteFile(filepath.Join(dir, ".ergrc"), []byte(ergrc), 0644); err != nil {
 		t.Fatal(err)
 	}
-	content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: needs-human\n\n--- log ---\n--- body ---\n"
+	content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nLabel: needs-human\n\n--- log ---\n--- body ---\n"
 	writeErg(t, dir, "0001-test.erg", content)
 
 	tickets, parseErrs := loadErgs(dir)
@@ -75,18 +75,18 @@ func TestConfig_EmptyTagsSection(t *testing.T) {
 		t.Fatalf("loadConfig: %v", err)
 	}
 	errs := validateCorpus(tickets, parseErrs, cfg)
-	if !errsContain(errs, "unknown Tag value") {
-		t.Errorf("expected 'unknown Tag value' error with empty [tags], got: %v", errs)
+	if !errsContain(errs, "unknown Label value") {
+		t.Errorf("expected 'unknown Label value' error with empty [labels], got: %v", errs)
 	}
 }
 
-func TestConfig_TagsAbsentUpdatePresent(t *testing.T) {
+func TestConfig_LabelsAbsentUpdatePresent(t *testing.T) {
 	dir := t.TempDir()
 	ergrc := "[update]\nurl = https://example.com/erg\n"
 	if err := os.WriteFile(filepath.Join(dir, ".ergrc"), []byte(ergrc), 0644); err != nil {
 		t.Fatal(err)
 	}
-	content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: needs-human\n\n--- log ---\n--- body ---\n"
+	content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nLabel: needs-human\n\n--- log ---\n--- body ---\n"
 	writeErg(t, dir, "0001-test.erg", content)
 
 	tickets, parseErrs := loadErgs(dir)
@@ -96,7 +96,7 @@ func TestConfig_TagsAbsentUpdatePresent(t *testing.T) {
 	}
 	errs := validateCorpus(tickets, parseErrs, cfg)
 	if len(errs) > 0 {
-		t.Errorf("expected no errors (tags fallback to defaults), got: %v", errs)
+		t.Errorf("expected no errors (labels fallback to defaults), got: %v", errs)
 	}
 	if cfg.UpdateURL != "https://example.com/erg" {
 		t.Errorf("expected UpdateURL from config, got: %q", cfg.UpdateURL)
@@ -105,7 +105,7 @@ func TestConfig_TagsAbsentUpdatePresent(t *testing.T) {
 
 func TestConfig_CommentsAndBlankLines(t *testing.T) {
 	dir := t.TempDir()
-	ergrc := "# comment\n\n[tags]\n# another comment\nneeds-human\n\ndeferred\n"
+	ergrc := "# comment\n\n[labels]\n# another comment\nneeds-human\n\ndeferred\n"
 	if err := os.WriteFile(filepath.Join(dir, ".ergrc"), []byte(ergrc), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -117,11 +117,11 @@ func TestConfig_CommentsAndBlankLines(t *testing.T) {
 	if cfg == nil {
 		t.Fatal("expected non-nil config")
 	}
-	if !cfg.TagsSection {
-		t.Error("expected TagsSection to be true")
+	if !cfg.LabelsSection {
+		t.Error("expected LabelsSection to be true")
 	}
-	if len(cfg.Tags) != 2 {
-		t.Errorf("expected 2 tags, got %d: %v", len(cfg.Tags), cfg.Tags)
+	if len(cfg.Labels) != 2 {
+		t.Errorf("expected 2 labels, got %d: %v", len(cfg.Labels), cfg.Labels)
 	}
 }
 
@@ -136,32 +136,32 @@ func TestLoadConfig_NoFile(t *testing.T) {
 	}
 }
 
-func TestEffectiveTagSet_WithConfig(t *testing.T) {
-	cfg := &Config{TagsSection: true, Tags: []string{"alpha", "beta"}}
-	tags := effectiveTagSet(cfg)
-	if !tags["alpha"] || !tags["beta"] {
-		t.Errorf("expected alpha and beta in tag set, got: %v", tags)
+func TestEffectiveLabelSet_WithConfig(t *testing.T) {
+	cfg := &Config{LabelsSection: true, Labels: []string{"alpha", "beta"}}
+	labels := effectiveLabelSet(cfg)
+	if !labels["alpha"] || !labels["beta"] {
+		t.Errorf("expected alpha and beta in label set, got: %v", labels)
 	}
-	if tags["needs-human"] {
-		t.Error("should not contain default tags when config has [tags]")
+	if labels["needs-human"] {
+		t.Error("should not contain default labels when config has [labels]")
 	}
 }
 
-func TestEffectiveTagSet_NilConfig(t *testing.T) {
-	tags := effectiveTagSet(nil)
-	if !tags["needs-human"] || !tags["deferred"] {
-		t.Errorf("expected default tags, got: %v", tags)
+func TestEffectiveLabelSet_NilConfig(t *testing.T) {
+	labels := effectiveLabelSet(nil)
+	if !labels["needs-human"] || !labels["deferred"] {
+		t.Errorf("expected default labels, got: %v", labels)
 	}
-	if tags["post-talk"] || tags["post-conference"] {
+	if labels["post-talk"] || labels["post-conference"] {
 		t.Error("defaults should not include post-talk or post-conference")
 	}
 }
 
-func TestEffectiveTagSet_EmptyTags(t *testing.T) {
-	cfg := &Config{TagsSection: true, Tags: []string{}}
-	tags := effectiveTagSet(cfg)
-	if len(tags) != 0 {
-		t.Errorf("expected empty tag set, got: %v", tags)
+func TestEffectiveLabelSet_EmptyLabels(t *testing.T) {
+	cfg := &Config{LabelsSection: true, Labels: []string{}}
+	labels := effectiveLabelSet(cfg)
+	if len(labels) != 0 {
+		t.Errorf("expected empty label set, got: %v", labels)
 	}
 }
 
@@ -181,9 +181,9 @@ func TestConfig_Precedence_UpdateURL(t *testing.T) {
 	}
 }
 
-func TestLoadConfig_MinimalTagsSection(t *testing.T) {
+func TestLoadConfig_MinimalLabelsSection(t *testing.T) {
 	dir := t.TempDir()
-	content := strings.Repeat("[tags]\n", 1)
+	content := strings.Repeat("[labels]\n", 1)
 	if err := os.WriteFile(filepath.Join(dir, ".ergrc"), []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -194,8 +194,8 @@ func TestLoadConfig_MinimalTagsSection(t *testing.T) {
 	if cfg == nil {
 		t.Fatal("expected non-nil config")
 	}
-	if !cfg.TagsSection {
-		t.Error("expected TagsSection true")
+	if !cfg.LabelsSection {
+		t.Error("expected LabelsSection true")
 	}
 }
 

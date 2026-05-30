@@ -85,8 +85,9 @@ doc_contains helpUpdate "migration" "helpUpdate migration hint"
 # Format constant doc comments. RequiredHeaders/SingletonHeaders/
 # ValidHeaders were removed in ticket 0116; ticket 0117 then merged
 # parser and validator into one pass. Ticket 0126 replaced validTagValues
-# with defaultTags in config.go (configurable via .ergrc).
-doc_contains defaultTags "needs-human" "defaultTags doc comment"
+# with defaultTags in config.go (configurable via .ergrc); ticket 0175
+# renamed it to defaultLabels (Tag → Label).
+doc_contains defaultLabels "needs-human" "defaultLabels doc comment"
 doc_contains logLineRE "YYYY-MM-DDThh:mmZ" "logLineRE doc comment"
 
 echo ""

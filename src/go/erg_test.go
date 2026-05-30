@@ -157,14 +157,14 @@ func TestParseErg(t *testing.T) {
 		}
 	})
 
-	t.Run("empty Tag value skipped", func(t *testing.T) {
-		// Item 5: empty Tag: values are silently skipped by the parser —
-		// parseHeaderLine trims, and the parser skips empty val for Tag.
-		content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nTag: \n\n--- log ---\n--- body ---\n"
+	t.Run("empty Label value skipped", func(t *testing.T) {
+		// Item 5: empty Label: values are silently skipped by the parser —
+		// parseHeaderLine trims, and the parser skips empty val for Label.
+		content := "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nLabel: \n\n--- log ---\n--- body ---\n"
 		path := writeErg(t, t.TempDir(), "0001-test.erg", content)
 		erg, _ := parseErg(path)
-		if len(erg.Tags) != 0 {
-			t.Errorf("Tags = %v (len=%d), want empty slice (empty Tag: value skipped)", erg.Tags, len(erg.Tags))
+		if len(erg.Labels) != 0 {
+			t.Errorf("Labels = %v (len=%d), want empty slice (empty Label: value skipped)", erg.Labels, len(erg.Labels))
 		}
 	})
 
@@ -697,15 +697,15 @@ func TestEncodingWarnings(t *testing.T) {
 
 // TestParse_BlankLineInsideHeaderBlock pins the read-tolerance tier from
 // ticket 0141: a stray blank line inside the header block must not discard
-// the headers below it. Before the fix both Tag and Blocked-by landed in the
+// the headers below it. Before the fix both Label and Blocked-by landed in the
 // silently-dropped gap, so the ticket validated clean and masked real errors.
 func TestParse_BlankLineInsideHeaderBlock(t *testing.T) {
 	src := "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\n\n" +
-		"Tag: needs-human\nBlocked-by: 0002\n\n" +
+		"Label: needs-human\nBlocked-by: 0002\n\n" +
 		"--- log ---\n2026-05-27T10:00Z a created\n\n--- body ---\n"
 	e, _ := parseErgBytes([]byte(src), "0001-x.erg")
-	if len(e.Tags) != 1 || e.Tags[0] != "needs-human" {
-		t.Fatalf("Tag after interior blank was dropped: %v", e.Tags)
+	if len(e.Labels) != 1 || e.Labels[0] != "needs-human" {
+		t.Fatalf("Label after interior blank was dropped: %v", e.Labels)
 	}
 	if len(e.BlockedBys) != 1 {
 		t.Fatalf("Blocked-by after interior blank was dropped: %v", e.BlockedBys)
@@ -745,7 +745,7 @@ func TestHasInteriorHeaderBlank(t *testing.T) {
 	}{
 		{
 			name: "interior blank between header clusters",
-			src:  "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\n\nTag: needs-human\n--- log ---\n--- body ---\n",
+			src:  "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\n\nLabel: needs-human\n--- log ---\n--- body ---\n",
 			want: true,
 		},
 		{
@@ -785,8 +785,8 @@ func TestHasInteriorHeaderBlank(t *testing.T) {
 
 func TestCollapseHeaderBlanks(t *testing.T) {
 	t.Run("removes interior blank keeps terminating blank", func(t *testing.T) {
-		src := "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\n\nTag: needs-human\nBlocked-by: 0002\n\n--- log ---\n2026-05-27T10:00Z a created\n--- body ---\nbody\n"
-		want := "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\nTag: needs-human\nBlocked-by: 0002\n\n--- log ---\n2026-05-27T10:00Z a created\n--- body ---\nbody\n"
+		src := "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\n\nLabel: needs-human\nBlocked-by: 0002\n\n--- log ---\n2026-05-27T10:00Z a created\n--- body ---\nbody\n"
+		want := "%erg 0.1\nTitle: t\nCreated: 2026-05-27\nAuthor: a\nLabel: needs-human\nBlocked-by: 0002\n\n--- log ---\n2026-05-27T10:00Z a created\n--- body ---\nbody\n"
 		got := string(collapseHeaderBlanks([]byte(src)))
 		if got != want {
 			t.Errorf("collapseHeaderBlanks\n got: %q\nwant: %q", got, want)
