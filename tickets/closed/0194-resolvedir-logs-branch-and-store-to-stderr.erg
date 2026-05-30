@@ -2,11 +2,13 @@
 Title: resolveDir logs branch and store path to stderr
 Created: 2026-05-30
 Author: MinhHaDuong
+Closed: autoclosed — PR #214
 
 --- log ---
 2026-05-30T19:00Z MinhHaDuong created
 
 2026-05-30T18:11Z claude planned: gitBranch in refs.go, displayPath+emit in resolveDir in main.go, captureStderr tests in resolve_test.go; new/next-id do not use resolveDir — excluded per exit criteria
+2026-05-30T18:54Z MinhHaDuong closed — autoclosed — PR #214
 --- body ---
 ## Context
 

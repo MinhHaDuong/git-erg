@@ -1,0 +1,31 @@
+%erg 0.1
+Title: erg version: suggest curl not make install-erg-binary for outdated system binary
+Created: 2026-05-30
+Author: MinhHaDuong
+
+--- log ---
+2026-05-30T17:55Z MinhHaDuong created
+
+--- body ---
+## Source
+Path A UX dry-run (0152), severity: **Low**
+
+## Context
+When `erg version` detects an outdated system-global binary at
+`~/.local/bin/erg`, it outputs:
+```
+[outdated: run: make install-erg-binary]
+```
+`make install-erg-binary` requires the git-erg source repo. A regular user who
+installed via the curl command does not have the source repo and cannot run make.
+
+## Fix
+When suggesting how to update a stale global binary, offer the curl command
+(same as the README install step) instead of or in addition to the make target:
+```
+[outdated: update with: curl -fsSL <URL> -o ~/.local/bin/erg && chmod +x ~/.local/bin/erg]
+```
+Or simply: "re-run the curl install command from the README."
+
+## Exit criteria
+- [ ] `erg version` outdated message suggests a fix reachable by a non-contributor user

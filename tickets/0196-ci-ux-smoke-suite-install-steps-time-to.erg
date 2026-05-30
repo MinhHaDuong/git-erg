@@ -1,0 +1,42 @@
+%erg 0.1
+Title: CI: UX smoke suite — install steps, time-to-first-ticket, help-completeness
+Created: 2026-05-30
+Author: MinhHaDuong
+
+--- log ---
+2026-05-30T18:48Z MinhHaDuong created
+
+--- body ---
+## Context
+Exit criterion from ticket 0152 (UX audit). The AI persona dry-runs cover
+judgment; CI covers the mechanical falsifiable subset that must not regress.
+
+## Three checks to wire
+
+**1. Install steps execute on a clean image**
+On every push, a CI job runs the README install sequence verbatim on a fresh
+Linux x86-64 image (no pre-installed erg, no tickets/ dir):
+```bash
+mkdir tickets
+curl -fsSL <release-url> -o tickets/erg && chmod +x tickets/erg
+tickets/erg init
+tickets/erg new "smoke test ticket"
+tickets/erg validate tickets/0001-smoke-test-ticket.erg
+```
+Fails if any step errors or the binary is unreachable.
+
+**2. Time-to-first-ticket budget**
+The install sequence above is timed. Fail if wall-clock exceeds budget
+(suggested: 60 seconds excluding network). Catches regressions where init
+becomes slow or new steps are added to the install path.
+
+**3. Help-completeness regression (from 0068)**
+Every `erg COMMAND --help` output is checked to be non-empty and every
+command listed in `erg --help` has a corresponding help entry. This already
+exists from 0068 — confirm it's wired and not bitrotted.
+
+## Exit criteria
+- [ ] CI job runs install sequence verbatim on clean image on every push
+- [ ] Time-to-first-ticket measured and gated under a documented budget
+- [ ] Help-completeness check confirmed wired (or re-wired if 0068 regressed)
+- [ ] All three checks green on main before this ticket closes

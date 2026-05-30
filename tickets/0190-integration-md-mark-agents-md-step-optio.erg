@@ -1,0 +1,27 @@
+%erg 0.1
+Title: integration.md: mark AGENTS.md step optional for non-agent users
+Created: 2026-05-30
+Author: MinhHaDuong
+
+--- log ---
+2026-05-30T17:55Z MinhHaDuong created
+
+--- body ---
+## Source
+Path A UX dry-run (0152), severity: **Low**
+
+## Context
+`integration.md` step 2 ("Add this line to your AGENTS.md") gives no signal
+that this step is only relevant for AI coding agent users. A developer not using
+agents will be confused about what AGENTS.md is, and won't know if skipping it
+is safe.
+
+## Fix
+Prefix step 2 with: "*(Skip if you are not using AI coding agents.)*"
+And/or add a one-liner to create AGENTS.md if missing:
+```bash
+echo "git-erg local tickets: see tickets/AGENTS.md" >> AGENTS.md
+```
+
+## Exit criteria
+- [ ] integration.md step 2 makes clear it is optional for non-agent users
