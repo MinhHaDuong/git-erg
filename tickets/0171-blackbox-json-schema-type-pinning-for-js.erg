@@ -2,11 +2,11 @@
 Title: blackbox: JSON schema type pinning for --json output
 Created: 2026-05-30
 Author: MinhHaDuong
-Blocked-by: 0175
 
 --- log ---
 2026-05-30T07:04Z MinhHaDuong created
 
+2026-05-30T09:43Z MinhHaDuong note blocker 0175 closed — Blocked-by removed.
 --- body ---
 ## Context
 

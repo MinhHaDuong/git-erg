@@ -2,11 +2,13 @@
 Title: migrate tag to label: spec, source, docs, erg migrate
 Created: 2026-05-30
 Author: MinhHaDuong
+Closed: autoclosed — PR #192
 
 --- log ---
 2026-05-30T08:00Z MinhHaDuong created
 2026-05-30T09:00Z claude note hard-rename confirmed by author — dropped alias/dual-read scope to match codebase precedent (Status→Closed, Tags→Tag)
 
+2026-05-30T09:43Z MinhHaDuong closed — autoclosed — PR #192
 --- body ---
 ## Context
 
