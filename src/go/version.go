@@ -162,13 +162,13 @@ func cmdVersion(args []string) int {
 
 	home, _ := os.UserHomeDir()
 	candidates := []candidate{
-		{"./build/erg", "make build"},
-		{"./tickets/erg", "cp build/erg tickets/erg"},
+		{"./build/erg", "run: make build"},
+		{"./tickets/erg", "run: cp build/erg tickets/erg"},
 	}
 	if home != "" {
 		candidates = append(candidates, candidate{
 			filepath.Join(home, ".local", "bin", "erg"),
-			"make install-erg-binary",
+			"see README Install section for the download command",
 		})
 	}
 
@@ -176,7 +176,7 @@ func cmdVersion(args []string) int {
 	pathDirs := filepath.SplitList(os.Getenv("PATH"))
 	for _, dir := range pathDirs {
 		p := filepath.Join(dir, "erg")
-		candidates = append(candidates, candidate{p, "cp build/erg " + p})
+		candidates = append(candidates, candidate{p, "run: cp build/erg " + p})
 	}
 
 	// Deduplicate and print
@@ -220,7 +220,7 @@ func cmdVersion(args []string) int {
 			// Same source commit -- not outdated regardless of hash difference.
 		} else if vcsRevision != "" && otherRevision != "" {
 			if buildDate != "" && otherDate != "" && buildDate > otherDate {
-				label = fmt.Sprintf("[outdated: run: %s]", c.hint)
+				label = fmt.Sprintf("[outdated: %s]", c.hint)
 			} else {
 				label = "[different version]"
 			}
