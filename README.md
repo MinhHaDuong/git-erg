@@ -178,7 +178,7 @@ The committed `tickets/erg` is a convenience cache of the source — and a cache
 is only as trustworthy as your ability to check it. You don't have to trust it
 on faith; here are two tiers, pick the one that fits your threat model.
 
-**Basic — recompute and compare.** `erg version` prints the binary's full
+**Basic — transit integrity.** `erg version` prints the binary's full
 SHA-256 digest and names the algorithm, so stock tools can reproduce it:
 
 ```bash
@@ -186,10 +186,15 @@ sha256sum tickets/erg          # or: shasum -a 256, openssl dgst -sha256, certut
 tickets/erg version            # compare against the sha256: line it reports
 ```
 
-If those two agree, the blob matches what it claims to be. Signed release tags
-are available from `2026-05-30` onwards — `git verify-tag <tag>` confirms the
-published hash came from the maintainer (git-native trust). Import the key
-first:
+If those two agree, the file was not corrupted in transit. Note: this is
+self-attestation — a tampered binary would report its own hash. It confirms
+the bits on disk match the running code, not that the code is authentic. For
+authenticity, use `make verify` (rebuild from source, below) or a signed
+release tag.
+
+Signed release tags are available from `2026-05-30` onwards —
+`git verify-tag <tag>` confirms the published hash came from the maintainer
+(git-native trust). Import the key first:
 
 ```bash
 gpg --recv-keys 4A46C91E03B83B23   # from keys.openpgp.org
