@@ -1,0 +1,40 @@
+%erg 0.1
+Title: integration.md uninstall section references make install-erg-binary
+Created: 2026-05-30
+Author: claude
+
+--- log ---
+2026-05-30T20:55Z claude created
+
+--- body ---
+## Context
+Celebrate sweep after raid 188-193. Ticket 0193 fixed `erg version`'s outdated-binary
+hint to say "see README" instead of `make install-erg-binary`. The same contributor-only
+reference appears in `src/go/assets/integration.md` line 74 (Uninstall section):
+
+```
+If you installed erg to `~/.local/bin` via `make install-erg-binary`,
+also remove that copy:
+```
+
+A regular user who installed via curl has no `~/.local/bin/erg` copy (that path is
+created only by `make install-erg-binary`, which requires a source checkout). The
+sentence is accurate but references a contributor-only workflow — a non-contributor
+reading the uninstall section will be confused.
+
+Same class as 0193: contributor-facing make target exposed to end-user docs.
+
+## Actions
+1. Edit `src/go/assets/integration.md` (canonical embedded copy) Uninstall section.
+2. Rephrase line 74 to clarify this only applies to contributor installs:
+   "If you copied erg to `~/.local/bin` manually (e.g. via `make install-erg-binary`
+   if you have a source checkout), also remove that copy:"
+   Or simply remove the `make install-erg-binary` reference entirely since a
+   curl-install user never creates that path.
+3. Validate: `tickets/erg validate tickets/0196-*.erg`
+4. Run: `make check-fast`
+
+## Exit criteria
+- [ ] `src/go/assets/integration.md` Uninstall section no longer exposes
+      `make install-erg-binary` to non-contributor readers as a required step,
+      OR clarifies it is a contributor-only path
