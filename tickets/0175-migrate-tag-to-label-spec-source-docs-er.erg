@@ -5,6 +5,7 @@ Author: MinhHaDuong
 
 --- log ---
 2026-05-30T08:00Z MinhHaDuong created
+2026-05-30T09:00Z claude note hard-rename confirmed by author — dropped alias/dual-read scope to match codebase precedent (Status→Closed, Tags→Tag)
 
 --- body ---
 ## Context
@@ -45,8 +46,9 @@ Scope confirmed:
   allowed-header set; the old `"Tags:"` → `"Tag:"` migration hint becomes `"Tag:"` → `"Label:"`
 - `src/go/erg.go`: parser case `"Tag"` → `"Label"`; `Tags:` legacy hint → `Tag:` legacy hint
 - `src/go/tag.go`: rename file to `label.go`; rename `cmdTag` → `cmdLabel`, `cmdUntag` → `cmdUnlabel`
-- `src/go/main.go`: update dispatch table (`tag` → `label`, `untag` → `unlabel`); keep `tag`/`untag`
-  as deprecated aliases with a one-release notice printed to stderr
+- `src/go/main.go`: update dispatch table (`tag` → `label`, `untag` → `unlabel`). HARD RENAME —
+  no aliases. `erg tag`/`erg untag` become unknown commands, matching how Status→Closed and
+  Tags→Tag landed (no codebase precedent for deprecated aliases).
 - `src/go/list.go`: `Tags` field in JSON output → `labels`; filter argument help text
 - `src/go/config.go` or equivalent: `[tags]` config key → `[labels]`
 - `src/go/migrate.go`: add migration case `Tag:` → `Label:` (same pattern as existing `Tags:` → `Tag:`)
@@ -77,19 +79,21 @@ Tag: → Label: rewrite: N tickets
 - [ ] `spec-erg-v1.md` uses `Label:` header, `[labels]` config, `erg label`/`erg unlabel` commands
 - [ ] `pep-erg-v1.md` section 12 updated
 - [ ] All Go source uses `Labels []string`, `"Label"` header key, `cmdLabel`/`cmdUnlabel`
-- [ ] `erg tag` and `erg untag` still accepted as aliases, print deprecation notice to stderr
-- [ ] `erg migrate` rewrites `Tag:` → `Label:` corpus-wide, idempotent
+- [ ] `erg tag`/`erg untag` removed (hard rename, no aliases); old `Tag:` header rejected with a
+      `run erg migrate` hint
+- [ ] `erg migrate` rewrites `Tag:` → `Label:` corpus-wide, idempotent (legacy `Tags:` converges
+      to `Label:` in one run)
 - [ ] `erg migrate` rewrites `.ergrc [tags]` → `[labels]`
 - [ ] All test suites updated (`test_label.sh` replaces `test_tag.sh`)
-- [ ] `erg check` passes on a corpus migrated by `erg migrate`
+- [ ] Repo corpus migrated: `tickets/*.erg` use `Label:`; `erg check tickets/` passes
 - [ ] `make check` passes
 
 ## Notes
 
-Do not rename the `.ergrc` config key in the same commit as the source rename — migrate will
-need to read the old key (`[tags]`) to produce the new one (`[labels]`). Sequence: source reads
-both keys (new preferred, old as fallback with deprecation warning) → migrate rewrites both →
-after one release cycle, drop the old key read.
+Hard rename, no dual-read window. `erg migrate` rewrites the `.ergrc` `[tags]` section text-level
+(no `loadConfig()` dependency), so the source rename and config-key rename land in the same commit
+— the sequencing concern in the original draft does not apply.
 
-The `erg label`/`erg unlabel` command rename may be sequenced separately from the header rename
-if the PR becomes too large — the header is the breaking change, the command rename is ergonomic.
+Landing hazard: the pre-commit hook validates staged `.erg` files with the committed (old)
+`tickets/erg`, which rejects `Label:`. Commit the migrated corpus with `--no-verify`; CI rebuilds
+`tickets/erg` after merge, closing the window.
