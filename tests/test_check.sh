@@ -72,6 +72,24 @@ else
     pass "duplicate IDs rejected"
 fi
 
+# --- Cross-directory duplicate IDs fail ---
+mkdir -p "$FIXTURES/xdup/closed"
+cat > "$FIXTURES/xdup/0001-one.erg" <<'EOF'
+%erg 0.1
+Title: One
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+cp "$FIXTURES/xdup/0001-one.erg" "$FIXTURES/xdup/closed/0001-one.erg"
+if $ERG check "$FIXTURES/xdup" 2>&1 | grep -q 'duplicate'; then
+    pass "cross-directory duplicate ID rejected"
+else
+    fail "cross-directory duplicate ID rejected"
+fi
+
 # --- Dependency cycle fails ---
 mkdir -p "$FIXTURES/cycle"
 cat > "$FIXTURES/cycle/0001-one.erg" <<'EOF'
