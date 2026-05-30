@@ -49,4 +49,4 @@ Commands that do not call `resolveDir()` are unaffected:
 - [ ] No output when git is unavailable (offline-safe)
 - [ ] `erg list`, `erg ready`, `erg close` all show the banner in tests
 - [ ] `--json` output is unaffected (banner is on stderr only)
-- [ ] `make check` passes
+- [ ] `make check` passes for code introduced by this PR (pre-existing failures tracked in 0195 are out of scope)

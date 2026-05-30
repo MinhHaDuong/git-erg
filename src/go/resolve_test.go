@@ -151,6 +151,44 @@ func TestResolveDirBanner(t *testing.T) {
 			t.Errorf("banner leaked to stdout: %q", stdout)
 		}
 	})
+
+	t.Run("cmdReady emits branch banner", func(t *testing.T) {
+		gitOrSkip(t)
+		dir := t.TempDir()
+		initRepoWithCommit(t, dir)
+		// Place an open ticket so the store is valid and resolveDir fires the banner.
+		if err := os.WriteFile(filepath.Join(dir, "9000-fixture.erg"), []byte("%erg 0.1\nTitle: Fixture\nCreated: 2026-01-01\nAuthor: a\n\n--- log ---\n--- body ---\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		_, stderr := captureOutput(t, func() {
+			cmdReady([]string{dir})
+		})
+
+		if !strings.Contains(stderr, "erg: branch ") {
+			t.Errorf("expected branch banner on stderr, got: %q", stderr)
+		}
+	})
+
+	t.Run("cmdClose emits branch banner", func(t *testing.T) {
+		gitOrSkip(t)
+		dir := t.TempDir()
+		initRepoWithCommit(t, dir)
+		// Place a ticket with ID 9001 so the store is valid; we close a
+		// non-existent ID 9000 so the lookup fails, but resolveDir fires
+		// the banner before the lookup.
+		if err := os.WriteFile(filepath.Join(dir, "9001-fixture.erg"), []byte("%erg 0.1\nTitle: Fixture\nCreated: 2026-01-01\nAuthor: a\n\n--- log ---\n--- body ---\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		_, stderr := captureOutput(t, func() {
+			cmdClose([]string{"9000", "reason", dir})
+		})
+
+		if !strings.Contains(stderr, "erg: branch ") {
+			t.Errorf("expected branch banner on stderr, got: %q", stderr)
+		}
+	})
 }
 
 func TestResolveTicketByID(t *testing.T) {
