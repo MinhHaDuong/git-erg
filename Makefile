@@ -14,7 +14,7 @@
 #   make ready      List ready tickets
 #   make install-erg-binary              Install erg to ~/.local/bin
 
-TEST_SUITES := validate check list ready update close migrate nextid log label new init main archive rm datasafety security pipeline help version hook godoc docs contract roundtrip verify stderr
+TEST_SUITES := validate check list ready update close migrate nextid log label new init main archive rm datasafety security pipeline help version hook godoc docs contract roundtrip verify stderr install-staleness
 TEST_TARGETS := $(TEST_SUITES:%=test-%)
 
 .PHONY: build test unit-test test-scaling _test-lint docs $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary verify
@@ -105,7 +105,7 @@ verify: ## Rebuild tickets/erg from its embedded revision and byte-diff it
 install-erg-binary:
 	@mkdir -p $(HOME)/.local/bin
 	@if [ "$$(uname -s)" = "Linux" ] && [ "$$(uname -m)" = "x86_64" ] && [ -f "$(BOOTSTRAP_BIN)" ] \
-		&& [ -z "$$(find src/go -name '*.go' -newer "$(BOOTSTRAP_BIN)" -print -quit)" ]; then \
+		&& [ -z "$$(find src/go -type f -newer "$(BOOTSTRAP_BIN)" -print -quit)" ]; then \
 		install -m755 "$(BOOTSTRAP_BIN)" "$(HOME)/.local/bin/erg"; \
 	elif command -v go >/dev/null 2>&1; then \
 		cd src/go && go build -o "$(HOME)/.local/bin/erg" .; \

@@ -2,10 +2,12 @@
 Title: Make install-erg-binary staleness check asset-aware
 Created: 2026-05-29
 Author: haduong
+Closed: autoclosed — PR #200
 
 --- log ---
 2026-05-29T19:33Z haduong created
 
+2026-05-30T12:30Z MinhHaDuong closed — autoclosed — PR #200
 --- body ---
 ## Context
 PR #183 (ticket 0165) fixed the CI `rebuild-binary.yml` path filter so that
