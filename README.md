@@ -93,7 +93,9 @@ project does not need. The design rationale is in `pep-erg-v1.md` §8.
 
 ## Install into a project
 
-The zero-install path above already works. To add the optional `erg` CLI:
+The zero-install path above already works. To add the optional `erg` CLI,
+drop it into `tickets/` so each project carries its own pinned version — no
+global install, no version skew across machines or teammates.
 
 1. Create a `tickets/` dir at the project's root (if you haven't).
 2. Drop the `erg` binary into it. If you have a git-erg clone, the
