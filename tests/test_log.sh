@@ -55,6 +55,21 @@ else
     fail "log line has ISO8601 UTC timestamp prefix"
 fi
 
+# --- UTC timestamp format survives TZ env override ---
+TZ=America/Los_Angeles $ERG log 0042 "claude note tz-check" "$FIXTURES" > /dev/null
+if grep -qE "T[0-9][0-9]:[0-9][0-9]Z claude note tz-check" "$FIXTURES/0042-smoke.erg"; then
+    pass "UTC timestamp format survives TZ=America/Los_Angeles override"
+else
+    fail "UTC timestamp format survives TZ=America/Los_Angeles override (expected HH:MMZ, got local offset)"
+fi
+
+# --- Negative control: local-offset string does NOT match the Z pattern ---
+if echo "2026-05-30T10:30-0700 author note local" | grep -qE "T[0-9][0-9]:[0-9][0-9]Z "; then
+    fail "negative control: local-offset string should NOT match UTC pattern"
+else
+    pass "negative control: local-offset string correctly rejected by UTC pattern"
+fi
+
 # --- Two calls produce two entries (append-only) ---
 $ERG log 0042 "claude bump test — second" "$FIXTURES" > /dev/null
 # || true: grep -c exits 1 when count is 0; the assertion below catches that case.
