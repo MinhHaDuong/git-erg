@@ -168,7 +168,7 @@ worktrees may return the same ID — the cross-worktree window has narrowed
 but is not eliminated. The pre-commit hook rejects duplicate IDs on merge;
 the losing agent renames its ticket with a new ID from a fresh invocation.
 
-## erg new TITLE [DIR]
+## erg new TITLE [DIR] [--author NAME]
 
 Create a new %erg 0.1 ticket file atomically.
 
@@ -185,8 +185,12 @@ with the next free ID. Up to 20 attempts are made before giving up.
 
 The new file contains the required preamble headers (Title, Created, Author),
 an empty log section with a "created" entry, and an empty body section.
-Author is resolved from the ERG_AUTHOR environment variable, or the git user.name,
-or the system username -- whichever is available first.
+
+  --author NAME, -a NAME
+      Override the Author header with NAME. If not given, author is resolved
+      from the ERG_AUTHOR environment variable, or the git user.name, or the
+      system username -- whichever is available first. NAME may not be empty
+      or whitespace-only. Newlines and carriage returns are stripped.
 
 Prints 'CREATED NNNN-slug.erg' on success. Exits non-zero on exhaustion or I/O errors.
 

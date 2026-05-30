@@ -15,6 +15,12 @@ var gitConfigUserName = func() string {
 	return strings.TrimSpace(string(out))
 }
 
+// sanitizeAuthor strips newlines and carriage returns from s so that a
+// multi-line value cannot inject extra header lines into a ticket file.
+func sanitizeAuthor(s string) string {
+	return strings.NewReplacer("\n", "", "\r", "").Replace(s)
+}
+
 // resolveAuthor returns the first non-empty value from:
 //  1. $ERG_AUTHOR      — explicit override
 //  2. git config user.name
@@ -24,16 +30,13 @@ var gitConfigUserName = func() string {
 // All values are stripped of newlines and carriage returns so that a
 // multi-line env var cannot inject extra header lines into the ticket file.
 func resolveAuthor() string {
-	sanitize := func(s string) string {
-		return strings.NewReplacer("\n", "", "\r", "").Replace(s)
-	}
-	if v := sanitize(os.Getenv("ERG_AUTHOR")); v != "" {
+	if v := sanitizeAuthor(os.Getenv("ERG_AUTHOR")); v != "" {
 		return v
 	}
-	if v := sanitize(gitConfigUserName()); v != "" {
+	if v := sanitizeAuthor(gitConfigUserName()); v != "" {
 		return v
 	}
-	if v := sanitize(os.Getenv("USER")); v != "" {
+	if v := sanitizeAuthor(os.Getenv("USER")); v != "" {
 		return v
 	}
 	return "unknown"
