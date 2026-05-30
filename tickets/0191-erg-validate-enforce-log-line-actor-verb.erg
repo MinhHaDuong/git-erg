@@ -1,0 +1,35 @@
+%erg 0.1
+Title: erg validate: enforce log line actor+verb format (rule 11)
+Created: 2026-05-30
+Author: MinhHaDuong
+
+--- log ---
+2026-05-30T17:55Z MinhHaDuong created
+2026-05-30T20:10Z claude reimagine rule 11 IS enforced structurally — premise corrected
+
+2026-05-30T18:15Z claude note clarified rule 11 enforces structure not semantics
+--- body ---
+## Source
+Path A UX dry-run (0152), severity: **Medium**
+
+## Context (reimagined)
+Rule 11 IS enforced. `logLineRE` at ergspecv1.go:100 requires
+`timestamp + ≥2 tokens`. Both `erg log` (log.go:89) and `erg validate`
+(erg.go:492) check it. `"decided to use JWT tokens"` passes because
+`decided`=actor, `to`=verb — structurally valid, semantically wrong.
+
+Semantic actor/verb detection is a regex trap (can't distinguish `decided`
+from `alice`). The real gap: the help text says "enforced by erg validate"
+without clarifying that enforcement is structural (≥2 tokens), not semantic
+(actor names are convention). Users expect the validator to catch plain
+English sentences.
+
+## Fix
+Clarify in `erg log --help` and `erg validate --help` that rule 11 enforces
+structure (timestamp + ≥2 tokens) and that actor+verb naming is convention.
+Remove the implication that the validator catches semantic misuse. Second
+exit criterion applies.
+
+## Exit criteria
+- [ ] `erg validate` fails (or warns) on log lines missing actor+verb, OR
+- [ ] Help text and spec updated to say the format is a convention, not enforced
