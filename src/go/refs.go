@@ -117,6 +117,19 @@ func worktreeTopFor(dir string) string {
 	return strings.TrimSpace(string(out))
 }
 
+// gitBranch returns the short name of HEAD in the repository containing dir
+// (e.g. "main", "t0194"). Returns "" on any git error or when git is
+// unavailable, so callers degrade silently offline.
+func gitBranch(dir string) string {
+	cmd := exec.Command("git", "-C", dir, "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Stderr = io.Discard
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // loadRefMatches returns, for each ticket id, the list of git refs and
 // worktree paths in the repository containing dir that reference it (per
 // refReferencesID). Refs are listed before worktree paths and preserve the

@@ -113,7 +113,26 @@ func resolveDir(explicit string) (string, error) {
 	if !info.IsDir() {
 		return "", &notADirError{Path: dir}
 	}
+	if branch := gitBranch(dir); branch != "" {
+		cwd, _ := os.Getwd()
+		fmt.Fprintf(os.Stderr, "erg: branch %s (%s)\n", branch, displayPath(cwd, dir))
+	}
 	return dir, nil
+}
+
+// displayPath returns a relative path from cwd to dir when the relative form
+// does not escape (i.e. does not start with ".."), falling back to the
+// absolute path of dir.
+func displayPath(cwd, dir string) string {
+	abs := dir
+	if !filepath.IsAbs(dir) {
+		abs = filepath.Clean(filepath.Join(cwd, dir))
+	}
+	rel, err := filepath.Rel(cwd, abs)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return abs
+	}
+	return rel
 }
 
 func resolveTicketByID(dir, id string) (string, error) {
