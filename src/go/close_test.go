@@ -25,6 +25,17 @@ func TestAppendLogLine(t *testing.T) {
 			line:    "2026-01-01T10:00Z entry",
 			want:    "%erg 0.1\n--- log ---\n2026-01-01T10:00Z entry\n",
 		},
+		{
+			// Distinguishing case for strings.Index vs strings.LastIndex:
+			// body section contains a line that echoes the separator literal.
+			// Index inserts before the FIRST '--- body ---' (correct: end of log
+			// section). LastIndex inserts before the SECOND, placing the log
+			// entry inside the body.
+			name:    "inserts before first body separator when body echoes separator",
+			content: "%erg 0.1\n--- log ---\n--- body ---\ntext\n--- body ---\nmore\n",
+			line:    "2026-01-01T10:00Z entry",
+			want:    "%erg 0.1\n--- log ---\n2026-01-01T10:00Z entry\n--- body ---\ntext\n--- body ---\nmore\n",
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

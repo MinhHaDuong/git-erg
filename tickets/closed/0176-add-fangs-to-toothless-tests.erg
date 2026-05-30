@@ -2,10 +2,12 @@
 Title: Add fangs to 8 toothless tests surfaced by the fang audit
 Created: 2026-05-30
 Author: claude
+Closed: autoclosed — PR #201
 
 --- log ---
 2026-05-30T11:00Z claude created — from the fang-audit mutation run; see FANG-AUDIT.md at repo root
 
+2026-05-30T12:31Z MinhHaDuong closed — autoclosed — PR #201
 --- body ---
 ## Context
 

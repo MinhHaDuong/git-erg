@@ -119,4 +119,45 @@ func TestLoadRefMatches(t *testing.T) {
 			t.Errorf("host worktree %q should be excluded", repo)
 		}
 	})
+
+	t.Run("host worktree path excluded even when host branch references id", func(t *testing.T) {
+		// Distinguishing case for the `wt.path == top` guard: put the host repo
+		// on a branch that references the same id as the secondary worktree.
+		// Without the guard, loadRefMatches would append `repo` (the host path)
+		// to matches["0004"], violating the docstring contract
+		// "The worktree containing dir itself is omitted".
+		//
+		// Mutation: removing `wt.path == top` from the skip condition causes
+		// the host repo path to appear in matches["0004"], failing this subtest.
+		gitOrSkip(t)
+		repo := t.TempDir()
+		// Init with a branch that references 0004, so the host worktree IS a
+		// candidate match via both the ref scan (branch name) and the worktree
+		// walk (wt.path). The guard must suppress the worktree-path entry.
+		initRepoWithCommit(t, repo)
+		gitRun(t, repo, "checkout", "-b", "wt/0004-host")
+		wtPath := filepath.Join(t.TempDir(), "wt")
+		gitRun(t, repo, "worktree", "add", "-q", wtPath, "-b", "wt/0004-qux")
+
+		matches := loadRefMatches(repo, []string{"0004"})
+
+		got := matches["0004"]
+		// Expected: [wt/0004-host (ref scan), wt/0004-qux (ref scan), wtPath (worktree walk)]
+		// The host repo top-level path must NOT appear.
+		for _, entry := range got {
+			if entry == repo {
+				t.Errorf("host worktree path %q should be excluded from matches; got %v", repo, got)
+			}
+		}
+		// The secondary worktree's absolute path must be present.
+		found := false
+		for _, entry := range got {
+			if entry == wtPath {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("secondary worktree path %q should be in matches; got %v", wtPath, got)
+		}
+	})
 }

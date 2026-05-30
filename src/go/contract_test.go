@@ -35,7 +35,7 @@ func makeCorpusWithRefs(t *testing.T, dir string, n int) {
 }
 
 // makeCorpusQuadraticRefs creates n tickets where ticket i references ALL
-// prior tickets (i-1 refs), producing O(N²) total refs. This is the data
+// prior tickets (i-1 refs), producing O(N^2) total refs. This is the data
 // shape that would expose a linear scan inside the ref loop.
 func makeCorpusQuadraticRefs(t *testing.T, dir string, n int) {
 	t.Helper()
@@ -133,21 +133,34 @@ func TestLinearOpCount(t *testing.T) {
 		countLarge := corpusOpCount
 
 		if countSmall == 0 {
-			t.Fatal("countSmall is 0 — corpusOpCount instrumentation broken")
+			t.Fatal("countSmall is 0 -- corpusOpCount instrumentation broken")
 		}
 
 		ratio := float64(countLarge) / float64(countSmall)
 		if ratio < 1.5 || ratio > 2.5 {
-			t.Errorf("corpus op-count ratio = %.2f (N=%d→%d ops, 2N=%d→%d ops); want ~2.0 for linear scaling",
+			t.Errorf("corpus op-count ratio = %.2f (N=%d->%d ops, 2N=%d->%d ops); want ~2.0 for linear scaling",
 				ratio, nSmall, countSmall, nLarge, countLarge)
+		}
+
+		// Absolute floor: for a chained corpus of n tickets, corpusOpCount must
+		// include contributions from every instrumented site:
+		//   - 2*n per-ticket passes (label-vocab check + ID extraction)
+		//   - (n-1) per-ref rule-10 lookups in validateCorpus
+		//   - (n-1) per-ref adjacency builds in detectCycles
+		//   - (n-1) per-edge DFS visits in detectCycles  <- the dropped site
+		// Total = 5*n - 3. Removing any single counter site drops below this.
+		floorSmall := 5*nSmall - 3
+		if countSmall < floorSmall {
+			t.Errorf("countSmall = %d, want >= %d (absolute floor for n=%d); a counter site was likely dropped",
+				countSmall, floorSmall, nSmall)
 		}
 	})
 
 	t.Run("negative control: quadratic ref fan-out trips the guard", func(t *testing.T) {
-		// A corpus where ticket i references all prior tickets has O(N²)
+		// A corpus where ticket i references all prior tickets has O(N^2)
 		// total refs. The per-ref counters in validateCorpus and
 		// detectCycles produce a quadratic operation count, which the
-		// ratio test catches (ratio ≈ 4.0, well above the 2.5 ceiling).
+		// ratio test catches (ratio ~ 4.0, well above the 2.5 ceiling).
 		nSmall := 30
 		nLarge := 60
 
@@ -165,7 +178,7 @@ func TestLinearOpCount(t *testing.T) {
 
 		ratio := float64(countLarge) / float64(countSmall)
 		if ratio < 3.0 {
-			t.Errorf("negative control: ratio = %.2f (N=%d→%d ops, 2N=%d→%d ops); expected ≥3.0 for quadratic ref fan-out",
+			t.Errorf("negative control: ratio = %.2f (N=%d->%d ops, 2N=%d->%d ops); expected >=3.0 for quadratic ref fan-out",
 				ratio, nSmall, countSmall, nLarge, countLarge)
 		}
 	})
