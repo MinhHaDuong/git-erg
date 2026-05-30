@@ -2,10 +2,12 @@
 Title: erg new should parse --author and reject unknown flags
 Created: 2026-05-29
 Author: Claude
+Closed: autoclosed — PR #199
 
 --- log ---
 2026-05-29T19:15Z Claude created
 
+2026-05-30T12:29Z MinhHaDuong closed — autoclosed — PR #199
 --- body ---
 ## Context
 
