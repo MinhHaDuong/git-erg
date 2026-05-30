@@ -2,10 +2,12 @@
 Title: Add standing regression test — unknown-flag rejection across all commands
 Created: 2026-05-30
 Author: Claude
+Closed: PR #209 merged — standing regression test for unknown-flag rejection
 
 --- log ---
 2026-05-30T18:00Z Claude created — celebrate sweep 0180; class recurred across 3 tickets (0166, 0178, 0180); 0185 pending
 
+2026-05-30T16:17Z MinhHaDuong closed — PR #209 merged — standing regression test for unknown-flag rejection
 --- body ---
 ## Context
 
