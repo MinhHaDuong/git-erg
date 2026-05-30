@@ -2,10 +2,12 @@
 Title: Resource-hygiene guard — fd + heap-retention, sibling to 0159
 Created: 2026-05-29
 Author: Claude
+Closed: autoclosed — PR #187
 
 --- log ---
 2026-05-29T18:10Z Claude created — sibling to 0159. 0159 (PR #173) gates allocation VOLUME (TotalAlloc), the O(N^2) churn signal; it is blind to OS-resource leaks. This adds a per-command hygiene guard (fd-neutrality + heap-retention) that runs alongside the scaling guard via the same make test-scaling target.
 
+2026-05-30T07:10Z MinhHaDuong closed — autoclosed — PR #187
 --- body ---
 ## Context
 
