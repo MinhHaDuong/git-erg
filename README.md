@@ -96,11 +96,18 @@ project does not need. The design rationale is in `pep-erg-v1.md` §8.
 The zero-install path above already works. To add the optional `erg` CLI:
 
 1. Create a `tickets/` dir at the project's root (if you haven't).
-2. Drop the `erg` binary into it. On Linux x86-64 the committed
-   `tickets/erg` in this repo is the prebuilt binary: copy it, no download
-   needed. On any other platform, `make build` from `src/go/` (Go needed for
-   this step only). See **Binary policy** below for why the binary ships in
-   the repo.
+2. Drop the `erg` binary into it. If you have a git-erg clone, the
+   committed `tickets/erg` is the prebuilt Linux x86-64 binary — just copy
+   it. From outside a clone, download it:
+
+   ```bash
+   curl -fsSL https://github.com/MinhHaDuong/git-erg/raw/main/tickets/erg \
+     -o tickets/erg && chmod +x tickets/erg
+   ```
+
+   On any other platform, clone this repo and `make build` from `src/go/`
+   (Go needed for this step only). See **Binary policy** below for why the
+   binary ships in the repo.
 3. Run `tickets/erg init` to unpack `AGENTS.md`, `spec-erg-v1.md`, and
    `integration.md`.
 4. Follow `tickets/integration.md` to a/ install the pre-commit validation hook
