@@ -35,5 +35,6 @@ Rules agents must know:
 - Closed/not-closed is inferred from path conventions or a non-empty `Closed:` header
 - `Label:` is optional and repeatable; accepted values are defined in `tickets/.ergrc` (defaults: `needs-human`, `deferred`)
 - Log entries are append-only: `YYYY-MM-DDTHH:MMZ author verb detail`
+- Artifacts a ticket consumes or produces (reports, data, generated files, scripts) live in their natural location in the project tree and are referenced from the body by path, not embedded wholesale, and not kept as a filename-twinned `0002-slug.md` sidecar the tooling cannot track.
 
 In doubt, read the specification `spec-erg-v1.md` (file format) or run `erg --help --all` / `erg COMMAND --help` for command documentation.
