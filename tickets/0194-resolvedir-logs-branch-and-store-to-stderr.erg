@@ -1,0 +1,52 @@
+%erg 0.1
+Title: resolveDir logs branch and store path to stderr
+Created: 2026-05-30
+Author: MinhHaDuong
+
+--- log ---
+2026-05-30T19:00Z MinhHaDuong created
+
+2026-05-30T18:11Z claude planned: gitBranch in refs.go, displayPath+emit in resolveDir in main.go, captureStderr tests in resolve_test.go; new/next-id do not use resolveDir — excluded per exit criteria
+--- body ---
+## Context
+
+When a raid finishes and the worktree is still active, the user has no
+way to tell from the transcript which git context `erg` is operating in.
+Last bump: user ran `erg ready` assuming they were back on main, but the
+session was still inside a worktree — so the ready output reflected the
+worktree's ticket state, not main's.
+
+## Design
+
+`resolveDir()` logs one line to stderr after successful resolution:
+
+    erg: branch <name> (tickets/)
+
+where `<name>` is the output of `git rev-parse --abbrev-ref HEAD` run
+from the resolved store directory. This is a log message, not a print —
+a function logging its own operation is a common and accepted pattern.
+
+Stderr is the correct channel: stdout must stay parseable for skills and
+agents that pipe `erg list --json`, `erg ready`, etc.
+
+Degrades silently when git is unavailable (offline contract): if the git
+command fails, emit no banner.
+
+## Scope
+
+All commands that call `resolveDir()` get the banner automatically:
+`list`, `ready`, `check`, `next-id`, `new`, `close`, `log`, `label`,
+`unlabel`, `archive`, `rm`, `migrate`.
+
+Commands that do not call `resolveDir()` are unaffected:
+`validate`, `version`, `update`, `init`.
+
+## Exit criteria
+
+- [ ] `resolveDir()` prints `erg: branch <name> (<relpath>)\n` to stderr
+      after successful resolution
+- [ ] Relative path used when store is under cwd; absolute otherwise
+- [ ] No output when git is unavailable (offline-safe)
+- [ ] `erg list`, `erg ready`, `erg close` all show the banner in tests
+- [ ] `--json` output is unaffected (banner is on stderr only)
+- [ ] `make check` passes
