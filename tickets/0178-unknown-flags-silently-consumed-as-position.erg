@@ -1,0 +1,50 @@
+%erg 0.1
+Title: Unknown flags silently consumed as positionals in check, close, log, label, init
+Created: 2026-05-30
+Author: Claude
+
+--- log ---
+2026-05-30T13:45Z Claude created — sweep follow-up from 0166 (new.go convention)
+
+--- body ---
+## Context
+
+`erg new` was fixed in 0166 to reject unknown `-`-prefixed flags instead of
+silently treating them as the DIR positional (footgun: typo → stray directory).
+The fix established the house convention in rm.go/new.go: iterate args, switch
+over known flags, reject unknowns with a usage message.
+
+A celebrate sweep found the same pre-fix pattern in 5 more commands that do
+raw `args[N]` indexing with no flag guard:
+
+- `src/go/check.go` — `args[0]` as explicit dir
+- `src/go/close.go` — `args[0]` id/file, `args[1]` reason
+- `src/go/log.go`   — `args[0]` id, `args[1]` line
+- `src/go/label.go` — `args[0]` id, `args[1]` label (add + remove)
+- `src/go/init.go`  — `args[0]` as root dir
+
+A typo on any of these (e.g. `erg close 0042 --resson "typo"`) silently
+passes `--resson` as the reason string rather than erroring. For mutating
+commands this can produce garbage ticket content.
+
+## Actions
+
+For each of the 5 files, add the flag-rejection guard following the
+rm.go/new.go pattern:
+1. Iterate args with an index loop
+2. Switch: known flags handled, unknown `-`-prefixed tokens → error + usage,
+   everything else → positional slice
+3. Replace `args[N]` references with `positional[N]`
+4. Update usage strings / helptext to document any flags
+
+## Relevant files
+
+- `src/go/check.go`, `close.go`, `log.go`, `label.go`, `init.go`
+- `src/go/rm.go`, `src/go/new.go` — reference implementations
+
+## Exit criteria
+
+- [ ] All 5 commands reject unknown `-`-prefixed tokens with a non-zero exit
+      and a usage message
+- [ ] Positional behavior (existing tests) unchanged — `make check` passes
+- [ ] Shell integration tests cover the unknown-flag rejection for each command
