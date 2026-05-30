@@ -2,10 +2,12 @@
 Title: doc(0151): write security red-team process doc parallel to UX-PROCESS.md
 Created: 2026-05-30
 Author: MinhHaDuong
+Closed: autoclosed — PR #228
 
 --- log ---
 2026-05-30T19:27Z MinhHaDuong created
 
+2026-05-30T19:56Z MinhHaDuong closed — autoclosed — PR #228
 --- body ---
 ## Context
 AGENTS.md calls for standing AI-assisted QA on both security (0151) and UX
