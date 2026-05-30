@@ -2,11 +2,15 @@
 Title: findTicketsDir refuses cross-worktree store resolution
 Created: 2026-05-30
 Author: MinhHaDuong
+Closed: autoclosed — PR #232
 
 --- log ---
 2026-05-30T20:00Z MinhHaDuong created
 2026-05-30T20:30Z claude planned: storeWorktreeConflict helper in main.go, osExecutable seam for tests, one-liner in spec + manualPreamble; erg update behavioral change noted
 
+2026-05-30T20:15Z bump verify-reroll — round 1: spec-erg-v1.md canonical asset (src/go/assets/) missing Worktree boundary paragraph
+2026-05-30T20:18Z bump verify-gate — round 2: APPROVED — all 8 exit criteria addressed, spec asset fix confirmed in 3272c33
+2026-05-30T20:18Z MinhHaDuong closed — autoclosed — PR #232
 --- body ---
 ## Context
 
