@@ -72,10 +72,9 @@ appends a section with:
 
 These run on every push and do not need to be re-run manually:
 
-- **Path/ID injection + input DoS** (26 checks): `tests/test_security.sh`
+- **Path/ID injection + input DoS**: `tests/test_security.sh`
   (ticket 0157).
-- **Update-channel integrity** (14 checks): `tests/test_update.sh`
-  (ticket 0148).
+- **Update-channel integrity**: `tests/test_update.sh` (ticket 0148).
 - **Reproducible build**: `make verify` rebuilds from the embedded
   revision and byte-diffs (ticket 0156).
 - **No network code**: `tests/test_update.sh` asserts no `net/http` /
