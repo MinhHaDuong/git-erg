@@ -37,14 +37,17 @@ pattern — proving the regex is not vacuously broad.
 
 ## Exit criteria
 
-- [ ] `test_log.sh` extended: `TZ=America/Los_Angeles erg log ...` and assert log line ends in `Z`
-- [ ] `test_new.sh` extended: `TZ=Pacific/Auckland erg new ...` and assert `Created:` is
-      `YYYY-MM-DD` with no time or offset suffix
-- [ ] Negative control present for each: a local-offset string fails the match
+- [ ] `test_log.sh` extended: `TZ=America/Los_Angeles erg log ...` and assert log line matches
+      `T[0-9][0-9]:[0-9][0-9]Z ` (exactly `HH:MMZ`, no seconds, literal `Z` not `+00:00`)
+- [ ] Negative control: assert a synthetic local-offset string (e.g. `2026-05-30T10:30-0700 author note`)
+      does NOT match the same pattern — proves the regex discriminates
 - [ ] `make check` passes
 
 ## Notes
 
-Do not assert the exact time value (that would be flaky). Assert the format: `Z` suffix for log
-lines, date-only for `Created:`. The timezone check is a format regression guard, not a
-clock-accuracy test.
+Drop the `test_new.sh` TZ= test: Go's `.UTC()` is applied before the `"2006-01-02"` format string,
+which has no time component. The `TZ` env var is irrelevant to the output; the test would always
+pass even with a broken implementation, and no regression could emit a timezone offset in a
+date-only field. Not worth adding.
+
+Do not assert the exact time value. Assert the format only: `HH:MMZ` with no seconds and literal `Z`.

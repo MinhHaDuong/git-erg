@@ -33,15 +33,28 @@ initialized dir. Does `init` overwrite `.ergrc`, `AGENTS.md`, `spec-erg-v1.md`? 
 silently discard user edits. Expected: refuse to overwrite existing files (or skip with a message),
 exit non-zero if any file would be clobbered.
 
+## Findings from imagine phase
+
+- **`rm` on deleted file**: behavior already correct (non-zero exit, stderr message via resolver).
+  Test gap only — the existing test uses a never-created ID, not a file-was-there-then-deleted ID.
+- **`archive` second run**: already exits 0 on collision (skip-and-continue). Test gap only —
+  existing collision tests suppress or ignore exit code; needs an explicit `rc` assertion.
+- **`init` twice**: **behavior change required**. `installAssets` in `init.go` lines 55-68
+  currently overwrites files that differ from the embedded asset (`refreshed++`). The ticket
+  requires it to refuse/skip user-edited files. Trigger condition met: fix in this PR.
+  Also: help text says "Writes (or refreshes)" — update `helpInit` constant to match new
+  refuse-on-diverged behavior.
+
 ## Exit criteria
 
-- [ ] `test_rm.sh`: add test — `erg rm DELETED_ID DIR` (file already removed) → non-zero exit,
-      empty stdout, message on stderr
-- [ ] `test_archive.sh` or `test_datasafety.sh`: pin exit code of second `erg archive` run when
-      destinations already exist — assert exit 0 (skip-and-continue is not a fatal error) AND
-      that the skip message appears on stderr
-- [ ] `test_init.sh`: add test — `erg init DIR` twice → second run refuses to overwrite existing
-      files, source files unchanged (byte-for-byte), appropriate exit code
-- [ ] Each new test has a paired negative control (first run succeeds normally)
-- [ ] If `erg init` currently clobbers on second run, fix the behavior in the same PR
+- [ ] `test_rm.sh`: write a ticket, delete its file manually (`rm FILE`), run `erg rm NNNN DIR`
+      → non-zero exit, empty stdout (`2>/dev/null`), "no ticket found" on stderr
+- [ ] `test_archive.sh`: add explicit `rc` capture to the existing destination-exists collision
+      test → assert `rc -eq 0`, assert skip message on stderr
+- [ ] `init.go` `installAssets`: when an existing file differs from the embedded asset, skip it
+      with a stderr message and set exit code to non-zero (do not overwrite)
+- [ ] `helpInit` constant updated to reflect refuse-on-diverged behavior
+- [ ] `test_init.sh`: add test — modify an init'd file, re-run `erg init` → non-zero exit,
+      modified file unchanged (byte-for-byte `cmp`)
+- [ ] Each new test has a negative control (first run or unmodified-file second run succeeds)
 - [ ] `make check` passes

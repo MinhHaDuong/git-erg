@@ -46,12 +46,29 @@ after the fact and retried, the same way git handles concurrent operations.
 Claim files and store locks are ruled out: both introduce side-state that violates the stateless
 contract.
 
+## Implementation notes (from imagine phase)
+
+- Only `cmdNew` in `new.go` changes. `nextid.go`, `createExclusive`, `slugify`,
+  `resolveAuthor` are unchanged.
+- `resolveAuthor()` stays outside the loop — author is constant across retries.
+  Only `id`, `filename`, `path`, and `content` (which embeds the timestamp)
+  recompute per iteration.
+- With the fix, all N invocations succeed — each retries until it wins a unique
+  slot. The test should assert all 10 produce CREATED, not just "some."
+- No glob into `closed/` needed — `erg new` only writes to the top-level store.
+- Do not extract a helper; inline the 10-line loop in `cmdNew`.
+- Do not add jitter or backoff — the ID space is linear, each retry calls
+  `nextID` fresh.
+- "Test marked integration" means the test lives in the shell integration suite
+  (`tests/`) and spawns background jobs — there is no formal marker system for
+  shell tests.
+
 ## Exit criteria
 
-- [ ] `test_new.sh` (or `test_concurrent_new.sh`): N=10 parallel `erg new` with distinct titles
-      → `erg check` exits 0, no duplicate IDs, each successful CREATED has a unique NNNN prefix
-- [ ] Negative control: N=10 sequential `erg new` → all 10 succeed with distinct IDs
-- [ ] Test has a sync barrier (named pipe or sleep) so all subshells race genuinely
-- [ ] Test marked integration (spawns background jobs)
+- [ ] `test_new.sh` (or `test_concurrent_new.sh`): N=10 parallel `erg new` with distinct titles,
+      sync barrier via named pipe → all 10 produce `CREATED`, all 10 NNNN prefixes are distinct,
+      `erg check` exits 0
+- [ ] Negative control: N=10 sequential `erg new` → all 10 succeed with distinct IDs (proves the
+      assertion is not vacuously true)
 - [ ] `make check` passes after the fix
 

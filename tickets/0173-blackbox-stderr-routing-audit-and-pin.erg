@@ -17,37 +17,42 @@ the audit was done by grep — it does not verify that every *error return path*
 one of those calls. And there is no blackbox pin: removing `os.Stderr` from a `fmt.Fprintf` call
 would not be caught by any existing test.
 
-## Part 1 — Source audit
+## Part 1 — Source audit findings (from imagine phase)
 
-Grep every `fmt.Print*` call (not to `os.Stderr`, not to a file handle) in `src/go/*.go`
-(excluding `_test.go`). Each such call is a success-path stdout write — verify it is on the
-success path and not reachable from an error branch. Document findings in the commit message.
+Two confirmed bugs — failure output goes to stdout, not stderr:
 
-If any error-path stdout write is found, fix it in the same PR.
+- **`check.go` lines 200-206**: `ERG CHECK FAILED`, per-violation `VIOLATION` lines, and
+  warning lines all use `fmt.Printf` → stdout. Must move to `fmt.Fprintf(os.Stderr, ...)`.
+- **`validate.go` lines 309-311**: `ERG VALIDATION FAILED` and per-violation lines use
+  `fmt.Printf` → stdout. Must move to `fmt.Fprintf(os.Stderr, ...)`.
 
-## Part 2 — Blackbox pin
+All other commands route correctly (close, log, rm, new, archive, migrate, tag, list, update).
+`validate`'s "No .erg files found" (line 300) is a success-path exit-0 stdout write — correct.
 
-For each command that has an error mode (all mutating commands), add a test that:
+## Part 2 — Fix
 
-1. Triggers a known error (e.g. `erg close NONEXISTENT reason DIR`)
-2. Captures stdout only (`2>/dev/null`)
-3. Asserts stdout is empty
+Move the failure-output `fmt.Printf` calls in `check.go` and `validate.go` to `os.Stderr`.
+Keep all success-path output on stdout.
 
-Negative control: the same command with valid arguments produces non-empty stdout (or exits 0
-with output), confirming the assertion would fire if the check were reversed.
+## Part 3 — Blackbox pin (`test_stderr.sh`)
 
-Commands to cover (error triggers):
-- `erg close NONEXISTENT reason DIR` → "no ticket found"
-- `erg log NONEXISTENT "line" DIR` → "no ticket found"
-- `erg rm NONEXISTENT DIR` → "no ticket found"
-- `erg new "" DIR` → "title is required"
-- `erg validate /nonexistent.erg` → file not found
+New `tests/test_stderr.sh`. For each command, trigger an error and assert stdout is empty:
 
-Add to `test_main.sh` or a new `test_stderr.sh`.
+- `erg close NONEXISTENT reason DIR 2>/dev/null` → stdout empty
+- `erg log NONEXISTENT "line" DIR 2>/dev/null` → stdout empty
+- `erg rm NONEXISTENT DIR 2>/dev/null` → stdout empty
+- `erg new "" DIR 2>/dev/null` → stdout empty
+- `erg check DIR 2>/dev/null` (with a corpus containing a duplicate ID) → stdout empty
+- `erg validate BADFILE 2>/dev/null` (with a malformed file) → stdout empty
+
+Do not add negative controls in this file — existing per-command tests already cover valid-input
+output. The negative controls are YAGNI here.
+
+Use a new `test_stderr.sh`, not `test_main.sh` (which covers only top-level dispatch).
 
 ## Exit criteria
 
-- [ ] Source audit complete; any error-path stdout writes fixed
-- [ ] Blackbox tests added: for each command above, error produces empty stdout
-- [ ] Each blackbox test has a paired negative control (valid input → non-empty stdout)
+- [ ] `check.go` failure output moved to stderr
+- [ ] `validate.go` failure output moved to stderr
+- [ ] `tests/test_stderr.sh` added with the six error-trigger checks above
 - [ ] `make check` passes
