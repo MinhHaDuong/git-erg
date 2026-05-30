@@ -42,21 +42,21 @@ func TestHeaderBlankWarnings(t *testing.T) {
 	})
 
 	t.Run("warning shows basename even when file is in a subdirectory", func(t *testing.T) {
-		// Negative-control: place the blank .erg in a nested subdir to ensure
-		// the warning never exposes the parent directory path.
+		// Place the blank .erg in a real nested subdir under dir and walk from
+		// dir, so the parent→child traversal path is actually exercised.
 		dir := t.TempDir()
-		sub := t.TempDir() // a distinct temp dir (simulates nested path)
+		sub, err := os.MkdirTemp(dir, "sub")
+		if err != nil {
+			t.Fatalf("creating subdir: %v", err)
+		}
 		writeErg(t, sub, "0003-nested.erg",
 			"%erg 0.1\nTitle: T\nCreated: 2024-01-01\n\nAuthor: test\n\n--- log ---\n--- body ---\n")
-		// headerBlankWarnings walks dir, but we can also test the helper
-		// directly on the sub dir to exercise the class invariant.
-		w := headerBlankWarnings(sub)
+		w := headerBlankWarnings(dir)
 		if len(w) != 1 {
 			t.Fatalf("got %d warnings in subdir, want 1: %v", len(w), w)
 		}
 		if strings.Contains(w[0], string(os.PathSeparator)) {
 			t.Errorf("warning from nested dir leaks path separator: %q", w[0])
 		}
-		_ = dir // present to document the intent
 	})
 }
