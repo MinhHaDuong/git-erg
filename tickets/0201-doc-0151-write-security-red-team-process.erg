@@ -1,0 +1,22 @@
+%erg 0.1
+Title: doc(0151): write security red-team process doc parallel to UX-PROCESS.md
+Created: 2026-05-30
+Author: MinhHaDuong
+
+--- log ---
+2026-05-30T19:27Z MinhHaDuong created
+
+--- body ---
+## Context
+AGENTS.md calls for standing AI-assisted QA on both security (0151) and UX
+(0152). UX-PROCESS.md was written as part of closing 0152. No parallel
+SECURITY-PROCESS.md exists. The gap was spotted in the 0152 celebrate sweep.
+
+The closed ticket 0151 (FANG-AUDIT.md) covers the one-time audit. The process
+doc should cover the *repeatable* red-team procedure: cadence, threat model
+scope, agent roles, output format, and how findings become tickets.
+
+## Exit criteria
+- [ ] SECURITY-PROCESS.md written at repo root covering repeatable red-team
+      procedure (cadence, scope, agent prompts, output format, filing steps)
+- [ ] AGENTS.md updated to link SECURITY-PROCESS.md alongside UX-PROCESS.md
