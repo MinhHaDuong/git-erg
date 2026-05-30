@@ -31,7 +31,10 @@ doc_contains() {
 # Helper: check that `go doc -u . SYMBOL` output does NOT contain PATTERN
 doc_lacks() {
     sym="$1"; pattern="$2"; label="$3"
-    if (cd "$SRC" && go doc -u . "$sym" 2>/dev/null) | grep -qF "$pattern"; then
+    out=$(cd "$SRC" && go doc -u . "$sym" 2>/dev/null)
+    if [ -z "$out" ]; then
+        fail "$label — go doc -u . $sym returned empty output (build error or missing symbol)"
+    elif echo "$out" | grep -qF "$pattern"; then
         fail "$label — unexpected '$pattern' in: go doc -u . $sym"
     else
         pass "$label"
