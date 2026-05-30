@@ -306,9 +306,9 @@ func cmdValidate(args []string) int {
 		if len(allErrors) == 1 {
 			errWord = "error"
 		}
-		fmt.Printf("ERG VALIDATION FAILED (%d %s):\n", len(allErrors), errWord)
+		fmt.Fprintf(os.Stderr, "ERG VALIDATION FAILED (%d %s):\n", len(allErrors), errWord)
 		for _, e := range allErrors {
-			fmt.Printf("  %s\n", e)
+			fmt.Fprintf(os.Stderr, "  %s\n", e)
 		}
 		return 1
 	}
