@@ -62,7 +62,8 @@ Posture properties — security and UX — cannot be reduced to a single guard o
 closed by a one-shot audit; they drift as the tool changes. They need a
 **standing, AI-assisted QA process** that re-runs per release: agents do the
 legwork (red-team passes, persona dry-runs), a falsifiable subset runs in CI,
-and humans gate the findings (0151 security, 0152 UX). For a binary embarked
+and humans gate the findings (0151 security, 0152 UX). The UX dry-run
+procedure is in `UX-PROCESS.md`. For a binary embarked
 in thousands of repos, the security bar is maximal — supply-chain and mass-RCE
 class — and reproducible builds are the keystone control, **verifiable locally
 and offline** (rebuild the in-repo `src/go/` with git+go; no phone-home). The
