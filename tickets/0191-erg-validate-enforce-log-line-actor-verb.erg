@@ -5,30 +5,29 @@ Author: MinhHaDuong
 
 --- log ---
 2026-05-30T17:55Z MinhHaDuong created
+2026-05-30T20:10Z claude reimagine rule 11 IS enforced structurally — premise corrected
 
 --- body ---
 ## Source
 Path A UX dry-run (0152), severity: **Medium**
 
-## Context
-`erg log --help` documents that LINE must follow `actor verb [detail]` format
-(e.g. "claude note retried with narrower scope"). The help text says this is
-"enforced by erg validate (rule 11)". But when the agent ran:
-```
-erg log 0001 "decided to use JWT tokens"
-```
-(no actor, no verb — just a plain sentence), the command succeeded and
-`erg validate` passed. Rule 11 is documented but not enforced.
+## Context (reimagined)
+Rule 11 IS enforced. `logLineRE` at ergspecv1.go:100 requires
+`timestamp + ≥2 tokens`. Both `erg log` (log.go:89) and `erg validate`
+(erg.go:492) check it. `"decided to use JWT tokens"` passes because
+`decided`=actor, `to`=verb — structurally valid, semantically wrong.
 
-This means users accumulate malformed log entries silently, and audit tools
-or future parsing will find inconsistent data.
+Semantic actor/verb detection is a regex trap (can't distinguish `decided`
+from `alice`). The real gap: the help text says "enforced by erg validate"
+without clarifying that enforcement is structural (≥2 tokens), not semantic
+(actor names are convention). Users expect the validator to catch plain
+English sentences.
 
 ## Fix
-Either:
-1. Enforce rule 11 in `erg validate`: fail on log lines that don't match
-   `TIMESTAMP ACTOR VERB [DETAIL]` format. (Preferred — keeps the spec honest.)
-2. If enforcement is out of scope, remove the "enforced by erg validate" claim
-   from the help text and spec, and document the format as convention only.
+Clarify in `erg log --help` and `erg validate --help` that rule 11 enforces
+structure (timestamp + ≥2 tokens) and that actor+verb naming is convention.
+Remove the implication that the validator catches semantic misuse. Second
+exit criterion applies.
 
 ## Exit criteria
 - [ ] `erg validate` fails (or warns) on log lines missing actor+verb, OR
