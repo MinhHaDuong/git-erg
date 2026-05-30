@@ -46,6 +46,19 @@ after the fact and retried, the same way git handles concurrent operations.
 Claim files and store locks are ruled out: both introduce side-state that violates the stateless
 contract.
 
+## Implementation notes (plan phase)
+
+- Add to `tests/test_new.sh` — not a new file (avoids Makefile TEST_SUITES coupling)
+- `CDIR=$(mktemp -d)` **outside the repo**: if inside the worktree, `nextID` Pass 2/3
+  scans sibling worktrees and injects existing IDs, breaking the assertions
+- `maxAttempts = 20` hard cap; emit a loud error on exhaustion rather than hanging
+- Update stale comment at `test_new.sh` line 107: "O_EXCL guards against concurrent
+  races (untestable sequentially)" — contradicted by the new test
+- Run `make docs` after changing `helpNew` and `createExclusive` godoc: `test_docs.sh`
+  gates on `docs/erg-manual.md` freshness and will fail if stale
+- `path/filepath` and `os` already imported in `new.go` — no import block changes needed
+- Verify test red-fails against the bug-present binary before applying the fix
+
 ## Implementation notes (from imagine phase)
 
 - Only `cmdNew` in `new.go` changes. `nextid.go`, `createExclusive`, `slugify`,

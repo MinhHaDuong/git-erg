@@ -34,6 +34,15 @@ All other commands route correctly (close, log, rm, new, archive, migrate, tag, 
 Move the failure-output `fmt.Printf` calls in `check.go` and `validate.go` to `os.Stderr`.
 Keep all success-path output on stdout.
 
+## Implementation notes (plan phase)
+
+- `check.go`: change lines ~200, ~202, ~206 (the three `fmt.Printf` in the failure block)
+- `validate.go`: change lines ~309, ~311 (the two `fmt.Printf` in the failure block)
+- Both files already import `"os"` — no import block changes needed
+- Add `"stderr"` to `TEST_SUITES` on Makefile line 17 (only Makefile change needed)
+- `.erg` fixture in `test_stderr.sh` must include `--- log ---` separator or `erg validate`
+  will reject it before testing the stderr routing
+
 ## Part 3 — Blackbox pin (`test_stderr.sh`)
 
 New `tests/test_stderr.sh`. For each command, trigger an error and assert stdout is empty:

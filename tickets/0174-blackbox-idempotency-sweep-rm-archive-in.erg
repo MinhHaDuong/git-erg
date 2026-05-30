@@ -33,6 +33,17 @@ initialized dir. Does `init` overwrite `.ergrc`, `AGENTS.md`, `spec-erg-v1.md`? 
 silently discard user edits. Expected: refuse to overwrite existing files (or skip with a message),
 exit non-zero if any file would be clobbered.
 
+## Implementation notes (plan phase)
+
+- `installAssets` signature: add `refuseDiverged bool` parameter; add `skipped int` return
+  value. `cmdInit` calls with `true`; `migrate.go:206` calls with `false` (update that call
+  site: add `false`, use `_` to discard `skipped`). Exactly two callers confirmed.
+- `cmdInit`: if `skipped > 0`, exit 1 after printing the count line
+- `helpInit`: update text to remove "or refreshes" and describe refuse-on-diverged behavior
+- Run `make docs` after changing `helpInit`: `test_docs.sh` gates on freshness
+- `docs/erg-manual.md` is a regenerated artifact — if 0170 merges first, re-run `make docs`
+  after rebasing (no true conflict, just stale artifact)
+
 ## Findings from imagine phase
 
 - **`rm` on deleted file**: behavior already correct (non-zero exit, stderr message via resolver).
