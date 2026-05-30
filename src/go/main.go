@@ -28,6 +28,10 @@ import (
 	"strings"
 )
 
+// osExecutable is a seam for testing: tests can replace it to return a path
+// inside a controlled directory without building a real binary.
+var osExecutable = os.Executable
+
 // manualPreamble is the header printed by `erg --help --all` before the
 // per-command sections. The %s placeholder receives the literal string
 // "Generated from: erg" -- no build stamp is embedded so the committed
@@ -49,6 +53,9 @@ current working directory, (3) the current working directory itself. A directory
 qualifies as a ticket store if its basename is ` + "`tickets`" + `, or if it contains at
 least one ` + "`.erg`" + ` file. The first qualifying candidate is used; if none qualify,
 ` + "`erg`" + ` exits with an error listing the directories it tried.
+
+When the store is auto-discovered, ` + "`erg`" + ` refuses to use a store that lies in
+a different git worktree than the working directory. Pass DIR explicitly to override.
 `
 
 // looksLikeTicketStore reports whether dir is a managed ticket store.
@@ -71,16 +78,26 @@ func looksLikeTicketStore(dir string) bool {
 // findTicketsDir returns the ticket store directory by trying candidates in order:
 // (1) directory containing the binary, (2) "tickets" under cwd, (3) cwd itself.
 // Each candidate must satisfy looksLikeTicketStore. Returns an error if none qualify.
+// When a qualifying candidate is found, it is checked for worktree conflict: if the
+// store lies in a different git worktree than cwd, an error is returned. Pass an
+// explicit DIR to resolveDir to bypass this check.
 func findTicketsDir() (string, error) {
 	var candidates []string
-	if exe, err := os.Executable(); err == nil {
+	if exe, err := osExecutable(); err == nil {
 		candidates = append(candidates, filepath.Dir(exe))
 	}
 	candidates = append(candidates, "tickets", ".")
 
 	for _, c := range candidates {
 		if looksLikeTicketStore(c) {
-			return c, nil
+			abs, err := filepath.Abs(c)
+			if err != nil {
+				abs = c
+			}
+			if err := storeWorktreeConflict(abs); err != nil {
+				return "", err
+			}
+			return abs, nil
 		}
 	}
 
@@ -89,6 +106,20 @@ func findTicketsDir() (string, error) {
 	return "", fmt.Errorf(
 		"did not find the tickets store. I looked at: %s\nTo confirm that directory %q is an intended tickets store, I need to see at least one .erg file in it.",
 		tried, cwd)
+}
+
+// storeWorktreeConflict returns an error if store is inside a different git
+// worktree than the current working directory. Returns nil when either
+// worktree top cannot be determined (git unavailable, not in a worktree) or
+// when both are the same -- the caller may proceed.
+func storeWorktreeConflict(store string) error {
+	storeTop := worktreeTopFor(store)
+	cwdTop := worktreeTopFor(".")
+	if storeTop == "" || cwdTop == "" || storeTop == cwdTop {
+		return nil
+	}
+	return fmt.Errorf("erg: store found at %s (branch: %s)\n     but cwd is in a different worktree (branch: %s)\n     pass an explicit DIR to override",
+		store, gitBranch(store), gitBranch("."))
 }
 
 type notADirError struct{ Path string }

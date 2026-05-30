@@ -191,6 +191,133 @@ func TestResolveDirBanner(t *testing.T) {
 	})
 }
 
+func TestStoreWorktreeConflict(t *testing.T) {
+	t.Run("different worktrees returns error", func(t *testing.T) {
+		gitOrSkip(t)
+		root := t.TempDir()
+		initRepoWithCommit(t, root)
+		// Create a linked worktree on a separate branch.
+		wtPath := filepath.Join(t.TempDir(), "wt2")
+		gitRun(t, root, "worktree", "add", "-b", "t0194", wtPath)
+		// Create the tickets dir in the main worktree root.
+		mainTickets := filepath.Join(root, "tickets")
+		if err := os.MkdirAll(mainTickets, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		// Change cwd to the linked worktree.
+		saved, _ := os.Getwd()
+		defer os.Chdir(saved) //nolint:errcheck
+		if err := os.Chdir(wtPath); err != nil {
+			t.Fatalf("Chdir: %v", err)
+		}
+		err := storeWorktreeConflict(mainTickets)
+		if err == nil || !strings.Contains(err.Error(), "different worktree") {
+			t.Errorf("expected 'different worktree' error, got: %v", err)
+		}
+	})
+
+	t.Run("same worktree returns nil", func(t *testing.T) {
+		gitOrSkip(t)
+		root := t.TempDir()
+		initRepoWithCommit(t, root)
+		mainTickets := filepath.Join(root, "tickets")
+		if err := os.MkdirAll(mainTickets, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		saved, _ := os.Getwd()
+		defer os.Chdir(saved) //nolint:errcheck
+		if err := os.Chdir(root); err != nil {
+			t.Fatalf("Chdir: %v", err)
+		}
+		if err := storeWorktreeConflict(mainTickets); err != nil {
+			t.Errorf("expected nil, got: %v", err)
+		}
+	})
+
+	t.Run("non-repo cwd returns nil", func(t *testing.T) {
+		plain := t.TempDir()
+		store := t.TempDir()
+		saved, _ := os.Getwd()
+		defer os.Chdir(saved) //nolint:errcheck
+		if err := os.Chdir(plain); err != nil {
+			t.Fatalf("Chdir: %v", err)
+		}
+		if err := storeWorktreeConflict(store); err != nil {
+			t.Errorf("expected nil for non-repo cwd, got: %v", err)
+		}
+	})
+}
+
+// setupCrossWorktreeEnv creates a main-worktree ticket store (with a bootstrap
+// binary placeholder and one .erg file) and a linked worktree on a separate
+// branch, then switches cwd to the linked worktree and installs the
+// osExecutable seam so findTicketsDir resolves the main-worktree binary-dir
+// candidate. Returns mainTickets for callers that need to inspect the store.
+// All teardown is registered via t.Cleanup/defer and runs automatically.
+func setupCrossWorktreeEnv(t *testing.T, branch string) (mainTickets string) {
+	t.Helper()
+	gitOrSkip(t)
+	root := t.TempDir()
+	initRepoWithCommit(t, root)
+	mainTickets = filepath.Join(root, "tickets")
+	if err := os.MkdirAll(mainTickets, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(mainTickets, "0001-test.erg"),
+		[]byte("%erg 0.1\nTitle: Test\nCreated: 2026-01-01\nAuthor: a\n\n--- log ---\n--- body ---\n"),
+		0644); err != nil {
+		t.Fatal(err)
+	}
+	ergBin := filepath.Join(mainTickets, "erg")
+	if err := os.WriteFile(ergBin, []byte(""), 0755); err != nil {
+		t.Fatal(err)
+	}
+	wtPath := filepath.Join(t.TempDir(), "wt")
+	gitRun(t, root, "worktree", "add", "-b", branch, wtPath)
+
+	origExe := osExecutable
+	osExecutable = func() (string, error) { return ergBin, nil }
+	t.Cleanup(func() { osExecutable = origExe })
+
+	saved, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(saved) }) //nolint:errcheck
+	if err := os.Chdir(wtPath); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+	return mainTickets
+}
+
+func TestFindTicketsDir_CrossWorktreeRefused(t *testing.T) {
+	setupCrossWorktreeEnv(t, "t0194")
+	_, err := findTicketsDir()
+	if err == nil || !strings.Contains(err.Error(), "different worktree") {
+		t.Errorf("expected 'different worktree' error from findTicketsDir, got: %v", err)
+	}
+}
+
+// TestCrossWorktreeCommandRejection verifies that cmdList, cmdReady, and cmdNew
+// all fail with the "different worktree" diagnostic when the auto-discovered store
+// is in a different git worktree than cwd.
+func TestCrossWorktreeCommandRejection(t *testing.T) {
+	setupCrossWorktreeEnv(t, "t0200-cmd")
+
+	for _, tc := range []struct {
+		name string
+		run  func() (string, string)
+	}{
+		{"cmdList", func() (string, string) { return captureOutput(t, func() { cmdList(nil) }) }},
+		{"cmdReady", func() (string, string) { return captureOutput(t, func() { cmdReady(nil) }) }},
+		{"cmdNew", func() (string, string) { return captureOutput(t, func() { cmdNew([]string{"test ticket"}) }) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, stderr := tc.run()
+			if !strings.Contains(stderr, "different worktree") {
+				t.Errorf("%s: expected 'different worktree' diagnostic on stderr, got: %q", tc.name, stderr)
+			}
+		})
+	}
+}
+
 func TestResolveTicketByID(t *testing.T) {
 	tmp := t.TempDir()
 	os.WriteFile(filepath.Join(tmp, "0042-fix-bug.erg"), []byte("%erg 0.1\n"), 0644)
