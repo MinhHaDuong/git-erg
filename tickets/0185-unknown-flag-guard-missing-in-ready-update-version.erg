@@ -1,0 +1,48 @@
+%erg 0.1
+Title: Unknown-flag guard missing in ready, update, version
+Created: 2026-05-30
+Author: Claude
+
+--- log ---
+2026-05-30T18:00Z Claude created — celebrate sweep after 0180; three residual instances
+
+--- body ---
+## Context
+
+PR #205 (ticket 0180) extended the unknown-flag rejection convention to
+archive, migrate, next-id, validate, list. A celebrate sweep found three
+remaining commands with the same class of defect:
+
+- `ready.go` cmdReady: the switch has `case explicit == "":` before a
+  `default:` error branch. An unknown `--flag` hits the `explicit == ""`
+  arm and is silently stored as the directory path, producing a confusing
+  `resolveDir` error instead of "unknown flag".
+- `update.go` cmdUpdate: signature is `(_ []string)` — all args are
+  silently discarded.
+- `version.go` cmdVersion: same `(_ []string)` pattern — all args
+  silently discarded.
+
+## Relevant files
+
+- `src/go/ready.go`   — fix the switch ordering so `-`-prefixed args
+                        are checked before the `explicit == ""` fallthrough
+- `src/go/update.go`  — add flag-reject loop; replace `_` with `args`
+- `src/go/version.go` — add flag-reject loop; replace `_` with `args`
+- `src/go/rm.go`      — reference implementation of the convention
+
+## Actions
+
+1. `ready.go`: add `case strings.HasPrefix(a, "-") && a != "--json":` arm
+   before `case explicit == "":` so unknown flags error out.
+2. `update.go`: change `_ []string` to `args []string`, add flag-reject
+   loop at the top of cmdUpdate.
+3. `version.go`: same as update.go.
+4. Add unknown-flag shell integration tests to `tests/test_ready.sh`,
+   `tests/test_update.sh`, `tests/test_version.sh`.
+
+## Exit criteria
+
+- [ ] All 3 commands reject unknown `-`-prefixed flags with non-zero exit
+      and a "unknown flag" usage message
+- [ ] Existing positional/flag behavior unchanged — `make check` passes
+- [ ] Shell integration tests cover unknown-flag rejection for each command
