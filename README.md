@@ -107,8 +107,10 @@ global install, no version skew across machines or teammates.
      -o tickets/erg && chmod +x tickets/erg
    ```
 
-   This fetches the latest signed release. When a new release tag is published,
-   replace `2026-05-30` with the new tag name.
+   The URL is pinned to the signed release tag `2026-05-30`. To get a newer
+   version, find the latest tag at
+   [github.com/MinhHaDuong/git-erg/tags](https://github.com/MinhHaDuong/git-erg/tags)
+   and substitute it in the URL above.
 
    On any other platform, clone this repo and `make build` from `src/go/`
    (Go needed for this step only). See **Binary policy** below for why the

@@ -1,0 +1,32 @@
+%erg 0.1
+Title: README: curl download URL uses hardcoded date instead of stable ref
+Created: 2026-05-30
+Author: MinhHaDuong
+
+--- log ---
+2026-05-30T17:55Z MinhHaDuong created
+2026-05-30T20:10Z claude reimagine tag 2026-05-30 exists — premise corrected
+
+2026-05-30T18:25Z claude note clarified tag-based URL and added discovery pointer
+--- body ---
+## Source
+Path A UX dry-run (0152), severity: **High**
+
+## Context (reimagined)
+The tag `2026-05-30` IS a real signed release tag (verified: `git ls-remote
+--tags origin`). The URL works and fetches a binary the maintainer attested.
+The original concern (404 or stale binary) is unfounded for now.
+
+The real gap: a user reading the README months later doesn't know whether
+`2026-05-30` is the latest release. There is no pointer to where newer tags
+are announced. The existing prose says "replace 2026-05-30 with the new tag
+name" — but doesn't say where to look.
+
+## Fix
+Keep the tag-pinned URL (deliberate design, per commit fa16e4b). Add a
+one-liner pointing to the releases page or `git tag` so users can discover
+the current tag. Clarify that the date IS a release tag, not a writing date.
+
+## Exit criteria
+- [ ] curl URL in README install step 2 uses a stable or well-explained ref
+- [ ] A developer following the README 3 months from now gets a working binary
