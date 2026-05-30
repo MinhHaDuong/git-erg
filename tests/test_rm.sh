@@ -144,10 +144,16 @@ Author: a
 EOF
 rm "$GHOST/0042-ghost.erg"
 out=$($ERG rm 0042 "$GHOST" 2>/dev/null) && rc=0 || rc=$?
+err=$($ERG rm 0042 "$GHOST" 2>&1 >/dev/null) || true
 if [ "$rc" -ne 0 ] && [ -z "$out" ]; then
     pass "rm deleted-file: exits non-zero, empty stdout"
 else
     fail "rm deleted-file: exits non-zero, empty stdout (rc=$rc stdout='$out')"
+fi
+if echo "$err" | grep -q "no ticket found"; then
+    pass "rm deleted-file: 'no ticket found' on stderr"
+else
+    fail "rm deleted-file: 'no ticket found' on stderr (got: '$err')"
 fi
 rm -rf "$GHOST"
 
