@@ -1,0 +1,35 @@
+%erg 0.1
+Title: Unknown-flag guard missing in archive, migrate, nextid, validate, list
+Created: 2026-05-30
+Author: Claude
+
+--- log ---
+2026-05-30T14:00Z Claude created — celebrate sweep after 0178; five residual instances
+
+--- body ---
+## Context
+
+PR #203 (ticket 0178) extended the unknown-flag rejection convention to
+check, close, log, label/unlabel, init. A celebrate sweep found five
+remaining commands with the same class of defect:
+
+- `archive.go` cmdArchive: the arg loop has `else if !strings.HasPrefix(a, "-")`
+  which silently *drops* unknown `-`-prefixed args rather than erroring.
+- `migrate.go` cmdMigrate: raw `args[0]` with no flag-loop guard.
+- `nextid.go` cmdNextID: raw `args[0]` with no flag-loop guard.
+- `validate.go` cmdValidate: unknown `--flag` falls through to `os.Stat("--flag")`
+  and emits "WARNING: skipping" instead of a hard error.
+- `list.go` cmdList: unknown `--xyz` tokens fall through to the label-filter
+  accumulator, silently treated as label names instead of erroring.
+
+## Relevant files
+
+- `src/go/archive.go`, `migrate.go`, `nextid.go`, `validate.go`, `list.go`
+- `src/go/rm.go` — reference implementation of the convention
+
+## Exit criteria
+
+- [ ] All 5 commands reject unknown `-`-prefixed flags with non-zero exit
+      and a "unknown flag" usage message
+- [ ] Existing positional behavior unchanged — `make check` passes
+- [ ] Shell integration tests cover unknown-flag rejection for each command
