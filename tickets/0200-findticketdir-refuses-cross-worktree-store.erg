@@ -1,0 +1,77 @@
+%erg 0.1
+Title: findTicketsDir refuses cross-worktree store resolution
+Created: 2026-05-30
+Author: MinhHaDuong
+
+--- log ---
+2026-05-30T20:00Z MinhHaDuong created
+2026-05-30T20:30Z claude planned: storeWorktreeConflict helper in main.go, osExecutable seam for tests, one-liner in spec + manualPreamble; erg update behavioral change noted
+
+--- body ---
+## Context
+
+If you are in a worktree, erg should not get out of it. The current
+auto-discovery candidate chain (binary-dir, tickets/ under cwd, cwd)
+silently resolves to a store in the main checkout when invoked from
+a linked worktree via the installed binary. The result is a ticket
+written to -- or read from -- the wrong worktree with no indication
+that anything is wrong.
+
+The principle: a store resolved outside the current git worktree is
+always a surprise. Surprises should be errors, not silent choices.
+
+## Design
+
+After auto-discovery selects a candidate store, check whether that
+store is inside the same git worktree as cwd:
+
+  - Same worktree (or git unavailable, or cwd is not in any worktree):
+    proceed as today.
+  - Different worktree: exit 1 with a diagnostic:
+
+      erg: store found at /path/to/main/tickets/ (branch: main)
+           but cwd is in a different worktree (branch: t0194)
+           pass an explicit DIR to override
+
+Applies to ALL commands that resolve a store (findTicketsDir and
+resolveDir): list, ready, check, next-id, new, close, log, label,
+unlabel, archive, rm, migrate. Explicit DIR always bypasses the check
+-- the caller has declared intent.
+
+Offline-safe: if git is unavailable the worktree boundary cannot be
+determined; skip the check and proceed (same degrade pattern as banner).
+
+## Spec change
+
+Add one sentence to the Store auto-discovery section of spec-erg-v1.md
+and update manualPreamble in main.go (which generates erg-manual.md):
+
+  "If the resolved store is in a different git worktree than the
+  working directory, erg exits with an error. Pass DIR explicitly
+  to override."
+
+## Implementation notes (from planning)
+
+- Extract `storeWorktreeConflict(store string) error` helper in main.go.
+  Calls worktreeTopFor on store and cwd; returns nil if either is empty
+  or they are equal; returns formatted error otherwise.
+- Add `var osExecutable = os.Executable` seam for testing the binary-dir
+  candidate path without building a real binary.
+- filepath.Abs the resolved candidate before passing to the check --
+  findTicketsDir currently returns relative paths.
+- erg update also calls findTicketsDir (update.go:130) and will now
+  correctly refuse from a linked worktree. Note in PR body.
+
+## Exit criteria
+
+- [ ] findTicketsDir() calls worktreeTopFor on both the resolved
+      store and cwd; if both are non-empty and unequal, returns an
+      error with the diagnostic above
+- [ ] resolveDir() propagates the check (wraps findTicketsDir)
+- [ ] Explicit DIR argument bypasses the check in all commands
+- [ ] No failure when git is unavailable (offline-safe)
+- [ ] No failure when cwd is not inside any git worktree
+- [ ] erg list, erg new, erg ready all fail with the diagnostic
+      in a test where store and cwd are in different real git worktrees
+- [ ] spec-erg-v1.md and manualPreamble updated with the new rule
+- [ ] make check passes

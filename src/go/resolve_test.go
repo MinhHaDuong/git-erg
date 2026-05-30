@@ -191,6 +191,100 @@ func TestResolveDirBanner(t *testing.T) {
 	})
 }
 
+func TestStoreWorktreeConflict(t *testing.T) {
+	t.Run("different worktrees returns error", func(t *testing.T) {
+		gitOrSkip(t)
+		root := t.TempDir()
+		initRepoWithCommit(t, root)
+		// Create a linked worktree on a separate branch.
+		wtPath := filepath.Join(t.TempDir(), "wt2")
+		gitRun(t, root, "worktree", "add", "-b", "t0194", wtPath)
+		// Create the tickets dir in the main worktree root.
+		mainTickets := filepath.Join(root, "tickets")
+		if err := os.MkdirAll(mainTickets, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		// Change cwd to the linked worktree.
+		saved, _ := os.Getwd()
+		defer os.Chdir(saved) //nolint:errcheck
+		if err := os.Chdir(wtPath); err != nil {
+			t.Fatalf("Chdir: %v", err)
+		}
+		err := storeWorktreeConflict(mainTickets)
+		if err == nil || !strings.Contains(err.Error(), "different worktree") {
+			t.Errorf("expected 'different worktree' error, got: %v", err)
+		}
+	})
+
+	t.Run("same worktree returns nil", func(t *testing.T) {
+		gitOrSkip(t)
+		root := t.TempDir()
+		initRepoWithCommit(t, root)
+		mainTickets := filepath.Join(root, "tickets")
+		if err := os.MkdirAll(mainTickets, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		saved, _ := os.Getwd()
+		defer os.Chdir(saved) //nolint:errcheck
+		if err := os.Chdir(root); err != nil {
+			t.Fatalf("Chdir: %v", err)
+		}
+		if err := storeWorktreeConflict(mainTickets); err != nil {
+			t.Errorf("expected nil, got: %v", err)
+		}
+	})
+
+	t.Run("non-repo cwd returns nil", func(t *testing.T) {
+		plain := t.TempDir()
+		store := t.TempDir()
+		saved, _ := os.Getwd()
+		defer os.Chdir(saved) //nolint:errcheck
+		if err := os.Chdir(plain); err != nil {
+			t.Fatalf("Chdir: %v", err)
+		}
+		if err := storeWorktreeConflict(store); err != nil {
+			t.Errorf("expected nil for non-repo cwd, got: %v", err)
+		}
+	})
+}
+
+func TestFindTicketsDir_CrossWorktreeRefused(t *testing.T) {
+	gitOrSkip(t)
+	root := t.TempDir()
+	initRepoWithCommit(t, root)
+	// Create a tickets dir in the main worktree root with a .erg file.
+	mainTickets := filepath.Join(root, "tickets")
+	if err := os.MkdirAll(mainTickets, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(mainTickets, "0001-test.erg"), []byte("%erg 0.1\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Also put an erg bootstrap binary placeholder there for the seam.
+	ergBin := filepath.Join(mainTickets, "erg")
+	if err := os.WriteFile(ergBin, []byte(""), 0755); err != nil {
+		t.Fatal(err)
+	}
+	// Create a linked worktree.
+	wtPath := filepath.Join(t.TempDir(), "wt")
+	gitRun(t, root, "worktree", "add", "-b", "t0194", wtPath)
+
+	// Override osExecutable to point to the main worktree's tickets/erg.
+	origExe := osExecutable
+	osExecutable = func() (string, error) { return ergBin, nil }
+	defer func() { osExecutable = origExe }()
+
+	saved, _ := os.Getwd()
+	defer os.Chdir(saved) //nolint:errcheck
+	if err := os.Chdir(wtPath); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+	_, err := findTicketsDir()
+	if err == nil || !strings.Contains(err.Error(), "different worktree") {
+		t.Errorf("expected 'different worktree' error from findTicketsDir, got: %v", err)
+	}
+}
+
 func TestResolveTicketByID(t *testing.T) {
 	tmp := t.TempDir()
 	os.WriteFile(filepath.Join(tmp, "0042-fix-bug.erg"), []byte("%erg 0.1\n"), 0644)

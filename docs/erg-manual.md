@@ -15,6 +15,9 @@ qualifies as a ticket store if its basename is `tickets`, or if it contains at
 least one `.erg` file. The first qualifying candidate is used; if none qualify,
 `erg` exits with an error listing the directories it tried.
 
+When the store is auto-discovered, `erg` refuses to use a store that lies in
+a different git worktree than the working directory. Pass DIR explicitly to override.
+
 ## erg validate FILE...
 
 Validate individual .erg ticket files (format, headers, refs).
