@@ -24,11 +24,11 @@ if [ -z "$CMDS" ]; then
 fi
 
 for cmd in $CMDS; do
-    out=$($ERG "$cmd" --bogus-flag-xyzzy 2>&1) || rc=$?
-    if [ "${rc:-0}" -ne 0 ] && echo "$out" | grep -q "unknown flag"; then
+    out=$($ERG "$cmd" --bogus-flag-xyzzy 2>&1) && rc=0 || rc=$?
+    if [ "$rc" -ne 0 ] && echo "$out" | grep -q "unknown flag"; then
         pass "$cmd rejects unknown flag"
     else
-        fail "$cmd did not reject unknown flag (rc=${rc:-0}, got: $out)"
+        fail "$cmd did not reject unknown flag (rc=$rc, got: $out)"
     fi
 done
 
