@@ -29,6 +29,15 @@ func TestRefReferencesID(t *testing.T) {
 		// Empty inputs.
 		{"", "0001", false},
 		{"feat/0001", "", false},
+		// Empty id: the explicit `id == ""` short-circuit must fire for all
+		// refName values, including pathological ones where an empty substring
+		// would otherwise match at every offset.
+		// Distinguishing mutation: removing `id == ""` from the guard makes
+		// refReferencesID("",""), refReferencesID("a//b",""), etc. return true.
+		{"", "", false},
+		{"a//b", "", false},
+		{"-", "", false},
+		{"/", "", false},
 		// Multiple matches in one ref still report true.
 		{"0001-merge-0001", "0001", true},
 		// A ref can reference more than one ticket.

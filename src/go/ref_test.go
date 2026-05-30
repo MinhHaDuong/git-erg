@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -14,43 +15,50 @@ func TestParseRef(t *testing.T) {
 		number string
 	}
 	cases := []struct {
-		input   string
-		wantErr bool
-		want    want
+		input       string
+		wantErr     bool
+		errContains string // non-empty: err.Error() must contain this substring
+		want        want
 	}{
 		// Empty ref
-		{"", true, want{}},
+		{"", true, "", want{}},
 
 		// Valid local refs (exactly 4 ASCII digits)
-		{"0042", false, want{kind: RefLocal, id: "0042"}},
-		{"0001", false, want{kind: RefLocal, id: "0001"}},
-		{"9999", false, want{kind: RefLocal, id: "9999"}},
+		{"0042", false, "", want{kind: RefLocal, id: "0042"}},
+		{"0001", false, "", want{kind: RefLocal, id: "0001"}},
+		{"9999", false, "", want{kind: RefLocal, id: "9999"}},
 
 		// Not 4 digits
-		{"123", true, want{}},
-		{"12345", true, want{}},
-		{"abcd", true, want{}},
+		{"123", true, "", want{}},
+		{"12345", true, "", want{}},
+		{"abcd", true, "", want{}},
 
-		// Deprecated gh: scheme
-		{"gh:owner/repo#1", true, want{}},
+		// Deprecated gh: scheme — must name the precise failure mode.
+		// Distinguishing mutation: removing the gh: branch causes the
+		// case-variant guard to fire, producing a "case-sensitive" message
+		// instead of the correct "deprecated" message.
+		{"gh:owner/repo#1", true, "deprecated", want{}},
 
-		// Deprecated gh# scheme
-		{"gh#42", true, want{}},
+		// Deprecated gh# scheme — same contract.
+		{"gh#42", true, "deprecated", want{}},
 
-		// Case-variant old schemes
-		{"GH#42", true, want{}},
-		{"Gh:x/y#1", true, want{}},
+		// Case-variant old schemes — must produce a "case-sensitive" message,
+		// not the deprecated-scheme message.
+		{"GH#42", true, "case-sensitive", want{}},
+		{"Gh:x/y#1", true, "case-sensitive", want{}},
 
 		// Valid forge refs
-		{"github.com/owner/repo#123", false, want{kind: RefForge, host: "github.com", owner: "owner", repo: "repo", number: "123"}},
-		{"gitlab.com/org/project#7", false, want{kind: RefForge, host: "gitlab.com", owner: "org", repo: "project", number: "7"}},
+		{"github.com/owner/repo#123", false, "", want{kind: RefForge, host: "github.com", owner: "owner", repo: "repo", number: "123"}},
+		{"gitlab.com/org/project#7", false, "", want{kind: RefForge, host: "gitlab.com", owner: "org", repo: "project", number: "7"}},
 
 		// Invalid forge refs
-		{"github.com/owner/repo#0", true, want{}}, // leading zero
-		{"github.com/owner/repo#", true, want{}},  // empty number
-		{"github.com//repo#1", true, want{}},      // empty owner
-		{"only-one-slash/here#1", true, want{}},   // not 3-part path
-		{"host:port/owner/repo#1", true, want{}},  // host contains colon
+		{"github.com/owner/repo#0", true, "", want{}},              // leading zero
+		{"github.com/owner/repo#", true, "", want{}},               // empty number
+		{"github.com//repo#1", true, "", want{}},                   // empty owner
+		{"only-one-slash/here#1", true, "", want{}},                // not 3-part path
+		{"host:port/owner/repo#1", true, "", want{}},               // host contains colon
+		{"github.com/owner/repo/extra#1", true, "", want{}},        // 4-part path must be rejected (#5)
+		{"github.com/owner/repo/a/b#1", true, "", want{}},          // 5-part path must be rejected (#5)
 	}
 
 	for _, tc := range cases {
@@ -59,6 +67,10 @@ func TestParseRef(t *testing.T) {
 			if tc.wantErr {
 				if err == nil {
 					t.Errorf("parseRef(%q) = %+v, want error", tc.input, got)
+					return
+				}
+				if tc.errContains != "" && !strings.Contains(err.Error(), tc.errContains) {
+					t.Errorf("parseRef(%q) error = %q, want it to contain %q", tc.input, err.Error(), tc.errContains)
 				}
 				return
 			}

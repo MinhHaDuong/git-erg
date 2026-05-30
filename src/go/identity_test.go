@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -56,6 +57,49 @@ func TestResolveAuthor(t *testing.T) {
 		os.Unsetenv("USER")
 		if got := resolveAuthor(); got != "unknown" {
 			t.Errorf("got %q, want unknown", got)
+		}
+	})
+
+	// Security class guard: each resolveAuthor branch routes through
+	// sanitizeAuthor. Feed control chars via every input path and assert
+	// they are stripped in the returned value. Distinguishing mutation:
+	// strings.NewReplacer("\n","","\r","") -> NewReplacer("\n","\n","\r","\r").
+	t.Run("ERG_AUTHOR with embedded newline is sanitized", func(t *testing.T) {
+		os.Setenv("ERG_AUTHOR", "evil\nTitle: pwn")
+		gitConfigUserName = func() string { return "" }
+		os.Unsetenv("USER")
+		got := resolveAuthor()
+		if strings.ContainsAny(got, "\n\r") {
+			t.Errorf("resolveAuthor() via ERG_AUTHOR = %q: control chars not stripped", got)
+		}
+		if got != "evilTitle: pwn" {
+			t.Errorf("resolveAuthor() = %q, want %q", got, "evilTitle: pwn")
+		}
+	})
+
+	t.Run("git config with embedded CR is sanitized", func(t *testing.T) {
+		os.Unsetenv("ERG_AUTHOR")
+		gitConfigUserName = func() string { return "alice\rField: injected" }
+		os.Unsetenv("USER")
+		got := resolveAuthor()
+		if strings.ContainsAny(got, "\n\r") {
+			t.Errorf("resolveAuthor() via git config = %q: control chars not stripped", got)
+		}
+		if got != "aliceField: injected" {
+			t.Errorf("resolveAuthor() = %q, want %q", got, "aliceField: injected")
+		}
+	})
+
+	t.Run("USER with embedded newline is sanitized", func(t *testing.T) {
+		os.Unsetenv("ERG_AUTHOR")
+		gitConfigUserName = func() string { return "" }
+		os.Setenv("USER", "bob\nAuthor: hijack")
+		got := resolveAuthor()
+		if strings.ContainsAny(got, "\n\r") {
+			t.Errorf("resolveAuthor() via USER = %q: control chars not stripped", got)
+		}
+		if got != "bobAuthor: hijack" {
+			t.Errorf("resolveAuthor() = %q, want %q", got, "bobAuthor: hijack")
 		}
 	})
 }
