@@ -1,0 +1,66 @@
+%erg 0.1
+Title: release skill — automate pre-release audits, sign, tag, update download URL
+Created: 2026-05-30
+Author: Claude
+Closed: misfiled — moved to IDH tickets/0187
+
+--- log ---
+2026-05-30T19:30Z Claude created
+
+2026-05-30T19:35Z MinhHaDuong closed — misfiled — moved to IDH tickets/0187
+--- body ---
+## Context
+
+Releasing git-erg currently requires a human to manually:
+- re-run security and UX audits
+- run the test suite
+- sign a GPG tag
+- update the `curl` URL in README to the new tag name
+- (future) update the blog
+
+The modus operandi agreed after 0181–0184: sign tags at release cadence,
+not CI cadence; the `curl` download URL pins to the latest signed tag so
+CI rebuilds never invalidate attested downloads. A `/release` skill
+encodes this as a repeatable checklist that runs audits autonomously and
+pauses at the human-only step (GPG signing).
+
+## Actions
+
+1. Write `skills/release/SKILL.md` with the frontmatter and prose spec.
+2. Write `skills/release/release` (executable script or inline skill body):
+   a. Pre-flight: `make check` must be green; no open `needs-human` blocking tickets.
+   b. Parallel agents: re-run security audit + UX dry-run (all four audiences,
+      both install paths). Each agent files tickets for findings (severity HIGH/MEDIUM/LOW).
+   c. Print findings summary. Pause: "Resolve HIGH findings before signing. Run
+      `/release continue` when ready."
+   d. On continue: determine new tag name (date-based, e.g. `2026-05-30`).
+      Update the `curl` URL in README to the new tag. Commit.
+   e. Print the exact `git tag -s` command for the human to run.
+   f. After human pushes the tag: `git verify-tag <tag>` to confirm GPG good.
+   g. Stub blog-post ticket (deferred until blog infrastructure exists).
+3. Register in `make skills-catalog`.
+
+## Relevant files
+
+- `skills/` — existing skills for structure reference
+- `README.md` § Install — the `curl` URL updated each release
+- `src/go/assets/integration.md` — also updated if install steps change
+- `tickets/0152-ux-try-and-learn-audit.erg` — UX dry-run procedure
+- `docs/red-team-checklist.md` — security audit checklist
+- `docs/threat-model.md` — threat model reference
+
+## Test
+
+- `make check` passes after skill is added.
+- Running `/release` on a clean repo with no findings reaches step (d) without errors.
+- Running `/release` with a staged HIGH finding stops at the pause point.
+
+## Exit criteria
+
+- [ ] `/release` skill exists and is listed in `make skills-catalog`
+- [ ] Pre-flight gate (`make check` + no blocking open needs-human tickets) works
+- [ ] Security and UX audit agents fire in parallel; findings become filed tickets
+- [ ] Skill pauses at GPG-signing step and prints the exact `git tag -s` command
+- [ ] After tag push, skill verifies `git verify-tag` passes
+- [ ] README curl URL is updated to the new tag name as part of the release commit
+- [ ] Blog-post step is a documented stub (no implementation required until blog exists)
