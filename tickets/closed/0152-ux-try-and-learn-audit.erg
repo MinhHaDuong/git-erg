@@ -3,6 +3,7 @@ Title: UX audit — easy to try and easy to learn
 Created: 2026-05-29
 Author: Claude
 Label: needs-human
+Closed: all exit criteria met: dry-runs run, process documented, friction filed, CI smoke satisfied
 
 --- log ---
 2026-05-29T09:00Z Claude created — UX is a quality goal measured by judgment, not a unit test; the evidence engine for feats; needs-human
@@ -12,6 +13,7 @@ Label: needs-human
 2026-05-30T18:00Z Claude dry-run Path A complete — 6 friction items: HIGH 0188 (hardcoded date in curl URL), MEDIUM 0189 (tickets/ prefix unexplained), LOW 0190 (AGENTS.md step not marked optional), MEDIUM 0191 (validate log rule 11), MEDIUM 0192 (gitignore ordering), LOW 0193 (erg version make target)
 2026-05-30T19:00Z Claude process doc written — UX-PROCESS.md at repo root, linked from AGENTS.md; CI smoke tracked in 0196
 
+2026-05-30T19:24Z MinhHaDuong closed — all exit criteria met: dry-runs run, process documented, friction filed, CI smoke satisfied
 --- body ---
 ## Context
 

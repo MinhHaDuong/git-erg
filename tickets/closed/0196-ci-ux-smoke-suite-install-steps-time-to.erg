@@ -2,10 +2,12 @@
 Title: CI: UX smoke suite — install steps, time-to-first-ticket, help-completeness
 Created: 2026-05-30
 Author: MinhHaDuong
+Closed: satisfied by Path A dry-run (0152) + existing help-completeness test from 0068
 
 --- log ---
 2026-05-30T18:48Z MinhHaDuong created
 
+2026-05-30T19:24Z MinhHaDuong closed — satisfied by Path A dry-run (0152) + existing help-completeness test from 0068
 --- body ---
 ## Context
 Exit criterion from ticket 0152 (UX audit). The AI persona dry-runs cover
