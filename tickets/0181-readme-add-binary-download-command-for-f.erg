@@ -1,0 +1,34 @@
+%erg 0.1
+Title: README: add binary download command for fresh-project install
+Created: 2026-05-30
+Author: MinhHaDuong
+
+--- log ---
+2026-05-30T14:21Z MinhHaDuong created
+
+--- body ---
+## Source
+Path B UX dry-run (0152), severity: **High**
+
+## Context
+README step 2 says "the committed `tickets/erg` in this repo is the prebuilt
+binary: copy it, no download needed." This is only true if the user is inside
+a clone of git-erg. For the primary use case — installing into a new project —
+there is no binary to copy. The agent improvised a `curl` of the raw GitHub URL;
+this is undocumented and breaks for private forks, tagged releases, or users
+who distrust raw CDN downloads.
+
+## Fix
+Add a one-line download command immediately after "copy it, no download needed",
+for users not inside a git-erg clone. Something like:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MinhHaDuong/git-erg/main/tickets/erg \
+  -o tickets/erg && chmod +x tickets/erg
+```
+
+Or a `gh release download` variant once releases are tagged.
+
+## Exit criteria
+- [ ] README "Install into a project" step 2 includes a concrete download command
+- [ ] The command works from a clean directory with no git-erg clone present
