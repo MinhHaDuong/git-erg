@@ -36,16 +36,24 @@ Exits non-zero if the label is not in the vocabulary or the ticket is not found.
 
 // cmdLabel implements `erg label ID LABELNAME [DIR]`. See helpLabel for the user-facing summary.
 func cmdLabel(args []string) int {
-	if len(args) < 2 {
+	var positional []string
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			fmt.Fprintf(os.Stderr, "label: unknown flag %q\nUsage: erg label ID LABELNAME [DIR]\n", a)
+			return 1
+		}
+		positional = append(positional, a)
+	}
+	if len(positional) < 2 {
 		fmt.Fprintln(os.Stderr, "Usage: erg label ID LABELNAME [DIR]")
 		return 1
 	}
 
-	id := args[0]
-	labelname := args[1]
+	id := positional[0]
+	labelname := positional[1]
 	var explicit string
-	if len(args) >= 3 {
-		explicit = args[2]
+	if len(positional) >= 3 {
+		explicit = positional[2]
 	}
 
 	ticketDir, err := resolveDir(explicit)
@@ -110,16 +118,24 @@ func cmdLabel(args []string) int {
 
 // cmdUnlabel implements `erg unlabel ID LABELNAME [DIR]`. See helpUnlabel for the user-facing summary.
 func cmdUnlabel(args []string) int {
-	if len(args) < 2 {
+	var positional []string
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			fmt.Fprintf(os.Stderr, "unlabel: unknown flag %q\nUsage: erg unlabel ID LABELNAME [DIR]\n", a)
+			return 1
+		}
+		positional = append(positional, a)
+	}
+	if len(positional) < 2 {
 		fmt.Fprintln(os.Stderr, "Usage: erg unlabel ID LABELNAME [DIR]")
 		return 1
 	}
 
-	id := args[0]
-	labelname := args[1]
+	id := positional[0]
+	labelname := positional[1]
 	var explicit string
-	if len(args) >= 3 {
-		explicit = args[2]
+	if len(positional) >= 3 {
+		explicit = positional[2]
 	}
 
 	ticketDir, err := resolveDir(explicit)

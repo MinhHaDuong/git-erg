@@ -181,5 +181,14 @@ else
     fail "rule 11: target unchanged after rejected log"
 fi
 
+# unknown flag rejection (ticket 0178)
+    out=$($ERG log 0001 "note" --bogus 2>&1) && rc=0 || rc=$?
+    if [ "$rc" -ne 0 ] && echo "$out" | grep -q "unknown flag"; then
+        pass "unknown flag rejected with usage message"
+    else
+        fail "unknown flag not rejected (rc=$rc, got: $out)"
+    fi
+
+
 echo "log: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

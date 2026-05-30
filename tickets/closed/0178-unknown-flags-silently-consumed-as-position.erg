@@ -2,10 +2,12 @@
 Title: Unknown flags silently consumed as positionals in check, close, log, label, init
 Created: 2026-05-30
 Author: Claude
+Closed: autoclosed — PR #203
 
 --- log ---
 2026-05-30T13:45Z Claude created — sweep follow-up from 0166 (new.go convention)
 
+2026-05-30T14:17Z MinhHaDuong closed — autoclosed — PR #203
 --- body ---
 ## Context
 

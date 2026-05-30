@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var initAssetPaths = []string{
@@ -83,9 +84,17 @@ func installAssets(root string, refuseDiverged bool) (created, refreshed, skippe
 
 // cmdInit implements `erg init [dir]`. See helpInit for the user-facing summary.
 func cmdInit(args []string) int {
+	var positional []string
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			fmt.Fprintf(os.Stderr, "init: unknown flag %q\nUsage: erg init [DIR]\n", a)
+			return 1
+		}
+		positional = append(positional, a)
+	}
 	root := "."
-	if len(args) > 0 {
-		root = args[0]
+	if len(positional) > 0 {
+		root = positional[0]
 	}
 
 	binaryPath := filepath.Join(root, "tickets", "erg")

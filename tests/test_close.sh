@@ -481,5 +481,14 @@ else
 fi
 rm -rf "$STORE" "$OTHER"
 
+# unknown flag rejection (ticket 0178)
+    out=$($ERG close 0001 "reason" --bogus 2>&1) && rc=0 || rc=$?
+    if [ "$rc" -ne 0 ] && echo "$out" | grep -q "unknown flag"; then
+        pass "unknown flag rejected with usage message"
+    else
+        fail "unknown flag not rejected (rc=$rc, got: $out)"
+    fi
+
+
 echo "close: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

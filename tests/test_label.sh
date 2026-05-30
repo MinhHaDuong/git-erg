@@ -262,5 +262,21 @@ else
     pass "erg untag is removed (hard rename, no alias)"
 fi
 
+# unknown flag rejection (ticket 0178)
+    out=$($ERG label 0001 needs-human --bogus 2>&1) && rc=0 || rc=$?
+    if [ "$rc" -ne 0 ] && echo "$out" | grep -q "unknown flag"; then
+        pass "unknown flag rejected with usage message"
+    else
+        fail "unknown flag not rejected (rc=$rc, got: $out)"
+    fi
+
+# unlabel: unknown flag rejection (ticket 0178)
+    out=$($ERG unlabel 0001 needs-human --bogus 2>&1) && rc=0 || rc=$?
+    if [ "$rc" -ne 0 ] && echo "$out" | grep -q "unknown flag"; then
+        pass "unlabel: unknown flag rejected with usage message"
+    else
+        fail "unlabel: unknown flag not rejected (rc=$rc, got: $out)"
+    fi
+
 echo "label: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

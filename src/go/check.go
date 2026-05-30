@@ -158,9 +158,17 @@ Exit codes: 0 on pass (warnings are printed but do not affect exit code), 1 on a
 
 // cmdCheck implements `erg check [dir]`. See helpCheck for the user-facing summary.
 func cmdCheck(args []string) int {
+	var positional []string
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			fmt.Fprintf(os.Stderr, "check: unknown flag %q\nUsage: erg check [DIR]\n", a)
+			return 1
+		}
+		positional = append(positional, a)
+	}
 	var explicit string
-	if len(args) > 0 {
-		explicit = args[0]
+	if len(positional) > 0 {
+		explicit = positional[0]
 	}
 	dir, err := resolveDir(explicit)
 	if err != nil {
