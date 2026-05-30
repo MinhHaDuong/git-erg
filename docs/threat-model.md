@@ -68,11 +68,11 @@ deployment that exists today, is what raises the severity floor: a defect or a
 poisoned blob is a *systemic* event across every adopter that trusts it, so
 "low" findings are rarely low.
 
-Be honest about adoption: it is small today (≈ the author's own projects). The
-multiplier is therefore **obligatory rather than precautionary** — the controls
-below are the price of keeping the binary, owed independent of how many repos
-have adopted it yet, not insurance against a "thousands of repos" deployment
-that has not happened.
+Be honest about adoption: it is small today (≈ the author's own projects).
+These controls are not insurance against some future large deployment — they
+are the mandatory cost of the design choice to ship a committed binary. That
+choice was made; the controls come with it, regardless of how many repos have
+adopted git-erg today.
 
 ## Controls
 
@@ -84,7 +84,7 @@ that has not happened.
 | Path-traversal / ID-injection / symlink / input-DoS hardening, each with a negative control | CI-tested | ticket 0157; `tests/test_security.sh` |
 | `rm` FILE-form and `new` explicit-DIR confinement to the named store | shipped | ticket 0157 |
 | Update integrity via git transport — no `net/http`, no `crypto/tls` in source; refuses cwd-repo hijack; offline no-op | shipped | ticket 0148; `tests/test_update.sh` |
-| Signed release tags (`git tag -s`, verified with `git verify-tag`) as the trustable publication | deferred-human | ticket 0151 (requires maintainer GPG key) |
+| Signed release tags (`git tag -s`, verified with `git verify-tag`) as the trustable publication | shipped | ticket 0151; tag `2026-05-30`, key `4A46C91E03B83B23` (YubiKey-backed) |
 
 `shipped` = present in the binary today. `CI-tested` = exercised by a test that
 runs on every push. `deferred-human` = requires a human action (a maintainer
