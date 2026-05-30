@@ -128,6 +128,29 @@ else
     fail "missing: non-existent ID exits non-zero with resolver message (rc=$rc, got: $out)"
 fi
 
+# --- rm on a file that existed then was deleted ---
+GHOST=$(mktemp -d)
+# Write a valid ticket then delete its file manually
+cat > "$GHOST/0042-ghost.erg" <<'EOF'
+%erg 0.1
+Title: Ghost
+Created: 2026-01-01
+Author: a
+
+--- log ---
+2026-01-01T10:00Z a created
+
+--- body ---
+EOF
+rm "$GHOST/0042-ghost.erg"
+out=$($ERG rm 0042 "$GHOST" 2>/dev/null) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && [ -z "$out" ]; then
+    pass "rm deleted-file: exits non-zero, empty stdout"
+else
+    fail "rm deleted-file: exits non-zero, empty stdout (rc=$rc stdout='$out')"
+fi
+rm -rf "$GHOST"
+
 # --- Closed dependent is also a guard (and --force clears it) ---
 CLOSED_DIR=$(mktemp -d)
 write_open                  "$CLOSED_DIR/0001-blocker.erg"           "Blocker"

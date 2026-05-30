@@ -175,7 +175,7 @@ fi
 write_closed "$FIXTURES/7020-collision.erg" "Collision Ticket"
 mkdir -p "$FIXTURES/closed"
 write_closed "$FIXTURES/closed/7020-collision.erg" "Already There"
-OUT5=$($ERG archive 7020 "$FIXTURES" 2>&1)
+OUT5=$($ERG archive 7020 "$FIXTURES" 2>&1) && RC=0 || RC=$?
 if echo "$OUT5" | grep -q "already exists"; then
     pass "collision: destination-exists emits error message"
 else
@@ -186,6 +186,7 @@ if [ -f "$FIXTURES/7020-collision.erg" ]; then
 else
     fail "collision: source not removed on collision"
 fi
+if [ "$RC" -eq 0 ]; then pass "collision: archive exits 0 (skip is not fatal)"; else fail "collision: archive should exit 0 (rc=$RC)"; fi
 
 # --- Non-existent ID: warning printed, exit 1 (audit fix-now: ID-mode failures must set exit code) ---
 OUT6=$($ERG archive 9999 "$FIXTURES" 2>&1) && rc=0 || rc=$?
