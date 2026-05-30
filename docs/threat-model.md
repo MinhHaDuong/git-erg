@@ -37,7 +37,7 @@ are in place. The repeatable verification procedure is
 ## Attack surfaces
 
 1. **Supply chain / reproducible builds (keystone).** The committed
-   `tickets/erg` is an opaque ~6 MB blob that travels with every clone. The
+   `tickets/erg` is an opaque ~2 MB blob that travels with every clone. The
    defense is reproducibility: anyone must be able to rebuild it bit-for-bit
    from `src/go/` and confirm the committed blob matches. An unverifiable
    committed binary *is* the liability; reproducibility is what earns the right

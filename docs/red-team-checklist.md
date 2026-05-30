@@ -90,3 +90,6 @@ Binary under test: `build/erg`, revision `286de8e`, `linux/amd64`. Committed
 items, so no fix tickets are filed from this run. The signed-release-tag control
 (threat model, deferred-human) remains the one outstanding item, tracked on
 ticket 0151 and out of scope for an automated run.
+
+**Next run:** before the next release tag. Binary under test: `build/erg` at
+the release candidate revision. Accepted by: Minh Ha-Duong, 2026-05-30.
