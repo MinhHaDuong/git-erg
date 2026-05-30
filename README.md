@@ -126,8 +126,12 @@ tools. The `erg` binary adds validation and structured queries over the same
 files:
 
 ```bash
+# Create a new ticket
+tickets/erg new "Add authentication flow"
+# → CREATED 0001-add-authentication-flow.erg
+
 # Validate a single ticket (validate takes file paths, not IDs)
-tickets/erg validate tickets/0001-add-auth.erg
+tickets/erg validate tickets/0001-add-authentication-flow.erg
 
 # Or validate the whole store at once
 tickets/erg check tickets/
