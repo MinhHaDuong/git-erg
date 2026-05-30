@@ -43,7 +43,7 @@ func TestHeaderBlankWarnings(t *testing.T) {
 
 	t.Run("warning shows basename even when file is in a subdirectory", func(t *testing.T) {
 		// Place the blank .erg in a real nested subdir under dir and walk from
-		// dir, so the parent→child traversal path is actually exercised.
+		// dir, so the parent->child traversal path is actually exercised.
 		dir := t.TempDir()
 		sub, err := os.MkdirTemp(dir, "sub")
 		if err != nil {
