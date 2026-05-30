@@ -104,7 +104,6 @@ else
 fi
 
 # --- File creation error handling ---
-# O_EXCL guards against concurrent races (untestable sequentially).
 # Test the adjacent error path: erg new exits non-zero when the target
 # directory is not writable.
 if [ "$(id -u)" -eq 0 ]; then
@@ -148,6 +147,88 @@ if grep -q "^Author: testuser$" "$FILE_A" && grep -q "testuser created" "$FILE_A
 else
     fail "ERG_AUTHOR: Author header and log line use override"
 fi
+
+# --- Sequential negative control: N=10 distinct titles produce distinct IDs ---
+# Proves the concurrent assertions below are not vacuously true.
+SEQDIR=$(mktemp -d)
+seq_fail=0
+for i in 1 2 3 4 5 6 7 8 9 10; do
+    $ERG new "Sequential ticket number $i" "$SEQDIR" >/dev/null 2>&1 || seq_fail=1
+done
+if [ "$seq_fail" -eq 0 ]; then
+    SEQCOUNT=$(ls "$SEQDIR"/*.erg 2>/dev/null | wc -l)
+    SEQIDS=$(ls "$SEQDIR"/*.erg 2>/dev/null | xargs -I{} basename {} .erg | cut -d- -f1 | sort -u | wc -l)
+    if [ "$SEQCOUNT" -eq 10 ] && [ "$SEQIDS" -eq 10 ]; then
+        pass "sequential N=10: all 10 succeed with distinct IDs"
+    else
+        fail "sequential N=10: expected 10 files with 10 distinct IDs (files=$SEQCOUNT, unique_ids=$SEQIDS)"
+    fi
+else
+    fail "sequential N=10: one or more erg new invocations failed"
+fi
+find "$SEQDIR" -type f -delete 2>/dev/null || true
+rmdir "$SEQDIR" 2>/dev/null || true
+
+# --- Concurrent N=10: parallel erg new with distinct titles produces distinct IDs ---
+# Uses a named pipe barrier to start all workers simultaneously.
+# CDIR is outside the repo so nextID Pass 2/3 (sibling worktrees/branches) does
+# not inject existing IDs and break the assertions.
+CDIR=$(mktemp -d)
+OUTDIR=$(mktemp -d)
+BARRIER="$OUTDIR/barrier"
+mkfifo "$BARRIER"
+
+# Start 10 workers; each blocks on the barrier FIFO read before invoking erg new.
+for i in 1 2 3 4 5 6 7 8 9 10; do
+    (
+        read -r _ < "$BARRIER" 2>/dev/null || true
+        $ERG new "Concurrent worker title $i" "$CDIR" > "$OUTDIR/out.$i" 2>&1
+    ) &
+done
+
+# Give workers time to reach the FIFO read, then release all simultaneously.
+# Writing once and closing the write end sends EOF to all blocked readers.
+sleep 0.2
+printf "go\n" > "$BARRIER"
+
+wait
+
+rm -f "$BARRIER"
+
+# Count how many workers produced a CREATED line.
+concurrent_created=0
+for i in 1 2 3 4 5 6 7 8 9 10; do
+    if grep -q "^CREATED " "$OUTDIR/out.$i" 2>/dev/null; then
+        concurrent_created=$((concurrent_created + 1))
+    fi
+done
+
+if [ "$concurrent_created" -eq 10 ]; then
+    pass "concurrent N=10: all 10 workers produced CREATED"
+else
+    fail "concurrent N=10: only $concurrent_created/10 workers produced CREATED"
+fi
+
+# All 10 NNNN prefixes must be distinct.
+CUNIQ=$(ls "$CDIR"/*.erg 2>/dev/null | xargs -I{} basename {} .erg | cut -d- -f1 | sort -u | wc -l)
+if [ "$CUNIQ" -eq 10 ]; then
+    pass "concurrent N=10: all 10 NNNN prefixes are distinct"
+else
+    CTOTAL=$(ls "$CDIR"/*.erg 2>/dev/null | wc -l)
+    fail "concurrent N=10: expected 10 distinct IDs, got $CUNIQ unique out of $CTOTAL files"
+fi
+
+# erg check must pass on the resulting store.
+if $ERG check "$CDIR" > /dev/null 2>&1; then
+    pass "concurrent N=10: erg check passes on resulting store"
+else
+    fail "concurrent N=10: erg check fails on resulting store"
+fi
+
+find "$CDIR" -type f -delete 2>/dev/null || true
+rmdir "$CDIR" 2>/dev/null || true
+find "$OUTDIR" -type f -delete 2>/dev/null || true
+rmdir "$OUTDIR" 2>/dev/null || true
 
 echo "new: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

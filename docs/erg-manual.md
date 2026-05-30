@@ -174,14 +174,20 @@ Create a new %erg 0.1 ticket file atomically.
 Allocates the next available ID by scanning DIR (default: auto-discovered tickets/)
 for the highest numeric .erg filename prefix, then creates a file named
 NNNN-{slug}.erg where the slug is the title lowercased and kebab-cased (truncated
-to 40 characters). Uses O_EXCL to prevent races with concurrent invocations.
+to 40 characters).
+
+Uses an optimistic post-check retry loop to handle concurrent invocations:
+O_EXCL writes the file, then a glob for NNNN-*.erg verifies uniqueness of the
+NNNN prefix. If a collision is detected (two concurrent invocations computed the
+same ID for different slugs), the losing invocation removes its file and retries
+with the next free ID. Up to 20 attempts are made before giving up.
 
 The new file contains the required preamble headers (Title, Created, Author),
 an empty log section with a "created" entry, and an empty body section.
 Author is resolved from the ERG_AUTHOR environment variable, or the git user.name,
-or the system username — whichever is available first.
+or the system username -- whichever is available first.
 
-Prints 'CREATED NNNN-slug.erg' on success. Exits non-zero on I/O errors.
+Prints 'CREATED NNNN-slug.erg' on success. Exits non-zero on exhaustion or I/O errors.
 
 ## erg close ID|FILE REASON [DIR]
 
