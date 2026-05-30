@@ -483,5 +483,13 @@ else
 fi
 rm -rf "$NHDIR"
 
+# unknown flag rejection (ticket 0180)
+    out=$($ERG migrate --bogus 2>&1) && rc=0 || rc=$?
+    if [ "$rc" -ne 0 ] && echo "$out" | grep -q "unknown flag"; then
+        pass "unknown flag rejected with usage message"
+    else
+        fail "unknown flag not rejected (rc=$rc, got: $out)"
+    fi
+
 echo "migrate: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

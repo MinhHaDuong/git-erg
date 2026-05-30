@@ -378,5 +378,13 @@ else
     fail "list: empty store handled (output: $output)"
 fi
 
+# unknown flag rejection (ticket 0180)
+    out=$($ERG list --bogus 2>&1) && rc=0 || rc=$?
+    if [ "$rc" -ne 0 ] && echo "$out" | grep -q "unknown flag"; then
+        pass "unknown flag rejected with usage message"
+    else
+        fail "unknown flag not rejected (rc=$rc, got: $out)"
+    fi
+
 echo "list: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

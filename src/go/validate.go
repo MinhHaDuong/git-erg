@@ -236,6 +236,13 @@ func cmdValidate(args []string) int {
 		return 1
 	}
 
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			fmt.Fprintf(os.Stderr, "validate: unknown flag %q\nUsage: erg validate FILE...\n", a)
+			return 1
+		}
+	}
+
 	var allErrors []string
 	count := 0
 	// Cache globLocalIDs and Config per directory.
