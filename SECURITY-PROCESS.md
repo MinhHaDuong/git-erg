@@ -62,9 +62,7 @@ appends a section with:
    body.
 3. Medium findings get tickets unless the fix is trivial enough to land
    in the same PR as the run-log update.
-4. Log the run on the parent tracker (ticket 0151):
-   `erg log 0151 "Claude red-team run -- N items, M findings: <severities and ticket IDs>"`
-5. Threat-model changes (new surfaces, revised severity, control
+4. Threat-model changes (new surfaces, revised severity, control
    additions) are human-gated -- the agent proposes edits to
    `docs/threat-model.md` but does not merge them unattended.
 
