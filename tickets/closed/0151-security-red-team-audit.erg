@@ -3,6 +3,7 @@ Title: Security audit — threat model and red-team resistance
 Created: 2026-05-29
 Author: Claude
 Label: needs-human
+Closed: autoclosed — PR #204
 
 --- log ---
 2026-05-29T09:00Z Claude created — "resists red team" is a posture, not a checkmark; needs-human
@@ -15,6 +16,7 @@ Label: needs-human
 
 2026-05-29T13:45Z Claude note raid-151 split: children 0155-0158 (automatable subset); human-gated items stay on 0151
 2026-05-29T19:14Z Claude note raid-151 done: children 0155-0158 all merged (#170/#171/#172/#182). 8/9 exit criteria addressed; only signed release tags (git tag -s) remains — DEFERRED-human (needs maintainer GPG key). 0151 stays open for that.
+2026-05-30T14:13Z MinhHaDuong closed — autoclosed — PR #204
 --- body ---
 ## Context
 
