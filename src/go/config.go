@@ -16,7 +16,7 @@ type Config struct {
 var defaultLabels = []string{"needs-human", "deferred"}
 
 // loadConfig reads and parses .ergrc from dir. Returns (nil, nil) when
-// the file is absent — callers fall back to built-in defaults.
+// the file is absent -- callers fall back to built-in defaults.
 func loadConfig(dir string) (*Config, error) {
 	data, err := os.ReadFile(filepath.Join(dir, ".ergrc"))
 	if err != nil {

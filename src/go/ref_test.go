@@ -33,16 +33,16 @@ func TestParseRef(t *testing.T) {
 		{"12345", true, "", want{}},
 		{"abcd", true, "", want{}},
 
-		// Deprecated gh: scheme — must name the precise failure mode.
+		// Deprecated gh: scheme -- must name the precise failure mode.
 		// Distinguishing mutation: removing the gh: branch causes the
 		// case-variant guard to fire, producing a "case-sensitive" message
 		// instead of the correct "deprecated" message.
 		{"gh:owner/repo#1", true, "deprecated", want{}},
 
-		// Deprecated gh# scheme — same contract.
+		// Deprecated gh# scheme -- same contract.
 		{"gh#42", true, "deprecated", want{}},
 
-		// Case-variant old schemes — must produce a "case-sensitive" message,
+		// Case-variant old schemes -- must produce a "case-sensitive" message,
 		// not the deprecated-scheme message.
 		{"GH#42", true, "case-sensitive", want{}},
 		{"Gh:x/y#1", true, "case-sensitive", want{}},

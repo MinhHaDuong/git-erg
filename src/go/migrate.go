@@ -18,18 +18,18 @@ Convert legacy headers to %erg 0.1 format.
 Idempotent (safe to run repeatedly: already-migrated files are not modified twice). For every .erg file under DIR (default: tickets/) the migration
 rules are:
 
-  - 'Status: closed' (case-insensitive) → drop the line; append
+  - 'Status: closed' (case-insensitive) -> drop the line; append
     'Closed: migrated from Status: closed' to the preamble.
-  - 'Status: open', 'Status: doing', or 'Status: pending' → drop the line;
+  - 'Status: open', 'Status: doing', or 'Status: pending' -> drop the line;
     the ticket becomes not-closed (the correct new state).
-  - 'Tag:' (or legacy 'Tags:') preamble line → rewrite the key to 'Label:'. The
+  - 'Tag:' (or legacy 'Tags:') preamble line -> rewrite the key to 'Label:'. The
     value is preserved; legacy 'Tags:' converges to 'Label:' in a single run.
-  - '.ergrc' '[tags]' section header → rewritten to '[labels]'.
-  - Legacy '%erg v1' magic line → rewritten to '%erg 0.1'.
-  - Interior blank lines inside the header block → swept (ticket 0141:
+  - '.ergrc' '[tags]' section header -> rewritten to '[labels]'.
+  - Legacy '%erg v1' magic line -> rewritten to '%erg 0.1'.
+  - Interior blank lines inside the header block -> swept (ticket 0141:
     accept on read, autofix on write). The first blank line still terminates
     the header block; only blanks between header lines are removed.
-  - No legacy line and no interior blanks → no-op.
+  - No legacy line and no interior blanks -> no-op.
 
 After migration, erg validate will reject any remaining Status:, Tags:, or Tag: lines.
 
@@ -41,7 +41,7 @@ the legacy tickets/tools/go/erg path or the legacy 'validate tickets/' CLI
 form. The hook rewrite is content-based and idempotent; hooks without legacy
 patterns are left untouched.
 
-Does NOT commit. Exits 1 on archive/→closed/ filename collision (both directories are left untouched; the user must resolve manually). Exits 0 otherwise.
+Does NOT commit. Exits 1 on archive/->closed/ filename collision (both directories are left untouched; the user must resolve manually). Exits 0 otherwise.
 Review the diff with 'git diff tickets/' and commit manually.
 `
 
@@ -105,14 +105,14 @@ func cmdMigrate(args []string) int {
 	total := migratedClosed + migratedOther
 	fmt.Printf("migrated: %d tickets (%d closed, %d open/doing/pending stripped)\n",
 		total, migratedClosed, migratedOther)
-	fmt.Printf("Tag: → Label: rewrite: %d tickets\n", migratedLabels)
-	fmt.Printf("%%erg v1 → %%erg 0.1 rewrite: %d tickets\n", migratedMagic)
+	fmt.Printf("Tag: \u2192 Label: rewrite: %d tickets\n", migratedLabels)
+	fmt.Printf("%%erg v1 \u2192 %%erg 0.1 rewrite: %d tickets\n", migratedMagic)
 	fmt.Printf("interior header blank sweep: %d tickets\n", migratedBlanks)
 	fmt.Printf("already clean: %d tickets\n", alreadyClean)
 
 	// Rewrite the .ergrc [tags] section header to [labels] (idempotent).
 	if migrateErgrc(dir) {
-		fmt.Println(".ergrc [tags] → [labels] rewrite: 1 file")
+		fmt.Println(".ergrc [tags] \u2192 [labels] rewrite: 1 file")
 	}
 
 	// Layout migration: only run when dir is named "tickets" (canonical layout).
@@ -155,9 +155,9 @@ func migrateLayout(dir string) int {
 	_, closedErr := os.Stat(closedDir)
 	if archiveErr == nil && closedErr != nil {
 		if err := os.Rename(archiveDir, closedDir); err != nil {
-			fmt.Fprintf(os.Stderr, "migrate: rename archive/→closed/: %v\n", err)
+			fmt.Fprintf(os.Stderr, "migrate: rename archive/->closed/: %v\n", err)
 		} else {
-			fmt.Println("migrate: renamed archive/ → closed/")
+			fmt.Println("migrate: renamed archive/ \u2192 closed/")
 		}
 	} else if archiveErr == nil && closedErr == nil {
 		entries, err := os.ReadDir(archiveDir)
@@ -171,7 +171,7 @@ func migrateLayout(dir string) int {
 				}
 			}
 			if len(conflicts) > 0 {
-				fmt.Fprintf(os.Stderr, "migrate: archive/→closed/ collision: %v — resolve manually\n", conflicts)
+				fmt.Fprintf(os.Stderr, "migrate: archive/->closed/ collision: %v -- resolve manually\n", conflicts)
 				return 1
 			}
 			for _, e := range entries {
@@ -182,7 +182,7 @@ func migrateLayout(dir string) int {
 			if err := os.Remove(archiveDir); err != nil {
 				fmt.Fprintf(os.Stderr, "migrate: remove archive/: %v\n", err)
 			} else {
-				fmt.Printf("migrate: merged %d files archive/ → closed/, removed archive/\n", len(entries))
+				fmt.Printf("migrate: merged %d files archive/ \u2192 closed/, removed archive/\n", len(entries))
 			}
 		}
 	}
@@ -207,7 +207,7 @@ func migrateLayout(dir string) int {
 			fmt.Fprintf(os.Stderr, "migrate: cannot chmod tickets/erg: %v\n", err)
 			return 1
 		}
-		fmt.Println("migrate: copied binary → tickets/erg")
+		fmt.Println("migrate: copied binary \u2192 tickets/erg")
 	}
 	if c, r, _, u, err := installAssets(root, false); err != nil {
 		fmt.Fprintf(os.Stderr, "migrate: init assets refresh failed: %v\n", err)
@@ -220,10 +220,10 @@ func migrateLayout(dir string) int {
 
 // migrateHook rewrites a legacy pre-commit hook in place so the post-upgrade
 // hook keeps working. Two patterns are replaced: the pre-bootstrap binary
-// path (tickets/tools/go/erg → tickets/erg) and the old corpus-check CLI
-// form (validate tickets/ → check tickets/, which the current binary
-// rejects in favor of `erg check`). Detection is content-based — no marker
-// comments are required — and the rewrite is idempotent: a hook with no
+// path (tickets/tools/go/erg -> tickets/erg) and the old corpus-check CLI
+// form (validate tickets/ -> check tickets/, which the current binary
+// rejects in favor of `erg check`). Detection is content-based -- no marker
+// comments are required -- and the rewrite is idempotent: a hook with no
 // legacy pattern is left untouched and silent. A hook that does not exist,
 // or a .git directory that is unreadable (e.g. a worktree gitfile), is
 // likewise skipped silently.
@@ -245,7 +245,7 @@ func migrateHook(root string) {
 		fmt.Fprintf(os.Stderr, "migrate: rewrite hook: %v\n", err)
 		return
 	}
-	fmt.Println("migrate: rewrote .git/hooks/pre-commit (tickets/tools/go/erg → tickets/erg, validate → check)")
+	fmt.Println("migrate: rewrote .git/hooks/pre-commit (tickets/tools/go/erg -> tickets/erg, validate -> check)")
 }
 
 // migrateResult summarizes what migrateFile rewrote in a single .erg file.
@@ -312,16 +312,16 @@ func migrateFile(path string) (migrateResult, error) {
 			continue
 		}
 		if i < preambleEnd && isTagsHeaderLine(line) {
-			// Rewrite legacy `Tags:` → `Label:` preserving the value (and any
+			// Rewrite legacy `Tags:` -> `Label:` preserving the value (and any
 			// inline comment). Original casing of the value is kept. Converges
-			// in one run — no intermediate `Tag:` stop.
+			// in one run -- no intermediate `Tag:` stop.
 			rewritten := "Label:" + line[len("Tags:"):]
 			out = append(out, rewritten)
 			res.labelsRewritten = true
 			continue
 		}
 		if i < preambleEnd && isTagHeaderLine(line) {
-			// Rewrite `Tag:` → `Label:` preserving the value (and any inline
+			// Rewrite `Tag:` -> `Label:` preserving the value (and any inline
 			// comment). isTagsHeaderLine is checked first above, so a `Tags:`
 			// line never reaches here (the 4-char `Tag:` prefix excludes it).
 			rewritten := "Label:" + line[len("Tag:"):]
@@ -334,7 +334,7 @@ func migrateFile(path string) (migrateResult, error) {
 
 	if res.wasClosed {
 		// After removing Status: lines, the preamble end shifts by however
-		// many we dropped — recompute relative to the rewritten slice. Insert
+		// many we dropped -- recompute relative to the rewritten slice. Insert
 		// the Closed header immediately after the last non-blank preamble line.
 		newLogIdx := -1
 		for i, line := range out {

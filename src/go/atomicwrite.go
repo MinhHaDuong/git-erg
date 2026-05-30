@@ -14,16 +14,16 @@ import (
 // the safety properties are implemented once and audited once, rather than
 // re-derived in each command:
 //
-//   - atomic replace      — write a temp then rename over the target, so a
+//   - atomic replace      -- write a temp then rename over the target, so a
 //                           concurrent reader never sees a partial file and a
 //                           crash leaves the complete old file or the complete
 //                           new one, never a truncated one (atomicWriteFile).
-//   - validate-before-replace — never write content that no longer parses as a
+//   - validate-before-replace -- never write content that no longer parses as a
 //                           %erg file over a good ticket (writeTicketAtomic).
-//   - write-confinement   — refuse a target that resolves outside the store
+//   - write-confinement   -- refuse a target that resolves outside the store
 //                           root: a fail-safe against a fat-fingered DIR/ID or
 //                           an overeager agent computing a path outside
-//                           tickets/. Not a security boundary — a determined
+//                           tickets/. Not a security boundary -- a determined
 //                           caller bypasses it (the adversarial path-traversal
 //                           review is ticket 0151); here it stops the common
 //                           mistake before it lands (writeTicketAtomic).
@@ -43,7 +43,7 @@ func (e *errOutsideStore) Error() string {
 // withinStore reports whether target resolves inside storeRoot's subtree.
 // Both paths are made absolute first so a relative target ("../etc/x") or an
 // absolute one that escapes the store is caught. storeRoot itself counts as
-// inside (rel == "."). The check is purely lexical — it does NOT resolve
+// inside (rel == "."). The check is purely lexical -- it does NOT resolve
 // symlinks. That is deliberate: this is a fail-safe against fat-fingered paths,
 // not a security boundary, and a symlink *at* the target path is harmless
 // anyway (os.Rename replaces the symlink itself with an in-store regular file
@@ -72,14 +72,14 @@ func withinStore(storeRoot, target string) (bool, error) {
 // never sees a partial file and a killed process leaves either the complete old
 // file or the complete new one, never a zero-length/truncated one. The temp is
 // created in the same directory as the target (so the rename is a same-
-// filesystem atomic operation) by os.CreateTemp, which uses O_EXCL — a stray
+// filesystem atomic operation) by os.CreateTemp, which uses O_EXCL -- a stray
 // temp from an earlier crash is never silently reused. On any failure the temp
 // is removed and the original (if any) is left untouched.
 func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
 	// Respect the target's existing writability. A temp+rename only needs a
 	// writable *directory*, so without this probe a read-only ticket (mode
 	// 0444, or one the caller lacks write permission on) could still be
-	// replaced — a surprising change from the os.WriteFile call this path
+	// replaced -- a surprising change from the os.WriteFile call this path
 	// replaced, and a bypass of a deliberate read-only marking. Probe the real
 	// file with O_WRONLY (no O_TRUNC, so nothing is modified) and refuse if it
 	// is not writable; a non-existent target is fine (we are creating it). This
@@ -126,11 +126,11 @@ func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
 	if err := os.Rename(tmpName, path); err != nil {
 		return err
 	}
-	tmpName = "" // rename done — the temp is now the target; do not remove it
+	tmpName = "" // rename done -- the temp is now the target; do not remove it
 
 	// fsync the parent directory so the rename itself is durable: without this,
 	// a crash just after the rename can lose the new directory entry on some
-	// filesystems and leave the old file. Best-effort — a dir that cannot be
+	// filesystems and leave the old file. Best-effort -- a dir that cannot be
 	// synced (or a platform that disallows it) must not fail an otherwise
 	// completed write.
 	if dirf, err := os.Open(dir); err == nil {
@@ -156,19 +156,19 @@ func writeTicketAtomic(storeRoot, path string, content []byte) error {
 	}
 	if _, errs := parseErgBytes(content, path); len(errs) > 0 {
 		// Validate-before-replace guards against turning a GOOD ticket into a
-		// bad one — "never write garbage over a good ticket". It must not block
+		// bad one -- "never write garbage over a good ticket". It must not block
 		// a mutation on a ticket that was ALREADY invalid: e.g. close clearing a
 		// dangling Blocked-by from a dependent that carries an unrelated
 		// pre-existing rule violation must still succeed (otherwise the edge is
 		// left dangling and erg check flags it). So we refuse only when the file
-		// on disk currently parses clean — or does not exist, since creating a
+		// on disk currently parses clean -- or does not exist, since creating a
 		// brand-new invalid ticket is never wanted either.
 		if old, readErr := os.ReadFile(path); readErr != nil || len(parseErgErrs(old, path)) == 0 {
 			return fmt.Errorf("refusing to write invalid %%erg content to %s: %s", path, errs[0])
 		}
 	}
 	// Preserve the existing file's mode. An atomic replace creates a NEW inode,
-	// so — unlike os.WriteFile on an existing file — without this the ticket's
+	// so -- unlike os.WriteFile on an existing file -- without this the ticket's
 	// permissions would be reset to 0644 (e.g. a 0600 ticket would widen to
 	// 0644). A brand-new file (no original on disk) defaults to 0644.
 	perm := os.FileMode(0644)
@@ -179,7 +179,7 @@ func writeTicketAtomic(storeRoot, path string, content []byte) error {
 }
 
 // parseErgErrs returns just the parse-time errors for content, discarding the
-// Erg — a small helper so writeTicketAtomic can ask "was the original clean?"
+// Erg -- a small helper so writeTicketAtomic can ask "was the original clean?"
 // without naming the unused parse result.
 func parseErgErrs(content []byte, path string) []string {
 	_, errs := parseErgBytes(content, path)

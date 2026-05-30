@@ -213,7 +213,7 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
       occurrences are body text (legitimate bodies may quote the literals).
   13. No dependency cycles among local Blocked-by refs.
   14. Title does not begin or end with a status word (ready, done, closed,
-      open) — these read as a status assertion about the ticket rather than
+      open) -- these read as a status assertion about the ticket rather than
       the thing being changed. Enforced on open tickets; closed tickets are
       grandfathered (existing closed history is never flagged).
 
@@ -223,7 +223,7 @@ Line numbers are 1-indexed.
 
 For corpus-level checks (duplicate IDs, cycles), use: erg check [dir]
 
-Exit codes: 0 on pass, 1 on any violation. Directories are rejected — use erg check.
+Exit codes: 0 on pass, 1 on any violation. Directories are rejected -- use erg check.
 `
 
 // cmdValidate implements `erg validate FILE...`. See helpValidate for the user-facing summary.
@@ -258,10 +258,10 @@ func cmdValidate(args []string) int {
 		t, parseErrs := parseErg(arg)
 		// Shout (non-fatal) on an interior header blank: validate runs in the
 		// pre-commit hook, so this is where an author sees the nudge at commit
-		// time. The file is still accepted — exit code is unaffected (ticket 0141).
+		// time. The file is still accepted -- exit code is unaffected (ticket 0141).
 		if data, rerr := os.ReadFile(arg); rerr == nil && hasInteriorHeaderBlank(data) {
 			fmt.Fprintf(os.Stderr,
-				"WARNING: %s: blank line inside header block — run `erg migrate` to normalise (tolerated; not a validation error)\n",
+				"WARNING: %s: blank line inside header block -- run `erg migrate` to normalise (tolerated; not a validation error)\n",
 				t.Filename())
 		}
 		dir := filepath.Dir(arg)

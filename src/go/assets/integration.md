@@ -69,7 +69,7 @@ rm ~/.local/bin/erg
 ```
 
 **Your tickets are not removed.** Files you created (`tickets/*.erg`,
-`tickets/closed/`) are yours — erg never deletes them. Remove them
+`tickets/closed/`) are yours -- erg never deletes them. Remove them
 yourself if you no longer need them.
 
 If you added the `AGENTS.md` line from step 2, remove that line

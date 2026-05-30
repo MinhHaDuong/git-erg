@@ -11,7 +11,7 @@ const summaryReady = "Show tickets ready for work"
 
 const helpReady = `## erg ready [DIR] [--json]
 
-List tickets ready for work — a saved filter over 'erg list'.
+List tickets ready for work -- a saved filter over 'erg list'.
 
 A ticket is ready when all of the following hold:
 
@@ -27,10 +27,10 @@ Equivalent to 'erg list open not blocked' with every configured label
 its output: a human-readable line per ticket, or --json for a JSON array
 with the fields id, title, file, closed, refs, labels, blocked_by.
 
-Each line is annotated with the comma-separated [refs] — git branch short
+Each line is annotated with the comma-separated [refs] -- git branch short
 names, remote-tracking branch short names (with their <remote>/ prefix),
-and worktree paths — that reference the ticket per spec-erg-v1.md. The scan
-is local-only; PRs and forge state are out of scope (pep-erg-v1.md §7).
+and worktree paths -- that reference the ticket per spec-erg-v1.md. The scan
+is local-only; PRs and forge state are out of scope (pep-erg-v1.md sec.7).
 `
 
 // cmdReady implements `erg ready [dir] [--json]` as a thin alias over the

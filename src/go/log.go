@@ -68,7 +68,7 @@ func cmdLog(args []string) int {
 	}
 
 	if !strings.Contains(string(data), "\n"+separatorBody) {
-		fmt.Fprintf(os.Stderr, "log: %s has no %s separator — refusing to write\n", ticketPath, separatorBody)
+		fmt.Fprintf(os.Stderr, "log: %s has no %s separator -- refusing to write\n", ticketPath, separatorBody)
 		return 1
 	}
 
@@ -80,7 +80,7 @@ func cmdLog(args []string) int {
 	// confirm LINE supplies at least an actor and a verb before we commit it.
 	if !logLineRE.MatchString(logLine) {
 		fmt.Fprintf(os.Stderr,
-			"log: %q is not a valid log entry — LINE must be 'actor verb [detail]' (at least two words)\n", line)
+			"log: %q is not a valid log entry -- LINE must be 'actor verb [detail]' (at least two words)\n", line)
 		return 1
 	}
 

@@ -124,11 +124,11 @@ func TestLoadListEntries(t *testing.T) {
 	writeErg(t, dir, "0001-alpha.erg", "%erg 0.1\nTitle: Alpha\nCreated: 2024-01-01\nAuthor: test\nLabel: needs-human\n\n--- log ---\n--- body ---\n")
 	// 0002: closed, blocks others when referenced.
 	writeErg(t, dir, "0002-beta.erg", "%erg 0.1\nTitle: Beta\nCreated: 2024-01-02\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n")
-	// 0003: blocked by a forge ref (offline-unknown → always blocking).
+	// 0003: blocked by a forge ref (offline-unknown -> always blocking).
 	writeErg(t, dir, "0003-gamma.erg", "%erg 0.1\nTitle: Gamma\nCreated: 2024-01-03\nAuthor: test\nBlocked-by: github.com/foo/bar#1\n\n--- log ---\n--- body ---\n")
 	// 0004: blocked by open local 0001 (blocking) and closed local 0002 (satisfied).
 	writeErg(t, dir, "0004-delta.erg", "%erg 0.1\nTitle: Delta\nCreated: 2024-01-04\nAuthor: test\nBlocked-by: 0001\nBlocked-by: 0002\n\n--- log ---\n--- body ---\n")
-	// 0005: blocked by unknown local 9999 → warning, treated as satisfied.
+	// 0005: blocked by unknown local 9999 -> warning, treated as satisfied.
 	writeErg(t, dir, "0005-epsilon.erg", "%erg 0.1\nTitle: Epsilon\nCreated: 2024-01-05\nAuthor: test\nBlocked-by: 9999\n\n--- log ---\n--- body ---\n")
 
 	entries, warnings := loadListEntries(dir)
@@ -154,7 +154,7 @@ func TestLoadListEntries(t *testing.T) {
 		t.Error("0002 should be closed")
 	}
 
-	// 0003: forge blocker → blocked, one forge entry.
+	// 0003: forge blocker -> blocked, one forge entry.
 	g := byID["0003"]
 	if !g.blocked || len(g.blockedBy) != 1 || g.blockedBy[0].kind != "forge" {
 		t.Errorf("0003: blocked=%v blockedBy=%+v, want blocked with one forge entry", g.blocked, g.blockedBy)
@@ -166,7 +166,7 @@ func TestLoadListEntries(t *testing.T) {
 		t.Errorf("0004: blocked=%v blockedBy=%+v, want one local blocker 0001", d.blocked, d.blockedBy)
 	}
 
-	// 0005: unknown local ref → not blocking, one warning emitted.
+	// 0005: unknown local ref -> not blocking, one warning emitted.
 	if byID["0005"].blocked {
 		t.Error("0005 should not be blocked by an unknown local ref")
 	}

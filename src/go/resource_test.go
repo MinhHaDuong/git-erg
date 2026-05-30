@@ -2,7 +2,7 @@
 
 // Resource-hygiene guard (ticket 0169), sibling to scaling_test.go.
 //
-// scaling_test.go gates allocation *volume* (TotalAlloc) — the signal for an
+// scaling_test.go gates allocation *volume* (TotalAlloc) -- the signal for an
 // O(N^2) churn regression. It is blind to OS-resource leaks. This file adds two
 // hygiene assertions that run under the same `scaling` build tag and the same
 // `make test-scaling` target, so the scaling guard and the hygiene guard are
@@ -12,7 +12,7 @@
 //     file descriptors than it started with (erg shells out to git and opens
 //     files; a missing Close or unreaped child pipe leaks an fd).
 //   - TestScalingHeapRetention: the read-only commands hold no live heap once
-//     they return. HeapAlloc after a forced GC is the bytes still reachable —
+//     they return. HeapAlloc after a forced GC is the bytes still reachable --
 //     the retention signal TotalAlloc cannot see.
 //
 // Each guard ships a falsifiable negative control (the 0146 / AGENTS.md
@@ -21,10 +21,10 @@
 // trips. If a control ever stops tripping, the matching guard has gone blind and
 // its green is worthless.
 //
-// CPU / nice: erg deliberately does NOT renice itself — process priority is the
+// CPU / nice: erg deliberately does NOT renice itself -- process priority is the
 // invoker's job (nice/ionice/systemd), and erg has no goroutines so it never
 // saturates cores. There is therefore nothing to assert about scheduling here;
-// the rationale lives in tickets/0169 and PEP §10.
+// the rationale lives in tickets/0169 and PEP sec.10.
 
 package main
 
@@ -49,7 +49,7 @@ func openFDCount(t *testing.T) int {
 
 // liveHeapBytes returns bytes of still-reachable heap after a forced GC. Unlike
 // TotalAlloc (cumulative churn, the scaling_test.go signal), HeapAlloc after GC
-// is exactly what the program is still holding — the retention signal.
+// is exactly what the program is still holding -- the retention signal.
 func liveHeapBytes() uint64 {
 	var m runtime.MemStats
 	runtime.GC()
@@ -60,7 +60,7 @@ func liveHeapBytes() uint64 {
 // withDiscardedStdout runs fn with os.Stdout and os.Stderr redirected to a
 // write-only /dev/null so command output is genuinely discarded. Opening the
 // sink read-only (os.Open) would give os.Stdout a read-only descriptor, so every
-// fmt.Print* in the measured command fails with EBADF — exercising a broken
+// fmt.Print* in the measured command fails with EBADF -- exercising a broken
 // output path instead of the success path. O_WRONLY mirrors the kernel's discard
 // behaviour and matches scaling_test.go's measure(); redirecting stderr too keeps
 // list/ready warnings out of the test log. Both streams are restored on return
@@ -92,7 +92,7 @@ var hygieneCommands = []struct {
 }
 
 // TestScalingFDHygiene asserts every corpus-heavy command returns with no leaked
-// file descriptors — no unclosed file, no dangling pipe to the git child. A
+// file descriptors -- no unclosed file, no dangling pipe to the git child. A
 // non-zero exit aborts the subtest: an early failure path could look fd-neutral
 // and pass vacuously, so we only trust the count on the success path.
 func TestScalingFDHygiene(t *testing.T) {
@@ -106,7 +106,7 @@ func TestScalingFDHygiene(t *testing.T) {
 			withDiscardedStdout(t, func() {
 				before = openFDCount(t)
 				if ret := c.invoke(dir); ret != 0 {
-					t.Fatalf("%s returned non-zero exit %d — fd-hygiene signal is untrustworthy", c.name, ret)
+					t.Fatalf("%s returned non-zero exit %d -- fd-hygiene signal is untrustworthy", c.name, ret)
 				}
 				after = openFDCount(t)
 			})
@@ -131,7 +131,7 @@ func TestScalingFDHygiene_NegativeControl(t *testing.T) {
 	after := openFDCount(t)
 	leak.Close() // clean up so the probe does not pollute other tests
 	if after <= before {
-		t.Errorf("fd-leak probe did not raise the count (%d -> %d) — the fd guard is vacuous", before, after)
+		t.Errorf("fd-leak probe did not raise the count (%d -> %d) -- the fd guard is vacuous", before, after)
 	}
 }
 
@@ -143,7 +143,7 @@ const heapRetentionSlackBytes = 1 << 20 // 1 MiB
 // TestScalingHeapRetention asserts the read-only commands hold no live heap once
 // they return: run each many times and require post-GC live heap to stay flat. A
 // per-call retention leak (e.g. appending parsed tickets to a package global)
-// accumulates linearly and trips the bound. Mutators are excluded — they consume
+// accumulates linearly and trips the bound. Mutators are excluded -- they consume
 // ticket 0001 and cannot be looped on one fixture; their resource risk (git
 // child + temp file) is the fd path, covered by TestScalingFDHygiene. A non-zero
 // return aborts the subtest: a failing command allocates less and could satisfy
@@ -163,7 +163,7 @@ func TestScalingHeapRetention(t *testing.T) {
 			withDiscardedStdout(t, func() {
 				for i := 0; i < iters; i++ {
 					if ret := c.invoke(dir); ret != 0 {
-						t.Fatalf("%s returned non-zero exit %d — heap-retention signal is untrustworthy", c.name, ret)
+						t.Fatalf("%s returned non-zero exit %d -- heap-retention signal is untrustworthy", c.name, ret)
 					}
 					if i == 0 {
 						first = liveHeapBytes()
@@ -198,7 +198,7 @@ func TestScalingHeapRetention_NegativeControl(t *testing.T) {
 	last := liveHeapBytes()
 	runtime.KeepAlive(sink)
 	if last <= first+heapRetentionSlackBytes {
-		t.Errorf("heap-retain probe did not raise live heap past slack (%d -> %d, slack %d) — the heap guard is vacuous",
+		t.Errorf("heap-retain probe did not raise live heap past slack (%d -> %d, slack %d) -- the heap guard is vacuous",
 			first, last, heapRetentionSlackBytes)
 	}
 }

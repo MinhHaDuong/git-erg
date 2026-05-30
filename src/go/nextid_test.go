@@ -119,14 +119,14 @@ func TestNextID(t *testing.T) {
 			want: "0006",
 		},
 		{
-			desc: "range exhausted: 9999 exists → error",
+			desc: "range exhausted: 9999 exists -> error",
 			files: map[string]string{
 				"9999-last.erg": "",
 			},
 			wantErr: true,
 		},
 		{
-			desc: "range not exhausted: 9998 exists → 9999 valid",
+			desc: "range not exhausted: 9998 exists -> 9999 valid",
 			files: map[string]string{
 				"9998-penultimate.erg": "",
 			},
@@ -265,7 +265,7 @@ func TestNextID_SkipsTicketOnRemoteTrackingBranch(t *testing.T) {
 	gitOrSkip(t)
 	// Set up an "origin" bare repo with a branch that has a ticket, fetch
 	// it into a clone, then check whether next-id sees the ID via the
-	// refs/remotes/origin/* cache. No network — git only reads local refs.
+	// refs/remotes/origin/* cache. No network -- git only reads local refs.
 	origin := t.TempDir()
 	mustGitIn := func(dir string, args ...string) { gitRun(t, dir, args...) }
 	mustGitIn(origin, "init", "-q", "-b", "main", "--bare")

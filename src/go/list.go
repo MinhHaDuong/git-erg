@@ -94,7 +94,7 @@ func loadListEntries(dir string) ([]listEntry, []string) {
 				continue // malformed refs are validator territory
 			}
 			if ref.IsForge() {
-				// Forge refs are offline-unknown → always blocking.
+				// Forge refs are offline-unknown -> always blocking.
 				blockedBy = append(blockedBy, blockedByEntry{kind: "forge", ref: ref.Raw})
 				continue
 			}
@@ -140,19 +140,19 @@ const summaryList = "List tickets, filtered by label (alias: ls)"
 
 const helpList = `## erg list [DIR] [LABEL...] [not LABEL...] [--all] [--json]
 
-List tickets, one per line, sorted by ID. Each line carries any [refs] —
+List tickets, one per line, sorted by ID. Each line carries any [refs] --
 git branches, remote-tracking branches, and worktree paths that reference the
-ticket per the spec-erg-v1.md matching rule — plus (labels: …) and (blocked-by:
-…) when present. The refs scan is local-only (git for-each-ref, git worktree
+ticket per the spec-erg-v1.md matching rule -- plus (labels: ...) and (blocked-by:
+...) when present. The refs scan is local-only (git for-each-ref, git worktree
 list); no network calls.
 
 Label arguments filter the list as a conjunction: a bare LABEL keeps only tickets
 carrying it, and "not LABEL" drops tickets carrying it. Beyond the literal Label:
 vocabulary, three computed pseudo-labels are accepted:
 
-  - closed   — the ticket is closed (Closed: header or closed/ path).
-  - open     — the ticket is not closed.
-  - blocked  — the ticket has an unsatisfied blocker (a forge ref, or a
+  - closed   -- the ticket is closed (Closed: header or closed/ path).
+  - open     -- the ticket is not closed.
+  - blocked  -- the ticket has an unsatisfied blocker (a forge ref, or a
                Blocked-by pointing at an open local ticket).
 
 Open is the default: with no open/closed term and without --all, only open
@@ -179,7 +179,7 @@ Examples:
 `
 
 // pseudoLabelSet holds the computed filter terms. They are always filters, never
-// directory arguments — so `erg ls closed` filters even from inside a store
+// directory arguments -- so `erg ls closed` filters even from inside a store
 // that happens to contain a closed/ subdirectory.
 var pseudoLabelSet = map[string]bool{"closed": true, "open": true, "blocked": true}
 

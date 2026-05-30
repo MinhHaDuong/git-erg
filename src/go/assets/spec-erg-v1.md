@@ -1,4 +1,4 @@
-# Ticket format spec — %erg 0.1
+# Ticket format spec -- %erg 0.1
 
 Author: Minh Ha-Duong <minh.ha-duong@cnrs.fr>
 Last modified: 2026-05-30
@@ -45,9 +45,9 @@ Free-form markdown body.
 ```
 
 Three sections, in order:
-1. **Headers** — RFC 822 style, one per line, immediately after magic line.
-2. **Log** — append-only ledger, after `--- log ---` separator.
-3. **Body** — free-form markdown, after `--- body ---` separator.
+1. **Headers** -- RFC 822 style, one per line, immediately after magic line.
+2. **Log** -- append-only ledger, after `--- log ---` separator.
+3. **Body** -- free-form markdown, after `--- body ---` separator.
 
 The header block ends at the first blank line that is *not* followed by
 another header line. A blank line that still has header-shaped lines below
@@ -56,10 +56,10 @@ it (before `--- log ---`) is an **interior blank**: it is tolerated on read
 write (`close`, `label`, and `unlabel` strip it), swept across the corpus by
 `erg migrate`, and surfaced as a non-fatal warning by both `erg validate`
 and `erg check`. An interior blank is a hygiene issue, never a hard format
-error — validate and check stay at exit 0. Both separators are required (the
+error -- validate and check stay at exit 0. Both separators are required (the
 validator rejects files missing either one). The first `--- log ---` and
 the first `--- body ---` (in order) are the section separators;
-subsequent occurrences are body text — legitimate bodies may quote the
+subsequent occurrences are body text -- legitimate bodies may quote the
 format literals.
 
 ### Headers (closed set, v1)
@@ -73,7 +73,7 @@ format literals.
 | `Blocked-by` | no | yes | ref | Local `NNNN`, path-ref `module/NNNN`, or forge ref `host/owner/repo#N` (see grammar) |
 | `Label` | no | yes | enum | Configurable via `.ergrc [labels]`; defaults: `needs-human`, `deferred` |
 
-**All header values are line-strings — single line, no embedded newlines.**
+**All header values are line-strings -- single line, no embedded newlines.**
 The type column distinguishes `line` (single-line text) from `date` /
 `ref` / `enum` (structured values with their own grammar). Multiline
 content belongs in the body section.
@@ -123,7 +123,7 @@ default. One `Blocked-by:` line per dependency; remove the line once the depende
 Tools that cannot resolve a path-ref treat it as blocking (same behaviour as offline forge refs).
 
 There is no pending or doing header. If two agents need to avoid stepping on each other, they should
-coordinate via out-of-band signals — typically a git branch whose name contains the ticket ID.
+coordinate via out-of-band signals -- typically a git branch whose name contains the ticket ID.
 
 ### Closed / not-closed criterion
 
@@ -137,20 +137,20 @@ A ticket is **closed** if at least one of these holds:
 
 Otherwise the ticket is **not-closed** (open).
 
-`erg check` emits a corpus hygiene **warning** (non-fatal) when a ticket's folder placement and `Closed:` header disagree. This mismatch does not make the ticket invalid — the disjunctive criterion above is authoritative for the closed/not-closed decision.
+`erg check` emits a corpus hygiene **warning** (non-fatal) when a ticket's folder placement and `Closed:` header disagree. This mismatch does not make the ticket invalid -- the disjunctive criterion above is authoritative for the closed/not-closed decision.
 
 There is no `pending` or `claimed` label by design, external state must not be encoded in ticket description.
 
 A git ref **references ticket `NNNN`** when the literal 4-digit ID appears at a word boundary (start, end, or any of `/`, `-`, `_`) in its short name. A worktree references the ticket when its branch ref does.
 
-`erg list` and `erg ready` annotate each open ticket with the comma-separated set of references found — local branch short names, remote-tracking branch short names (with their `<remote>/` prefix), and worktree paths. No network calls are made; PRs and forge issue state are out of scope (pep-erg-v1.md §7). Branch *naming* remains a workflow choice (pep-erg-v1.md §6); the rule above only fixes what `list`/`ready` *recognize as a match*.
+`erg list` and `erg ready` annotate each open ticket with the comma-separated set of references found -- local branch short names, remote-tracking branch short names (with their `<remote>/` prefix), and worktree paths. No network calls are made; PRs and forge issue state are out of scope (pep-erg-v1.md sec.7). Branch *naming* remains a workflow choice (pep-erg-v1.md sec.6); the rule above only fixes what `list`/`ready` *recognize as a match*.
 
 ### ID assignment
 
 The ticket ID is derived from the filename, not a header.
 
 Filename pattern: `{ID}-{slug}.erg`
-- ID: zero-padded sequential number, 4 digits (`0001`, `0002`, …)
+- ID: zero-padded sequential number, 4 digits (`0001`, `0002`, ...)
 - Slug: lowercase kebab-case, ASCII only (`[a-z0-9-]`)
 - Slug is truncated to 40 characters by `erg new`; trailing hyphens are stripped after truncation.
 
@@ -173,7 +173,7 @@ you want the freshest view of origin; otherwise an ID pushed to origin between f
 invisible and may be re-allocated.
 
 **Collision handling:** optimistic. Two concurrent `next-id` calls in different worktrees
-can still return the same ID — the cross-worktree window has narrowed but is not eliminated.
+can still return the same ID -- the cross-worktree window has narrowed but is not eliminated.
 The pre-commit validator rejects duplicates on merge; the losing agent renames and retries.
 
 ### Log section
@@ -210,17 +210,17 @@ when creating or modifying tickets. Non-conforming files are rejected by the val
 Tolerance is graded, not all-or-nothing. The interior header blank (see
 *Structure*) is the worked example, handled across five tiers:
 
-- **Accept on read** — the parser extracts the headers below the blank
+- **Accept on read** -- the parser extracts the headers below the blank
   instead of discarding them.
-- **Autofix on write** — `close`, `label`, and `unlabel` strip the blank when
+- **Autofix on write** -- `close`, `label`, and `unlabel` strip the blank when
   they rewrite a ticket, so a file self-heals on its next mutation.
-- **Sweep on migrate** — `erg migrate` normalises every file in one pass,
+- **Sweep on migrate** -- `erg migrate` normalises every file in one pass,
   the single "make it clean now" lever for files no command has touched.
-- **Shout on validate** — the pre-commit gate prints a non-fatal `WARNING:`
+- **Shout on validate** -- the pre-commit gate prints a non-fatal `WARNING:`
   (still exit 0), so an author sees the nudge at commit time.
-- **Warn on check** — a corpus scan surfaces files that need a cleanup pass.
+- **Warn on check** -- a corpus scan surfaces files that need a cleanup pass.
 
 UTF-8 BOM and CRLF line endings are a lighter precedent: accepted on read
 and warned by `erg check`, but never autofixed, swept, or shouted. In every
-case the tooling itself emits canonical %erg 0.1 — "strict on write" is a
+case the tooling itself emits canonical %erg 0.1 -- "strict on write" is a
 *write contract*, not a license to reject recoverable input on read.

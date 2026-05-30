@@ -16,7 +16,7 @@ import (
 )
 
 // parseIDFromFilename extracts the leading numeric prefix from an .erg
-// filename (e.g. "0042-some-title.erg" → 42). Returns 0 if the file does not
+// filename (e.g. "0042-some-title.erg" -> 42). Returns 0 if the file does not
 // end in .erg, the prefix is not numeric, or the numeric ID is >= 10000 (outside
 // the valid 4-digit range). Stray files with IDs >= 10000 are silently ignored
 // so they do not poison next-id into returning a 5-digit result.
@@ -54,7 +54,7 @@ func maxIDInDir(dir string) int {
 
 // knownBranches returns the short names of every refs/heads/ branch and every
 // refs/remotes/ tracking branch in the repository containing dir. Both come
-// from the local refs cache via a single `git for-each-ref` call — no
+// from the local refs cache via a single `git for-each-ref` call -- no
 // network. Remote-tracking branches are included because they reflect what
 // the user last fetched from origin; an ID burned on origin is taken, even
 // if no local branch carries it. The origin/HEAD symref is skipped (it
@@ -114,7 +114,7 @@ const branchScanDeadline = 200 * time.Millisecond
 var errRangeExhausted = errors.New("next-id: range exhausted (max 4-digit ID is 9999)")
 
 // nextID returns the next available ticket ID as a zero-padded 4-digit string,
-// or an error if the 4-digit range (0001–9999) is exhausted.
+// or an error if the 4-digit range (0001-9999) is exhausted.
 // The scan combines three sources:
 //
 //  1. The filesystem walk of dir itself.
@@ -203,7 +203,7 @@ Print the next available ticket ID.
 Scans for the maximum ticket ID across three sources and returns max+1,
 zero-padded to 4 digits. Prints "0001" if no numbered tickets exist anywhere.
 
-  1. DIR (default: auto-discovered tickets/) and its subdirectories — the
+  1. DIR (default: auto-discovered tickets/) and its subdirectories -- the
      local filesystem walk.
   2. The same-relative subdir of every sibling worktree, enumerated via
      'git worktree list'. Catches uncommitted tickets drafted in parallel
@@ -212,7 +212,7 @@ zero-padded to 4 digits. Prints "0001" if no numbered tickets exist anywhere.
      in the local refs cache, enumerated via 'git for-each-ref' + 'git
      ls-tree'. Catches tickets committed on branches not currently checked
      out anywhere, and IDs already burned on origin that have been fetched
-     but not yet merged locally. No network call — remote-tracking refs
+     but not yet merged locally. No network call -- remote-tracking refs
      come from the local cache populated by the last 'git fetch'. Bounded
      by a 200ms wall-clock deadline; on timeout, falls back to the Pass
      1+2 result and prints a WARNING to stderr.
@@ -227,7 +227,7 @@ their IDs are invisible to this scan and may be re-allocated. Run
 view; next-id itself never makes a network call.
 
 ID allocation is still optimistic: two concurrent invocations in different
-worktrees may return the same ID — the cross-worktree window has narrowed
+worktrees may return the same ID -- the cross-worktree window has narrowed
 but is not eliminated. The pre-commit hook rejects duplicate IDs on merge;
 the losing agent renames its ticket with a new ID from a fresh invocation.
 `

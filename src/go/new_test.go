@@ -10,8 +10,8 @@ import (
 func TestSlugify(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"Hello World", "hello-world"},
-		{"My TICKET: with special—chars & more!", "my-ticket-with-special-chars-more"},
-		{"em—dash collapsed", "em-dash-collapsed"},
+		{"My TICKET: with special\u2014chars & more!", "my-ticket-with-special-chars-more"},
+		{"em\u2014dash collapsed", "em-dash-collapsed"},
 		{"consecutive---hyphens", "consecutive-hyphens"},
 		{"-leading and trailing-", "leading-and-trailing"},
 		{"this is a very long title that exceeds forty characters definitely",
