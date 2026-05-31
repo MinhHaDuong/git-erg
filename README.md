@@ -3,7 +3,7 @@
 **An issue tracker that's just files in your repo — offline, agent-native, zero-install.**
 
 Author: Minh Ha-Duong <minh.ha-duong@cnrs.fr>
-Last modified: 2026-05-29
+Last modified: 2026-05-31
 Status: Working draft
 
 ## Start in 10 seconds — nothing to install
