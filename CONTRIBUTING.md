@@ -23,7 +23,12 @@ make validate       # validate the tickets/ corpus
 
 `make test` is the gate: it must exit 0 before you open a merge request.
 Tests always run against `build/erg` (rebuilt from source), never the
-committed `tickets/erg` bootstrap binary.
+committed `tickets/erg` bootstrap binary. CI likewise always compiles from
+source and never relies on the committed binary.
+
+The committed `tickets/erg` bootstrap binary is refreshed explicitly via
+`make update-bootstrap-binary` (typically after Go-code changes or when
+releasing); `make test` must never modify it.
 
 ## Branches and merge requests
 
