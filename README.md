@@ -56,10 +56,10 @@ See **Install into a project** below.
 
 ---
 
-The rest of this README is the design depth — how the two transports fit
-together, the spec, and the binary policy.
-
-- **Two transports, four users**: POSIX is the first transport, the `erg` CLI is the second, and the same pair serves hooks, CI, agents, and humans (see below)
+The rest of this README is the design depth — how the plain files and the `erg`
+CLI fit together, the spec, and the binary policy. The short version: the `.erg`
+file is the universal interface, the CLI adds validation and `--json` on top, and
+the same pair serves hooks, CI, agents, and humans (see below).
 
 ## POSIX first, CLI second
 
@@ -71,18 +71,17 @@ transport: a single static Go file that adds validation, atomic mutation, and
 `--json` queries on top of the same files. Both transports serve the same
 four users:
 
-| User   | POSIX (transport #1)                | CLI (`erg`, transport #2)         |
+| User   | POSIX                               | CLI (`erg`)                       |
 |--------|-------------------------------------|-----------------------------------|
 | Hooks  | `grep -l '^%erg' tickets/*.erg`     | `erg validate FILES`              |
 | CI     | `find tickets -name '*.erg'`        | `erg check tickets/`              |
 | Agents | `Read`/`Edit` on `.erg`             | `erg list --json`, `erg close ID` |
 | Humans | `cat`, `vim`, `ls tickets/`         | `erg ready`, `erg --help`         |
 
-A *third* transport — MCP, an HTTP API, a language SDK — would have to beat
-both. POSIX is already universal and zero-install; the CLI is already a
-single static binary with `--json`. There is no headroom left for a third
-layer to add value without paying installation and version-skew costs the
-project does not need. The design rationale is in `pep-erg-v1.md` §8.
+Could a *third* transport — MCP, an HTTP API, a language SDK — be worth adding?
+The bar is high: POSIX is already universal and zero-install, and the CLI is
+already a single static binary with `--json`. The trade-offs, and why the door
+isn't closed, are in `pep-erg-v1.md` §8.
 
 ## Specification
 
@@ -123,8 +122,8 @@ global install, no version skew across machines or teammates.
 
 **No prebuilt binary for your platform? You don't need one.** The POSIX path
 is fully functional without `erg`, and a `grep`-based pre-commit hook validates
-tickets without the binary. Platform and build details are in **Binary policy**
-below.
+tickets without the binary. Why the binary ships is in **Binary policy** below;
+build and CI mechanics are in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Quick start (with the `erg` binary)
 
@@ -149,13 +148,16 @@ tickets/erg ready
 
 ## Managing dependencies
 
-Add `Blocked-by:` lines in the ticket header to encode dependencies.
-
-Dependencies on ticket ID will be automatically cleared by `tickets/erg close ID REASON`, otherwise you have to find them and remove the line by editing the text file.
+Add `Blocked-by:` lines to a ticket header to encode dependencies; `tickets/erg
+close ID REASON` clears them from dependents automatically (otherwise you edit
+the lines out by hand). Full semantics: `erg close --help` or
+`docs/erg-manual.md`.
 
 ## Updating
 
-`tickets/erg update` will lookup for a more recent build and replace the existing binary in-place.
+`tickets/erg update` looks up the committed binary at your git remote and
+replaces the running one in place if it differs. Details: `erg update --help` or
+`docs/erg-manual.md`.
 
 ## Binary policy
 
@@ -164,26 +166,20 @@ authoritative artifact is `src/go/`, which travels in every clone. `tickets/erg`
 is a committed Linux x86-64 bootstrap *convenience* for environments where Go
 may be unavailable (CI runners, agents) and where the POSIX path isn't enough —
 built from the vendored source, not a separate source of trust (bit-for-bit
-reproducibility is the goal, delivered in ticket 0151). (Rationale and the
-supply-chain trade-offs: `docs/audit-infrastructure-class.md`.) I look forward
-to working with macOS, ARM or Windows early adopters.
+reproducibility is the goal). (Rationale and the supply-chain trade-offs:
+`docs/audit-infrastructure-class.md`.)
 
 Because the binary is a cache of the source, the aim is that anyone can rebuild
 it bit-for-bit and verify the committed blob matches — that reproducibility is
-what justifies shipping a binary at all, and is the keystone control delivered in
-ticket 0151. CI builds always compile from source and do not
-rely on the committed binary: all tests and development builds must use
-`build/erg`, rebuilt from source via `make build`.
-
-The bootstrap binary is updated explicitly via `make update-bootstrap-binary`
-(typically after changes to the Go code or when releasing) and must never be
-modified by `make test`.
+what justifies shipping a binary at all, and is the keystone control. How the
+binary is rebuilt, refreshed, and kept out of the test path is build-side
+mechanics; those live in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Verifying the binary
 
-The committed `tickets/erg` is a convenience cache of the source — and a cache
-is only as trustworthy as your ability to check it. You don't have to trust it
-on faith; here are two tiers, pick the one that fits your threat model.
+The committed `tickets/erg` is a convenience cache of the source, and a cache is
+only as trustworthy as your ability to check it. Two tiers — pick the one that
+fits your threat model.
 
 **Basic — transit integrity.** `erg version` prints the binary's full
 SHA-256 digest and names the algorithm, so stock tools can reproduce it:
@@ -223,8 +219,8 @@ repo, so you can rebuild offline and byte-compare:
 make verify     # rebuilds tickets/erg from src/go/ and diffs it — expect: verify: PASS
 ```
 
-For the highest assurance, have a capable AI review `src/go/` before you rebuild
-— reviewable source beats an opaque blob.
+For the highest assurance, read `src/go/` (or have a tool review it) before you
+rebuild — it's small, and reviewable source beats an opaque blob.
 
 The full picture — what we defend, against whom, and the repeatable check —
 lives in [`docs/threat-model.md`](docs/threat-model.md) and
