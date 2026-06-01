@@ -1,0 +1,38 @@
+%erg 0.1
+Title: Planifier le travail erg imagine et creer le jeu de tickets
+Created: 2026-06-01
+Author: MinhHaDuong
+
+--- log ---
+2026-06-01T09:15Z MinhHaDuong created
+
+--- body ---
+## Context
+
+Une session Imagine (2026-06-01) a explore l'evolution d'erg : separation
+erg core (offline, forge-blind) / couche forge `erg-github`, versionnage des
+assets facon dpkg, autoclose par enforcement CI plutot que par bot. La
+synthese, revue par 4 agents et derisquee, vit dans :
+
+    docs/erg-imagine-charter.md
+
+Ce ticket est un ticket de PLANIFICATION : il ne fait aucune implementation.
+Sa seule tache est d'essaimer le jeu de tickets d'execution a partir de la
+charte, en respectant le decoupage et les blockers transverses qu'elle liste.
+
+## Exit criteria
+
+- [ ] Lire `docs/erg-imagine-charter.md` en entier (glossaire + blockers
+      transverses + chantiers + decoupage).
+- [ ] Creer un ticket d'execution par chantier du decoupage :
+      1 (version), 2 (split init/install), 3 (spec/integration print-on-demand),
+      4a/4b/4c/4d (versionnage assets, sous-divise), 5 (mecanique init),
+      6 (install --hooks/--inject-agents), 7 (erg-github P2 enforce).
+- [ ] Chaque ticket cree reference la section correspondante de la charte et
+      reprend ses surfaces (code + docs + tests + CONTRIBUTING + CI) et son
+      derisque (defaut sur, migration sans casse).
+- [ ] Reporter les 5 blockers transverses sur les tickets concernes
+      (dispatch erg-github -> 7 ; archive pre-PUSH -> 7 ; byte-compare reframe
+      -> 4d ; orphelins+balayage doc -> 3 ; checklist sous-commande -> 2/3/7).
+- [ ] Respecter l'ordre suggere (2 -> 3 -> 5, puis 6 -> 7, puis 4a..4d).
+- [ ] `make check` passe (les nouveaux tickets valident).
