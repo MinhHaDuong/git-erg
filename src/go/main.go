@@ -17,7 +17,7 @@
 //	erg rm       ID|FILE [dir] [--force]
 //	erg migrate  [dir]
 //	erg init     [dir]
-//	erg install  [dir] [--hooks] [--inject-agents]
+//	erg install  [dir] [--hooks] [--inject-agents] [--create-agents-md]
 //	erg spec
 //	erg integration
 //	erg version
