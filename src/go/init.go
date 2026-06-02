@@ -23,7 +23,7 @@ var orphanAssetPaths = []string{
 
 const summaryInit = "Unpack .ergrc and AGENTS.md into tickets/"
 
-const helpInit = `## erg init [DIR]
+const helpInit = `## erg init [DIR] [-n|--dry-run] [--force]
 
 Unpack embedded bootstrap assets into the project.
 
@@ -42,11 +42,27 @@ initialize an empty directory that was never meant to be a ticket store.
 Each asset is compared byte-for-byte with the embedded version; unchanged files
 are skipped and counted separately from newly created files. If an existing file
 differs from the embedded version (indicating local edits), it is skipped with a
-message on stderr and the command exits non-zero. Local edits are never overwritten.
+message on stderr and the command exits 2 (local edits are never overwritten).
+
+Flags:
+
+  -n, --dry-run   Preview what init would create, refresh, skip, or leave
+                  unchanged without writing or removing any file.
+  --force         Overwrite files that differ from the embedded version
+                  instead of skipping them. Use with care: local edits are
+                  replaced.
 
 If tickets/spec-erg-v1.md or tickets/integration.md exist from a previous init
 and match the current embedded content, they are removed as orphaned assets.
 Files that have been edited locally are preserved.
+
+After a successful run (not in dry-run), init chains a read-only corpus check
+and prints any warnings, but its exit code reflects the init outcome only --
+the chained warnings never change it.
+
+Exit codes: 0 success; 1 a hard error (bad flag, missing binary, write
+failure); 2 local edits were preserved and skipped (run with --force to
+overwrite). See "Exit codes" in erg --help --all.
 `
 
 // installAssets unpacks the embedded bootstrap assets under root, returning
@@ -60,48 +76,79 @@ Files that have been edited locally are preserved.
 // When refuseDiverged is true, files that differ from the embedded asset are
 // skipped with a message on stderr instead of being overwritten; the skipped
 // count is incremented. When false, differing files are overwritten (refresh).
-func installAssets(root string, refuseDiverged bool) (created, refreshed, skipped, unchanged int, err error) {
+//
+// When dryRun is true, no directory is created, no file is written, and the
+// orphan sweep is not performed; instead a preview line is printed for each
+// asset describing the action that would be taken. The returned counts are the
+// same as a real run would produce.
+func installAssets(root string, refuseDiverged, dryRun bool) (created, refreshed, skipped, unchanged int, err error) {
 	for _, rel := range initAssetPaths {
 		content, ok := bootstrapAsset(rel)
 		if !ok {
 			return created, refreshed, skipped, unchanged, fmt.Errorf("missing embedded asset: %s", rel)
 		}
 		target := filepath.Join(root, filepath.FromSlash(rel))
-		if mkErr := os.MkdirAll(filepath.Dir(target), 0755); mkErr != nil {
-			return created, refreshed, skipped, unchanged, fmt.Errorf("cannot create directory for %s: %w", rel, mkErr)
-		}
 		existing, readErr := os.ReadFile(target)
 		exists := readErr == nil
 		if exists && string(existing) == content {
 			unchanged++
+			if dryRun {
+				fmt.Printf("  unchanged  %s\n", rel)
+			}
 			continue
 		}
 		if exists && refuseDiverged {
-			fmt.Fprintf(os.Stderr, "init: %s has local edits -- skipping\n", rel)
 			skipped++
+			if dryRun {
+				fmt.Printf("  would skip (local edits)  %s\n", rel)
+			} else {
+				fmt.Fprintf(os.Stderr, "init: %s has local edits -- skipping\n", rel)
+			}
 			continue
-		}
-		if wErr := os.WriteFile(target, []byte(content), 0644); wErr != nil {
-			return created, refreshed, skipped, unchanged, fmt.Errorf("cannot write %s: %w", rel, wErr)
 		}
 		if exists {
 			refreshed++
 		} else {
 			created++
 		}
+		if dryRun {
+			verb := "would create "
+			if exists {
+				verb = "would refresh"
+			}
+			fmt.Printf("  %s  %s\n", verb, rel)
+			continue
+		}
+		if mkErr := os.MkdirAll(filepath.Dir(target), 0755); mkErr != nil {
+			return created, refreshed, skipped, unchanged, fmt.Errorf("cannot create directory for %s: %w", rel, mkErr)
+		}
+		if wErr := os.WriteFile(target, []byte(content), 0644); wErr != nil {
+			return created, refreshed, skipped, unchanged, fmt.Errorf("cannot write %s: %w", rel, wErr)
+		}
 	}
 	return created, refreshed, skipped, unchanged, nil
 }
 
-// cmdInit implements `erg init [dir]`. See helpInit for the user-facing summary.
+// cmdInit implements `erg init [dir] [-n|--dry-run] [--force]`. See helpInit
+// for the user-facing summary. Exit codes: 0 success; 1 hard error; 2 local
+// edits skipped.
 func cmdInit(args []string) int {
 	var positional []string
+	dryRun := false
+	force := false
 	for _, a := range args {
-		if strings.HasPrefix(a, "-") {
-			fmt.Fprintf(os.Stderr, "init: unknown flag %q\nUsage: erg init [DIR]\n", a)
-			return 1
+		switch a {
+		case "-n", "--dry-run":
+			dryRun = true
+		case "--force":
+			force = true
+		default:
+			if strings.HasPrefix(a, "-") {
+				fmt.Fprintf(os.Stderr, "init: unknown flag %q\nUsage: erg init [DIR] [-n|--dry-run] [--force]\n", a)
+				return 1
+			}
+			positional = append(positional, a)
 		}
-		positional = append(positional, a)
 	}
 	root := "."
 	if len(positional) > 0 {
@@ -115,23 +162,46 @@ func cmdInit(args []string) int {
 		return 1
 	}
 
-	created, refreshed, skipped, unchanged, err := installAssets(root, true)
+	// --force overwrites divergent files; without it, they are preserved.
+	refuseDiverged := !force
+	created, refreshed, skipped, unchanged, err := installAssets(root, refuseDiverged, dryRun)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "init: %v\n", err)
 		return 1
 	}
 
-	cleanOrphanAssets(root)
+	cleanOrphanAssets(root, dryRun)
+
+	if dryRun {
+		fmt.Printf("init (dry-run): %d to create, %d to refresh, %d to skip (local edits), %d unchanged\n", created, refreshed, skipped, unchanged)
+		if skipped > 0 {
+			return 2
+		}
+		return 0
+	}
 
 	fmt.Printf("init: %d created, %d refreshed, %d skipped (local edits), %d unchanged\n", created, refreshed, skipped, unchanged)
 	if skipped > 0 {
-		return 1
+		return 2
 	}
+
+	// Chain a read-only corpus check: print warnings, but the exit code
+	// reflects init only -- warnings never change it.
+	ticketsDir := filepath.Join(root, "tickets")
+	chained, _ := loadErgs(ticketsDir)
+	for _, w := range corpusWarnings(chained, ticketsDir) {
+		fmt.Fprintln(os.Stderr, w)
+	}
+
 	fmt.Println("Next: erg install --hooks to set up the pre-commit hook.")
 	return 0
 }
 
-func cleanOrphanAssets(root string) {
+// cleanOrphanAssets removes assets that older erg versions deposited but are
+// now served on demand (erg spec / erg integration), only when they match the
+// current embedded content. Divergent files (possible user data) are always
+// preserved. In dryRun mode it prints what it would remove without removing.
+func cleanOrphanAssets(root string, dryRun bool) {
 	for _, rel := range orphanAssetPaths {
 		embedded, ok := bootstrapAsset(rel)
 		if !ok {
@@ -143,8 +213,12 @@ func cleanOrphanAssets(root string) {
 			continue
 		}
 		if string(existing) == embedded {
-			os.Remove(target)
-			fmt.Fprintf(os.Stderr, "init: removed orphaned asset %s (now: erg %s)\n", rel, commandForOrphan(rel))
+			if dryRun {
+				fmt.Printf("  would remove orphaned asset %s (now: erg %s)\n", rel, commandForOrphan(rel))
+			} else {
+				os.Remove(target)
+				fmt.Fprintf(os.Stderr, "init: removed orphaned asset %s (now: erg %s)\n", rel, commandForOrphan(rel))
+			}
 		}
 	}
 }

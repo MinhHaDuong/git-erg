@@ -131,6 +131,26 @@ func headerBlankWarnings(dir string) []string {
 	return warnings
 }
 
+// corpusWarnings returns the combined set of non-fatal warnings (folder/header
+// mismatch, stale Blocked-by, stray Go source, encoding, interior header
+// blanks) for the already-loaded tickets rooted at dir. The dir-based scans
+// (stray Go source, encoding, header blanks) walk dir directly. Returns nil
+// when there are no tickets -- callers that chain it (erg init) must not fail
+// on a read-only warning pass. The append order is the single source of truth
+// shared by cmdCheck and the init chaining, so both report identically.
+func corpusWarnings(tickets []Erg, dir string) []string {
+	if len(tickets) == 0 {
+		return nil
+	}
+	var warnings []string
+	warnings = append(warnings, folderClosure(tickets)...)
+	warnings = append(warnings, staleBlockedBy(tickets)...)
+	warnings = append(warnings, strayGoSource(dir)...)
+	warnings = append(warnings, encodingWarnings(dir)...)
+	warnings = append(warnings, headerBlankWarnings(dir)...)
+	return warnings
+}
+
 // summaryCheck is the one-liner printed by printUsage via the commands registry.
 const summaryCheck = "Corpus-level checks (duplicate IDs, cycles, refs)"
 
@@ -153,7 +173,9 @@ Additionally emits warnings (non-fatal) for:
   - Interior header blank: a blank line inside the header block (tolerated on
     read; run 'erg migrate' to normalise).
 
-Exit codes: 0 on pass (warnings are printed but do not affect exit code), 1 on any violation.
+Exit codes: 0 on pass (warnings are printed but do not affect exit code), 1 on any
+violation. The value 1 is a hard failure here, consistent with the shared exit-code
+table (see "Exit codes" in erg --help --all); check never returns 2.
 `
 
 // cmdCheck implements `erg check [dir]`. See helpCheck for the user-facing summary.
@@ -193,11 +215,7 @@ func cmdCheck(args []string) int {
 	}
 
 	errors := validateCorpus(tickets, parseErrs, cfg)
-	warnings := folderClosure(tickets)
-	warnings = append(warnings, staleBlockedBy(tickets)...)
-	warnings = append(warnings, strayGoSource(dir)...)
-	warnings = append(warnings, encodingWarnings(dir)...)
-	warnings = append(warnings, headerBlankWarnings(dir)...)
+	warnings := corpusWarnings(tickets, dir)
 
 	hasErrors := len(errors) > 0
 	if hasErrors {
