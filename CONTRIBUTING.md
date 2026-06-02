@@ -15,13 +15,15 @@ agent operating policy lives in `AGENTS.md`, and the test policy lives in
 
 ```bash
 make build          # build the binary to build/erg
+make check          # pre-PR gate: full test suite + ticket-corpus validation
 make test           # Go unit tests + all shell integration suites
 make test-<suite>   # run one shell suite, e.g. make test-init
 make unit-test      # Go unit tests with a coverage report
 make validate       # validate the tickets/ corpus
 ```
 
-`make test` is the gate: it must exit 0 before you open a merge request.
+`make check` (an alias for `make test` + `make validate`) is the gate: it must
+exit 0 before you open a merge request.
 Tests always run against `build/erg` (rebuilt from source), never the
 committed `tickets/erg` bootstrap binary. CI likewise always compiles from
 source and never relies on the committed binary.

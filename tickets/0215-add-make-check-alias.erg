@@ -1,0 +1,43 @@
+%erg 0.1
+Title: Add make check alias (test + validate) to align with the pre-PR gate
+Created: 2026-06-03
+Author: claude
+
+--- log ---
+2026-06-03T00:30Z claude created
+
+--- body ---
+## Context
+
+git-erg has no `make check` target, yet the cross-project convention (and
+the exit criteria of tickets 0210-0213, which all say "make check passe")
+expect `make check` to be the pre-PR gate. Today the real gate is
+`make test` + `erg check tickets/`. The verify-gate on PR #245 (ticket
+0210) ESCALATED solely because criterion "make check passe" could not be
+satisfied -- there is no such target. Adding a thin alias makes that
+criterion literally true (no goalpost-moving) and clears it for the whole
+0210-0213 4-series at once. This is the verify-gate's own recommendation.
+
+## Actions
+
+1. Add a `.PHONY` `check` target to the Makefile that runs the real gate:
+   `check: test validate` (test = Go unit + shell suites; validate = the
+   existing target that runs `erg check tickets/`).
+2. Add `check` to the Makefile usage comment header.
+3. Update CONTRIBUTING.md's "make test is the gate" line to note that
+   `make check` is the alias (so docs stay honest).
+
+## Test
+
+Source-inspection guard (no slow subprocess): a check that the Makefile
+defines a `check:` target with `test` and `validate` prerequisites, and
+that `check` is in `.PHONY`. Fold into the existing `tests/test_docs.sh`
+rather than adding a new suite.
+
+## Exit criteria
+
+- [ ] `make check` runs `make test` and `make validate` (the real gate).
+- [ ] `check` is `.PHONY` (it produces no output file).
+- [ ] Makefile usage header lists `make check`.
+- [ ] CONTRIBUTING.md notes the alias.
+- [ ] `make test` passes.

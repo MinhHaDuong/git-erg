@@ -6,6 +6,7 @@
 
 # Usage:
 #   make build      Build the erg binary
+#   make check      Pre-PR gate: full test suite + ticket-corpus validation
 #   make test       Run Go unit tests and shell integration tests
 #   make unit-test  Run Go unit tests with coverage report
 #   make test-scaling  Empirical 4x-ladder scaling guard (slow; not in `test`)
@@ -17,7 +18,7 @@
 TEST_SUITES := validate check list ready update close migrate nextid log label new init install erg_github spec integration main archive rm datasafety security pipeline help version hook godoc docs contract roundtrip verify stderr install-staleness encoding unknown_flags
 TEST_TARGETS := $(TEST_SUITES:%=test-%)
 
-.PHONY: build test unit-test test-scaling _test-lint docs $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary verify
+.PHONY: build check test unit-test test-scaling _test-lint docs $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary verify
 
 ERG_BIN := $(CURDIR)/build/erg
 BOOTSTRAP_BIN := $(CURDIR)/tickets/erg
@@ -59,6 +60,13 @@ unit-test: build
 
 test: unit-test $(TEST_TARGETS)
 	@echo "ALL TESTS PASSED"
+
+# check is the pre-PR gate alias (cross-project convention): the full test
+# suite plus the ticket-corpus validation. `make validate` runs erg check
+# tickets/, so `check` == "make test + erg check" -- the real gate that the
+# 0210-0213 exit criteria refer to as "make check passe".
+check: test validate
+	@echo "CHECK PASSED (test + validate)"
 
 # Empirical scaling regression guard (ticket 0159). Build-tagged out of the
 # default suite: slow, and a regression check rather than a per-merge gate.
