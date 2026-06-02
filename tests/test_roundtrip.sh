@@ -88,6 +88,7 @@ fi
 
 rm -f "$REPO/tickets/.ergrc" \
       "$REPO/tickets/AGENTS.md" \
+      "$REPO/tickets/.erg-assets" \
       "$REPO/tickets/erg"
 rm -f "$REPO/.git/hooks/pre-commit"
 

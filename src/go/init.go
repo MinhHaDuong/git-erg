@@ -32,6 +32,12 @@ Writes two files relative to DIR (default: current directory):
   - tickets/.ergrc -- project configuration (label vocabulary, update remote).
   - tickets/AGENTS.md -- agent operating instructions for the ticket workflow.
 
+It also writes tickets/.erg-assets, a provenance manifest recording this
+binary's rev/date and the SHA-256 of each embedded asset. The manifest is
+committable durable state (not gitignored) and is invisible to erg check, so
+it never trips the pre-commit hook. It is deterministic: the same binary and
+assets always produce byte-identical content.
+
 The format specification and setup guide are available on demand via
 erg spec and erg integration respectively.
 
@@ -125,6 +131,12 @@ func installAssets(root string, refuseDiverged, dryRun bool) (created, refreshed
 		if wErr := os.WriteFile(target, []byte(content), 0644); wErr != nil {
 			return created, refreshed, skipped, unchanged, fmt.Errorf("cannot write %s: %w", rel, wErr)
 		}
+	}
+	// Record provenance (ticket 0210): a deterministic manifest of the embedded
+	// asset hashes for this binary. Written by both erg init and erg migrate
+	// (the two callers of installAssets). Skipped in dry-run.
+	if err := writeManifest(root, dryRun); err != nil {
+		return created, refreshed, skipped, unchanged, fmt.Errorf("cannot write provenance manifest: %w", err)
 	}
 	return created, refreshed, skipped, unchanged, nil
 }

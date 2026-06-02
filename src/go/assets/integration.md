@@ -4,6 +4,11 @@ After running `erg init`, follow these two steps to integrate git-erg
 with your project. The automated path is `erg install` (see below);
 the manual steps that follow describe exactly what it writes.
 
+`erg init` also writes `tickets/.erg-assets`, a provenance manifest (the
+binary's rev/date and the SHA-256 of each embedded asset). Commit it -- it
+is lightweight durable state that lets erg tell a clean asset upgrade from a
+local edit. It is not a `.erg` ticket, so `erg check` ignores it.
+
 ## 1. Pre-commit hook
 
 The hook prevents committing `tickets/erg` on feature branches -- CI
@@ -99,7 +104,7 @@ To remove erg from your project, delete the binary and the two files
 `erg init` placed in `tickets/`:
 
 ```sh
-rm tickets/.ergrc tickets/AGENTS.md tickets/erg
+rm tickets/.ergrc tickets/AGENTS.md tickets/.erg-assets tickets/erg
 ```
 
 For the pre-commit hook, delete only the lines between the
