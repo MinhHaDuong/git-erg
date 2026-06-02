@@ -6,7 +6,7 @@ Generated from: erg
 `git-erg` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
 This manual describes all `erg` commands. For the ticket file format
-specification, see `tickets/spec-erg-v1.md`.
+specification, run `erg spec`.
 
 **Store auto-discovery.** When no DIR is given, `erg` tries three candidates in
 order: (1) the directory containing the `erg` binary, (2) `tickets/` under the
@@ -340,12 +340,13 @@ Review the diff with 'git diff tickets/' and commit manually.
 
 Unpack embedded bootstrap assets into the project.
 
-Writes four files relative to DIR (default: current directory):
+Writes two files relative to DIR (default: current directory):
 
   - tickets/.ergrc -- project configuration (label vocabulary, update remote).
   - tickets/AGENTS.md -- agent operating instructions for the ticket workflow.
-  - tickets/spec-erg-v1.md -- the %erg 0.1 format specification.
-  - tickets/integration.md -- setup guide for the pre-commit hook and CI integration.
+
+The format specification and setup guide are available on demand via
+erg spec and erg integration respectively.
 
 Requires tickets/erg (the binary) to already exist in the project; the command
 refuses if it is absent. This requirement ensures that agents do not accidentally
@@ -355,6 +356,10 @@ Each asset is compared byte-for-byte with the embedded version; unchanged files
 are skipped and counted separately from newly created files. If an existing file
 differs from the embedded version (indicating local edits), it is skipped with a
 message on stderr and the command exits non-zero. Local edits are never overwritten.
+
+If tickets/spec-erg-v1.md or tickets/integration.md exist from a previous init
+and match the current embedded content, they are removed as orphaned assets.
+Files that have been edited locally are preserved.
 
 ## erg install [DIR] [--hooks] [--inject-agents]
 
@@ -379,6 +384,23 @@ agent file -- it appends inside a managed block delimited by sentinels.
 
 Requires tickets/erg (the binary) to already exist in the project, same as
 erg init.
+
+## erg spec
+
+Print the embedded %erg 0.1 format specification to stdout.
+
+This is the same content that older versions of erg deposited as
+tickets/spec-erg-v1.md during init. It is now served on demand to keep
+the tickets/ directory uncluttered.
+
+## erg integration
+
+Print the embedded setup guide for the pre-commit hook and CI integration
+to stdout.
+
+This is the same content that older versions of erg deposited as
+tickets/integration.md during init. It is now served on demand to keep
+the tickets/ directory uncluttered.
 
 ## erg version
 

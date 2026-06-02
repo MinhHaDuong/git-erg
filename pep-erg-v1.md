@@ -11,7 +11,7 @@ An agent-friendly file-based ticket system designed for development in disconnec
 versioned format (`%erg 0.1`), committed to git, and validated by a
 pre-commit hook. The system complements (not replaces) GitHub Issues.
 
-The source of truth is the specification in `tickets/spec-erg-v1.md`.
+The source of truth is the specification (run `erg spec` to read it).
 This PEP documents the rationale supporting the specification.
 
 ## Motivation

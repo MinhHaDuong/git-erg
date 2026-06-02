@@ -10,23 +10,30 @@ import (
 var initAssetPaths = []string{
 	"tickets/.ergrc",
 	"tickets/AGENTS.md",
+}
+
+// orphanAssetPaths lists assets that older erg versions deposited during init
+// but are now served on demand via erg spec / erg integration. If a file at
+// one of these paths matches the current embedded content exactly, init
+// removes it as an orphan.
+var orphanAssetPaths = []string{
 	"tickets/spec-erg-v1.md",
 	"tickets/integration.md",
 }
 
-// summaryInit is the one-liner printed by printUsage via the commands registry.
-const summaryInit = "Unpack .ergrc, AGENTS.md, spec-erg-v1.md, integration.md into tickets/"
+const summaryInit = "Unpack .ergrc and AGENTS.md into tickets/"
 
 const helpInit = `## erg init [DIR]
 
 Unpack embedded bootstrap assets into the project.
 
-Writes four files relative to DIR (default: current directory):
+Writes two files relative to DIR (default: current directory):
 
   - tickets/.ergrc -- project configuration (label vocabulary, update remote).
   - tickets/AGENTS.md -- agent operating instructions for the ticket workflow.
-  - tickets/spec-erg-v1.md -- the %erg 0.1 format specification.
-  - tickets/integration.md -- setup guide for the pre-commit hook and CI integration.
+
+The format specification and setup guide are available on demand via
+erg spec and erg integration respectively.
 
 Requires tickets/erg (the binary) to already exist in the project; the command
 refuses if it is absent. This requirement ensures that agents do not accidentally
@@ -36,6 +43,10 @@ Each asset is compared byte-for-byte with the embedded version; unchanged files
 are skipped and counted separately from newly created files. If an existing file
 differs from the embedded version (indicating local edits), it is skipped with a
 message on stderr and the command exits non-zero. Local edits are never overwritten.
+
+If tickets/spec-erg-v1.md or tickets/integration.md exist from a previous init
+and match the current embedded content, they are removed as orphaned assets.
+Files that have been edited locally are preserved.
 `
 
 // installAssets unpacks the embedded bootstrap assets under root, returning
@@ -110,10 +121,37 @@ func cmdInit(args []string) int {
 		return 1
 	}
 
+	cleanOrphanAssets(root)
+
 	fmt.Printf("init: %d created, %d refreshed, %d skipped (local edits), %d unchanged\n", created, refreshed, skipped, unchanged)
 	if skipped > 0 {
 		return 1
 	}
 	fmt.Println("Next: erg install --hooks to set up the pre-commit hook.")
 	return 0
+}
+
+func cleanOrphanAssets(root string) {
+	for _, rel := range orphanAssetPaths {
+		embedded, ok := bootstrapAsset(rel)
+		if !ok {
+			continue
+		}
+		target := filepath.Join(root, filepath.FromSlash(rel))
+		existing, err := os.ReadFile(target)
+		if err != nil {
+			continue
+		}
+		if string(existing) == embedded {
+			os.Remove(target)
+			fmt.Fprintf(os.Stderr, "init: removed orphaned asset %s (now: erg %s)\n", rel, commandForOrphan(rel))
+		}
+	}
+}
+
+func commandForOrphan(rel string) string {
+	if strings.Contains(rel, "spec") {
+		return "spec"
+	}
+	return "integration"
 }

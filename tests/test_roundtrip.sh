@@ -53,7 +53,7 @@ HOOK
 chmod +x "$REPO/.git/hooks/pre-commit"
 
 # Verify all install artifacts exist
-for f in tickets/.ergrc tickets/AGENTS.md tickets/spec-erg-v1.md tickets/integration.md tickets/erg; do
+for f in tickets/.ergrc tickets/AGENTS.md tickets/erg; do
     if [ -f "$REPO/$f" ]; then
         pass "install creates $f"
     else
@@ -88,8 +88,6 @@ fi
 
 rm -f "$REPO/tickets/.ergrc" \
       "$REPO/tickets/AGENTS.md" \
-      "$REPO/tickets/spec-erg-v1.md" \
-      "$REPO/tickets/integration.md" \
       "$REPO/tickets/erg"
 rm -f "$REPO/.git/hooks/pre-commit"
 

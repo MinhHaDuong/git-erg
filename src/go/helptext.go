@@ -28,6 +28,8 @@ var commands = []commandEntry{
 	{"migrate", "[DIR]", summaryMigrate, helpMigrate},
 	{"init", "[DIR]", summaryInit, helpInit},
 	{"install", "[DIR] [--hooks] [--inject-agents]", summaryInstall, helpInstall},
+	{"spec", "", summarySpec, helpSpec},
+	{"integration", "", summaryIntegration, helpIntegration},
 	{"version", "", summaryVersion, helpVersion},
 	{"update", "", summaryUpdate, helpUpdate},
 }

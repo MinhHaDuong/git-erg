@@ -75,10 +75,9 @@ doc_contains helpArchive "Blocked-by:" "helpArchive stale-blocker guard"
 doc_contains helpMigrate "Status: closed" "helpMigrate closed-rule"
 doc_contains helpMigrate "Idempotent" "helpMigrate idempotent"
 
-# helpInit: asset list
+# helpInit: asset list (2 assets after 0206; spec/integration are now commands)
 doc_contains helpInit "AGENTS.md" "helpInit asset AGENTS.md"
-doc_contains helpInit "spec-erg-v1.md" "helpInit asset spec"
-doc_contains helpInit "integration.md" "helpInit asset integration"
+doc_contains helpInit "erg spec" "helpInit mentions erg spec"
 
 # helpNew: ID allocation and O_EXCL
 doc_contains helpNew "O_EXCL" "helpNew atomic creation"

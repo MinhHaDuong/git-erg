@@ -18,6 +18,8 @@
 //	erg migrate  [dir]
 //	erg init     [dir]
 //	erg install  [dir] [--hooks] [--inject-agents]
+//	erg spec
+//	erg integration
 //	erg version
 //	erg update
 package main
@@ -46,7 +48,7 @@ Author: minh.ha-duong@cnrs.fr
 ` + "`git-erg`" + ` is an agent-friendly local ticket system for development in disconnected
 environments. Tickets are plain-text files committed alongside source code.
 This manual describes all ` + "`erg`" + ` commands. For the ticket file format
-specification, see ` + "`tickets/spec-erg-v1.md`" + `.
+specification, run ` + "`erg spec`" + `.
 
 **Store auto-discovery.** When no DIR is given, ` + "`erg`" + ` tries three candidates in
 order: (1) the directory containing the ` + "`erg`" + ` binary, (2) ` + "`tickets/`" + ` under the
@@ -268,6 +270,10 @@ func main() {
 		exitCode = cmdInit(rest)
 	case "install":
 		exitCode = cmdInstall(rest)
+	case "spec":
+		exitCode = cmdSpec(rest)
+	case "integration":
+		exitCode = cmdIntegration(rest)
 	case "version":
 		exitCode = cmdVersion(rest)
 	case "update":

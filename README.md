@@ -82,7 +82,7 @@ four users:
 
 ## Specification
 
-- Normative specification:  `tickets/spec-erg-v1.md`.
+- Normative specification: `erg spec` (or `tickets/spec-erg-v1.md` in older installs).
 - Reference implementation: `src/go/` (source), `tickets/erg` (bootstrap binary).
 - Design rationale: `pep-erg-v1.md`.
 - Contributing (build, test, adding a subcommand): `CONTRIBUTING.md`.
@@ -113,10 +113,9 @@ global install, no version skew across machines or teammates.
    build a *system* binary for your machine (clone this repo and `make build`, or
    ask your coding agent to) and put it on your PATH; don't overwrite `tickets/erg`.
    See **Binary policy** below.
-3. Run `tickets/erg init` to unpack `AGENTS.md`, `spec-erg-v1.md`, and
-   `integration.md`.
+3. Run `tickets/erg init` to unpack `.ergrc` and `AGENTS.md`.
 4. Run `tickets/erg install --hooks` to set up the pre-commit validation hook.
-   See `erg integration` for the full setup guide including agent instructions.
+   Run `erg integration` for the full setup guide including agent instructions.
 
 **No prebuilt binary for your platform? You don't need one.** The text-files path
 is fully functional without `erg`, and a `grep`-based pre-commit hook validates
