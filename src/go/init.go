@@ -45,10 +45,13 @@ Requires tickets/erg (the binary) to already exist in the project; the command
 refuses if it is absent. This requirement ensures that agents do not accidentally
 initialize an empty directory that was never meant to be a ticket store.
 
-Each asset is compared byte-for-byte with the embedded version; unchanged files
-are skipped and counted separately from newly created files. If an existing file
-differs from the embedded version (indicating local edits), it is skipped with a
-message on stderr and the command exits 2 (local edits are never overwritten).
+Each asset is compared against the embedded version with a dpkg-style 3-state
+rule. Byte-identical files are left unchanged. A differing file that still
+matches the .erg-assets stamp (or, with no stamp, a known shipped hash) is a
+clean upgrade -- erg never touched it, so it is overwritten and a
+"git restore -- <path>" hint is printed. A differing file that matches neither
+is a local edit: it is preserved and the command exits 2 (local edits are never
+overwritten without --force).
 
 Flags:
 
@@ -88,14 +91,20 @@ overwrite). See "Exit codes" in erg --help --all.
 // asset describing the action that would be taken. The returned counts are the
 // same as a real run would produce.
 func installAssets(root string, refuseDiverged, dryRun bool) (created, refreshed, skipped, unchanged int, err error) {
+	// The .erg-assets stamp from a previous init (nil if absent or malformed):
+	// name -> recorded SHA-256. Read once; the dpkg compare consults it per asset.
+	stamps := readManifest(root)
 	for _, rel := range initAssetPaths {
 		content, ok := bootstrapAsset(rel)
 		if !ok {
 			return created, refreshed, skipped, unchanged, fmt.Errorf("missing embedded asset: %s", rel)
 		}
+		name := strings.TrimPrefix(rel, "tickets/")
 		target := filepath.Join(root, filepath.FromSlash(rel))
 		existing, readErr := os.ReadFile(target)
 		exists := readErr == nil
+
+		// Row 1: on-disk byte-identical to embedded -> nothing to do.
 		if exists && string(existing) == content {
 			unchanged++
 			if dryRun {
@@ -103,15 +112,31 @@ func installAssets(root string, refuseDiverged, dryRun bool) (created, refreshed
 			}
 			continue
 		}
+
+		// Divergent (or absent). Decide overwrite vs preserve.
+		// - !refuseDiverged (erg init --force, erg migrate): overwrite
+		//   unconditionally -- exempt from the dpkg prompt.
+		// - refuseDiverged (erg init default): dpkg 3-state compare. A clean
+		//   upgrade (on-disk == stamp, or a known shipped hash when no stamp)
+		//   is overwritten silently; a local edit is preserved (exit 2).
+		preserve := false
 		if exists && refuseDiverged {
+			diskHash := sha256hex(existing)
+			if !isCleanUpgrade(diskHash, stamps[name], knownAssetHashes(rel)) {
+				preserve = true
+			}
+		}
+
+		if preserve {
 			skipped++
 			if dryRun {
-				fmt.Printf("  would skip (local edits)  %s\n", rel)
+				fmt.Printf("  would preserve (local edits)  %s\n", rel)
 			} else {
-				fmt.Fprintf(os.Stderr, "init: %s has local edits -- skipping\n", rel)
+				fmt.Fprintf(os.Stderr, "init: %s has local edits -- preserving (run with --force to overwrite)\n", rel)
 			}
 			continue
 		}
+
 		if exists {
 			refreshed++
 		} else {
@@ -130,6 +155,11 @@ func installAssets(root string, refuseDiverged, dryRun bool) (created, refreshed
 		}
 		if wErr := os.WriteFile(target, []byte(content), 0644); wErr != nil {
 			return created, refreshed, skipped, unchanged, fmt.Errorf("cannot write %s: %w", rel, wErr)
+		}
+		// Loud output: name each overwrite and give a reversibility hint, so a
+		// refresh (even a safe clean upgrade) is never silent.
+		if exists {
+			fmt.Fprintf(os.Stderr, "init: refreshed %s (git restore -- %s to undo)\n", rel, rel)
 		}
 	}
 	// Record provenance (ticket 0210): a deterministic manifest of the embedded

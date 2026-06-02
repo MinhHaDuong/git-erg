@@ -373,10 +373,13 @@ Requires tickets/erg (the binary) to already exist in the project; the command
 refuses if it is absent. This requirement ensures that agents do not accidentally
 initialize an empty directory that was never meant to be a ticket store.
 
-Each asset is compared byte-for-byte with the embedded version; unchanged files
-are skipped and counted separately from newly created files. If an existing file
-differs from the embedded version (indicating local edits), it is skipped with a
-message on stderr and the command exits 2 (local edits are never overwritten).
+Each asset is compared against the embedded version with a dpkg-style 3-state
+rule. Byte-identical files are left unchanged. A differing file that still
+matches the .erg-assets stamp (or, with no stamp, a known shipped hash) is a
+clean upgrade -- erg never touched it, so it is overwritten and a
+"git restore -- <path>" hint is printed. A differing file that matches neither
+is a local edit: it is preserved and the command exits 2 (local edits are never
+overwritten without --force).
 
 Flags:
 

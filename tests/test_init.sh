@@ -363,6 +363,69 @@ else
     fail "manifest: dry-run wrote a manifest"
 fi
 
+# --- dpkg 3-state compare (ticket 0211) ---
+# (Rows 1/5 and the Go unit test cover the rest; these drive the binary.)
+
+# Row 2: clean upgrade -- on-disk == stamp but != embedded -> overwrite silently.
+UP="$TDIR/dpkg-upgrade"
+mkdir -p "$UP/tickets"; touch "$UP/tickets/erg"
+printf 'OLD PRISTINE ERGRC\n' > "$UP/tickets/.ergrc"
+oldhash=$(printf 'OLD PRISTINE ERGRC\n' | sha256sum | cut -d' ' -f1)
+printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:%s\n  AGENTS.md sha256:deadbeef\n' "$oldhash" > "$UP/tickets/.erg-assets"
+OUT_UP=$($ERG init "$UP" 2>&1) && rc=$? || rc=$?
+if ! grep -q 'OLD PRISTINE ERGRC' "$UP/tickets/.ergrc"; then
+    pass "dpkg row2: on-disk==stamp!=embedded is a clean upgrade (overwritten)"
+else
+    fail "dpkg row2: clean upgrade was not applied"
+fi
+if echo "$OUT_UP" | grep -q "git restore -- tickets/.ergrc"; then
+    pass "dpkg: overwrite prints a git restore reversibility hint"
+else
+    fail "dpkg: missing git restore hint (got: $OUT_UP)"
+fi
+
+# Row 3: local edit -- on-disk != stamp and != embedded -> preserve, exit 2.
+LE="$TDIR/dpkg-localedit"
+mkdir -p "$LE/tickets"; touch "$LE/tickets/erg"
+printf 'MY LOCAL EDIT\n' > "$LE/tickets/.ergrc"
+printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:0000000000000000000000000000000000000000000000000000000000000000\n  AGENTS.md sha256:x\n' > "$LE/tickets/.erg-assets"
+$ERG init "$LE" >/dev/null 2>&1 && lrc=0 || lrc=$?
+if [ "$lrc" -eq 2 ] && grep -q 'MY LOCAL EDIT' "$LE/tickets/.ergrc"; then
+    pass "dpkg row3: divergent-from-stamp is a local edit (preserved, exit 2)"
+else
+    fail "dpkg row3: local edit not preserved (rc=$lrc)"
+fi
+
+# Row 5: manifest ABSENT + unknown on-disk -> preserve (exit 2), never clobber.
+AB="$TDIR/dpkg-absent"
+mkdir -p "$AB/tickets"; touch "$AB/tickets/erg"
+printf 'UNKNOWN NEVER-SHIPPED CONTENT\n' > "$AB/tickets/.ergrc"
+$ERG init "$AB" >/dev/null 2>&1 && arc=0 || arc=$?
+if [ "$arc" -eq 2 ] && grep -q 'UNKNOWN NEVER-SHIPPED' "$AB/tickets/.ergrc"; then
+    pass "dpkg row5: no stamp + unknown hash is a local edit (preserved, exit 2)"
+else
+    fail "dpkg row5: unknown asset not preserved (rc=$arc)"
+fi
+
+# --force still bypasses the dpkg compare (overwrites a local edit).
+$ERG init "$AB" --force >/dev/null 2>&1 && frc=0 || frc=$?
+if [ "$frc" -eq 0 ] && ! grep -q 'UNKNOWN NEVER-SHIPPED' "$AB/tickets/.ergrc"; then
+    pass "dpkg: --force overwrites a local edit (exempt from the compare)"
+else
+    fail "dpkg: --force did not overwrite (rc=$frc)"
+fi
+
+# migrate stays force-overwrite (exempt from the dpkg compare).
+MG="$TDIR/dpkg-migrate"
+mkdir -p "$MG/tickets"; touch "$MG/tickets/erg"
+printf 'EDITED ERGRC\n' > "$MG/tickets/.ergrc"
+$ERG migrate "$MG/tickets" >/dev/null 2>&1
+if ! grep -q 'EDITED ERGRC' "$MG/tickets/.ergrc"; then
+    pass "dpkg: migrate force-overwrites (exempt from the compare)"
+else
+    fail "dpkg: migrate preserved a divergent file (should force-overwrite)"
+fi
+
 
 echo "init: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
