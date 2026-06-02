@@ -114,8 +114,9 @@ global install, no version skew across machines or teammates.
    ask your coding agent to) and put it on your PATH; don't overwrite `tickets/erg`.
    See **Binary policy** below.
 3. Run `tickets/erg init` to unpack `.ergrc` and `AGENTS.md`.
-4. Run `tickets/erg install --hooks` to set up the pre-commit validation hook.
-   Run `erg integration` for the full setup guide including agent instructions.
+4. Run `tickets/erg install --hooks` to set up the pre-commit validation hook,
+   and (for AI agents) `tickets/erg install --inject-agents` to point your root
+   `AGENTS.md` at `tickets/AGENTS.md`. Run `erg integration` for the full guide.
 
 **No prebuilt binary for your platform? You don't need one.** The text-files path
 is fully functional without `erg`, and a `grep`-based pre-commit hook validates

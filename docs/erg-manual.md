@@ -386,7 +386,7 @@ Exit codes: 0 success; 1 a hard error (bad flag, missing binary, write
 failure); 2 local edits were preserved and skipped (run with --force to
 overwrite). See "Exit codes" in erg --help --all.
 
-## erg install [DIR] [--hooks] [--inject-agents]
+## erg install [DIR] [--hooks] [--inject-agents] [--create-agents-md]
 
 Wire up integration hooks and agent instructions for a project that already
 has a ticket store (created by erg init).
@@ -394,21 +394,33 @@ has a ticket store (created by erg init).
 By default -- with no flags -- install does nothing outside tickets/. Each
 piece of wiring requires an explicit opt-in flag:
 
-  --hooks            Install a pre-commit hook that runs erg validate and erg
-                     check on every commit. The hook also rejects commits that
-                     modify the traveling binary (tickets/erg) outside main.
+  --hooks              Install (or upgrade) a pre-commit hook that runs
+                       erg validate and erg check on every commit and rejects
+                       commits that modify the traveling binary (tickets/erg)
+                       outside main. The erg block is delimited by sentinel
+                       markers and is inserted right after the shebang so it
+                       runs before any third-party hook content. Existing
+                       content outside the markers is preserved.
 
-  --inject-agents    Add a one-line pointer to tickets/AGENTS.md in the
-                     project-root AGENTS.md. If the root AGENTS.md does not
-                     exist, the flag is refused unless combined with an
-                     explicit creation flag (see ticket 0208 for the full
-                     consent flow).
+  --inject-agents      Add a one-line pointer to tickets/AGENTS.md inside a
+                       sentinel-marked block in the project-root AGENTS.md.
+                       If the root AGENTS.md does not exist, the flag is
+                       refused unless --create-agents-md is also given.
 
-Both flags default to off. erg install never overwrites an existing hook or
-agent file -- it appends inside a managed block delimited by sentinels.
+  --create-agents-md   Permit --inject-agents to create a root AGENTS.md when
+                       none exists. On its own it does nothing.
+
+Both wiring flags default to off. install never overwrites content outside its
+managed block; on rerun or upgrade it replaces only the region between the
+markers. All preconditions are checked before any file is written, so a refused
+run changes nothing on disk.
 
 Requires tickets/erg (the binary) to already exist in the project, same as
 erg init.
+
+Exit codes: 0 success; 1 a hard error (bad flag, missing binary, not a git
+repository, unbalanced markers, refused AGENTS.md creation, or a write
+failure). See "Exit codes" in erg --help --all.
 
 ## erg spec
 

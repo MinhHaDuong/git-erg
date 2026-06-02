@@ -1,75 +1,100 @@
 # Integration
 
 After running `erg init`, follow these two steps to integrate git-erg
-with your project.
+with your project. The automated path is `erg install` (see below);
+the manual steps that follow describe exactly what it writes.
 
 ## 1. Pre-commit hook
 
 The hook prevents committing `tickets/erg` on feature branches -- CI
-rebuilds the binary after merge to main. See the `.gitignore` section
-below for the full commit policy.
+rebuilds the binary after merge to main -- and validates staged tickets.
+See the `.gitignore` section below for the full commit policy.
 
-Append the following to `.git/hooks/pre-commit` (create the file and
-`chmod +x` it if it does not exist):
+**Automated:** run `erg install --hooks`. It inserts the block below into
+`.git/hooks/pre-commit` between sentinel markers, right after the shebang
+so it runs before any other hook content, makes the file executable, and
+on rerun replaces only the marked region (your other hook content is left
+untouched). It honours linked worktrees and `core.hooksPath`.
+
+**Manual:** create `.git/hooks/pre-commit` (and `chmod +x` it), then paste
+the marked block below. Keep the markers verbatim so a later
+`erg install --hooks` recognises and upgrades the block in place. Put any
+custom hook logic OUTSIDE the markers -- erg overwrites the inside on
+upgrade.
 
 ```sh
-# Reject tickets/erg commit on non-main branches
+# >>> erg managed >>>
+# Reject tickets/erg commit on non-main branches.
 # CI rebuilds the binary after merge; feature PRs must not include it.
 if git diff --cached --name-only | grep -q '^tickets/erg$'; then
     branch=$(git branch --show-current)
     if [ "$branch" != "main" ]; then
         echo "pre-commit: do not commit tickets/erg in feature branches." >&2
-        echo " CI rebuilds the binary after merge. Use 'make build' and test" >&2
-        echo " with build/erg. To override: git commit --no-verify" >&2
+        echo " CI rebuilds the binary after merge. To override: git commit --no-verify" >&2
         exit 1
     fi
 fi
 
-# Validate .erg files (if any are staged)
+# Validate staged .erg files and the corpus.
 erg_files=$(git diff --cached --name-only | grep '\.erg$' || true)
 if [ -n "$erg_files" ]; then
-    erg_bin="tickets/erg"
-    if [ -x "$erg_bin" ]; then
+    if [ -x tickets/erg ]; then
         # shellcheck disable=SC2086
-        if ! $erg_bin validate $erg_files; then
-            echo "ERROR: Ticket validation failed. Fix errors above." >&2
+        if ! tickets/erg validate $erg_files; then
+            echo "ERROR: ticket validation failed." >&2
             exit 1
         fi
-        if ! $erg_bin check tickets/; then
-            echo "ERROR: Ticket corpus check failed. Fix errors above." >&2
+        if ! tickets/erg check tickets/; then
+            echo "ERROR: ticket corpus check failed." >&2
             exit 1
         fi
     else
-        echo "ERROR: erg binary not found. Run 'make build' first." >&2
+        echo "ERROR: tickets/erg not found. Run 'make build' first." >&2
         exit 1
     fi
 fi
+# <<< erg managed <<<
 ```
 
 ## 2. Agent instructions
 
 *(Skip if you are not using AI coding agents.)*
 
-Add this line to your `AGENTS.md` (or equivalent agent-visible file):
+**Automated:** run `erg install --inject-agents`. It adds the pointer line
+inside a sentinel-marked block in your root `AGENTS.md`. If you have no
+`AGENTS.md`, it refuses unless you also pass `--create-agents-md` (so it
+never creates a root file you did not ask for).
+
+**Manual:** add this block to your `AGENTS.md` (or `CLAUDE.md`,
+`.cursorrules`, or whichever file your agent reads at session start):
 
 ```
+<!-- >>> erg managed >>> -->
 git-erg local tickets: see tickets/AGENTS.md
+<!-- <<< erg managed <<< -->
 ```
-
-If your project has no `AGENTS.md`, create one at the project root. You
-can also add the line to `CLAUDE.md`, `.cursorrules`, or whichever file
-your agent reads at session start.
 
 ## Uninstall
 
 To remove erg from your project, delete the binary and the two files
-`erg init` placed in `tickets/`, plus the pre-commit hook (if you
-installed one in step 1):
+`erg init` placed in `tickets/`:
 
 ```sh
 rm tickets/.ergrc tickets/AGENTS.md tickets/erg
-rm .git/hooks/pre-commit   # if you added the hook from step 1
 ```
+
+For the pre-commit hook, delete only the lines between the
+`# >>> erg managed >>>` and `# <<< erg managed <<<` markers -- this
+preserves any other hook content you (or another tool) added. Only if the
+hook contains nothing but the erg managed block is it safe to remove the
+whole file:
+
+```sh
+rm .git/hooks/pre-commit   # ONLY if it holds nothing but the erg block
+```
+
+Likewise for the `AGENTS.md` pointer: delete only the lines between the
+`<!-- >>> erg managed >>> -->` and `<!-- <<< erg managed <<< -->` markers.
 
 If you also copied erg to `~/.local/bin` (contributors: `make
 install-erg-binary`), remove that copy too:
@@ -81,9 +106,6 @@ rm ~/.local/bin/erg
 **Your tickets are not removed.** Files you created (`tickets/*.erg`,
 `tickets/closed/`) are yours -- erg never deletes them. Remove them
 yourself if you no longer need them.
-
-If you added the `AGENTS.md` line from step 2, remove that line
-manually from your agent-visible file.
 
 ## Optional: .gitignore
 
