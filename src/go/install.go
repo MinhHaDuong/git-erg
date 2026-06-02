@@ -110,10 +110,14 @@ fi`
 // pushHookBody is the canonical content placed between the pre-push hook
 // markers. It is WARN-ONLY: it lists closed-but-unarchived tickets (via the
 // read-only erg archive --dry-run) and prints the archive+commit+push recipe,
-// but it mutates nothing and always exits 0 (it must never block a push).
+// but it mutates nothing (it must never block a push).
 // A pre-push hook cannot get a file move into the push it gates, and a
 // mutating hook would leave a dirty tree that git reset/stash could resurrect
 // into a duplicate ticket -- so warn-only is the safe, faithful realization.
+// Like hookBody, it contains no `exit 0`: the block is prepended before any
+// third-party hook content, so a trailing `exit 0` would silently terminate
+// before that content ever ran. Every branch here returns 0 anyway, so the
+// guarantee "never blocks the push" holds without an explicit exit.
 const pushHookBody = `# Warn about tickets that are closed but not yet archived.
 # This hook never mutates the tree and never blocks the push (charter blocker
 # #2 + design council 0209): archiving at push cannot enter the gated push and
@@ -124,10 +128,9 @@ if [ -x tickets/erg ]; then
     if [ -n "$pending" ]; then
         echo "pre-push: closed tickets are not yet archived:" >&2
         echo "$pending" | sed 's/^WOULD ARCHIVE /  /' >&2
-        echo "  run: tickets/erg archive && git commit -am 'archive closed tickets' && git push" >&2
+        echo "  run: tickets/erg archive && git add tickets/ && git commit -m 'archive closed tickets' && git push" >&2
     fi
-fi
-exit 0`
+fi`
 
 const agentsBody = "git-erg local tickets: see tickets/AGENTS.md"
 
@@ -232,17 +235,19 @@ func cmdInstall(args []string) int {
 	return rc
 }
 
-// planHook resolves the hooks directory (via git, so worktrees and
-// core.hooksPath are honoured), reads any existing pre-commit, and computes the
-// new content with the managed block inserted right after the shebang. It never
-// writes; it returns an error if the markers in the existing hook are
-// unbalanced (which would make an in-place edit ambiguous).
-func planHook(root string) (writePlan, error) {
+// planGitHook resolves the hooks directory (via git, so worktrees and
+// core.hooksPath are honoured), reads any existing hook named hookName,
+// and computes the new content with body inserted in a managed block right
+// after the shebang. It never writes; it returns an error if the markers in the
+// existing hook are unbalanced (which would make an in-place edit ambiguous).
+// summaryFmt receives the action ("created"/"managed block updated") and the
+// hook path. Shared by planHook (pre-commit) and planPushHook (pre-push).
+func planGitHook(root, hookName, body, summaryFmt string) (writePlan, error) {
 	hooksDir, err := resolveHooksDir(root)
 	if err != nil {
 		return writePlan{}, err
 	}
-	hookPath := filepath.Join(hooksDir, "pre-commit")
+	hookPath := filepath.Join(hooksDir, hookName)
 
 	existing, perm, isNew, err := readHookFile(hookPath)
 	if err != nil {
@@ -261,53 +266,30 @@ func planHook(root string) (writePlan, error) {
 		return writePlan{}, fmt.Errorf("%s: %v -- fix or remove the stray marker manually", hookPath, err)
 	}
 
-	content := insertManagedBlockAfterShebang(cleaned, hookMarkerSets[0], hookBody)
+	content := insertManagedBlockAfterShebang(cleaned, hookMarkerSets[0], body)
 
 	action := "managed block updated"
 	if isNew {
 		action = "created"
 	}
-	summary := fmt.Sprintf("install: pre-commit hook %s at %s (executable, runs on every commit; bypass with git commit --no-verify; uninstall: delete the lines between the erg managed markers)", action, hookPath)
+	summary := fmt.Sprintf(summaryFmt, action, hookPath)
 
 	return writePlan{path: hookPath, content: []byte(content), perm: perm, summary: summary}, nil
 }
 
+// planHook computes the pre-commit hook content with the validate/check managed
+// block inserted after the shebang.
+func planHook(root string) (writePlan, error) {
+	return planGitHook(root, "pre-commit", hookBody,
+		"install: pre-commit hook %s at %s (executable, runs on every commit; bypass with git commit --no-verify; uninstall: delete the lines between the erg managed markers)")
+}
+
 // planPushHook computes the pre-push hook content with the warn-only managed
-// block inserted after the shebang. Same machinery as planHook; the block is
-// non-mutating and never blocks the push.
+// block inserted after the shebang. The block is non-mutating and never blocks
+// the push.
 func planPushHook(root string) (writePlan, error) {
-	hooksDir, err := resolveHooksDir(root)
-	if err != nil {
-		return writePlan{}, err
-	}
-	hookPath := filepath.Join(hooksDir, "pre-push")
-
-	existing, perm, isNew, err := readHookFile(hookPath)
-	if err != nil {
-		return writePlan{}, fmt.Errorf("cannot read %s: %v", hookPath, err)
-	}
-
-	var lines []string
-	if isNew {
-		lines = []string{"#!/bin/sh"}
-	} else {
-		lines = splitLinesNoTrailingEmpty(existing)
-	}
-
-	cleaned, err := stripManagedRegions(lines, hookMarkerSets)
-	if err != nil {
-		return writePlan{}, fmt.Errorf("%s: %v -- fix or remove the stray marker manually", hookPath, err)
-	}
-
-	content := insertManagedBlockAfterShebang(cleaned, hookMarkerSets[0], pushHookBody)
-
-	action := "managed block updated"
-	if isNew {
-		action = "created"
-	}
-	summary := fmt.Sprintf("install: pre-push hook %s at %s (warn-only, never blocks the push; uninstall: delete the lines between the erg managed markers)", action, hookPath)
-
-	return writePlan{path: hookPath, content: []byte(content), perm: perm, summary: summary}, nil
+	return planGitHook(root, "pre-push", pushHookBody,
+		"install: pre-push hook %s at %s (warn-only, never blocks the push; uninstall: delete the lines between the erg managed markers)")
 }
 
 // planAgents computes the new root AGENTS.md content with the pointer line in a

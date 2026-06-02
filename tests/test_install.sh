@@ -332,6 +332,27 @@ else
     fail "pre-push hook left the tree dirty ($dirty changes)"
 fi
 
+# --- pre-push hook: prepended block does NOT shadow third-party content ---
+# The managed block is inserted before any pre-existing hook content; it must
+# not contain a trailing 'exit 0' that would terminate before that content runs
+# (the same hazard the pre-commit block deliberately avoids).
+REPO=$(new_repo pushprepend)
+( cd "$REPO" && git config user.email t@t && git config user.name t )
+printf '#!/bin/sh\necho "THIRD-PARTY PRE-PUSH RAN"\n' > "$REPO/.git/hooks/pre-push"
+chmod +x "$REPO/.git/hooks/pre-push"
+$ERG install "$REPO" --push-hook >/dev/null 2>&1
+out=$( cd "$REPO" && sh .git/hooks/pre-push origin /dev/null </dev/null 2>&1 ) && rc=0 || rc=$?
+if echo "$out" | grep -q "THIRD-PARTY PRE-PUSH RAN"; then
+    pass "--push-hook: third-party pre-push content still runs (not shadowed by exit 0)"
+else
+    fail "--push-hook: managed block shadowed third-party content (out: $out)"
+fi
+if grep -q "THIRD-PARTY PRE-PUSH RAN" "$REPO/.git/hooks/pre-push"; then
+    pass "--push-hook: third-party pre-push content preserved on disk"
+else
+    fail "--push-hook: third-party pre-push content lost"
+fi
+
 # --- pre-push hook: silent + exit 0 when binary absent and nothing pending ---
 REPO=$(new_repo pushquiet)
 ( cd "$REPO" && git config user.email t@t && git config user.name t )
