@@ -5,6 +5,7 @@ Author: claude
 
 --- log ---
 2026-06-02T16:44Z claude created
+2026-06-02T23:30Z claude note design council revised the pre-PUSH mechanism from "autoarchive (move files)" to "warn-only". A pre-push hook receives the already-frozen ref set and runs before the push leaves; any os.Rename + commit it makes lands one push LATER, never in the gated push -- so the literal "move at pre-push" is technically unreachable. Worse, a mutating pre-push hook leaves an uncommitted move that git reset --hard / stash / git add -A can resurrect into a ticket present in BOTH tickets/ and tickets/closed/ (a reopened/duplicate ticket). The faithful realization of the charter intent (mechanize/surface archiving at push, zero convention) is therefore: the hook WARNS (names closed-but-unarchived tickets + prints the exact archive+commit+push recipe), mutates nothing, exits 0. The real archive remains at merge time (erg-pr-merge already runs erg close + erg archive) and via manual erg archive. Exit criteria below reworded accordingly. Also: verify is CI-fail-closed (could-not-verify in GITHUB_ACTIONS -> exit 1) but lenient locally; pre-push goes behind its own --push-hook flag (0208 promised "each piece of wiring requires an explicit opt-in flag"). Blocker #1 -> option (b) standalone script + stderr dispatch hint. Blocker #2 -> doc-only + regression test (no fragile pre-commit env sniff).
 
 --- body ---
 ## Context
@@ -49,11 +50,12 @@ Le close est erg core ; le discover est erg-github ; le land est l'auteur.
 ## Surfaces
 
 Code :
-- `tickets/erg-github` (nouveau script POSIX sh)
-- `src/go/install.go` (hook pre-PUSH : autoarchive)
-- `src/go/check.go` (detection clos-pas-range, deja present)
-- `src/go/main.go` (dispatch si option a)
-- `src/go/helptext.go` (registre si dispatch)
+- `tickets/erg-github` (nouveau script POSIX sh : install + verify)
+- `src/go/install.go` (nouveau flag --push-hook + planPushHook : bloc pre-push
+  WARN-ONLY, reutilise resolveHooksDir/stripManagedRegions/insert/atomicWrite)
+- `src/go/archive.go` (nouveau --dry-run : WOULD ARCHIVE, ne renomme rien)
+- `src/go/main.go` (hint dispatch : cmd=="github" -> erreur actionnable stderr)
+- `src/go/helptext.go` (helpArchive --dry-run ; helpInstall --push-hook)
 
 Tests :
 - `tests/test_erg_github.sh` (nouveau : verify echec, succes, degradation)
@@ -78,17 +80,42 @@ CI :
 - Binaire commite : decider si la regle pre-commit "rejet binaire hors
   main" s'applique a erg-github.
 
-## Exit criteria
+## Exit criteria (revised per design council -- see 2026-06-02 log)
 
-- [ ] Decision dispatch (option a ou b) documentee et implementee
-- [ ] tickets/erg-github commite, executable, en POSIX sh
-- [ ] erg-github install pose le YAML d'Actions
-- [ ] erg-github verify echoue si PR reference un ticket non-ferme
-- [ ] erg-github verify passe si PR ne reference aucun ticket
-- [ ] erg-github verify degrade proprement si gh absent
-- [ ] Hook pre-PUSH autoarchive les tickets clos pas-encore-ranges
-- [ ] erg archive en pre-commit est interdit (guard ou doc explicite)
-- [ ] README pointe vers erg-github
-- [ ] AGENTS.md et integration.md mentionnent erg-github
-- [ ] Tests : verify echec, verify succes, degradation, pre-push archive
-- [ ] `make check` passe
+- [ ] Dispatch tranche : option (b) script separe ; `erg github` imprime une
+      erreur actionnable nommant tickets/erg-github (stderr, exit 1). Pas de
+      dispatch git-style PATH-exec, pas de section --help (compte reste 19).
+- [ ] tickets/erg-github commite, executable (mode 100755), en POSIX sh
+      (#!/bin/sh, set -eu, aucun bashisme).
+- [ ] erg-github install pose .github/workflows/erg-verify.yml epingle :
+      on: pull_request sans filtre paths ; permissions contents:read +
+      pull-requests:read ; checkout ref head.sha ; verify avec GH_TOKEN.
+- [ ] erg-github verify echoue (exit 1) si la PR reference un ticket non-ferme.
+- [ ] erg-github verify passe (exit 0) si la PR ne reference aucun ticket
+      (echappatoire LOUD et distincte : "no ticket referenced (escape hatch)").
+- [ ] erg-github verify : degradation environnement-dependante. Hors CI
+      (gh absent / non-auth / pas de PR) -> exit 0 (non-bloquant local). En CI
+      (GITHUB_ACTIONS) un could-not-verify -> exit 1 LOUD (fail-closed : un
+      check requis vert qui n'a pas pu tourner n'enforce rien).
+- [ ] erg-github verify : >1 reference Ticket: -> exit 1 ("one PR closes one
+      ticket") ; extraction parite avec erg-pr-merge (anchored, insensible a
+      la casse, 0-2 asterisques), sed/grep portable (pas de grep -oP GNU-only).
+- [ ] Hook pre-PUSH (pose par `erg install --push-hook`, flag OPT-IN distinct
+      de --hooks) AVERTIT des tickets clos-pas-ranges (nomme + recette
+      archive+commit+push), NE MUTE RIEN, exit 0 (jamais bloquant).
+- [ ] `erg archive --dry-run` : meme scan, imprime "WOULD ARCHIVE <file>" /
+      SKIPPED-blocked, ne renomme rien, exit 0. (Surface de lecture requise
+      par le hook ; archive.go rejette tout flag aujourd'hui.)
+- [ ] erg archive interdit en pre-commit : doc explicite + test de regression
+      asserant que le bloc pre-commit (hookBody) ne contient jamais "archive".
+      Pas de guard runtime (un sniff d'env pre-commit est fragile).
+- [ ] README pointe vers erg-github (et note l'echappatoire advisory-with-audit).
+- [ ] AGENTS.md et integration.md mentionnent erg-github ; integration.md
+      Uninstall couvre le bloc pre-push.
+- [ ] Regle binaire : `^tickets/erg$` exact ; tickets/erg-github (script texte)
+      committable sur toute branche (test de non-rejet).
+- [ ] Tests : verify echec/succes/no-ref/gh-absent/multi-ref ; push-hook non
+      bloquant (binaire absent, rien en attente, et avertit+exit0 si pending) ;
+      YAML epingle ; mode 100755 ; portabilite (pas de bashisme).
+- [ ] `make test` + `erg check tickets/` passent (il n'y a pas de cible
+      `make check` ; la porte est make test + erg check).

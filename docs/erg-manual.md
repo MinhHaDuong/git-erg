@@ -270,7 +270,7 @@ have the label, prints "NOT LABELED" and exits 0 without modifying the file.
 
 Exits non-zero if the label is not in the vocabulary or the ticket is not found.
 
-## erg archive [ID...] [DIR]
+## erg archive [ID...] [DIR] [-n|--dry-run]
 
 Move closed tickets to DIR/closed/.
 
@@ -286,6 +286,12 @@ archiving, or manually delete the stale Blocked-by line.
 
 The command creates DIR/closed/ if it does not exist. It will not overwrite
 an existing file at the destination.
+
+With -n / --dry-run, archive renames nothing: it prints "WOULD ARCHIVE <file>"
+for each eligible ticket and "WOULD SKIP <file> (needed by ...)" for tickets
+held open by a Blocked-by ref, then exits 0. This is the read-only listing the
+pre-push hook (erg install --push-hook) uses to warn about closed-but-
+unarchived tickets without mutating the working tree.
 
 ## erg rm ID|FILE [DIR] [--force]
 
@@ -386,7 +392,7 @@ Exit codes: 0 success; 1 a hard error (bad flag, missing binary, write
 failure); 2 local edits were preserved and skipped (run with --force to
 overwrite). See "Exit codes" in erg --help --all.
 
-## erg install [DIR] [--hooks] [--inject-agents] [--create-agents-md]
+## erg install [DIR] [--hooks] [--push-hook] [--inject-agents] [--create-agents-md]
 
 Wire up integration hooks and agent instructions for a project that already
 has a ticket store (created by erg init).
@@ -402,6 +408,15 @@ piece of wiring requires an explicit opt-in flag:
                        runs before any third-party hook content. Existing
                        content outside the markers is preserved.
 
+  --push-hook          Install (or upgrade) a pre-push hook that WARNS about
+                       tickets that are closed but not yet archived, printing
+                       the exact archive+commit+push recipe. It mutates
+                       nothing and never blocks the push -- a pre-push hook
+                       cannot get a file move into the push it gates, and a
+                       mutating hook would leave a dirty tree that git reset
+                       could resurrect into a duplicate ticket. The real
+                       archival stays at merge time and via manual erg archive.
+
   --inject-agents      Add a one-line pointer to tickets/AGENTS.md inside a
                        sentinel-marked block in the project-root AGENTS.md.
                        If the root AGENTS.md does not exist, the flag is
@@ -410,7 +425,7 @@ piece of wiring requires an explicit opt-in flag:
   --create-agents-md   Permit --inject-agents to create a root AGENTS.md when
                        none exists. On its own it does nothing.
 
-Both wiring flags default to off. install never overwrites content outside its
+All wiring flags default to off. install never overwrites content outside its
 managed block; on rerun or upgrade it replaces only the region between the
 markers. All preconditions are checked before any file is written, so a refused
 run changes nothing on disk.

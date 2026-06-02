@@ -68,3 +68,16 @@ Then `make test`; both guard tests run as part of it.
   "Binary policy").
 - Format spec: `erg spec` (or `tickets/spec-erg-v1.md`). Design rationale: `pep-erg-v1.md`.
 - Test policy and fixture strategy: `tests/README.md`.
+
+## Committed helper scripts (the forge layer)
+
+`erg` core is offline and forge-blind. Forge integration lives in committed
+helper scripts named `erg-<forge>` (e.g. `tickets/erg-github`) -- the hyphen is
+the link convention, like git's `git-foo` helpers; they are run directly, not
+dispatched by the binary. Such a script must be: POSIX `sh` (`#!/bin/sh`,
+`set -eu`, no bashisms -- `[[`, `local`, arrays, `pipefail`), pure ASCII,
+committed executable (mode 100755), CWD-independent (resolve the repo via
+`git rev-parse --show-toplevel`), and covered by a `tests/test_<name>.sh` suite
+registered in `TEST_SUITES`. `erg` core must never depend on one. The
+pre-commit binary-reject rule anchors `^tickets/erg$` exactly, so a text helper
+like `tickets/erg-github` commits freely on any branch.

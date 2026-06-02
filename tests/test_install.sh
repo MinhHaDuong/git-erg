@@ -270,6 +270,95 @@ else
     fail "both flags: not both wired (rc=$rc)"
 fi
 
+# --- pre-commit managed block must NEVER run archive (blocker #2) ---
+# A pre-commit os.Rename would record a deletion without the matching add.
+REPO=$(new_repo noarchive)
+$ERG install "$REPO" --hooks >/dev/null 2>&1
+if grep -q "archive" "$REPO/.git/hooks/pre-commit"; then
+    fail "pre-commit hook contains 'archive' (blocker #2: archive must be pre-push only)"
+else
+    pass "pre-commit hook never runs archive (blocker #2)"
+fi
+
+# --- --push-hook installs a warn-only, non-blocking pre-push hook (0209) ---
+REPO=$(new_repo pushhook)
+out=$($ERG install "$REPO" --push-hook 2>&1) && rc=0 || rc=$?
+PUSH="$REPO/.git/hooks/pre-push"
+if [ "$rc" -eq 0 ] && [ -x "$PUSH" ]; then
+    pass "--push-hook: creates an executable pre-push hook"
+else
+    fail "--push-hook: pre-push not created (rc=$rc, out: $out)"
+fi
+# It must not be installed by --hooks alone (opt-in separation).
+REPO2=$(new_repo hooksonly)
+$ERG install "$REPO2" --hooks >/dev/null 2>&1
+if [ ! -f "$REPO2/.git/hooks/pre-push" ]; then
+    pass "--hooks alone does NOT install the pre-push hook (opt-in separation)"
+else
+    fail "--hooks alone installed a pre-push hook (scope creep)"
+fi
+
+# --- pre-push hook: warn-only, never blocks, mutates nothing ---
+REPO=$(new_repo pushwarn)
+( cd "$REPO" && git config user.email t@t && git config user.name t )
+$ERG install "$REPO" --push-hook >/dev/null 2>&1
+# A closed-but-unarchived ticket, committed.
+cat > "$REPO/tickets/9002-closed.erg" <<'EOF'
+%erg 0.1
+Title: Closed
+Created: 2026-06-02
+Author: t
+Closed: 2026-06-02
+
+--- log ---
+--- body ---
+EOF
+( cd "$REPO" && git add -A && git commit -q -m "closed ticket" )
+out=$( cd "$REPO" && sh .git/hooks/pre-push origin /dev/null </dev/null 2>&1 ) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ]; then
+    pass "pre-push hook exits 0 (never blocks the push)"
+else
+    fail "pre-push hook blocked the push (rc=$rc)"
+fi
+if echo "$out" | grep -q "9002-closed.erg"; then
+    pass "pre-push hook warns about the closed-but-unarchived ticket"
+else
+    fail "pre-push hook did not warn (out: $out)"
+fi
+dirty=$( cd "$REPO" && git status --porcelain | wc -l )
+if [ "$dirty" -eq 0 ]; then
+    pass "pre-push hook mutates nothing (clean tree)"
+else
+    fail "pre-push hook left the tree dirty ($dirty changes)"
+fi
+
+# --- pre-push hook: silent + exit 0 when binary absent and nothing pending ---
+REPO=$(new_repo pushquiet)
+( cd "$REPO" && git config user.email t@t && git config user.name t )
+$ERG install "$REPO" --push-hook >/dev/null 2>&1
+rm -f "$REPO/tickets/erg"   # binary gitignored / absent
+out=$( cd "$REPO" && sh .git/hooks/pre-push origin /dev/null </dev/null 2>&1 ) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ]; then
+    pass "pre-push hook exits 0 even when tickets/erg is absent"
+else
+    fail "pre-push hook failed with binary absent (rc=$rc, out: $out)"
+fi
+
+# --- erg-github (a text script) is committable on a feature branch (Part E) ---
+# The binary-reject rule anchors ^tickets/erg$ exactly; erg-github must pass.
+REPO=$(new_repo ergghubcommit)
+( cd "$REPO" && git config user.email t@t && git config user.name t )
+cp "$ERG_ABS" "$REPO/tickets/erg"   # ensure present for hook
+$ERG install "$REPO" --hooks >/dev/null 2>&1
+cp "$(CDPATH= cd "$(dirname "$0")/.." && pwd)/tickets/erg-github" "$REPO/tickets/erg-github"
+( cd "$REPO" && git switch -q -c feature && git add tickets/erg-github ) >/dev/null 2>&1
+out=$( cd "$REPO" && git commit -q -m "add erg-github" 2>&1 ) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ]; then
+    pass "committing tickets/erg-github on a feature branch is NOT rejected"
+else
+    fail "tickets/erg-github commit was wrongly rejected (rc=$rc, out: $out)"
+fi
+
 echo ""
 echo "install: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

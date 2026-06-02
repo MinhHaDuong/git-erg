@@ -10,7 +10,7 @@ import (
 // summaryArchive is the one-liner printed by printUsage via the commands registry.
 const summaryArchive = "Move closed tickets to tickets/closed/"
 
-const helpArchive = `## erg archive [ID...] [DIR]
+const helpArchive = `## erg archive [ID...] [DIR] [-n|--dry-run]
 
 Move closed tickets to DIR/closed/.
 
@@ -26,20 +26,30 @@ archiving, or manually delete the stale Blocked-by line.
 
 The command creates DIR/closed/ if it does not exist. It will not overwrite
 an existing file at the destination.
+
+With -n / --dry-run, archive renames nothing: it prints "WOULD ARCHIVE <file>"
+for each eligible ticket and "WOULD SKIP <file> (needed by ...)" for tickets
+held open by a Blocked-by ref, then exits 0. This is the read-only listing the
+pre-push hook (erg install --push-hook) uses to warn about closed-but-
+unarchived tickets without mutating the working tree.
 `
 
 // cmdArchive implements `erg archive [id...] [dir]`. See helpArchive for the user-facing summary.
 func cmdArchive(args []string) int {
 	var ids []string
 	var explicit string
+	dryRun := false
 
 	for _, a := range args {
-		if len(a) == 4 && allDigits(a) {
+		switch {
+		case a == "-n" || a == "--dry-run":
+			dryRun = true
+		case len(a) == 4 && allDigits(a):
 			ids = append(ids, a)
-		} else if strings.HasPrefix(a, "-") {
-			fmt.Fprintf(os.Stderr, "archive: unknown flag %q\nUsage: erg archive [ID...] [DIR]\n", a)
+		case strings.HasPrefix(a, "-"):
+			fmt.Fprintf(os.Stderr, "archive: unknown flag %q\nUsage: erg archive [ID...] [DIR] [-n|--dry-run]\n", a)
 			return 1
-		} else {
+		default:
 			explicit = a
 		}
 	}
@@ -118,7 +128,17 @@ func cmdArchive(args []string) int {
 
 		// Skip if any open ticket is blocking on this one.
 		if blockers := blockedBy[tid]; len(blockers) > 0 {
-			fmt.Printf("SKIPPED %s (needed by %s)\n", t.Filename(), strings.Join(blockers, ", "))
+			verb := "SKIPPED"
+			if dryRun {
+				verb = "WOULD SKIP"
+			}
+			fmt.Printf("%s %s (needed by %s)\n", verb, t.Filename(), strings.Join(blockers, ", "))
+			continue
+		}
+
+		// Dry-run: report what would be archived without touching the disk.
+		if dryRun {
+			fmt.Printf("WOULD ARCHIVE %s\n", t.Filename())
 			continue
 		}
 

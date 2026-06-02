@@ -11,7 +11,7 @@ import (
 
 const summaryInstall = "Wire up git hooks and agent instructions (opt-in)"
 
-const helpInstall = `## erg install [DIR] [--hooks] [--inject-agents] [--create-agents-md]
+const helpInstall = `## erg install [DIR] [--hooks] [--push-hook] [--inject-agents] [--create-agents-md]
 
 Wire up integration hooks and agent instructions for a project that already
 has a ticket store (created by erg init).
@@ -27,6 +27,15 @@ piece of wiring requires an explicit opt-in flag:
                        runs before any third-party hook content. Existing
                        content outside the markers is preserved.
 
+  --push-hook          Install (or upgrade) a pre-push hook that WARNS about
+                       tickets that are closed but not yet archived, printing
+                       the exact archive+commit+push recipe. It mutates
+                       nothing and never blocks the push -- a pre-push hook
+                       cannot get a file move into the push it gates, and a
+                       mutating hook would leave a dirty tree that git reset
+                       could resurrect into a duplicate ticket. The real
+                       archival stays at merge time and via manual erg archive.
+
   --inject-agents      Add a one-line pointer to tickets/AGENTS.md inside a
                        sentinel-marked block in the project-root AGENTS.md.
                        If the root AGENTS.md does not exist, the flag is
@@ -35,7 +44,7 @@ piece of wiring requires an explicit opt-in flag:
   --create-agents-md   Permit --inject-agents to create a root AGENTS.md when
                        none exists. On its own it does nothing.
 
-Both wiring flags default to off. install never overwrites content outside its
+All wiring flags default to off. install never overwrites content outside its
 managed block; on rerun or upgrade it replaces only the region between the
 markers. All preconditions are checked before any file is written, so a refused
 run changes nothing on disk.
@@ -98,6 +107,28 @@ if [ -n "$erg_files" ]; then
     fi
 fi`
 
+// pushHookBody is the canonical content placed between the pre-push hook
+// markers. It is WARN-ONLY: it lists closed-but-unarchived tickets (via the
+// read-only erg archive --dry-run) and prints the archive+commit+push recipe,
+// but it mutates nothing and always exits 0 (it must never block a push).
+// A pre-push hook cannot get a file move into the push it gates, and a
+// mutating hook would leave a dirty tree that git reset/stash could resurrect
+// into a duplicate ticket -- so warn-only is the safe, faithful realization.
+const pushHookBody = `# Warn about tickets that are closed but not yet archived.
+# This hook never mutates the tree and never blocks the push (charter blocker
+# #2 + design council 0209): archiving at push cannot enter the gated push and
+# would risk a dirty-tree resurrection. Archive happens at merge time and via
+# manual 'erg archive'.
+if [ -x tickets/erg ]; then
+    pending=$(tickets/erg archive --dry-run 2>/dev/null | grep '^WOULD ARCHIVE ' || true)
+    if [ -n "$pending" ]; then
+        echo "pre-push: closed tickets are not yet archived:" >&2
+        echo "$pending" | sed 's/^WOULD ARCHIVE /  /' >&2
+        echo "  run: tickets/erg archive && git commit -am 'archive closed tickets' && git push" >&2
+    fi
+fi
+exit 0`
+
 const agentsBody = "git-erg local tickets: see tickets/AGENTS.md"
 
 // a planned write, computed during pre-flight and applied only if every
@@ -112,19 +143,22 @@ type writePlan struct {
 func cmdInstall(args []string) int {
 	var positional []string
 	hooks := false
+	pushHook := false
 	injectAgents := false
 	createAgentsMd := false
 	for _, a := range args {
 		switch a {
 		case "--hooks":
 			hooks = true
+		case "--push-hook":
+			pushHook = true
 		case "--inject-agents":
 			injectAgents = true
 		case "--create-agents-md":
 			createAgentsMd = true
 		default:
 			if strings.HasPrefix(a, "-") {
-				fmt.Fprintf(os.Stderr, "install: unknown flag %q\nUsage: erg install [DIR] [--hooks] [--inject-agents] [--create-agents-md]\n", a)
+				fmt.Fprintf(os.Stderr, "install: unknown flag %q\nUsage: erg install [DIR] [--hooks] [--push-hook] [--inject-agents] [--create-agents-md]\n", a)
 				return 1
 			}
 			positional = append(positional, a)
@@ -144,8 +178,8 @@ func cmdInstall(args []string) int {
 		return 1
 	}
 
-	if !hooks && !injectAgents {
-		fmt.Fprintln(os.Stderr, "install: nothing to do -- pass --hooks and/or --inject-agents")
+	if !hooks && !pushHook && !injectAgents {
+		fmt.Fprintln(os.Stderr, "install: nothing to do -- pass --hooks, --push-hook, and/or --inject-agents")
 		return 0
 	}
 
@@ -155,6 +189,14 @@ func cmdInstall(args []string) int {
 
 	if hooks {
 		if plan, err := planHook(root); err != nil {
+			perrs = append(perrs, err.Error())
+		} else {
+			plans = append(plans, plan)
+		}
+	}
+
+	if pushHook {
+		if plan, err := planPushHook(root); err != nil {
 			perrs = append(perrs, err.Error())
 		} else {
 			plans = append(plans, plan)
@@ -226,6 +268,44 @@ func planHook(root string) (writePlan, error) {
 		action = "created"
 	}
 	summary := fmt.Sprintf("install: pre-commit hook %s at %s (executable, runs on every commit; bypass with git commit --no-verify; uninstall: delete the lines between the erg managed markers)", action, hookPath)
+
+	return writePlan{path: hookPath, content: []byte(content), perm: perm, summary: summary}, nil
+}
+
+// planPushHook computes the pre-push hook content with the warn-only managed
+// block inserted after the shebang. Same machinery as planHook; the block is
+// non-mutating and never blocks the push.
+func planPushHook(root string) (writePlan, error) {
+	hooksDir, err := resolveHooksDir(root)
+	if err != nil {
+		return writePlan{}, err
+	}
+	hookPath := filepath.Join(hooksDir, "pre-push")
+
+	existing, perm, isNew, err := readHookFile(hookPath)
+	if err != nil {
+		return writePlan{}, fmt.Errorf("cannot read %s: %v", hookPath, err)
+	}
+
+	var lines []string
+	if isNew {
+		lines = []string{"#!/bin/sh"}
+	} else {
+		lines = splitLinesNoTrailingEmpty(existing)
+	}
+
+	cleaned, err := stripManagedRegions(lines, hookMarkerSets)
+	if err != nil {
+		return writePlan{}, fmt.Errorf("%s: %v -- fix or remove the stray marker manually", hookPath, err)
+	}
+
+	content := insertManagedBlockAfterShebang(cleaned, hookMarkerSets[0], pushHookBody)
+
+	action := "managed block updated"
+	if isNew {
+		action = "created"
+	}
+	summary := fmt.Sprintf("install: pre-push hook %s at %s (warn-only, never blocks the push; uninstall: delete the lines between the erg managed markers)", action, hookPath)
 
 	return writePlan{path: hookPath, content: []byte(content), perm: perm, summary: summary}, nil
 }

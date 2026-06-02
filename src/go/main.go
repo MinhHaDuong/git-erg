@@ -288,6 +288,13 @@ func main() {
 	case "-h", "--help", "help":
 		printUsage()
 		exitCode = 0
+	case "github", "erg-github":
+		// erg-github is a separate committed forge helper, not a subcommand of
+		// erg core (which stays offline and forge-blind). The hyphen is the
+		// link convention, like git's git-foo helpers. Point at the script.
+		fmt.Fprintln(os.Stderr, "erg-github is a separate committed helper (tickets/erg-github), not an erg subcommand.")
+		fmt.Fprintln(os.Stderr, "Run it directly: ./tickets/erg-github <install|verify>")
+		exitCode = 1
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", cmd)
 		printUsage()

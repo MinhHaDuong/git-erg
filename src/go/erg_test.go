@@ -416,10 +416,13 @@ func TestDispatchRegistrySync(t *testing.T) {
 		t.Fatalf("parsing main.go: %v", err)
 	}
 
-	// helpAliases are case labels in the switch that are NOT commands
-	// (they handle --help / -h / help fallback).
-	helpAliases := map[string]bool{
+	// nonCommandCases are case labels in the switch that are NOT registry
+	// commands: the --help/-h/help fallback, and the github / erg-github
+	// dispatch hint (erg-github is a separate committed helper script, not an
+	// erg subcommand -- the case only prints a pointer to tickets/erg-github).
+	nonCommandCases := map[string]bool{
 		"-h": true, "--help": true, "help": true,
+		"github": true, "erg-github": true,
 	}
 
 	var switchCmds []string
@@ -444,7 +447,7 @@ func TestDispatchRegistrySync(t *testing.T) {
 					continue
 				}
 				val := strings.Trim(lit.Value, `"`)
-				if helpAliases[val] {
+				if nonCommandCases[val] {
 					continue
 				}
 				switchCmds = append(switchCmds, val)
