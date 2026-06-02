@@ -2,10 +2,13 @@
 Title: Split init/install: init scaffold, install cablage opt-in
 Created: 2026-06-02
 Author: claude
+Closed: autoclosed — PR #240
 
 --- log ---
 2026-06-02T16:44Z claude created
 
+2026-06-02T17:43Z bump verify-reroll -- round 1: dead erg integration reference in README
+2026-06-02T17:57Z MinhHaDuong closed — autoclosed — PR #240
 --- body ---
 ## Context
 
