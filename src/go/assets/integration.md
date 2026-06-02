@@ -74,6 +74,25 @@ git-erg local tickets: see tickets/AGENTS.md
 <!-- <<< erg managed <<< -->
 ```
 
+## 3. Pre-push warning (optional)
+
+`erg install --push-hook` adds a pre-push hook that WARNS when tickets are
+closed but not yet archived (it prints the exact `erg archive` + commit + push
+recipe). It mutates nothing and never blocks the push: a pre-push hook cannot
+get a file move into the push it gates, and a mutating hook would leave a dirty
+tree. Archiving stays a deliberate step (`erg archive`, or automatic at merge).
+
+Never put `erg archive` in a pre-commit hook: archive renames files, and a
+pre-commit rename is not re-staged, so the commit would record a deletion
+without the matching add. The pre-commit block above intentionally omits it.
+
+## 4. GitHub forge layer (optional)
+
+`tickets/erg-github` is a separate committed helper (not an `erg` subcommand).
+`erg-github install` writes a required CI check (`.github/workflows/erg-verify.yml`);
+`erg-github verify` fails a PR that references a still-open ticket. Run it
+directly: `./tickets/erg-github verify`.
+
 ## Uninstall
 
 To remove erg from your project, delete the binary and the two files
@@ -92,6 +111,9 @@ whole file:
 ```sh
 rm .git/hooks/pre-commit   # ONLY if it holds nothing but the erg block
 ```
+
+The pre-push hook (if you ran `--push-hook`) uses the same markers in
+`.git/hooks/pre-push`; remove its managed block the same way.
 
 Likewise for the `AGENTS.md` pointer: delete only the lines between the
 `<!-- >>> erg managed >>> -->` and `<!-- <<< erg managed <<< -->` markers.

@@ -37,4 +37,6 @@ Rules agents must know:
 - Log entries are append-only: `YYYY-MM-DDTHH:MMZ author verb detail`
 - Artifacts a ticket consumes or produces (reports, data, generated files, scripts) live in their natural location in the project tree and are referenced from the body by path, not embedded wholesale, and not kept as a filename-twinned `0002-slug.md` sidecar the tooling cannot track.
 
+On GitHub, `tickets/erg-github` (a separate committed helper, not an `erg` subcommand) adds a `verify` check that fails a PR referencing a still-open ticket -- so close the ticket in the same PR (`erg close`).
+
 In doubt, run `erg spec` (file format) or `erg --help --all` / `erg COMMAND --help` for command documentation.

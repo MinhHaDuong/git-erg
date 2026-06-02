@@ -228,5 +228,43 @@ rm -rf "$SLASH_DIR" "$OUT_NOSLASH_DIR"
         fail "unknown flag not rejected (rc=$rc, got: $out)"
     fi
 
+# --- --dry-run lists without moving (ticket 0209) ---
+DRY=$(mktemp -d)
+write_closed "$DRY/8101-dry-closed.erg" "Dry Closed"
+write_open "$DRY/8102-dry-open.erg" "Dry Open"
+out=$($ERG archive --dry-run "$DRY" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -q "WOULD ARCHIVE 8101-dry-closed.erg"; then
+    pass "--dry-run: reports WOULD ARCHIVE for the closed ticket"
+else
+    fail "--dry-run: missing WOULD ARCHIVE (rc=$rc, out: $out)"
+fi
+if [ -f "$DRY/8101-dry-closed.erg" ] && [ ! -d "$DRY/closed" ]; then
+    pass "--dry-run: moves nothing (closed ticket still in place, no closed/ dir)"
+else
+    fail "--dry-run: mutated the store"
+fi
+if echo "$out" | grep -q "8102-dry-open.erg"; then
+    fail "--dry-run: open ticket should not be listed"
+else
+    pass "--dry-run: open ticket not listed"
+fi
+# -n short form is also accepted
+$ERG archive -n "$DRY" >/dev/null 2>&1 && pass "archive -n short form accepted" || fail "archive -n rejected"
+rm -rf "$DRY"
+
+# --- --dry-run reports WOULD SKIP for a Blocked-by-held closed ticket ---
+DRY2=$(mktemp -d)
+write_closed "$DRY2/8103-held.erg" "Held closed"
+write_open "$DRY2/8104-blocker.erg" "Blocker"
+# 8104 (open) Blocked-by 8103 -> archiving 8103 would break the ref -> WOULD SKIP
+printf '%s\n' "%erg 0.1" "Title: Blocker" "Created: 2026-01-01" "Author: claude" "Blocked-by: 8103" "" "--- log ---" "2026-01-01T10:00Z claude created" "" "--- body ---" > "$DRY2/8104-blocker.erg"
+out=$($ERG archive --dry-run "$DRY2" 2>&1) && rc=0 || rc=$?
+if echo "$out" | grep -q "WOULD SKIP 8103-held.erg"; then
+    pass "--dry-run: Blocked-by-held closed ticket shown as WOULD SKIP"
+else
+    fail "--dry-run: expected WOULD SKIP for held ticket (out: $out)"
+fi
+rm -rf "$DRY2"
+
 echo "archive: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

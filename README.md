@@ -87,6 +87,21 @@ four users:
 - Design rationale: `pep-erg-v1.md`.
 - Contributing (build, test, adding a subcommand): `CONTRIBUTING.md`.
 
+## Forge layer: `erg-github`
+
+`erg core` is offline and forge-blind. `tickets/erg-github` is a separate
+committed POSIX-sh helper (it travels with the clone) that adds GitHub
+integration. It is not a subcommand of `erg` -- run it directly:
+
+- `tickets/erg-github install` writes `.github/workflows/erg-verify.yml`, a
+  required pre-merge check.
+- `tickets/erg-github verify` fails a PR that references a still-open ticket
+  ("Please close ticket NNNN in this PR"). The close is committed in the PR by
+  the author (`erg close`); this only discovers and enforces, with no bot and
+  no dependency on any merge tooling. A PR that references no ticket passes
+  (an audited escape hatch for emergency/unlinked merges), and outside CI the
+  check degrades non-blockingly when `gh` is unavailable.
+
 ## Install into a project
 
 The zero-install path above already works. To add the optional `erg` CLI,

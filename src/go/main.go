@@ -13,11 +13,11 @@
 //	erg log      ID LINE [DIR]
 //	erg label    ID LABELNAME [DIR]
 //	erg unlabel  ID LABELNAME [DIR]
-//	erg archive  [id...] [dir]
+//	erg archive  [id...] [dir] [-n|--dry-run]
 //	erg rm       ID|FILE [dir] [--force]
 //	erg migrate  [dir]
 //	erg init     [dir]
-//	erg install  [dir] [--hooks] [--inject-agents] [--create-agents-md]
+//	erg install  [dir] [--hooks] [--push-hook] [--inject-agents] [--create-agents-md]
 //	erg spec
 //	erg integration
 //	erg version
@@ -288,6 +288,13 @@ func main() {
 	case "-h", "--help", "help":
 		printUsage()
 		exitCode = 0
+	case "github", "erg-github":
+		// erg-github is a separate committed forge helper, not a subcommand of
+		// erg core (which stays offline and forge-blind). The hyphen is the
+		// link convention, like git's git-foo helpers. Point at the script.
+		fmt.Fprintln(os.Stderr, "erg-github is a separate committed helper (tickets/erg-github), not an erg subcommand.")
+		fmt.Fprintln(os.Stderr, "Run it directly: ./tickets/erg-github <install|verify>")
+		exitCode = 1
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", cmd)
 		printUsage()
