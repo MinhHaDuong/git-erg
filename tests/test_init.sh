@@ -107,6 +107,11 @@ if [ "$RC3" -ne 0 ]; then
 else
     fail "re-init with local edits: exits non-zero (rc=$RC3)"
 fi
+if [ "$RC3" -eq 2 ]; then
+    pass "re-init with local edits: exit code is 2 (skipped, not hard error)"
+else
+    fail "re-init with local edits: expected exit 2, got $RC3"
+fi
 if grep -q "# user edit" "$REPO/tickets/.ergrc"; then
     pass "re-init with local edits: modified file preserved"
 else
@@ -195,6 +200,107 @@ if [ -f "$DIVERGE/tickets/integration.md" ]; then
     pass "orphan cleanup: divergent integration.md preserved"
 else
     fail "orphan cleanup: divergent integration.md was removed"
+fi
+
+# --- dry-run: no side effects (ticket 0207) ---
+
+DRY="$TDIR/dry"
+mkdir -p "$DRY/tickets"
+touch "$DRY/tickets/erg"
+# Pre-place a matching orphan that a real init would remove.
+$ERG spec > "$DRY/tickets/spec-erg-v1.md" 2>/dev/null
+OUT_DRY=$($ERG init -n "$DRY" 2>&1) && RC_DRY=0 || RC_DRY=$?
+if [ "$RC_DRY" -eq 0 ]; then
+    pass "dry-run: exits 0 on a clean preview"
+else
+    fail "dry-run: expected exit 0, got $RC_DRY"
+fi
+if [ ! -f "$DRY/tickets/.ergrc" ] && [ ! -f "$DRY/tickets/AGENTS.md" ]; then
+    pass "dry-run: did not create any asset"
+else
+    fail "dry-run: created assets (.ergrc or AGENTS.md present)"
+fi
+if [ -f "$DRY/tickets/spec-erg-v1.md" ]; then
+    pass "dry-run: did not remove the matching orphan"
+else
+    fail "dry-run: removed the orphan (should only preview)"
+fi
+if echo "$OUT_DRY" | grep -q "dry-run"; then
+    pass "dry-run: output labels itself as dry-run"
+else
+    fail "dry-run: output missing 'dry-run' label (got: $OUT_DRY)"
+fi
+# --dry-run long form is also accepted
+$ERG init --dry-run "$DRY" >/dev/null 2>&1 && pass "long --dry-run accepted" || fail "long --dry-run rejected"
+
+# --- dry-run reports exit 2 when it would skip a local edit ---
+
+DRY2="$TDIR/dry2"
+mkdir -p "$DRY2/tickets"
+touch "$DRY2/tickets/erg"
+$ERG init "$DRY2" >/dev/null 2>&1
+printf "# edit\n" >> "$DRY2/tickets/.ergrc"
+$ERG init -n "$DRY2" >/dev/null 2>&1 && RC_DRY2=0 || RC_DRY2=$?
+if [ "$RC_DRY2" -eq 2 ]; then
+    pass "dry-run: exit 2 when a local edit would be skipped"
+else
+    fail "dry-run: expected exit 2 for would-skip, got $RC_DRY2"
+fi
+# The local edit must still be present (dry-run never writes).
+if grep -q "# edit" "$DRY2/tickets/.ergrc"; then
+    pass "dry-run: local edit untouched"
+else
+    fail "dry-run: local edit was modified"
+fi
+
+# --- --force overwrites divergent files (exit 0) ---
+
+FORCE="$TDIR/force"
+mkdir -p "$FORCE/tickets"
+touch "$FORCE/tickets/erg"
+$ERG init "$FORCE" >/dev/null 2>&1
+printf "# user edit to clobber\n" >> "$FORCE/tickets/.ergrc"
+$ERG init --force "$FORCE" >/dev/null 2>&1 && RC_FORCE=0 || RC_FORCE=$?
+if [ "$RC_FORCE" -eq 0 ]; then
+    pass "--force: exits 0"
+else
+    fail "--force: expected exit 0, got $RC_FORCE"
+fi
+if grep -q "# user edit to clobber" "$FORCE/tickets/.ergrc"; then
+    fail "--force: local edit survived (should be overwritten)"
+else
+    pass "--force: local edit overwritten"
+fi
+
+# --- chained read-only check surfaces a corpus warning, init still exits 0 ---
+
+CHAIN="$TDIR/chain"
+mkdir -p "$CHAIN/tickets"
+touch "$CHAIN/tickets/erg"
+# A closed ticket placed outside closed/ triggers folderClosure WARN.
+cat > "$CHAIN/tickets/9001-chain.erg" <<'ERGEOF'
+%erg 0.1
+Title: Chain test closed ticket
+Created: 2026-06-02
+Author: claude
+Closed: 2026-06-02
+
+--- log ---
+2026-06-02T00:00Z claude created
+
+--- body ---
+Closed ticket outside closed/ to trigger a folderClosure warning.
+ERGEOF
+OUT_CHAIN=$($ERG init "$CHAIN" 2>&1) && RC_CHAIN=0 || RC_CHAIN=$?
+if echo "$OUT_CHAIN" | grep -q "closed ticket not in closed/ directory"; then
+    pass "chaining: init surfaces the corpus warning"
+else
+    fail "chaining: warning not surfaced (got: $OUT_CHAIN)"
+fi
+if [ "$RC_CHAIN" -eq 0 ]; then
+    pass "chaining: init exit code reflects init (0), not the warning"
+else
+    fail "chaining: init exit should be 0 despite warning, got $RC_CHAIN"
 fi
 
 

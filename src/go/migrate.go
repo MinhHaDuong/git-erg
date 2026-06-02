@@ -217,7 +217,7 @@ func migrateLayout(dir string) int {
 		}
 		fmt.Println("migrate: copied binary \u2192 tickets/erg")
 	}
-	if c, r, _, u, err := installAssets(root, false); err != nil {
+	if c, r, _, u, err := installAssets(root, false, false); err != nil {
 		fmt.Fprintf(os.Stderr, "migrate: init assets refresh failed: %v\n", err)
 	} else {
 		fmt.Printf("migrate: init assets refreshed (%d created, %d refreshed, %d unchanged)\n", c, r, u)

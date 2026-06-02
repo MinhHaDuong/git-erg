@@ -18,6 +18,13 @@ least one `.erg` file. The first qualifying candidate is used; if none qualify,
 When the store is auto-discovered, `erg` refuses to use a store that lies in
 a different git worktree than the working directory. Pass DIR explicitly to override.
 
+**Exit codes (shared by `check` and `init`).** `0` success;
+`1` a hard error (bad flag, unreadable directory, write failure, or a
+corpus violation); `2` local edits were preserved and skipped
+(`init` only -- run with `--force` to overwrite). Any non-zero
+status is a failure for scripting purposes. The value `1` always means a
+hard failure -- it never doubles as "skipped".
+
 ## erg validate FILE...
 
 Validate individual .erg ticket files (format, headers, refs).
@@ -75,7 +82,9 @@ Additionally emits warnings (non-fatal) for:
   - Interior header blank: a blank line inside the header block (tolerated on
     read; run 'erg migrate' to normalise).
 
-Exit codes: 0 on pass (warnings are printed but do not affect exit code), 1 on any violation.
+Exit codes: 0 on pass (warnings are printed but do not affect exit code), 1 on any
+violation. The value 1 is a hard failure here, consistent with the shared exit-code
+table (see "Exit codes" in erg --help --all); check never returns 2.
 
 ## erg list [DIR] [LABEL...] [not LABEL...] [--all] [--json]
 
@@ -336,7 +345,7 @@ patterns are left untouched.
 Does NOT commit. Exits 1 on archive/->closed/ filename collision (both directories are left untouched; the user must resolve manually). Exits 0 otherwise.
 Review the diff with 'git diff tickets/' and commit manually.
 
-## erg init [DIR]
+## erg init [DIR] [-n|--dry-run] [--force]
 
 Unpack embedded bootstrap assets into the project.
 
@@ -355,11 +364,27 @@ initialize an empty directory that was never meant to be a ticket store.
 Each asset is compared byte-for-byte with the embedded version; unchanged files
 are skipped and counted separately from newly created files. If an existing file
 differs from the embedded version (indicating local edits), it is skipped with a
-message on stderr and the command exits non-zero. Local edits are never overwritten.
+message on stderr and the command exits 2 (local edits are never overwritten).
+
+Flags:
+
+  -n, --dry-run   Preview what init would create, refresh, skip, or leave
+                  unchanged without writing or removing any file.
+  --force         Overwrite files that differ from the embedded version
+                  instead of skipping them. Use with care: local edits are
+                  replaced.
 
 If tickets/spec-erg-v1.md or tickets/integration.md exist from a previous init
 and match the current embedded content, they are removed as orphaned assets.
 Files that have been edited locally are preserved.
+
+After a successful run (not in dry-run), init chains a read-only corpus check
+and prints any warnings, but its exit code reflects the init outcome only --
+the chained warnings never change it.
+
+Exit codes: 0 success; 1 a hard error (bad flag, missing binary, write
+failure); 2 local edits were preserved and skipped (run with --force to
+overwrite). See "Exit codes" in erg --help --all.
 
 ## erg install [DIR] [--hooks] [--inject-agents]
 

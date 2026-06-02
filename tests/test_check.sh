@@ -72,6 +72,16 @@ else
     pass "duplicate IDs rejected"
 fi
 
+# --- exit-code coherence (ticket 0207): a violation is exit 1, never 2 ---
+# 1 is reserved for hard failures (violations); 2 means "init skipped a local
+# edit". check must never emit 2, so the shared table stays unambiguous.
+dup_rc=0; $ERG check "$FIXTURES/dup" >/dev/null 2>&1 || dup_rc=$?
+if [ "$dup_rc" -eq 1 ]; then
+    pass "violation exits 1 (not 2 -- shared exit-code table is unambiguous)"
+else
+    fail "violation should exit 1, got $dup_rc"
+fi
+
 # --- Cross-directory duplicate IDs fail ---
 mkdir -p "$FIXTURES/xdup/closed"
 cat > "$FIXTURES/xdup/0001-one.erg" <<'EOF'

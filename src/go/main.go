@@ -59,6 +59,13 @@ least one ` + "`.erg`" + ` file. The first qualifying candidate is used; if none
 
 When the store is auto-discovered, ` + "`erg`" + ` refuses to use a store that lies in
 a different git worktree than the working directory. Pass DIR explicitly to override.
+
+**Exit codes (shared by ` + "`check`" + ` and ` + "`init`" + `).** ` + "`0`" + ` success;
+` + "`1`" + ` a hard error (bad flag, unreadable directory, write failure, or a
+corpus violation); ` + "`2`" + ` local edits were preserved and skipped
+(` + "`init`" + ` only -- run with ` + "`--force`" + ` to overwrite). Any non-zero
+status is a failure for scripting purposes. The value ` + "`1`" + ` always means a
+hard failure -- it never doubles as "skipped".
 `
 
 // looksLikeTicketStore reports whether dir is a managed ticket store.
