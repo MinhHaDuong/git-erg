@@ -2,10 +2,12 @@
 Title: Add make check alias (test + validate) to align with the pre-PR gate
 Created: 2026-06-03
 Author: claude
+Closed: autoclosed — PR #246
 
 --- log ---
 2026-06-03T00:30Z claude created
 
+2026-06-02T23:19Z MinhHaDuong closed — autoclosed — PR #246
 --- body ---
 ## Context
 
