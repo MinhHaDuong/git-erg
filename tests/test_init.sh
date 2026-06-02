@@ -426,6 +426,19 @@ else
     fail "dpkg: migrate preserved a divergent file (should force-overwrite)"
 fi
 
+# Loud output (criterion 5): an unchanged file names itself in NORMAL mode,
+# not only under --dry-run. Re-init a freshly-initialized dir: both assets are
+# byte-identical to embedded, so each must print an "unchanged" per-file line.
+UC="$TDIR/dpkg-unchanged"
+mkdir -p "$UC/tickets"; touch "$UC/tickets/erg"
+$ERG init "$UC" >/dev/null 2>&1 || true
+OUT_UC=$($ERG init "$UC" 2>&1 || true)
+if echo "$OUT_UC" | grep -q "init: tickets/.ergrc unchanged"; then
+    pass "dpkg: unchanged file names itself in normal mode (criterion 5)"
+else
+    fail "dpkg: unchanged file not named per-file in normal mode (got: $OUT_UC)"
+fi
+
 
 echo "init: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

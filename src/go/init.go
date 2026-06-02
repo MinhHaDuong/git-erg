@@ -82,9 +82,12 @@ overwrite). See "Exit codes" in erg --help --all.
 // unwrapped -- no "init:" prefix -- so each caller can label them with its own
 // command name.
 //
-// When refuseDiverged is true, files that differ from the embedded asset are
-// skipped with a message on stderr instead of being overwritten; the skipped
-// count is incremented. When false, differing files are overwritten (refresh).
+// When refuseDiverged is true, files that differ from the embedded asset go
+// through the dpkg 3-state compare: a clean upgrade (on-disk matches the
+// .erg-assets stamp, or a known shipped hash when no stamp) is overwritten
+// (refresh); a local edit (matches neither) is preserved with a message on
+// stderr and counted as skipped. When false (erg init --force, erg migrate),
+// differing files are overwritten unconditionally (refresh).
 //
 // When dryRun is true, no directory is created, no file is written, and the
 // orphan sweep is not performed; instead a preview line is printed for each
@@ -105,10 +108,14 @@ func installAssets(root string, refuseDiverged, dryRun bool) (created, refreshed
 		exists := readErr == nil
 
 		// Row 1: on-disk byte-identical to embedded -> nothing to do.
+		// Loud per-file output names this skip outcome too (criterion 5:
+		// each action prints its file + action), matching refresh/preserve.
 		if exists && string(existing) == content {
 			unchanged++
 			if dryRun {
 				fmt.Printf("  unchanged  %s\n", rel)
+			} else {
+				fmt.Fprintf(os.Stderr, "init: %s unchanged\n", rel)
 			}
 			continue
 		}
