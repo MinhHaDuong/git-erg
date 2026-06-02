@@ -1,0 +1,93 @@
+%erg 0.1
+Title: erg install --hooks et --inject-agents, frontiere de propriete
+Created: 2026-06-02
+Author: claude
+
+--- log ---
+2026-06-02T16:44Z claude created
+
+--- body ---
+## Context
+
+Cf. docs/erg-imagine-charter.md, chantier 6.
+
+Executer apres 0207 (mecanique init). Presuppose que le split init/install
+de 0205 est atterri.
+
+erg possede `tickets/` uniquement. Le verbe `install` est le seul qui mute
+hors de cette frontiere (.git/hooks, AGENTS.md racine), et uniquement
+derriere des flags explicites, par defaut a off.
+
+## Travail
+
+### --hooks (pre-commit)
+
+- Defaut off. Pose un bloc sentinelle dans .git/hooks/pre-commit :
+  validate + check + rejet `tickets/erg` hors main.
+- NE PAS inclure archive (cf. 0209, blocker #2 -- archive en pre-PUSH).
+- Jamais clobber un pre-commit existant hors du bloc sentinelle.
+- Migration marqueurs legacy : la copie deployee utilise
+  `# --- git-erg: begin managed block ---`. Le nouveau format est
+  `# >>> erg managed >>>`. install --hooks doit reconnaitre les DEUX
+  formats et remplacer en place, sinon il appenderait un SECOND bloc.
+- Aligner le texte de hook dans integration.md sur les memes marqueurs.
+
+### --inject-agents (AGENTS.md racine)
+
+- Defaut off. Edition idempotente (grep du marqueur avant insertion).
+- Si AGENTS.md racine est absent, NE PAS le creer sans un second opt-in
+  explicite (flag --create-agents-md ou confirmation interactive).
+- Si cree, imprimer le chemin et noter que le fichier est user-owned.
+- Documenter le retrait du bloc-marqueur (uninstall) dans integration.md.
+
+## Surfaces
+
+Code :
+- `src/go/install.go` (extension du stub cree par 0205)
+- `src/go/main.go` (dispatch)
+- `src/go/helptext.go` (registre, aide install)
+
+Assets :
+- `src/go/assets/integration.md` (aligner marqueurs, doc uninstall)
+
+Tests :
+- `tests/test_install.sh` (extension) : pose hook, upgrade marqueur
+  legacy, idempotence, refuse clobber hors sentinelle, inject-agents
+  dans AGENTS.md existant, refuse creation AGENTS.md absent sans opt-in.
+- `tests/test_docs.sh` (compte de sections si nouvelle commande)
+
+Docs :
+- README.md (sequence install), CONTRIBUTING.md (checklist sous-commande)
+
+## Derisque
+
+- Migration marqueurs : le test "upgrade depuis marqueur legacy" doit
+  utiliser le texte exact du format legacy et verifier qu'apres install
+  il ne reste qu'un seul bloc au nouveau format.
+- Consentement AGENTS.md : creer un fichier racine que l'utilisateur
+  n'a pas demande est une surprise hostile. Double opt-in protege.
+- Composition hook : le pre-commit peut contenir du code tiers (husky,
+  lint-staged). Le bloc sentinelle doit etre un append propre, jamais un
+  remplacement du fichier entier.
+
+## Blockers transverses
+
+- Blocker #2 : archive en pre-commit corrompt le commit. Le hook pose
+  par --hooks NE DOIT PAS inclure archive.
+- Blocker #5 : checklist sous-commande (si install est une nouvelle
+  commande, les 5 points CONTRIBUTING.md s'appliquent).
+
+## Exit criteria
+
+- [ ] `erg install --hooks` pose le bloc sentinelle dans pre-commit
+- [ ] Le hook contient validate + check + rejet binaire, PAS archive
+- [ ] Relance idempotente : pas de bloc duplique
+- [ ] Upgrade depuis marqueurs legacy : un seul bloc au nouveau format
+- [ ] Hook tiers hors sentinelle preserve intact
+- [ ] `erg install --inject-agents` ajoute la ligne dans AGENTS.md existant
+- [ ] Injection idempotente (grep du marqueur)
+- [ ] AGENTS.md absent + --inject-agents seul = refus avec message clair
+- [ ] integration.md aligne sur les nouveaux marqueurs, doc uninstall
+- [ ] test_install.sh couvre les cas ci-dessus
+- [ ] `make check` passe
+- [ ] Pas de regression sur `erg init` (qui ne pose plus de hooks)

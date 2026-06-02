@@ -1,0 +1,98 @@
+%erg 0.1
+Title: erg spec/integration print-on-demand, orphelins, balayage doc
+Created: 2026-06-02
+Author: claude
+
+--- log ---
+2026-06-02T16:44Z claude created
+
+--- body ---
+## Context
+
+Cf. docs/erg-imagine-charter.md, chantier 3.
+
+Executer apres 0205 (split init/install).
+
+`erg init` depose aujourd'hui 4 fichiers dans `tickets/` : `.ergrc`,
+`AGENTS.md`, `spec-erg-v1.md`, `integration.md`. Les deux derniers sont
+des references rarement consultees qui encombrent le repertoire de
+travail. On les remplace par des commandes `erg spec` et
+`erg integration` qui impriment le contenu embarque sur stdout.
+
+Apres ce ticket, `tickets/` n'ecrit plus que `.ergrc` + `AGENTS.md`.
+
+## Travail
+
+1. Nouvelles commandes `erg spec` et `erg integration` : impriment le
+   contenu embarque (bootstrap_assets.go) sur stdout, exit 0.
+
+2. Reduire `initAssetPaths` de 4 a 2 dans init.go. Verifier que
+   migrate.go herite correctement.
+
+3. Nettoyage d'orphelins (blocker #4) : a l'init, si
+   `tickets/spec-erg-v1.md` ou `tickets/integration.md` existent ET
+   matchent un hash embarque connu, les supprimer en loggant "removed
+   orphaned asset (now: erg spec / erg integration)". Ne jamais supprimer
+   un fichier qui diverge (donnee possible de l'utilisateur).
+
+4. Balayage doc (blocker #4) : mettre a jour toutes les references :
+   - README.md etapes 3-4
+   - src/go/assets/AGENTS.md : "lance erg spec / erg integration"
+   - src/go/main.go manualPreamble : pointer `erg spec`
+   - src/go/init.go helpInit : "deux fichiers" au lieu de "four files"
+   - src/go/assets/integration.md uninstall : liste a 2 fichiers
+   - pep-erg-v1.md : pointer `erg spec`
+
+## Surfaces
+
+Code :
+- `src/go/init.go` (initAssetPaths, summaryInit, helpInit)
+- `src/go/spec.go` (nouveau)
+- `src/go/integration.go` (nouveau)
+- `src/go/main.go` (dispatch + manualPreamble)
+- `src/go/helptext.go` (registre)
+
+Tests :
+- `tests/test_spec.sh` (nouveau)
+- `tests/test_integration.sh` (nouveau)
+- `tests/test_docs.sh` (bumper compte 17 -> 19, deux occurrences)
+- `tests/test_init.sh` (adapter pour 2 assets au lieu de 4)
+- `Makefile` TEST_SUITES (ajouter spec et integration)
+
+Docs :
+- README.md, pep-erg-v1.md, src/go/assets/AGENTS.md,
+  src/go/assets/integration.md
+
+## Derisque
+
+- Nettoyage d'orphelins garde par hash : ne supprimer que si le fichier
+  matche un hash embarque connu ; jamais une divergence = possible donnee
+  utilisateur.
+- Le balayage doc doit etre complet dans la meme PR, pas en follow-up.
+- migrate.go appelle installAssets avec initAssetPaths -- la reduction
+  4->2 se propage correctement.
+
+## Blockers transverses
+
+- Blocker #4 : orphelins + balayage doc. Resolu dans ce ticket.
+- Blocker #5 : checklist sous-commande. Deux nouvelles commandes (spec,
+  integration) -> 5 points CONTRIBUTING.md chacune :
+  fichier de commande, registre helptext.go, dispatch main.go,
+  tests/test_<cmd>.sh, TEST_SUITES du Makefile.
+  Plus : TestDispatchRegistrySync, _test-lint, test_docs.sh count bump.
+
+## Exit criteria
+
+- [ ] `erg spec` imprime le contenu embarque de spec-erg-v1.md sur stdout
+- [ ] `erg integration` imprime le contenu embarque de integration.md
+- [ ] initAssetPaths reduit a 2 (.ergrc, AGENTS.md)
+- [ ] init ne depose plus spec-erg-v1.md ni integration.md
+- [ ] Orphelins matchant un hash embarque supprimes avec log
+- [ ] Orphelins divergents preserves sans message d'erreur
+- [ ] Balayage doc complet (README, AGENTS.md, manualPreamble, helpInit,
+      integration.md uninstall, pep-erg-v1.md)
+- [ ] tests/test_spec.sh et tests/test_integration.sh
+- [ ] tests/test_docs.sh : compte de sections bumpe 17 -> 19
+- [ ] Makefile : spec et integration dans TEST_SUITES
+- [ ] TestDispatchRegistrySync et _test-lint passent
+- [ ] `make test` passe

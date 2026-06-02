@@ -1,0 +1,71 @@
+%erg 0.1
+Title: Manifeste de provenance .erg-assets sur init/install
+Created: 2026-06-02
+Author: claude
+
+--- log ---
+2026-06-02T16:44Z claude created
+
+--- body ---
+## Context
+
+Cf. docs/erg-imagine-charter.md, chantier 4, section 4a.
+
+Executer apres 0209 (erg-github). Premier de la serie
+4a (0210) -> 4b (0211) -> 4c (0212) -> 4d (0213).
+
+Le versionnage des assets repose sur un manifeste de provenance
+`tickets/.erg-assets` ecrit par `init` et `install`. Ce fichier enregistre
+la rev du binaire, la date, et le sha256 de chaque asset depose. Il est
+commite (pas gitignore) : c'est de l'etat durable leger.
+
+Contrainte critique : l'ecriture du manifeste ne doit PAS declencher un
+echec pre-commit "tickets/ dirty".
+
+## Design
+
+Format du fichier `tickets/.erg-assets` :
+
+    # erg provenance manifest -- do not edit
+    rev: <buildVersion>
+    date: <YYYY-MM-DDTHH:MMZ>
+    assets:
+      .ergrc sha256:<hex>
+      AGENTS.md sha256:<hex>
+
+- Une ligne par asset, triee alphabetiquement (ordre deterministe).
+- Hash : SHA-256 du contenu tel qu'ecrit sur disque.
+- rev et date proviennent de version.go (buildVersion, buildDate).
+- Le fichier est ecrase a chaque init/install (pas d'append).
+
+## Surfaces
+
+- `src/go/init.go` -- installAssets ecrit le manifeste apres les assets
+- `src/go/install.go` -- meme logique
+- `src/go/version.go` -- source de rev et date
+- `src/go/helptext.go` -- documenter .erg-assets dans helpInit
+- `tests/test_init.sh` -- creation, format, idempotence du manifeste
+- `src/go/assets/integration.md` -- mentionner le manifeste
+
+## Derisque
+
+- Format a specifier (note charte "manquant aujourd'hui") : figer le
+  format des le premier commit pour ne pas casser 0211 qui en depend.
+- Statut commit vs gitignore : commite (decision charte).
+- Pre-commit "tickets/ dirty" : s'assurer que le hook pre-commit ne
+  refuse pas .erg-assets comme fichier inconnu.
+- Idempotence : meme binaire + memes assets = meme manifeste octet.
+- migrate.go appelle installAssets(root, false) : le manifeste doit
+  etre ecrit aussi par migrate.
+
+## Exit criteria
+
+- [ ] `erg init` ecrit tickets/.erg-assets avec rev, date, sha256
+- [ ] Format deterministe : meme binaire + memes assets = meme manifeste
+- [ ] Le manifeste est commitable (pas dans .gitignore)
+- [ ] git add tickets/ && git commit ne declenche pas d'echec pre-commit
+- [ ] erg init sur un arbre deja a jour ne modifie pas le manifeste
+- [ ] erg migrate ecrit aussi le manifeste (meme chemin installAssets)
+- [ ] helpInit documente le manifeste
+- [ ] tests/test_init.sh verifie creation, format, idempotence
+- [ ] `make check` passe

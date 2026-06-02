@@ -1,0 +1,66 @@
+%erg 0.1
+Title: Mecanique init: dry-run, force, codes de sortie, chainage check
+Created: 2026-06-02
+Author: claude
+
+--- log ---
+2026-06-02T16:44Z claude created
+
+--- body ---
+## Context
+
+Cf. docs/erg-imagine-charter.md, chantier 5.
+
+Executer apres 0206 (spec/integration print-on-demand).
+
+`cmdInit` rejette aujourd'hui tout argument en `-` ("unknown flag") et
+`tests/test_init.sh` l'asserte. Ce ticket ajoute les flags --dry-run/-n,
+--force, une table de codes de sortie, et le chainage check en fin d'init.
+
+Decisions de la charte :
+- `erg check` n'est PAS un alias de `init --dry-run` (deux verifications
+  distinctes).
+- Le versionnage ordonne (plus ancien/recent) du binaire reste a `update`.
+
+## Surfaces
+
+- `src/go/init.go` : reecriture du parseur de flags, ajout dry-run et
+  force ; factoriser la logique de comparaison pour le mode lecture seule.
+- `src/go/main.go` : documenter la table 0/1/2 dans manualPreamble.
+- `src/go/helptext.go` : mettre a jour helpInit (flags, chainage check).
+- `src/go/check.go` : exposer une fonction appelable depuis init pour le
+  chainage (read-only).
+- `tests/test_init.sh` : couvrir dry-run, --force, exit 2, chainage,
+  rejet de --bogus.
+- `tests/test_check.sh` : verifier coherence des codes de sortie.
+- `docs/erg-manual.md` : regenerer via `make docs`.
+
+## Derisque
+
+- Le parseur actuel rejette TOUS les flags (--bogus -> "unknown flag",
+  asserte par tests/test_init.sh). La reecriture doit conserver le rejet
+  des flags inconnus ; seuls -n, --dry-run et --force sont acceptes.
+- Le passage de return 1 a return 2 pour le chemin "skipped" change le
+  code de sortie observable. Verifier que test_init.sh utilise -ne 0 et
+  non -eq 1, sinon adapter.
+- `erg check` n'est PAS un alias de `init --dry-run` (decision charte).
+- Le dry-run doit classifier sans ecrire. Factoriser la logique de
+  comparaison d'installAssets pour la reutiliser en mode lecture seule.
+- Le chainage check en fin d'init imprime des warnings mais ne contamine
+  pas le code de sortie d'init. Documenter dans helpInit.
+
+## Exit criteria
+
+- [ ] cmdInit accepte -n/--dry-run et --force, rejette --bogus
+- [ ] `erg init -n` affiche l'apercu sans creer/modifier aucun fichier
+- [ ] `erg init --force` ecrase les fichiers divergents
+- [ ] Exit code 2 quand des editions locales sont sautees (sans --force)
+- [ ] Exit code 0 sur succes, 1 sur erreur dure (flag/repertoire/ecriture)
+- [ ] Table 0/1/2 documentee dans manualPreamble (main.go)
+- [ ] helpCheck aligne sur la meme table (pas de double sens pour 1)
+- [ ] Init chaine un check read-only, affiche les warnings corpus, code
+      de sortie reflete init (pas les warnings)
+- [ ] helpInit documente le chainage et les flags
+- [ ] Le test "unknown flag rejected" existant survit a la reecriture
+- [ ] tests/test_init.sh couvre dry-run, --force, exit 2, chainage
+- [ ] `make check` passe
