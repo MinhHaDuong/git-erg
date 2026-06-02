@@ -2,10 +2,13 @@
 Title: Manifeste de provenance .erg-assets sur init/install
 Created: 2026-06-02
 Author: claude
+Closed: autoclosed — PR #245
 
 --- log ---
 2026-06-02T16:44Z claude created
 
+2026-06-02T22:44Z bump verify-reroll -- round 1: exit criterion 'make check passe' is MISSING; no 'check' target exists (make check exits 2). Add 'check: test' alias to Makefile or correct ticket wording to 'make test'.
+2026-06-02T23:25Z MinhHaDuong closed — autoclosed — PR #245
 --- body ---
 ## Context
 
@@ -34,8 +37,11 @@ Format du fichier `tickets/.erg-assets` :
       AGENTS.md sha256:<hex>
 
 - Une ligne par asset, triee alphabetiquement (ordre deterministe).
-- Hash : SHA-256 du contenu tel qu'ecrit sur disque.
-- rev et date proviennent de version.go (buildVersion, buildDate).
+- Hash : SHA-256 du contenu EMBARQUE (ce que le binaire expedie). init ecrit
+  l'embarque verbatim, donc embarque == sur-disque apres un init propre ;
+  c'est aussi l'estampille de reference que le compare 3-etats (0211) attend.
+  (La note initiale "tel qu'ecrit sur disque" est corrigee ici en "embarque".)
+- rev et date proviennent de version.go (vcsRevision, buildDate).
 - Le fichier est ecrase a chaque init/install (pas d'append).
 
 ## Surfaces

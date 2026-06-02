@@ -69,12 +69,14 @@ else
     pass "init does not create tickets/integration/ directory"
 fi
 
-# --- no manifest, no AGENTS.md, no .gitignore, no hook ---
+# --- no JSON bootstrap manifest (rejected design), no root AGENTS.md, no .gitignore ---
+# Note: init DOES write tickets/.erg-assets (ticket 0210); that is tested below.
+# This guards only against the old rejected .erg-bootstrap-manifest.json shape.
 
 if [ -f "$REPO/tickets/.erg-bootstrap-manifest.json" ]; then
-    fail "init must not write manifest"
+    fail "init must not write the rejected JSON bootstrap manifest"
 else
-    pass "init does not write manifest"
+    pass "init does not write the rejected JSON bootstrap manifest"
 fi
 
 if [ -f "$REPO/AGENTS.md" ]; then
@@ -301,6 +303,64 @@ if [ "$RC_CHAIN" -eq 0 ]; then
     pass "chaining: init exit code reflects init (0), not the warning"
 else
     fail "chaining: init exit should be 0 despite warning, got $RC_CHAIN"
+fi
+
+# --- provenance manifest .erg-assets (ticket 0210) ---
+MAN="$TDIR/manifest"
+mkdir -p "$MAN/tickets"
+touch "$MAN/tickets/erg"
+$ERG init "$MAN" >/dev/null 2>&1
+MFILE="$MAN/tickets/.erg-assets"
+if [ -f "$MFILE" ]; then
+    pass "manifest: init writes tickets/.erg-assets"
+else
+    fail "manifest: .erg-assets not written"
+fi
+if head -1 "$MFILE" | grep -q "erg provenance manifest"; then
+    pass "manifest: has the provenance header"
+else
+    fail "manifest: missing header (got: $(head -1 "$MFILE"))"
+fi
+if grep -q "^rev: " "$MFILE" && grep -q "^date: " "$MFILE"; then
+    pass "manifest: records rev and date"
+else
+    fail "manifest: missing rev/date"
+fi
+if grep -q "AGENTS.md sha256:[0-9a-f]" "$MFILE" && grep -q ".ergrc sha256:[0-9a-f]" "$MFILE"; then
+    pass "manifest: records sha256 for each asset"
+else
+    fail "manifest: missing per-asset sha256"
+fi
+# .ergrc sorts before AGENTS.md (deterministic order)
+if [ "$(grep -n 'sha256:' "$MFILE" | head -1 | grep -c '.ergrc')" -eq 1 ]; then
+    pass "manifest: assets are in deterministic (.ergrc-first) order"
+else
+    fail "manifest: asset order is not deterministic"
+fi
+# idempotence: same binary + same assets => byte-identical manifest
+m1=$(cat "$MFILE")
+$ERG init "$MAN" >/dev/null 2>&1
+m2=$(cat "$MFILE")
+if [ "$m1" = "$m2" ]; then
+    pass "manifest: re-init is byte-identical (deterministic)"
+else
+    fail "manifest: re-init changed the manifest"
+fi
+# check ignores the manifest (it is not a .erg file -> never trips the hook)
+$ERG check "$MAN/tickets" >/dev/null 2>&1 && crc=0 || crc=$?
+if [ "$crc" -eq 0 ]; then
+    pass "manifest: erg check ignores .erg-assets (exit 0)"
+else
+    fail "manifest: erg check tripped on .erg-assets (rc=$crc)"
+fi
+# dry-run does NOT write the manifest
+DRYM="$TDIR/drymanifest"
+mkdir -p "$DRYM/tickets"; touch "$DRYM/tickets/erg"
+$ERG init -n "$DRYM" >/dev/null 2>&1
+if [ ! -f "$DRYM/tickets/.erg-assets" ]; then
+    pass "manifest: dry-run writes no manifest"
+else
+    fail "manifest: dry-run wrote a manifest"
 fi
 
 

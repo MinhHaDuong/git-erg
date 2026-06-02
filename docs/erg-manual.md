@@ -360,6 +360,12 @@ Writes two files relative to DIR (default: current directory):
   - tickets/.ergrc -- project configuration (label vocabulary, update remote).
   - tickets/AGENTS.md -- agent operating instructions for the ticket workflow.
 
+It also writes tickets/.erg-assets, a provenance manifest recording this
+binary's rev/date and the SHA-256 of each embedded asset. The manifest is
+committable durable state (not gitignored) and is invisible to erg check, so
+it never trips the pre-commit hook. It is deterministic: the same binary and
+assets always produce byte-identical content.
+
 The format specification and setup guide are available on demand via
 erg spec and erg integration respectively.
 
