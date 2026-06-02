@@ -13,18 +13,18 @@ echo "=== erg docs ==="
 
 # --help --all: each command has a section header
 count=$("$ERG" --help --all 2>/dev/null | grep -c "^## erg " || true)
-if [ "$count" -eq 16 ]; then
-    pass "--help --all: 16 section headers found"
+if [ "$count" -eq 17 ]; then
+    pass "--help --all: 17 section headers found"
 else
-    fail "--help --all: expected 16 section headers, got $count"
+    fail "--help --all: expected 17 section headers, got $count"
 fi
 
-# --help=all: alternate form also prints 16 section headers
+# --help=all: alternate form also prints 17 section headers
 count=$("$ERG" --help=all 2>/dev/null | grep -c "^## erg " || true)
-if [ "$count" -eq 16 ]; then
-    pass "--help=all: 16 section headers found"
+if [ "$count" -eq 17 ]; then
+    pass "--help=all: 17 section headers found"
 else
-    fail "--help=all: expected 16 section headers, got $count"
+    fail "--help=all: expected 17 section headers, got $count"
 fi
 
 # --help --all: output goes to stdout (stderr should be empty)

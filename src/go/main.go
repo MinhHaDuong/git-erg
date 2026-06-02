@@ -17,6 +17,7 @@
 //	erg rm       ID|FILE [dir] [--force]
 //	erg migrate  [dir]
 //	erg init     [dir]
+//	erg install  [dir] [--hooks] [--inject-agents]
 //	erg version
 //	erg update
 package main
@@ -265,6 +266,8 @@ func main() {
 		exitCode = cmdMigrate(rest)
 	case "init":
 		exitCode = cmdInit(rest)
+	case "install":
+		exitCode = cmdInstall(rest)
 	case "version":
 		exitCode = cmdVersion(rest)
 	case "update":

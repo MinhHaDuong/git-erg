@@ -115,9 +115,8 @@ global install, no version skew across machines or teammates.
    See **Binary policy** below.
 3. Run `tickets/erg init` to unpack `AGENTS.md`, `spec-erg-v1.md`, and
    `integration.md`.
-4. Follow `tickets/integration.md` to a/ install the pre-commit validation hook
-   and b/ tell your agent that ticket-management instructions live in
-   `tickets/AGENTS.md`.
+4. Run `tickets/erg install --hooks` to set up the pre-commit validation hook.
+   See `erg integration` for the full setup guide including agent instructions.
 
 **No prebuilt binary for your platform? You don't need one.** The text-files path
 is fully functional without `erg`, and a `grep`-based pre-commit hook validates

@@ -114,6 +114,6 @@ func cmdInit(args []string) int {
 	if skipped > 0 {
 		return 1
 	}
-	fmt.Println("Next: follow tickets/integration.md to set up the pre-commit hook and agent instructions.")
+	fmt.Println("Next: erg install --hooks to set up the pre-commit hook.")
 	return 0
 }
