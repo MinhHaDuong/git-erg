@@ -1,0 +1,73 @@
+%erg 0.1
+Title: Garde-fou CI self-coherence reframe, cible Makefile regen
+Created: 2026-06-02
+Author: claude
+
+--- log ---
+2026-06-02T16:44Z claude created
+
+--- body ---
+## Context
+
+Cf. docs/erg-imagine-charter.md, chantier 4 section 4d et section 9.
+
+Executer apres 0212 (drift report). Resout le blocker transverse #3.
+
+Le test CI actuel n'asserte pas la coherence entre les assets embarques
+(src/go/assets/) et la copie deployee (tickets/). Le blocker #3 identifie
+que la copie dogfood de git-erg diverge intentionnellement -- un test
+d'identite octet est incorrect par construction.
+
+Ce ticket pose le garde-fou correct : un `erg init` dans un arbre propre
+reproduit exactement les 2 assets retenus (.ergrc, AGENTS.md), et fournit
+une cible Makefile de regeneration.
+
+## Precondition : reconcilier la divergence AGENTS.md
+
+Documenter que git-erg utilise les assets embarques sans personnalisation.
+Aujourd'hui tickets/AGENTS.md et src/go/assets/AGENTS.md sont proches ;
+reconcilier toute divergence comme precondition.
+
+Note : tickets/ de git-erg ne suit aujourd'hui ni .ergrc ni
+integration.md -- le test ne couvre que les 2 assets reellement presents.
+
+## Plan
+
+1. Documenter dans CONTRIBUTING.md que git-erg utilise les defauts.
+2. Ajouter une cible Makefile `regen-assets` qui copie les 2 assets
+   retenus de src/go/assets/ vers tickets/.
+3. Ajouter un test (tests/test_selfcoherence.sh) qui :
+   (i) lance erg init dans un tmpdir propre et verifie que les 2 assets
+   matchent l'embarque ;
+   (ii) verifie que tickets/AGENTS.md de git-erg matche src/go/assets/.
+4. Enregistrer le test dans Makefile TEST_SUITES.
+5. NE PAS asserter l'identite octet sur tickets/ en bloc.
+
+## Surfaces
+
+- Makefile : cible regen-assets + ajout a TEST_SUITES
+- tests/test_selfcoherence.sh (nouveau)
+- tests/test_docs.sh (mettre a jour le compte si requis)
+- CONTRIBUTING.md (documenter le choix "defauts sans personnalisation")
+
+## Blockers transverses
+
+- Blocker #3 : le test "deploye == embarque" est infaisable tel quel.
+  Ce ticket est la resolution -- reframe vers l'invariant plus faible.
+
+## Derisque
+
+- Le garde-fou doit echouer si on desynchronise les 2 assets retenus.
+- La cible regen doit reproduire la copie deployee.
+- Depend du chantier 3 pour la reduction 4->2 assets. Si 0206 n'est pas
+  encore merge, le test couvre les assets actuellement presents.
+
+## Exit criteria
+
+- [ ] Cible Makefile regen-assets copie .ergrc + AGENTS.md vers tickets/
+- [ ] make regen-assets && git diff --exit-code tickets/ passe
+- [ ] Test : erg init dans tmpdir vierge produit les 2 assets identiques
+- [ ] Test : tickets/AGENTS.md == src/go/assets/AGENTS.md
+- [ ] Aucune assertion d'identite octet sur la copie dogfood en bloc
+- [ ] CONTRIBUTING.md documente le choix defauts embarques
+- [ ] `make check` passe

@@ -1,0 +1,61 @@
+%erg 0.1
+Title: Drift warning dans erg check et indice post-update
+Created: 2026-06-02
+Author: claude
+
+--- log ---
+2026-06-02T16:44Z claude created
+
+--- body ---
+## Context
+
+Cf. docs/erg-imagine-charter.md, chantier 4, section 4c.
+
+Executer apres 0211 (compare 3-etats dpkg).
+
+Quand le binaire courant embarque des assets dont les hashes different du
+sur-disque ou de l'estampille manifeste, l'utilisateur ne le sait pas
+avant un prochain erg init. Deux surfaces doivent signaler ce drift :
+
+1. `erg check` : warning non-fatal quand estampille/sur-disque divergent
+   de l'embarque du binaire courant.
+2. `erg update` : apres un swap de binaire reussi, indice "assets d'une
+   rev anterieure -- relance erg init" si les hashes different.
+
+## Surfaces
+
+Code :
+- `src/go/check.go` : nouvelle fonction assetDriftWarnings(dir)
+- `src/go/update.go` : indice post-swap
+- `src/go/helptext.go` : mettre a jour helpCheck (enumere les warnings)
+- `src/go/bootstrap_assets.go` : reutiliser embeddedAssets pour calcul
+
+Tests :
+- `tests/test_check.sh` : cas drift et non-drift
+- `tests/test_update.sh` : indice post-swap present ou absent
+
+Docs :
+- `src/go/assets/AGENTS.md` : mentionner le drift warning si pertinent
+
+## Derisque
+
+- Depend du manifeste .erg-assets (0210) et de la logique dpkg (0211).
+  Sans manifeste, la comparaison est impossible -- ne pas inventer un
+  fallback ici.
+- helpCheck enumere l'ensemble exact des warnings : tout ajout doit etre
+  reflete dans la constante.
+- Dans update.go, l'indice post-swap compare le nouveau binaire au
+  sur-disque. Documenter l'approche choisie (re-exec ou lecture manifeste).
+- La sortie du warning doit aller sur stderr (coherent avec les warnings
+  existants dans check.go).
+
+## Exit criteria
+
+- [ ] `erg check` emet un warning quand un asset diverge de l'embarque
+- [ ] `erg check` n'emet pas de warning quand tous les assets matchent
+- [ ] helpCheck documente le nouveau warning
+- [ ] `erg update` imprime "relance erg init" apres swap si hashes different
+- [ ] `erg update` ne produit pas d'indice quand les assets sont a jour
+- [ ] tests/test_check.sh couvre drift et non-drift
+- [ ] tests/test_update.sh couvre l'indice post-swap
+- [ ] `make test` passe

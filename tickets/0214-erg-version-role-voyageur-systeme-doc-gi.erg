@@ -1,0 +1,50 @@
+%erg 0.1
+Title: erg version: role voyageur/systeme, doc gitignore opt-out
+Created: 2026-06-02
+Author: claude
+
+--- log ---
+2026-06-02T16:44Z claude created
+
+--- body ---
+## Context
+
+Cf. docs/erg-imagine-charter.md, chantier 1.
+
+Cosmetique, executable a tout moment -- pas de dependance d'ordre.
+
+`erg version` affiche deja chemin, sha256, arch et date de build, mais
+n'indique pas le role du binaire (voyageur vs systeme au sens du README
+"Binary policy"). Un utilisateur ne peut pas distinguer sa copie PATH
+de la copie commitee sans inspecter le chemin manuellement. De plus, le
+README ne documente pas la procedure de .gitignore opt-out.
+
+## Surfaces
+
+- `src/go/version.go` : ajouter ligne role: dans cmdVersion ; reutiliser
+  le predicat /tickets/erg existant.
+- `src/go/version.go` : aligner helpVersion/summaryVersion -- remplacer
+  "in-repo bootstrap copy" par "traveling copy" pour coherence vocabulaire.
+- `README.md` section "Binary policy" : paragraphe .gitignore opt-out.
+- `tests/test_version.sh` : asserter role: traveling pour le chemin
+  .../tickets/erg et role: system pour un chemin hors-convention.
+
+## Derisque
+
+- Le levier anti-confusion est le .gitignore opt-out (un seul binaire sur
+  disque pour qui ne commite pas), PAS un suffixe d'arch. Le binaire
+  voyageur reste unique, linux-amd64, pour CI et agents.
+- La detection du role reutilise le predicat existant (chemin se terminant
+  par /tickets/erg = voyageur, sinon systeme). Pas de nouveau mecanisme.
+- Vocabulaire : reutiliser strictement voyageur/systeme du README. Ne PAS
+  introduire "bootstrap/installed" qui divergerait.
+
+## Exit criteria
+
+- [ ] `erg version` imprime role: traveling quand le chemin se termine
+      par /tickets/erg, role: system sinon
+- [ ] helpVersion documente le champ role: avec le vocabulaire README
+- [ ] helpVersion ne contient plus "bootstrap" -- remplace par "traveling"
+- [ ] README "Binary policy" contient un paragraphe .gitignore opt-out
+- [ ] test_version.sh asserte role: traveling et role: system
+- [ ] `make check` passe

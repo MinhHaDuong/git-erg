@@ -1,0 +1,99 @@
+%erg 0.1
+Title: Split init/install: init scaffold, install cablage opt-in
+Created: 2026-06-02
+Author: claude
+
+--- log ---
+2026-06-02T16:44Z claude created
+
+--- body ---
+## Context
+
+Cf. docs/erg-imagine-charter.md, chantier 2.
+
+Premier chantier a executer -- aucune dependance prealable. Les chantiers 3
+(0206) et 5 (0207) s'appuient sur ce split et doivent etre executes apres.
+
+Aujourd'hui `erg init` echafaude `tickets/` ET imprime un indice vers
+`integration.md` pour le cablage hooks/AGENTS.md. La charte demande de
+scinder en deux verbes :
+
+- `erg init` = semantique `git init` : echafaude `tickets/`, idempotent,
+  offline, ne touche rien hors `tickets/`, 100% assets (jamais le binaire).
+- `erg install` = cablage hors-boite (hooks, injection AGENTS.md racine),
+  opt-in, flags explicites par defaut a off (`--hooks`, `--inject-agents`).
+
+Ce ticket cree le verbe `install` et deplace la responsabilite de cablage
+hors de `init`. L'implementation complete de `--hooks` et `--inject-agents`
+est chantier 6 (0208).
+
+Note : `init` continue d'ecrire les 4 assets actuels. La reduction 4->2
+(suppression de spec-erg-v1.md et integration.md du depot) est chantier 3
+(0206).
+
+## Surfaces
+
+Code :
+- `src/go/init.go` -- scinder : retirer toute logique de cablage, changer
+  le message de sortie ("Next: erg install --hooks pour armer le pre-commit").
+- `src/go/install.go` -- nouveau fichier : `summaryInstall`, `helpInstall`
+  (doit commencer par `## erg install`), `cmdInstall(args)`.
+  Flags `--hooks` et `--inject-agents` acceptes, defaut off, stub minimal.
+- `src/go/helptext.go` -- ajouter `commandEntry` pour `install`.
+- `src/go/main.go` -- ajouter `case "install":` au dispatch.
+
+Tests :
+- `tests/test_install.sh` -- nouveau : verifier que `install` existe, que
+  les flags sont reconnus, que sans flag le verbe ne mute rien hors tickets/.
+- `tests/test_init.sh` -- adapter l'assertion du message de sortie
+  (aujourd'hui asserte "mentions integration.md" ; doit asserter le
+  nouvel indice "erg install").
+- `tests/test_docs.sh` -- bumper le compte de sections de 16 a 17 (deux
+  occurrences aux lignes 16 et 24).
+- `Makefile` -- ajouter `install` a `TEST_SUITES`.
+
+Docs :
+- `README.md` + `UX-PROCESS.md` -- mettre a jour la sequence d'installation.
+
+## Derisque
+
+- Indice de transition : apres le split, `erg init` n'arme plus les hooks.
+  Pour ne pas casser la memoire musculaire, `init` imprime un indice quand
+  il ne detecte aucun cablage : "Next: erg install --hooks pour armer le
+  pre-commit". Aucun changement de comportement silencieux.
+- Garde-fou anti-fat-finger conserve : `erg init` refuse si `tickets/erg`
+  absent. Comportement inchange.
+- Exemption migrate : `migrate.go` appelle `installAssets(root, false)`
+  (force-overwrite). Le refactoring de `init.go` ne doit pas casser cette
+  dependance. `migrate` reste en force-overwrite et est exempt du prompt
+  dpkg (chantier 4).
+
+## Blockers transverses
+
+Blocker #5 : checklist "ajouter une sous-commande" (CONTRIBUTING.md).
+Pour le nouveau verbe `install`, les 5 points :
+1. Fichier de commande : `src/go/install.go`
+2. Registre : `commandEntry` dans `src/go/helptext.go`
+3. Dispatch : `case "install":` dans `src/go/main.go`
+4. Test : `tests/test_install.sh`
+5. Enregistrement test : `install` dans TEST_SUITES du Makefile
+Plus : TestDispatchRegistrySync et _test-lint doivent passer.
+Plus : bumper le compte de sections dans `tests/test_docs.sh`.
+
+## Exit criteria
+
+- [ ] `src/go/install.go` existe avec summaryInstall, helpInstall, cmdInstall
+- [ ] `helptext.go` : `install` dans le registre commands
+- [ ] `main.go` : `case "install":` dans le dispatch
+- [ ] `erg init` ne fait plus aucune mutation hors `tickets/`
+- [ ] `erg init` imprime l'indice "erg install" quand aucun cablage detecte
+- [ ] Garde-fou : `erg init` refuse si `tickets/erg` absent (inchange)
+- [ ] `erg install` sans flags ne mute rien hors `tickets/`
+- [ ] `erg install --hooks` et `--inject-agents` sont reconnus (stub OK)
+- [ ] `migrate.go` continue de fonctionner via `installAssets(root, false)`
+- [ ] `tests/test_install.sh` couvre les cas ci-dessus
+- [ ] `tests/test_init.sh` adapte pour le nouvel indice de sortie
+- [ ] `tests/test_docs.sh` : compte de sections bumpe 16 -> 17
+- [ ] `Makefile` : `install` dans TEST_SUITES
+- [ ] TestDispatchRegistrySync passe
+- [ ] `make test` passe

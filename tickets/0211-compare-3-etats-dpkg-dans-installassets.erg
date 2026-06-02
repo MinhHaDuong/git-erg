@@ -1,0 +1,76 @@
+%erg 0.1
+Title: Compare 3-etats dpkg dans installAssets, defaut sur sans-manifeste
+Created: 2026-06-02
+Author: claude
+
+--- log ---
+2026-06-02T16:44Z claude created
+
+--- body ---
+## Context
+
+Cf. docs/erg-imagine-charter.md, chantier 4, section 4b.
+
+Executer apres 0210 (manifeste .erg-assets).
+
+Aujourd'hui installAssets fait une comparaison binaire a 2 etats
+(identique / diverge) et imprime un compteur agrege. Ce ticket implemente
+la table de decision dpkg a 3 etats (sur-disque / embarque / estampille)
+avec un defaut sur quand le manifeste est absent et une sortie explicite
+par fichier.
+
+## Table de decision
+
+| sur-disque   | estampille (.erg-assets)  | embarque     | Action                    |
+|------------- |------------------------- |------------- |-------------------------- |
+| == embarque  | (any)                    | --           | skip (inchange)           |
+| == estampille| != embarque              | --           | ecraser (upgrade propre)  |
+| != estampille| != embarque              | --           | preserver (edition locale) |
+| (absent)     | match historique hashes  | --           | ecraser + ecrire estampille|
+| (absent)     | match aucun historique   | --           | preserver (edition locale) |
+
+## Travail
+
+1. Ajouter dans bootstrap_assets.go une table `historicalHashes` contenant
+   les SHA-256 de chaque asset pour les releases deja expedies. Baked dans
+   le binaire -- zero reseau.
+
+2. Remanier installAssets pour lire le manifeste .erg-assets (si present)
+   et appliquer la table de decision. Quand le manifeste est absent,
+   fallback sur historicalHashes.
+
+3. Remplacer la sortie agrege par une sortie loud : chaque fichier
+   imprime son action (skip / refresh / preserve) et son chemin. Tout
+   ecrasement imprime un indice `git restore -- <path>` pour
+   reversibilite.
+
+4. migrate reste en force-overwrite (exempt du prompt dpkg).
+
+5. Mettre a jour le manifeste .erg-assets apres chaque ecriture reussie.
+
+## Surfaces
+
+- `src/go/bootstrap_assets.go` -- table historicalHashes
+- `src/go/init.go` -- installAssets remanie
+- `tests/test_init.sh` -- 5 cas de la table de decision + sortie loud
+- `tests/test_docs.sh` -- verifier coherence si helpInit change
+
+## Derisque
+
+- Manifeste absent (1er run apres upgrade) : ne PAS traiter comme
+  "diverge" par defaut. Comparer contre l'historique des hashes baked.
+- Sortie loud : nommer chaque fichier + indice git restore.
+- Exemption migrate : garder le chemin force-overwrite intact.
+
+## Exit criteria
+
+- [ ] installAssets implemente la table de decision 3-etats
+- [ ] Table historicalHashes baked dans bootstrap_assets.go
+- [ ] Manifeste absent + hash connu -> ecrase silencieusement + estampille
+- [ ] Manifeste absent + hash inconnu -> preserve (edition locale)
+- [ ] Chaque action imprime nom du fichier et action (skip/refresh/preserve)
+- [ ] Tout ecrasement imprime `git restore -- <path>`
+- [ ] migrate reste en force-overwrite, exempt de la logique dpkg
+- [ ] tests/test_init.sh couvre les 5 cas de la table
+- [ ] `make check` passe
+- [ ] Tous les fichiers sous src/go/ restent en ASCII pur
