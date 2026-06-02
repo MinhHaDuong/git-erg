@@ -10,13 +10,14 @@ Author: claude
 ## Context
 
 git-erg has no `make check` target, yet the cross-project convention (and
-the exit criteria of tickets 0210-0213, which all say "make check passe")
-expect `make check` to be the pre-PR gate. Today the real gate is
-`make test` + `erg check tickets/`. The verify-gate on PR #245 (ticket
-0210) ESCALATED solely because criterion "make check passe" could not be
-satisfied -- there is no such target. Adding a thin alias makes that
-criterion literally true (no goalpost-moving) and clears it for the whole
-0210-0213 4-series at once. This is the verify-gate's own recommendation.
+the exit criteria of tickets 0210, 0211, 0213 and 0214, which say "make
+check passe"; 0212 says "make test passe") expect `make check` to be the
+pre-PR gate. Today the real gate is `make test` + `erg check tickets/`.
+The verify-gate on PR #245 (ticket 0210) ESCALATED solely because criterion
+"make check passe" could not be satisfied -- there is no such target.
+Adding a thin alias makes that criterion literally true (no goalpost-moving)
+and clears it across the 4-series at once. This is the verify-gate's own
+recommendation.
 
 ## Actions
 
