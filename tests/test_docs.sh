@@ -79,6 +79,21 @@ else
     fail "CONTRIBUTING.md is missing"
 fi
 
+# Makefile defines a `check` pre-PR gate alias (ticket 0215) wired to the real
+# gate (test + validate) and declared .PHONY. Source-inspection guard -- no
+# slow subprocess. The 0210-0213 exit criteria say "make check passe"; this
+# pins the target so that statement is true.
+if grep -Eq '^check:[[:space:]]*test[[:space:]]+validate' Makefile; then
+    pass "Makefile: check target runs test + validate"
+else
+    fail "Makefile: missing 'check: test validate' gate alias"
+fi
+if grep -Eq '^\.PHONY:.*[[:space:]]check([[:space:]]|$)' Makefile; then
+    pass "Makefile: check is .PHONY"
+else
+    fail "Makefile: check is not declared .PHONY"
+fi
+
 echo ""
 if [ "$FAIL" -eq 0 ]; then
     echo "docs: PASS ($PASS checks)"
