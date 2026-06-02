@@ -2,11 +2,13 @@
 Title: erg install --hooks et --inject-agents, frontiere de propriete
 Created: 2026-06-02
 Author: claude
+Closed: autoclosed — PR #243
 
 --- log ---
 2026-06-02T16:44Z claude created
 
 2026-06-02T21:09Z claude note verify round 1 reroll fixes -- helptext synopsis adds create-agents-md, byte-stable rerun via blank-line guard, byte-stability tests added
+2026-06-02T21:19Z MinhHaDuong closed — autoclosed — PR #243
 --- body ---
 ## Context
 
