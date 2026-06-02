@@ -356,6 +356,30 @@ are skipped and counted separately from newly created files. If an existing file
 differs from the embedded version (indicating local edits), it is skipped with a
 message on stderr and the command exits non-zero. Local edits are never overwritten.
 
+## erg install [DIR] [--hooks] [--inject-agents]
+
+Wire up integration hooks and agent instructions for a project that already
+has a ticket store (created by erg init).
+
+By default -- with no flags -- install does nothing outside tickets/. Each
+piece of wiring requires an explicit opt-in flag:
+
+  --hooks            Install a pre-commit hook that runs erg validate and erg
+                     check on every commit. The hook also rejects commits that
+                     modify the traveling binary (tickets/erg) outside main.
+
+  --inject-agents    Add a one-line pointer to tickets/AGENTS.md in the
+                     project-root AGENTS.md. If the root AGENTS.md does not
+                     exist, the flag is refused unless combined with an
+                     explicit creation flag (see ticket 0208 for the full
+                     consent flow).
+
+Both flags default to off. erg install never overwrites an existing hook or
+agent file -- it appends inside a managed block delimited by sentinels.
+
+Requires tickets/erg (the binary) to already exist in the project, same as
+erg init.
+
 ## erg version
 
 Print self-diagnostic info and discover other erg binaries.

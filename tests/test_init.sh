@@ -118,12 +118,12 @@ else
     fail "re-init with local edits: expected 'local edits' in output (got: $OUT3)"
 fi
 
-# --- output mentions integration.md ---
+# --- output mentions erg install ---
 
-if echo "$OUT" | grep -q "integration.md"; then
-    pass "init output mentions integration.md"
+if echo "$OUT" | grep -q "erg install"; then
+    pass "init output mentions erg install"
 else
-    fail "init output mentions integration.md (got: $OUT)"
+    fail "init output mentions erg install (got: $OUT)"
 fi
 
 # --- uninstall subcommand is removed ---
