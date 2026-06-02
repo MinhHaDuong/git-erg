@@ -43,7 +43,7 @@ else
 fi
 
 # --- each canonical command name appears in help output ---
-for cmd in validate check list ready next-id new close log label unlabel archive rm migrate init install version update; do
+for cmd in validate check list ready next-id new close log label unlabel archive rm migrate init install spec integration version update; do
     if echo "$help_out" | grep -q "$cmd"; then
         pass "help mentions command: $cmd"
     else
@@ -110,12 +110,12 @@ else
     fail "close --help: unexpected stderr output: $stderr_out"
 fi
 
-# --help --all: must list all 17 command sections
+# --help --all: must list all 19 command sections
 count=$($ERG --help --all 2>/dev/null | grep -c "^## erg " || true)
-if [ "$count" -eq 17 ]; then
-    pass "--help --all: 17 sections"
+if [ "$count" -eq 19 ]; then
+    pass "--help --all: 19 sections"
 else
-    fail "--help --all: expected 17 sections, got $count"
+    fail "--help --all: expected 19 sections, got $count"
 fi
 
 # --help --all: first line must be the H1 document title

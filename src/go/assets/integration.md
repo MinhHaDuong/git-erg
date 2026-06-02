@@ -62,12 +62,12 @@ your agent reads at session start.
 
 ## Uninstall
 
-To remove erg from your project, delete the binary and the four files
+To remove erg from your project, delete the binary and the two files
 `erg init` placed in `tickets/`, plus the pre-commit hook (if you
 installed one in step 1):
 
 ```sh
-rm tickets/.ergrc tickets/AGENTS.md tickets/spec-erg-v1.md tickets/integration.md tickets/erg
+rm tickets/.ergrc tickets/AGENTS.md tickets/erg
 rm .git/hooks/pre-commit   # if you added the hook from step 1
 ```
 
