@@ -406,7 +406,13 @@ func insertManagedBlockAfterShebang(lines []string, marker [2]string, body strin
 	}
 	out = append(out, block...)
 	if len(rest) > 0 {
-		out = append(out, "") // blank separator before existing content
+		// One blank separator before existing content. Guard against an
+		// already-blank boundary so reruns stay byte-stable: stripManagedRegions
+		// leaves the separator that preceded a removed block, and adding another
+		// unconditionally would grow a blank line on every install.
+		if rest[0] != "" {
+			out = append(out, "")
+		}
 		out = append(out, rest...)
 	}
 	return strings.Join(out, "\n") + "\n"
@@ -422,8 +428,11 @@ func appendManagedBlock(lines []string, marker [2]string, body string) string {
 
 	var out []string
 	out = append(out, lines...)
-	if len(lines) > 0 {
-		out = append(out, "") // blank separator
+	// One blank separator after existing content. Guard against an
+	// already-blank boundary so reruns stay byte-stable (see the matching
+	// note in insertManagedBlockAfterShebang).
+	if len(lines) > 0 && lines[len(lines)-1] != "" {
+		out = append(out, "")
 	}
 	out = append(out, block...)
 	return strings.Join(out, "\n") + "\n"

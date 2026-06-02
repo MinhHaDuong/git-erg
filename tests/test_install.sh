@@ -105,6 +105,20 @@ else
     fail "--hooks: rerun produced $n managed blocks (expected 1)"
 fi
 
+# --- --hooks: rerun is BYTE-stable (no blank-line accumulation) ---
+REPO=$(new_repo hooksbytes)
+printf '#!/bin/sh\necho THIRD\nexit 0\n' > "$REPO/.git/hooks/pre-commit"
+chmod +x "$REPO/.git/hooks/pre-commit"
+$ERG install "$REPO" --hooks >/dev/null 2>&1
+after1=$(cat "$REPO/.git/hooks/pre-commit")
+$ERG install "$REPO" --hooks >/dev/null 2>&1
+after2=$(cat "$REPO/.git/hooks/pre-commit")
+if [ "$after1" = "$after2" ]; then
+    pass "--hooks: rerun is byte-stable (no separator growth)"
+else
+    fail "--hooks: rerun mutated the file (blank-line accumulation)"
+fi
+
 # --- --hooks: prepend runs BEFORE a third-party 'exit 0' (real commit) ---
 REPO=$(new_repo prepend)
 printf '#!/bin/sh\necho THIRD\nexit 0\n' > "$REPO/.git/hooks/pre-commit"
@@ -221,6 +235,19 @@ if [ "$n" -eq 1 ]; then
     pass "--inject-agents: rerun idempotent (one managed block)"
 else
     fail "--inject-agents: rerun produced $n blocks (expected 1)"
+fi
+
+# --- --inject-agents: rerun is BYTE-stable (no blank-line accumulation) ---
+REPO=$(new_repo agentsbytes)
+printf '# P\n\nrules\n' > "$REPO/AGENTS.md"
+$ERG install "$REPO" --inject-agents >/dev/null 2>&1
+a1=$(cat "$REPO/AGENTS.md")
+$ERG install "$REPO" --inject-agents >/dev/null 2>&1
+a2=$(cat "$REPO/AGENTS.md")
+if [ "$a1" = "$a2" ]; then
+    pass "--inject-agents: rerun is byte-stable (no separator growth)"
+else
+    fail "--inject-agents: rerun mutated the file (blank-line accumulation)"
 fi
 
 # --- --inject-agents into existing AGENTS.md preserves third-party content ---

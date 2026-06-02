@@ -6,6 +6,7 @@ Author: claude
 --- log ---
 2026-06-02T16:44Z claude created
 
+2026-06-02T21:09Z claude note verify round 1 reroll fixes -- helptext synopsis adds create-agents-md, byte-stable rerun via blank-line guard, byte-stability tests added
 --- body ---
 ## Context
 

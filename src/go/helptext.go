@@ -27,7 +27,7 @@ var commands = []commandEntry{
 	{"rm", "ID|FILE [DIR] [--force]", summaryRm, helpRm},
 	{"migrate", "[DIR]", summaryMigrate, helpMigrate},
 	{"init", "[DIR]", summaryInit, helpInit},
-	{"install", "[DIR] [--hooks] [--inject-agents]", summaryInstall, helpInstall},
+	{"install", "[DIR] [--hooks] [--inject-agents] [--create-agents-md]", summaryInstall, helpInstall},
 	{"spec", "", summarySpec, helpSpec},
 	{"integration", "", summaryIntegration, helpIntegration},
 	{"version", "", summaryVersion, helpVersion},
