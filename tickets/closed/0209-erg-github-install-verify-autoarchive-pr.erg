@@ -2,11 +2,13 @@
 Title: erg-github install/verify, autoarchive pre-PUSH, P2 enforce CI
 Created: 2026-06-02
 Author: claude
+Closed: autoclosed — PR #244
 
 --- log ---
 2026-06-02T16:44Z claude created
 2026-06-02T23:30Z claude note design council revised the pre-PUSH mechanism from "autoarchive (move files)" to "warn-only". A pre-push hook receives the already-frozen ref set and runs before the push leaves; any os.Rename + commit it makes lands one push LATER, never in the gated push -- so the literal "move at pre-push" is technically unreachable. Worse, a mutating pre-push hook leaves an uncommitted move that git reset --hard / stash / git add -A can resurrect into a ticket present in BOTH tickets/ and tickets/closed/ (a reopened/duplicate ticket). The faithful realization of the charter intent (mechanize/surface archiving at push, zero convention) is therefore: the hook WARNS (names closed-but-unarchived tickets + prints the exact archive+commit+push recipe), mutates nothing, exits 0. The real archive remains at merge time (erg-pr-merge already runs erg close + erg archive) and via manual erg archive. Exit criteria below reworded accordingly. Also: verify is CI-fail-closed (could-not-verify in GITHUB_ACTIONS -> exit 1) but lenient locally; pre-push goes behind its own --push-hook flag (0208 promised "each piece of wiring requires an explicit opt-in flag"). Blocker #1 -> option (b) standalone script + stderr dispatch hint. Blocker #2 -> doc-only + regression test (no fragile pre-commit env sniff).
 
+2026-06-02T22:14Z MinhHaDuong closed — autoclosed — PR #244
 --- body ---
 ## Context
 
