@@ -299,6 +299,21 @@ else
     pass "post-update: no manifest -> no drift hint"
 fi
 
+# Manifest up to date -> no drift hint (exit criterion: no hint when assets
+# are current). The remote binary differs only by a trailing byte, so a swap
+# happens but its embedded assets are unchanged; `erg init` stamps exactly
+# those assets, so the re-exec'd check finds matching stamps and stays quiet.
+WORKM="$WORKROOT/work-match"
+git clone -q "$REMOTE" "$WORKM"
+cp "$ERG_ABS" "$WORKM/tickets/erg"
+$ERG init "$WORKM" >/dev/null 2>&1 || true
+OUTM=$(cd "$WORKM" && ERG_TICKET_DIR="$WORKM/tickets" ./tickets/erg update 2>&1 || true)
+if echo "$OUTM" | grep -q "erg: updated" && ! echo "$OUTM" | grep -q "run 'erg init' to refresh"; then
+    pass "post-update: up-to-date manifest -> swap happens but no drift hint"
+else
+    fail "post-update: matching manifest should swap without a drift hint (got: $OUTM)"
+fi
+
 # unknown flag rejection (ticket 0185)
 out=$($ERG update --bogus 2>&1) || rc=$?
 if [ "${rc:-0}" -ne 0 ] && echo "$out" | grep -q "unknown flag"; then

@@ -724,6 +724,20 @@ else
     pass "drift: no manifest -> no drift warning"
 fi
 
+# Matching manifest -> no drift warning (exit criterion: no warn when all
+# assets match the embedded version). `erg init` stamps THIS binary's own
+# embedded assets, so the manifest matches by construction.
+MATCHDIR="$FIXTURES/match"
+mkdir -p "$MATCHDIR/tickets"
+cp "$DRIFTDIR/9001-x.erg" "$MATCHDIR/tickets/"
+$ERG init "$MATCHDIR" >/dev/null 2>&1 || true
+rc=0; out=$($ERG check "$MATCHDIR/tickets" 2>&1) || rc=$?
+if [ "$rc" -eq 0 ] && ! echo "$out" | grep -q "differs from the .erg-assets stamp"; then
+    pass "drift: matching manifest -> no drift warning"
+else
+    fail "drift: matching stamps should not warn (rc=$rc, got: $out)"
+fi
+
 
 echo "check: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
