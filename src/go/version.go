@@ -144,21 +144,18 @@ func cmdVersion(args []string) int {
 		fmt.Printf("  revision: %s\n", vcsRevision)
 	}
 	fmt.Printf("  arch:    %s/%s\n", runtime.GOOS, runtime.GOARCH)
-	// role distinguishes the committed traveling binary from a system copy on
-	// PATH (README "Binary policy"). Same leading-separator predicate as the
-	// verify hint below, so "/home/me/my-tickets/erg" is NOT treated as traveling.
+	// "traveling" = the committed tickets/erg; "system" = a copy on PATH
+	// (README "Binary policy"). Leading separator so only a real ".../tickets/erg"
+	// path matches -- a bare "tickets/erg" suffix would also fire on
+	// "/home/me/my-tickets/erg". Drives both the role line and the verify hint.
 	if strings.HasSuffix(self, "/tickets/erg") {
 		fmt.Printf("  role:    traveling (committed tickets/erg)\n")
-	} else {
-		fmt.Printf("  role:    system (a copy on your PATH)\n")
-	}
-	if strings.HasSuffix(self, "/tickets/erg") {
-		// Leading separator so only a real ".../tickets/erg" path matches --
-		// a bare "tickets/erg" suffix would also fire on "/home/me/my-tickets/erg".
 		// Hash the resolved absolute path (single-quoted for safe paste), not a
 		// cwd-relative "tickets/erg": the command must recompute the digest
 		// printed above no matter what directory `erg version` was invoked from.
 		fmt.Printf("  verify:  sha256sum %s\n", shellSingleQuote(self))
+	} else {
+		fmt.Printf("  role:    system (a copy on your PATH)\n")
 	}
 
 	if os.Getenv("ERG_VERSION_NO_DISCOVER") != "" {
