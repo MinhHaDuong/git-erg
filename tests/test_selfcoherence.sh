@@ -55,6 +55,17 @@ for a in $ASSETS; do
     fi
 done
 
+# (iii) Orphan assets (print-on-demand since 0206) must not be present in
+# git-erg's own tickets/ -- they are served by erg spec / erg integration
+# from the embedded source and would drift silently if re-tracked.
+for orphan in spec-erg-v1.md integration.md; do
+    if [ -f "$ROOT/tickets/$orphan" ]; then
+        fail "stale orphan: tickets/$orphan should not exist (erg spec/integration serve it)"
+    else
+        pass "tickets/$orphan absent (print-on-demand via embedded asset)"
+    fi
+done
+
 # Negative control: the guard must FAIL if the deployed copy is desynchronised.
 # Prove it on a throwaway copy so we never touch the real tree.
 PROBE=$(mktemp -d)
