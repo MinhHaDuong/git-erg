@@ -148,6 +148,7 @@ func corpusWarnings(tickets []Erg, dir string) []string {
 	warnings = append(warnings, strayGoSource(dir)...)
 	warnings = append(warnings, encodingWarnings(dir)...)
 	warnings = append(warnings, headerBlankWarnings(dir)...)
+	warnings = append(warnings, assetDriftWarnings(dir)...)
 	return warnings
 }
 
@@ -172,6 +173,9 @@ Additionally emits warnings (non-fatal) for:
   - Stray Go source files (*.go, go.mod, go.sum) inside the ticket store directory.
   - Interior header blank: a blank line inside the header block (tolerated on
     read; run 'erg migrate' to normalise).
+  - Asset drift: the .erg-assets stamp differs from this binary's embedded
+    asset (the binary was upgraded since the last init; run 'erg init' to
+    refresh). Only emitted when a .erg-assets manifest is present.
 
 Exit codes: 0 on pass (warnings are printed but do not affect exit code), 1 on any
 violation. The value 1 is a hard failure here, consistent with the shared exit-code

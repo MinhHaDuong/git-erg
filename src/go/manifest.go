@@ -18,6 +18,11 @@ import (
 // (not a .erg file), so it never trips the pre-commit hook.
 const manifestName = ".erg-assets"
 
+// assetDriftSignal is the stable substring of the asset-drift warning emitted by
+// assetDriftWarnings. erg update greps the re-exec'd new binary's `erg check`
+// output for it (ticket 0212), so producer and consumer share this one literal.
+const assetDriftSignal = "differs from the .erg-assets stamp (binary upgraded since last init)"
+
 // sha256hex returns the hex-encoded SHA-256 of b.
 func sha256hex(b []byte) string {
 	sum := sha256.Sum256(b)
@@ -79,15 +84,27 @@ func writeManifest(root string, dryRun bool) error {
 	return atomicWriteFile(filepath.Join(root, "tickets", manifestName), []byte(content), 0644)
 }
 
-// readManifest parses tickets/.erg-assets and returns a map of asset name ->
-// stamped SHA-256 hex. A missing OR malformed manifest returns nil: the caller
-// treats absence and corruption identically (fall back to known shipped
+// readManifest parses <root>/tickets/.erg-assets and returns a map of asset
+// name -> stamped SHA-256 hex. A missing OR malformed manifest returns nil: the
+// caller treats absence and corruption identically (fall back to known shipped
 // hashes), so a bad stamp never fails init.
 func readManifest(root string) map[string]string {
-	data, err := os.ReadFile(filepath.Join(root, "tickets", manifestName))
+	return readManifestFile(filepath.Join(root, "tickets", manifestName))
+}
+
+// readManifestFile parses the manifest at the given path (the file itself, not
+// its parent). Used directly by callers that already hold the tickets dir.
+func readManifestFile(path string) map[string]string {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil
 	}
+	return parseManifest(data)
+}
+
+// parseManifest extracts the asset name -> SHA-256 map from manifest bytes.
+// Returns nil when no asset line parses (so absence and corruption look alike).
+func parseManifest(data []byte) map[string]string {
 	const sep = " sha256:"
 	out := map[string]string{}
 	for _, line := range strings.Split(string(data), "\n") {
@@ -153,4 +170,39 @@ func isCleanUpgrade(diskHash, stampedHash string, known []string) bool {
 		}
 	}
 	return false
+}
+
+// assetDriftWarnings reports assets whose .erg-assets stamp differs from the
+// current binary's embedded version -- i.e. the binary was upgraded since the
+// last init, so the deployed assets are behind and a re-init would refresh
+// them. It REQUIRES a manifest: without one (readManifest returns nil) the
+// comparison is impossible and we invent no fallback (charter 4c derisque), so
+// a hand-maintained store that never ran the asset-managed init is never
+// nagged. Comparing the stamp (not the on-disk bytes) means a deliberate local
+// edit does not raise a drift warning; only a binary upgrade past the recorded
+// stamp does.
+func assetDriftWarnings(dir string) []string {
+	// dir is the ticket store itself (the dir holding .erg-assets), so read the
+	// manifest file directly rather than via readManifest (which joins tickets/).
+	stamps := readManifestFile(filepath.Join(dir, manifestName))
+	if stamps == nil {
+		return nil
+	}
+	var warnings []string
+	for _, rel := range initAssetPaths {
+		name := strings.TrimPrefix(rel, "tickets/")
+		stamp, ok := stamps[name]
+		if !ok || stamp == "" {
+			continue
+		}
+		content, ok := bootstrapAsset(rel)
+		if !ok {
+			continue
+		}
+		if stamp != sha256hex([]byte(content)) {
+			warnings = append(warnings, fmt.Sprintf(
+				"WARN %s: embedded version %s -- run 'erg init' to refresh", name, assetDriftSignal))
+		}
+	}
+	return warnings
 }

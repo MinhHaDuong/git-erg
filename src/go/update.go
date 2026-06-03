@@ -205,5 +205,18 @@ func cmdUpdate(args []string) int {
 		fmt.Println("  git diff tickets/")
 		fmt.Println("  git commit -m 'chore: migrate to Closed: header'")
 	}
+
+	// Post-swap asset-drift hint (ticket 0212). This still-running process is the
+	// OLD binary, so it cannot read the NEW binary's embedded assets directly;
+	// instead it re-execs the freshly-swapped binary's own `erg check`, whose
+	// drift detection compares the .erg-assets stamp against the NEW embedded
+	// asset (charter 4c, re-exec approach). Only attempted when a manifest
+	// exists: without one there is nothing to compare and no hint is warranted.
+	if _, statErr := os.Stat(filepath.Join(ticketDir, manifestName)); statErr == nil {
+		out, _ := exec.Command(self, "check", ticketDir).CombinedOutput()
+		if strings.Contains(string(out), assetDriftSignal) {
+			fmt.Println("erg: deployed assets are from an earlier rev -- run 'erg init' to refresh them.")
+		}
+	}
 	return 0
 }

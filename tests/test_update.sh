@@ -273,6 +273,32 @@ else
 fi
 rm -rf "$VERSION_TMPDIR2"
 
+# --- post-update asset-drift hint (ticket 0212) ---
+# After the swap, update re-execs the NEW binary's `erg check`; if a stamped
+# asset differs from the new binary's embedded version, it nudges `erg init`.
+WORKD="$WORKROOT/work-drift"
+git clone -q "$REMOTE" "$WORKD"
+cp "$ERG_ABS" "$WORKD/tickets/erg"
+# A manifest whose stamps will NOT match the swapped binary's embedded assets.
+printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:000000\n  AGENTS.md sha256:111111\n' > "$WORKD/tickets/.erg-assets"
+OUTD=$(cd "$WORKD" && ERG_TICKET_DIR="$WORKD/tickets" ./tickets/erg update 2>&1 || true)
+if echo "$OUTD" | grep -q "run 'erg init' to refresh"; then
+    pass "post-update: drift hint fires when a stamped asset differs from the new embedded"
+else
+    fail "post-update: expected the erg init drift hint (got: $OUTD)"
+fi
+
+# No manifest -> no drift hint (nothing to compare against).
+WORKND="$WORKROOT/work-nodrift"
+git clone -q "$REMOTE" "$WORKND"
+cp "$ERG_ABS" "$WORKND/tickets/erg"
+OUTND=$(cd "$WORKND" && ERG_TICKET_DIR="$WORKND/tickets" ./tickets/erg update 2>&1 || true)
+if echo "$OUTND" | grep -q "run 'erg init' to refresh"; then
+    fail "post-update: drift hint fired without a manifest (should not)"
+else
+    pass "post-update: no manifest -> no drift hint"
+fi
+
 # unknown flag rejection (ticket 0185)
 out=$($ERG update --bogus 2>&1) || rc=$?
 if [ "${rc:-0}" -ne 0 ] && echo "$out" | grep -q "unknown flag"; then

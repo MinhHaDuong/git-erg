@@ -691,6 +691,39 @@ fi
         fail "unknown flag not rejected (rc=$rc, got: $out)"
     fi
 
+# --- asset drift warning (ticket 0212) ---
+# Requires a .erg-assets manifest; a stamp != embedded means the binary was
+# upgraded since the last init. Non-fatal (exit 0).
+DRIFTDIR="$FIXTURES/drift"
+mkdir -p "$DRIFTDIR"
+cat > "$DRIFTDIR/9001-x.erg" <<'EOF'
+%erg 0.1
+Title: X
+Created: 2026-01-01
+Author: t
+
+--- log ---
+--- body ---
+EOF
+printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:000000\n  AGENTS.md sha256:111111\n' > "$DRIFTDIR/.erg-assets"
+rc=0; out=$($ERG check "$DRIFTDIR" 2>&1) || rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -q "differs from the .erg-assets stamp"; then
+    pass "drift: stamp != embedded emits a non-fatal warning"
+else
+    fail "drift: expected a non-fatal drift warning (rc=$rc, got: $out)"
+fi
+
+# No manifest -> no drift warning (derisque: no fallback without a stamp).
+NODRIFT="$FIXTURES/nodrift"
+mkdir -p "$NODRIFT"
+cp "$DRIFTDIR/9001-x.erg" "$NODRIFT/"
+out=$($ERG check "$NODRIFT" 2>&1 || true)
+if echo "$out" | grep -q "differs from the .erg-assets stamp"; then
+    fail "drift: warned without a manifest (should not)"
+else
+    pass "drift: no manifest -> no drift warning"
+fi
+
 
 echo "check: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
