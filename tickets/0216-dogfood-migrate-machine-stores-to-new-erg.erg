@@ -7,6 +7,7 @@ Author: claude
 2026-06-03T03:30Z claude created
 2026-06-03T03:30Z claude note dry-run sweep done; actual cross-repo writes deferred to supervised execution (author asleep, repos not owned by git-erg)
 
+2026-06-03T19:52Z claude note supervised run 2026-06-03: six stores migrated and merged -- padme 81d0607, chemin-de-voix d2f2651 (master; hook hardcodes main -> ticket 0219), projtmp in place (not a repo), fuzzy-corpus eed720e (51 tickets, 5 stranded commits pushed), cadens 29e9a14 (37 tickets, 29 files log-line normalization), Climate_finance 6c246ab (126 tickets, 0093->0130 dup renumber, 4 stale Blocked-by dropped). All vendored pinned rev 9c23c37 role traveling + manifests; erg check PASS 0 warnings everywhere. Remaining: aedist (author dirty files), harness (author watching). Side ticket idh 0190: remove stale ticket-close skill.
 --- body ---
 ## Context
 
@@ -86,11 +87,11 @@ The harness store (~/.claude/tickets) is migrated last, by the author, watching.
 
 ## Exit criteria
 
-- [ ] Read-only dry-run sweep across all 9 stores recorded (done -- above).
-- [ ] Author has reviewed this runbook and the per-store findings.
+- [x] Read-only dry-run sweep across all 9 stores recorded (done -- above).
+- [x] Author has reviewed this runbook and the per-store findings.
 - [ ] Each binary store the author elects is migrated (binary refreshed,
       `erg migrate` where flagged, `erg init` assets refreshed), changes
       reviewed via git diff and committed by the author.
-- [ ] Text-only adopters: legacy-format `erg migrate` applied where flagged
+- [x] Text-only adopters: legacy-format `erg migrate` applied where flagged
       (or a conscious decision to leave them) -- owner's call on the binary.
 - [ ] No store left with an `erg check` VIOLATION that `erg migrate` fixes.
