@@ -5,6 +5,7 @@ Author: claude
 
 --- log ---
 2026-06-03T03:35Z claude created
+2026-06-03T05:10Z claude note corrected the root-cause framing. The version.go "drift" is NOT a corrupt/broken/padme-local gofmt (an earlier note wrongly said so). It is STOCK gofmt doc-comment smart-quoting: '' -> U+201D, two backticks -> U+201C (proposal #51082, Go 1.19+, in go/printer). A REAL gofmt on ANY machine, CI included, wants to rewrite version.go's `'\''` comment, which collides with the ASCII-only src/go guard. So `gofmt -l src/go/` is NOT clean anywhere today -- the rewording below is the prerequisite that makes the ratchet possible, not optional cleanup. Refs golang/go#61365, #76975.
 
 --- body ---
 ## Context
@@ -13,24 +14,32 @@ git-erg has no mechanical Go-formatting/vet gate -- the analog of the Python
 ruff adherence check the harness rules mandate. `make check` runs the suite +
 corpus validation but never `gofmt -l` or `go vet`, so formatting drift only
 gets caught by a human reviewer or /verify's ad-hoc pass. The /verify on PR
-#242 (ticket 0207) flagged this gap directly, and pre-existing gofmt drift has
-been observed in version.go / ref_test.go / refs_test.go.
+#242 (ticket 0207) flagged this gap directly.
 
-CAUTION (machine-specific): on padme the local `gofmt -w` corrupts the ASCII
-`'\''` in src/go/version.go's shellSingleQuote comment into a UTF-8 curly
-quote (`gofmt -d` confirms gofmt itself wants the change -- a broken local
-gofmt/proxy). A ratchet that runs `gofmt -l` is fine (read-only); a fixer that
-runs `gofmt -w` must not be wired into any automated path until that is
-understood. See the memory note. CI's real gofmt is byte-faithful.
+Blocker for the ratchet (stock gofmt vs ASCII-only): gofmt's doc-comment
+formatter applies Markdown-style smart quotes -- `''` becomes U+201D (a curly
+right double quote) and two backticks become U+201C -- everywhere, in every
+Go >= 1.19 (proposal #51082; complained about in golang/go#61365 and the
+Dec-2025 #76975). `src/go/version.go`'s shellSingleQuote comment contains
+`'\''` (ends in `''`), so ANY real gofmt -- CI's included, not just this
+machine's -- wants to rewrite it to a non-ASCII `'\` + U+201D, which violates
+the ASCII-only src/go guard (test_encoding, ticket 0167). So `gofmt -l
+src/go/` is NOT clean today on any machine, and a naive `gofmt -w` would inject
+non-ASCII. This is stock behaviour, NOT a corrupt or broken toolchain.
 
 ## Actions
 
-1. Add `tests/test_gofmt.sh`: assert `gofmt -l src/go/` prints nothing
-   (read-only; no `-w`), and `cd src/go && go vet ./...` exits 0. Register the
-   suite in the Makefile TEST_SUITES.
-2. Fix any pre-existing drift the ratchet surfaces (version.go, ref_test.go,
-   refs_test.go, ...) -- by hand or with a REAL gofmt, never the broken local
-   `gofmt -w` on version.go (verify line 59 stays `'\''`, ASCII).
+1. Reword the smart-quote triggers out of Go comments FIRST: rewrite
+   `src/go/version.go`'s shellSingleQuote comment (and grep for any other Go
+   comment with the pair: `grep -RnP "''" src/go; grep -RnF '` + "``" + `' src/go`)
+   so it conveys the same meaning without the literal `''` / two-backtick pair.
+   Then gofmt's smart-quoting is a no-op and the comment stays ASCII.
+2. Fix any genuine formatting drift gofmt surfaces (ref_test.go, refs_test.go,
+   ...) with a real gofmt or by hand. NOTE: padme's gofmt is fine -- it is just
+   stock smart-quoting; once step 1 removes the `''`, `gofmt -w` is safe here
+   too. Re-check `grep -RP '[^\x00-\x7F]' src/go` after.
+3. Add `tests/test_gofmt.sh`: assert `gofmt -l src/go/` prints nothing and
+   `cd src/go && go vet ./...` exits 0. Register the suite in TEST_SUITES.
 
 ## Test
 
@@ -39,8 +48,10 @@ temp .go file is reported by `gofmt -l`), so the ratchet is non-vacuous.
 
 ## Exit criteria
 
-- [ ] `tests/test_gofmt.sh` exists, registered in TEST_SUITES.
-- [ ] `gofmt -l src/go/` is clean (drift fixed by hand / real gofmt).
+- [ ] No Go comment in src/go contains `''` or a two-backtick pair that gofmt
+      would smart-quote (version.go reworded; grep clean).
+- [ ] `gofmt -l src/go/` is clean on a real gofmt (so the gate passes in CI).
 - [ ] `go vet ./...` clean.
-- [ ] Negative control proves the check fails on injected drift.
-- [ ] `make check` passes; src/go stays pure ASCII (version.go:59 intact).
+- [ ] `tests/test_gofmt.sh` exists, registered in TEST_SUITES, with a passing
+      negative control.
+- [ ] `make check` passes; `grep -RP '[^\x00-\x7F]' src/go` stays empty.
