@@ -306,12 +306,19 @@ fi
 WORKM="$WORKROOT/work-match"
 git clone -q "$REMOTE" "$WORKM"
 cp "$ERG_ABS" "$WORKM/tickets/erg"
-$ERG init "$WORKM" >/dev/null 2>&1 || true
-OUTM=$(cd "$WORKM" && ERG_TICKET_DIR="$WORKM/tickets" ./tickets/erg update 2>&1 || true)
-if echo "$OUTM" | grep -q "erg: updated" && ! echo "$OUTM" | grep -q "run 'erg init' to refresh"; then
-    pass "post-update: up-to-date manifest -> swap happens but no drift hint"
+$ERG init "$WORKM" >/dev/null 2>&1
+# Guard: this case is distinct from "no manifest -> no hint" only if init
+# actually stamped a matching manifest. Without the guard a silently-missing
+# manifest would let the test pass via the os.Stat gate, not the matching path.
+if ! grep -q "sha256:[0-9a-f]" "$WORKM/tickets/.erg-assets" 2>/dev/null; then
+    fail "post-update: matching fixture: init wrote no stamped manifest (test would be vacuous)"
 else
-    fail "post-update: matching manifest should swap without a drift hint (got: $OUTM)"
+    OUTM=$(cd "$WORKM" && ERG_TICKET_DIR="$WORKM/tickets" ./tickets/erg update 2>&1 || true)
+    if echo "$OUTM" | grep -q "erg: updated" && ! echo "$OUTM" | grep -q "run 'erg init' to refresh"; then
+        pass "post-update: up-to-date manifest -> swap happens but no drift hint"
+    else
+        fail "post-update: matching manifest should swap without a drift hint (got: $OUTM)"
+    fi
 fi
 
 # unknown flag rejection (ticket 0185)

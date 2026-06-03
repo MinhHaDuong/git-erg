@@ -726,16 +726,25 @@ fi
 
 # Matching manifest -> no drift warning (exit criterion: no warn when all
 # assets match the embedded version). `erg init` stamps THIS binary's own
-# embedded assets, so the manifest matches by construction.
+# embedded assets, so the manifest matches by construction. init needs a
+# tickets/erg present (it stamps relative to the binary location), hence the
+# touch -- without it init fails and writes no manifest, which would make this
+# test silently degenerate into the no-manifest case above.
 MATCHDIR="$FIXTURES/match"
 mkdir -p "$MATCHDIR/tickets"
+touch "$MATCHDIR/tickets/erg"
 cp "$DRIFTDIR/9001-x.erg" "$MATCHDIR/tickets/"
-$ERG init "$MATCHDIR" >/dev/null 2>&1 || true
-rc=0; out=$($ERG check "$MATCHDIR/tickets" 2>&1) || rc=$?
-if [ "$rc" -eq 0 ] && ! echo "$out" | grep -q "differs from the .erg-assets stamp"; then
-    pass "drift: matching manifest -> no drift warning"
+$ERG init "$MATCHDIR" >/dev/null 2>&1
+# Guard: the test is only meaningful if init actually wrote a stamped manifest.
+if ! grep -q "sha256:[0-9a-f]" "$MATCHDIR/tickets/.erg-assets" 2>/dev/null; then
+    fail "drift: matching fixture: init wrote no stamped manifest (test would be vacuous)"
 else
-    fail "drift: matching stamps should not warn (rc=$rc, got: $out)"
+    rc=0; out=$($ERG check "$MATCHDIR/tickets" 2>&1) || rc=$?
+    if [ "$rc" -eq 0 ] && ! echo "$out" | grep -q "differs from the .erg-assets stamp"; then
+        pass "drift: matching manifest -> no drift warning"
+    else
+        fail "drift: matching stamps should not warn (rc=$rc, got: $out)"
+    fi
 fi
 
 
