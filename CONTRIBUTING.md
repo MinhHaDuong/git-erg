@@ -68,7 +68,7 @@ Then `make test`; both guard tests run as part of it.
 
 - Source of truth: `src/go/` (the binary is a built cache, see README
   "Binary policy").
-- Format spec: `erg spec` (or `tickets/spec-erg-v1.md`). Design rationale: `pep-erg-v1.md`.
+- Format spec: `erg spec`. Design rationale: `pep-erg-v1.md`.
 - Test policy and fixture strategy: `tests/README.md`.
 
 ## Dogfood assets (`tickets/.ergrc`, `tickets/AGENTS.md`)
