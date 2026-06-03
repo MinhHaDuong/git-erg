@@ -1,0 +1,46 @@
+%erg 0.1
+Title: git rm git-erg's stale tracked tickets/spec-erg-v1.md and integration.md
+Created: 2026-06-03
+Author: claude
+
+--- log ---
+2026-06-03T03:38Z claude created
+
+--- body ---
+## Context
+
+Ticket 0206 made `erg spec` / `erg integration` print-on-demand and stopped
+init from depositing tickets/spec-erg-v1.md and tickets/integration.md; init
+now removes them as orphans when they match a known embedded hash. But
+git-erg's OWN tickets/ still git-tracks tickets/spec-erg-v1.md (and possibly
+tickets/integration.md) from before 0206. The /verify on PR #249 (ticket 0213)
+flagged these as stale tracked orphans that drift from the embedded source --
+they are no longer deployed by init, so keeping them tracked is dead weight and
+will diverge silently from src/go/assets/.
+
+Note: 0206's orphan cleanup only removes them on `erg init` when they match a
+known embedded hash; if git-erg's tracked copies have drifted they would be
+preserved -- and either way a tracked file must be removed with `git rm`, not
+left to init.
+
+## Actions
+
+1. Confirm which of tickets/spec-erg-v1.md, tickets/integration.md are still
+   git-tracked in git-erg (`git ls-files tickets/`).
+2. `git rm` the tracked orphan(s). They remain available via `erg spec` /
+   `erg integration` and embedded under src/go/assets/.
+3. Check no doc/test references the deleted tracked paths (README, tests,
+   test_roundtrip already drop them; re-grep to be sure).
+
+## Test
+
+`tests/test_selfcoherence.sh` already asserts the deployed set is exactly the 2
+retained assets (.ergrc, AGENTS.md); after removal, optionally tighten it to
+assert tickets/spec-erg-v1.md and tickets/integration.md are NOT tracked.
+
+## Exit criteria
+
+- [ ] Stale tracked tickets/spec-erg-v1.md / integration.md removed via git rm.
+- [ ] `erg spec` and `erg integration` still print the content (embedded).
+- [ ] No dangling reference to the removed tracked paths.
+- [ ] `make check` passes.
