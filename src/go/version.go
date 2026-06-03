@@ -56,9 +56,16 @@ func selfHash(path string) (string, error) {
 
 // shellSingleQuote wraps s in POSIX single quotes so it is safe to paste into
 // a shell verbatim -- even if it contains spaces, $, backticks, or other
-// metacharacters. Embedded single quotes are escaped as '\''. Double-quoting
-// (e.g. fmt %q) would NOT suffice: $ and ` stay active inside double quotes.
-// The `verify:` hint exists solely for copy-paste, so this must be exact.
+// metacharacters. An embedded single quote is escaped the POSIX way -- close
+// the quote, emit a backslash-escaped quote, reopen -- as the ReplaceAll below
+// does. Double-quoting (e.g. fmt %q) would NOT suffice: $ and ` stay active
+// inside double quotes. The `verify:` hint exists solely for copy-paste, so
+// this must be exact.
+//
+// (This comment deliberately avoids writing the literal close-escape-reopen
+// token: gofmt's doc-comment formatter would smart-quote a doubled single
+// quote into U+201D. See ticket 0217 / the threat-model note on the scoped
+// non-ASCII allowance for .go files.)
 func shellSingleQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

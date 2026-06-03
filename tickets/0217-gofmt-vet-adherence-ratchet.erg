@@ -5,7 +5,8 @@ Author: claude
 
 --- log ---
 2026-06-03T03:35Z claude created
-2026-06-03T05:10Z claude note corrected the root-cause framing. The version.go "drift" is NOT a corrupt/broken/padme-local gofmt (an earlier note wrongly said so). It is STOCK gofmt doc-comment smart-quoting: '' -> U+201D, two backticks -> U+201C (proposal #51082, Go 1.19+, in go/printer). A REAL gofmt on ANY machine, CI included, wants to rewrite version.go's `'\''` comment, which collides with the ASCII-only src/go guard. So `gofmt -l src/go/` is NOT clean anywhere today -- the rewording below is the prerequisite that makes the ratchet possible, not optional cleanup. Refs golang/go#61365, #76975.
+2026-06-03T05:10Z claude note corrected the root cause: the version.go "drift" is STOCK gofmt doc-comment smart-quoting ('' -> U+201D, two backticks -> U+201C; proposal #51082, Go 1.19+), NOT a corrupt/broken/padme toolchain. Refs golang/go#61365, #76975.
+2026-06-03T06:00Z claude note policy decided (author): STOP fighting gofmt -- relax the ASCII guard to ALLOW U+201C/U+201D in *.go only (embedded assets *.md/.ergrc stay strictly ASCII), so gofmt and the guard no longer conflict. Plus (advisor): reword version.go's shellSingleQuote comment so a comment ABOUT quote-escaping does not itself get smart-quoted into misdocumentation -- the policy is the forward guard, the reword keeps this one doc true. Net: production tree ends with ZERO smart quotes; the allowlist + negative controls protect future gofmt runs.
 
 --- body ---
 ## Context
@@ -16,42 +17,49 @@ corpus validation but never `gofmt -l` or `go vet`, so formatting drift only
 gets caught by a human reviewer or /verify's ad-hoc pass. The /verify on PR
 #242 (ticket 0207) flagged this gap directly.
 
-Blocker for the ratchet (stock gofmt vs ASCII-only): gofmt's doc-comment
-formatter applies Markdown-style smart quotes -- `''` becomes U+201D (a curly
-right double quote) and two backticks become U+201C -- everywhere, in every
-Go >= 1.19 (proposal #51082; complained about in golang/go#61365 and the
-Dec-2025 #76975). `src/go/version.go`'s shellSingleQuote comment contains
-`'\''` (ends in `''`), so ANY real gofmt -- CI's included, not just this
-machine's -- wants to rewrite it to a non-ASCII `'\` + U+201D, which violates
-the ASCII-only src/go guard (test_encoding, ticket 0167). So `gofmt -l
-src/go/` is NOT clean today on any machine, and a naive `gofmt -w` would inject
-non-ASCII. This is stock behaviour, NOT a corrupt or broken toolchain.
+Why a plain ratchet could not just be added: gofmt's doc-comment formatter
+applies Markdown-style smart quotes -- `''` -> U+201D, two backticks -> U+201C
+-- in every Go >= 1.19 (proposal #51082; golang/go#61365, #76975). So a real
+gofmt on ANY machine (CI included) wants to rewrite version.go's `'\''`
+comment to a non-ASCII glyph, which the ASCII-only src/go guard (0167) rejects.
+This is stock gofmt behaviour, not a broken toolchain.
+
+Policy decision (author): stop fighting gofmt -- relax the ASCII guard to allow
+exactly U+201C and U+201D in *.go (the two glyphs gofmt emits), keeping the
+embedded assets strictly ASCII. Both glyphs are printing, non-control,
+non-bidi, non-invisible and cannot appear in Go identifiers, so the
+Trojan-Source surface (CVE-2021-42574) is not reopened.
 
 ## Actions
 
-1. Reword the smart-quote triggers out of Go comments FIRST: rewrite
-   `src/go/version.go`'s shellSingleQuote comment (and grep for any other Go
-   comment with the pair: `grep -RnP "''" src/go; grep -RnF '` + "``" + `' src/go`)
-   so it conveys the same meaning without the literal `''` / two-backtick pair.
-   Then gofmt's smart-quoting is a no-op and the comment stays ASCII.
-2. Fix any genuine formatting drift gofmt surfaces (ref_test.go, refs_test.go,
-   ...) with a real gofmt or by hand. NOTE: padme's gofmt is fine -- it is just
-   stock smart-quoting; once step 1 removes the `''`, `gofmt -w` is safe here
-   too. Re-check `grep -RP '[^\x00-\x7F]' src/go` after.
-3. Add `tests/test_gofmt.sh`: assert `gofmt -l src/go/` prints nothing and
-   `cd src/go && go vet ./...` exits 0. Register the suite in TEST_SUITES.
+1. Relax `tests/test_encoding.sh`: in the `*.go` branch, strip U+201C/U+201D
+   before flagging non-ASCII; `*.md` and `.ergrc` stay strictly ASCII. Add
+   negative controls: em-dash in .go still rejected; U+201D in .go allowed;
+   U+201D in a .md asset still rejected (proves the branches did not collapse).
+2. Reword `src/go/version.go`'s shellSingleQuote comment so it does not contain
+   the literal `''` pair -- it documents quote-escaping and must stay accurate,
+   not be smart-quoted into nonsense. (Policy still allows the glyph elsewhere;
+   this keeps one doc true and gofmt-stable.)
+3. Run a real `gofmt -w src/go/` to fix genuine formatting drift (ref_test.go,
+   refs_test.go). After step 2 it introduces no smart quotes; confirm
+   `grep -RP '[^\x00-\x7F]' src/go` is empty.
+4. Add `tests/test_gofmt.sh` (gofmt -l clean + `go vet ./...` clean, with a
+   non-vacuous mis-indent negative control); register `gofmt` in TEST_SUITES.
+5. Document the scoped exception in docs/threat-model.md (Controls).
 
 ## Test
 
-`tests/test_gofmt.sh` with a negative control (a deliberately mis-indented
-temp .go file is reported by `gofmt -l`), so the ratchet is non-vacuous.
+`tests/test_gofmt.sh` (mis-indented temp .go is flagged by gofmt -l) and the
+three new `tests/test_encoding.sh` controls.
 
 ## Exit criteria
 
-- [ ] No Go comment in src/go contains `''` or a two-backtick pair that gofmt
-      would smart-quote (version.go reworded; grep clean).
-- [ ] `gofmt -l src/go/` is clean on a real gofmt (so the gate passes in CI).
-- [ ] `go vet ./...` clean.
-- [ ] `tests/test_gofmt.sh` exists, registered in TEST_SUITES, with a passing
-      negative control.
-- [ ] `make check` passes; `grep -RP '[^\x00-\x7F]' src/go` stays empty.
+- [ ] test_encoding allows U+201C/U+201D in *.go ONLY; *.md/.ergrc strict;
+      three negative controls pass (em-dash rejected, smart-quote allowed in
+      .go, smart-quote rejected in asset).
+- [ ] version.go's shellSingleQuote comment reworded; `grep -RP '[^\x00-\x7F]'
+      src/go` is empty (zero smart quotes in the production tree).
+- [ ] `gofmt -l src/go/` clean; `go vet ./...` clean.
+- [ ] `tests/test_gofmt.sh` exists, registered in TEST_SUITES, non-vacuous.
+- [ ] docs/threat-model.md documents the scoped exception + assets-stay-strict.
+- [ ] `make check` passes.
