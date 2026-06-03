@@ -1,0 +1,96 @@
+%erg 0.1
+Title: Dogfood-migrate this machine's erg stores to the new capabilities
+Created: 2026-06-03
+Author: claude
+
+--- log ---
+2026-06-03T03:30Z claude created
+2026-06-03T03:30Z claude note dry-run sweep done; actual cross-repo writes deferred to supervised execution (author asleep, repos not owned by git-erg)
+
+--- body ---
+## Context
+
+The 0204 charter raid (tickets 0205-0214 + chore 0215) shipped: split
+init/install, erg spec / erg integration print-on-demand, init dry-run/force +
+exit-code table, install --hooks/--push-hook/--inject-agents, erg-github
+forge layer, the .erg-assets provenance manifest, the dpkg 3-state asset
+compare, the drift warning + post-update hint, the CI self-coherence guard,
+and the erg version role field. The author asked for the real-world dogfood:
+migrate this machine's erg stores to those capabilities -- "the real test of
+the migrate script."
+
+This ticket is the runbook. The READ-ONLY validation has been done (see
+findings below). The actual mutating writes are DEFERRED to a supervised run:
+the author was asleep, 8 of the 9 stores are repos git-erg does not own, and
+3 are deliberate text-only adopters where vendoring a binary is the owner's
+call -- not a 3am mechanical sweep. "Safely migrate" governs.
+
+## Inventory (read-only scan, 2026-06-03)
+
+| Store | .erg | binary | .ergrc | AGENTS.md | manifest | class |
+|-------|------|--------|--------|-----------|----------|-------|
+| ~/.claude/tickets            | 15  | yes | yes | yes | no | binary (HARNESS -- most sensitive) |
+| ~/padme/tickets              | 9   | yes | yes | yes | no | binary |
+| ~/aedist-technical-report    | 70  | yes | yes | yes | no | binary |
+| ~/projtmp/tickets            | 0   | yes | no  | yes | no | binary (scratch) |
+| ~/chemin-de-voix/tickets     | 0   | yes | yes | yes | no | binary |
+| ~/Climate_finance/tickets    | 126 | no  | no  | no  | no | text-only adopter |
+| ~/fuzzy-corpus/tickets       | 51  | no  | no  | no  | no | text-only adopter |
+| ~/cadens/tickets             | 36  | no  | no  | no  | no | text-only adopter |
+| ~/git-erg/tickets            | --  | yes | yes | yes | no | the project (already current) |
+
+## Dry-run findings (erg check + erg init -n, read-only -- NO bug in new code)
+
+The new code handled all 9 real stores gracefully. The dpkg compare's
+manifest-absent default correctly classified every customized store's
+.ergrc/AGENTS.md as "would preserve (local edits)" -- migration would clobber
+nothing. Per-store, the real (pre-existing) issues a supervised migrate must
+address first:
+
+- ~/.claude/tickets: 2 closed tickets sit outside closed/ (folder hygiene);
+  init -n -> preserve both assets + write manifest. HARNESS store: author
+  must watch this one; do not touch unattended.
+- ~/padme/tickets: erg check PASS; init -n -> preserve + manifest.
+- ~/aedist-technical-report: 2 interior-header-blank warnings -> `erg migrate`.
+- ~/projtmp/tickets: scratch; init -n -> create .ergrc + preserve AGENTS.md.
+- ~/chemin-de-voix: 2 tickets use legacy `Tag:` -> `erg migrate` (rename to Label:).
+- ~/Climate_finance: duplicate ID 0093 (real VIOLATION) + stray tools/go/*.go;
+  text-only -- vendoring a binary is the owner's decision.
+- ~/fuzzy-corpus, ~/cadens: legacy `%erg v1` magic line -> `erg migrate`;
+  text-only adopters.
+
+## Per-repo procedure (supervised)
+
+For each BINARY store the owner wants on the new erg:
+1. cd <repo>; `git status` -- abort if dirty (stash/commit first).
+2. Refresh the traveling binary: `cp ~/git-erg/build/erg tickets/erg`
+   (or build per arch). `erg version` should show role: traveling.
+3. `erg migrate tickets/` if check reported a legacy-format VIOLATION
+   (`%erg v1`, `Tag:`, header blanks); review `git diff`, commit separately.
+4. `erg init` to refresh assets + write tickets/.erg-assets + clean orphans
+   (the dpkg compare PRESERVES any local .ergrc/AGENTS.md edits -- exit 2 just
+   means "skipped, nothing lost"; use `erg init --force` only to intentionally
+   take the embedded defaults). Review `git diff`; commit.
+5. Do NOT commit tickets/.erg-assets if the repo gitignores tickets/erg
+   (manifest churns per build).
+6. Optional wiring (owner opt-in): `erg install --hooks` (pre-commit),
+   `erg install --push-hook` (warn-only autoarchive), `erg install
+   --inject-agents` (root AGENTS.md pointer).
+
+For each TEXT-ONLY store (Climate_finance, fuzzy-corpus, cadens): decide first
+whether to adopt the binary at all. If staying text-only, just run `erg
+migrate` once (with a borrowed binary) to fix the legacy format, review, and
+commit -- no binary vendored.
+
+The harness store (~/.claude/tickets) is migrated last, by the author, watching.
+
+## Exit criteria
+
+- [ ] Read-only dry-run sweep across all 9 stores recorded (done -- above).
+- [ ] Author has reviewed this runbook and the per-store findings.
+- [ ] Each binary store the author elects is migrated (binary refreshed,
+      `erg migrate` where flagged, `erg init` assets refreshed), changes
+      reviewed via git diff and committed by the author.
+- [ ] Text-only adopters: legacy-format `erg migrate` applied where flagged
+      (or a conscious decision to leave them) -- owner's call on the binary.
+- [ ] No store left with an `erg check` VIOLATION that `erg migrate` fixes.

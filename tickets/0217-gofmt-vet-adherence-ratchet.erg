@@ -1,0 +1,46 @@
+%erg 0.1
+Title: Add a gofmt + go vet adherence ratchet to the test suite
+Created: 2026-06-03
+Author: claude
+
+--- log ---
+2026-06-03T03:35Z claude created
+
+--- body ---
+## Context
+
+git-erg has no mechanical Go-formatting/vet gate -- the analog of the Python
+ruff adherence check the harness rules mandate. `make check` runs the suite +
+corpus validation but never `gofmt -l` or `go vet`, so formatting drift only
+gets caught by a human reviewer or /verify's ad-hoc pass. The /verify on PR
+#242 (ticket 0207) flagged this gap directly, and pre-existing gofmt drift has
+been observed in version.go / ref_test.go / refs_test.go.
+
+CAUTION (machine-specific): on padme the local `gofmt -w` corrupts the ASCII
+`'\''` in src/go/version.go's shellSingleQuote comment into a UTF-8 curly
+quote (`gofmt -d` confirms gofmt itself wants the change -- a broken local
+gofmt/proxy). A ratchet that runs `gofmt -l` is fine (read-only); a fixer that
+runs `gofmt -w` must not be wired into any automated path until that is
+understood. See the memory note. CI's real gofmt is byte-faithful.
+
+## Actions
+
+1. Add `tests/test_gofmt.sh`: assert `gofmt -l src/go/` prints nothing
+   (read-only; no `-w`), and `cd src/go && go vet ./...` exits 0. Register the
+   suite in the Makefile TEST_SUITES.
+2. Fix any pre-existing drift the ratchet surfaces (version.go, ref_test.go,
+   refs_test.go, ...) -- by hand or with a REAL gofmt, never the broken local
+   `gofmt -w` on version.go (verify line 59 stays `'\''`, ASCII).
+
+## Test
+
+`tests/test_gofmt.sh` with a negative control (a deliberately mis-indented
+temp .go file is reported by `gofmt -l`), so the ratchet is non-vacuous.
+
+## Exit criteria
+
+- [ ] `tests/test_gofmt.sh` exists, registered in TEST_SUITES.
+- [ ] `gofmt -l src/go/` is clean (drift fixed by hand / real gofmt).
+- [ ] `go vet ./...` clean.
+- [ ] Negative control proves the check fails on injected drift.
+- [ ] `make check` passes; src/go stays pure ASCII (version.go:59 intact).
