@@ -1,12 +1,22 @@
 #!/bin/sh
-# Encoding guard: src/go/** must be pure ASCII (ticket 0167).
+# Encoding guard: src/go/** is ASCII-only, with one scoped exception (ticket
+# 0167; exception added in 0217).
 #
 # Security: non-ASCII in source enables Trojan-Source bidi/homoglyph attacks
 # (CVE-2021-42574). Data safety: non-ASCII in embedded assets causes corruption
 # under encoding round-trips (incident 0160).
 #
-# Both guards ship with a negative control that proves the check actually trips
-# when the invariant is violated -- matching the 0146/0160 house style.
+# Scoped exception (ticket 0217): *.go files MAY contain U+201C and U+201D --
+# the two curly double quotes gofmt's doc-comment formatter emits for `` `` ``
+# and '' (proposal #51082, Go 1.19+). Allowing exactly those two glyphs stops
+# the gofmt-vs-ASCII fight without reopening the attack surface: both are
+# printing, non-control, non-bidi, non-invisible, and Go identifiers cannot
+# contain them. The exception is *.go ONLY -- the embedded assets (*.md,
+# .ergrc), which ship inside the verified binary, stay STRICTLY ASCII (the
+# 0160 corruption class). Every other non-ASCII byte is still rejected in .go.
+#
+# Both guards ship with negative controls that prove the check trips when the
+# invariant is violated -- matching the 0146/0160 house style.
 #
 # Scope: *.go files, *.md files, and .ergrc config files under src/go/.
 # The committed binary (src/go/git-erg) is excluded -- it is not source.
@@ -27,9 +37,23 @@ find_nonascii() {
     find src/go \( -name '*.go' -o -name '*.md' -o -name '.ergrc' \) > "$_listfile"
     _hits=""
     while IFS= read -r _f; do
-        if LC_ALL=C grep -qP '[^\x00-\x7F]' "$_f" 2>/dev/null; then
-            _hits="$_hits$_f\n"
-        fi
+        case "$_f" in
+        *.go)
+            # Scoped exception (0217): .go may contain U+201C (e2 80 9c) and
+            # U+201D (e2 80 9d) -- gofmt's doc-comment smart quotes. Strip just
+            # those two sequences, then flag any residual non-ASCII byte.
+            if LC_ALL=C sed 's/\xe2\x80\x9c//g; s/\xe2\x80\x9d//g' "$_f" 2>/dev/null \
+                 | LC_ALL=C grep -qP '[^\x00-\x7F]'; then
+                _hits="$_hits$_f\n"
+            fi
+            ;;
+        *)
+            # Embedded assets (*.md, .ergrc) stay strictly ASCII (0160 class).
+            if LC_ALL=C grep -qP '[^\x00-\x7F]' "$_f" 2>/dev/null; then
+                _hits="$_hits$_f\n"
+            fi
+            ;;
+        esac
     done < "$_listfile"
     rm -f "$_listfile"
     printf '%s' "$_hits" | grep -v '^$' | grep "$_pat" | head -3
@@ -54,11 +78,37 @@ TMPFILE=$(mktemp src/go/test_encoding_negctrl_XXXXXX.go)
 printf '// negative control: em dash \342\200\224\npackage main\n' > "$TMPFILE"
 NEG_HITS=$(find_nonascii '.')
 if [ -n "$NEG_HITS" ]; then
-    pass "ASCII guard (neg control): injected non-ASCII detected"
+    pass "ASCII guard (neg control): disallowed non-ASCII (em dash) detected in .go"
 else
     fail "ASCII guard (neg control): injected non-ASCII was NOT detected -- guard is vacuous"
 fi
 rm -f "$TMPFILE"
+
+# Scoped-exception control A (0217): U+201D (e2 80 9d) in a .go file must be
+# ALLOWED (the gofmt smart quote). If this trips, the exception is broken.
+TMPSMART=$(mktemp src/go/test_encoding_smart_XXXXXX.go)
+printf '// smart quote allowed in .go: \342\200\235\npackage main\n' > "$TMPSMART"
+SMART_HITS=$(find_nonascii '.')
+rm -f "$TMPSMART"
+if [ -z "$SMART_HITS" ]; then
+    pass "scoped exception: U+201D allowed in a .go file"
+else
+    fail "scoped exception: U+201D wrongly flagged in .go ($SMART_HITS)"
+fi
+
+# Scoped-exception control B (0217): the SAME U+201D in an embedded asset
+# (*.md) must STILL be flagged -- assets stay strictly ASCII (0160 class). This
+# proves the exception did not leak to the asset scan and the branches did not
+# collapse.
+TMPASSET=$(mktemp src/go/test_encoding_asset_XXXXXX.md)
+printf 'smart quote must be rejected in assets: \342\200\235\n' > "$TMPASSET"
+ASSET_HITS=$(find_nonascii '.')
+rm -f "$TMPASSET"
+if [ -n "$ASSET_HITS" ]; then
+    pass "scoped exception: U+201D still rejected in an embedded asset (.md)"
+else
+    fail "scoped exception LEAKED: U+201D not rejected in a .md asset -- assets must stay strict"
+fi
 
 # --- 2. No U+FFFD (replacement char) in live source and assets ---------------
 # U+FFFD is never legitimate in source; its presence signals an encoding

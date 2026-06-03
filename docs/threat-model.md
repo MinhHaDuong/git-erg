@@ -85,6 +85,21 @@ adopted git-erg today.
 | `rm` FILE-form and `new` explicit-DIR confinement to the named store | shipped | ticket 0157 |
 | Update integrity via git transport — no `net/http`, no `crypto/tls` in source; refuses cwd-repo hijack; offline no-op | shipped | ticket 0148; `tests/test_update.sh` |
 | Signed release tags (`git tag -s`, verified with `git verify-tag`) as the trustable publication | shipped | ticket 0151; tag `2026-05-30`, key `4A46C91E03B83B23` (YubiKey-backed) |
+| ASCII-only `src/go/**` (Trojan-Source / homoglyph / bidi-override defense, CVE-2021-42574) + no U+FFFD anywhere (encoding-corruption signal, incident 0160) | CI-tested | ticket 0167; `tests/test_encoding.sh` |
+| gofmt + `go vet` adherence ratchet (the Go analog of the ruff check) | CI-tested | ticket 0217; `tests/test_gofmt.sh` |
+
+**Scoped non-ASCII exception (ticket 0217).** `*.go` files may contain exactly
+two non-ASCII code points -- `U+201C` and `U+201D`, the curly double quotes
+gofmt's doc-comment formatter emits for two-backtick and `''` pairs (Go 1.19+,
+proposal #51082) -- so the formatter and the ASCII guard no longer conflict.
+The allowance is whole-`.go` (not comment-only: comment-vs-string parsing would
+need `go/scanner`, and both glyphs are printing, non-control, non-bidi,
+non-invisible, and cannot appear in Go identifiers; gofmt only ever introduces
+them in comments, so a smart quote in a string literal would also pass --
+acceptable, it cannot reach the strictly-ASCII embedded assets). The embedded
+assets (`*.md`, `.ergrc`), which ship inside the verified binary, stay
+**strictly ASCII** -- the exception does not apply to them, and a negative
+control proves a smart quote in an asset is still rejected.
 
 `shipped` = present in the binary today. `CI-tested` = exercised by a test that
 runs on every push. `deferred-human` = requires a human action (a maintainer

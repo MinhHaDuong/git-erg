@@ -52,13 +52,13 @@ func TestParseRef(t *testing.T) {
 		{"gitlab.com/org/project#7", false, "", want{kind: RefForge, host: "gitlab.com", owner: "org", repo: "project", number: "7"}},
 
 		// Invalid forge refs
-		{"github.com/owner/repo#0", true, "", want{}},              // leading zero
-		{"github.com/owner/repo#", true, "", want{}},               // empty number
-		{"github.com//repo#1", true, "", want{}},                   // empty owner
-		{"only-one-slash/here#1", true, "", want{}},                // not 3-part path
-		{"host:port/owner/repo#1", true, "", want{}},               // host contains colon
-		{"github.com/owner/repo/extra#1", true, "", want{}},        // 4-part path must be rejected (#5)
-		{"github.com/owner/repo/a/b#1", true, "", want{}},          // 5-part path must be rejected (#5)
+		{"github.com/owner/repo#0", true, "", want{}},       // leading zero
+		{"github.com/owner/repo#", true, "", want{}},        // empty number
+		{"github.com//repo#1", true, "", want{}},            // empty owner
+		{"only-one-slash/here#1", true, "", want{}},         // not 3-part path
+		{"host:port/owner/repo#1", true, "", want{}},        // host contains colon
+		{"github.com/owner/repo/extra#1", true, "", want{}}, // 4-part path must be rejected (#5)
+		{"github.com/owner/repo/a/b#1", true, "", want{}},   // 5-part path must be rejected (#5)
 	}
 
 	for _, tc := range cases {
