@@ -193,6 +193,19 @@ binary exists for boxes where Go is unavailable and the text-files path isn't
 enough. Rationale: `docs/audit-infrastructure-class.md`. Rebuild/refresh mechanics:
 [`CONTRIBUTING.md`](CONTRIBUTING.md). Verification: below.
 
+`erg version` reports which role the running binary is (`role: traveling` for a
+path ending in `tickets/erg`, `role: system` otherwise), so you never have to
+guess which copy you're looking at.
+
+**Opt out of committing the binary.** Committing `tickets/erg` is the default —
+one artifact runs everyone's hooks and CI. If you'd rather not vendor a binary
+(e.g. every box has Go, or policy forbids committed binaries), add `tickets/erg`
+to your `.gitignore`. Then there is no traveling copy: each machine builds its own
+system binary (`make build`, or the curl install below) and that single copy on
+your PATH does everything. The leverage against "which binary is this?" confusion
+is this one-binary-on-disk opt-out, not an arch suffix — the traveling binary,
+when committed, stays a single Linux x86-64 artifact for CI and agents.
+
 ## Verifying the binary
 
 The committed `tickets/erg` is a convenience, but also a risk. Pick the trust model

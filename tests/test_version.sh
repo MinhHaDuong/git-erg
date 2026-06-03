@@ -87,6 +87,22 @@ else
     pass "version: verify hint correctly suppressed for non-bootstrap path"
 fi
 
+# --- role field (ticket 0214) ---
+# Traveling: a real .../tickets/erg path ($BOOT fixture from above).
+ROLE_BOOT=$(cd / && ERG_VERSION_NO_DISCOVER=1 "$BOOT/erg" version 2>&1)
+if echo "$ROLE_BOOT" | grep -qE '^[[:space:]]*role:[[:space:]]*traveling'; then
+    pass "version: role is 'traveling' for a .../tickets/erg path"
+else
+    fail "version: expected role: traveling for the traveling copy: $ROLE_BOOT"
+fi
+# System: any other path ($FAKE = .../my-tickets/erg, NOT the traveling convention).
+ROLE_FAKE=$(cd / && ERG_VERSION_NO_DISCOVER=1 "$FAKE/erg" version 2>&1)
+if echo "$ROLE_FAKE" | grep -qE '^[[:space:]]*role:[[:space:]]*system'; then
+    pass "version: role is 'system' for a non-traveling path"
+else
+    fail "version: expected role: system for a non-traveling path: $ROLE_FAKE"
+fi
+
 # unknown flag rejection (ticket 0185)
 out=$($ERG version --bogus 2>&1) || rc=$?
 if [ "${rc:-0}" -ne 0 ] && echo "$out" | grep -q "unknown flag"; then
