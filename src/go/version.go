@@ -80,8 +80,11 @@ Prints the following fields for the running binary:
   - built:    build date injected at compile time via -ldflags (or "[unknown]").
   - revision: VCS commit hash injected at compile time via -ldflags (if present).
   - arch:     GOOS/GOARCH of the running binary.
+  - role:     "traveling" for the committed tickets/erg (a path ending in
+              /tickets/erg), "system" for a copy on your PATH. See the README
+              "Binary policy" section for what each role is for.
   - verify:   a ready-to-paste ` + "`sha256sum`" + ` command for the binary's resolved
-              path. Shown only for the in-repo bootstrap copy (a path ending in
+              path. Shown only for the traveling copy (a path ending in
               /tickets/erg), where verifying the committed binary matters most.
 
 After printing the running binary info, ` + "`erg version`" + ` discovers other erg binaries
@@ -141,13 +144,18 @@ func cmdVersion(args []string) int {
 		fmt.Printf("  revision: %s\n", vcsRevision)
 	}
 	fmt.Printf("  arch:    %s/%s\n", runtime.GOOS, runtime.GOARCH)
+	// "traveling" = the committed tickets/erg; "system" = a copy on PATH
+	// (README "Binary policy"). Leading separator so only a real ".../tickets/erg"
+	// path matches -- a bare "tickets/erg" suffix would also fire on
+	// "/home/me/my-tickets/erg". Drives both the role line and the verify hint.
 	if strings.HasSuffix(self, "/tickets/erg") {
-		// Leading separator so only a real ".../tickets/erg" path matches --
-		// a bare "tickets/erg" suffix would also fire on "/home/me/my-tickets/erg".
+		fmt.Printf("  role:    traveling (committed tickets/erg)\n")
 		// Hash the resolved absolute path (single-quoted for safe paste), not a
 		// cwd-relative "tickets/erg": the command must recompute the digest
 		// printed above no matter what directory `erg version` was invoked from.
 		fmt.Printf("  verify:  sha256sum %s\n", shellSingleQuote(self))
+	} else {
+		fmt.Printf("  role:    system (a copy on your PATH)\n")
 	}
 
 	if os.Getenv("ERG_VERSION_NO_DISCOVER") != "" {
