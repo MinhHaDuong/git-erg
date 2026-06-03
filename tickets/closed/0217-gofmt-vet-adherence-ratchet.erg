@@ -2,12 +2,14 @@
 Title: Add a gofmt + go vet adherence ratchet to the test suite
 Created: 2026-06-03
 Author: claude
+Closed: autoclosed — PR #253
 
 --- log ---
 2026-06-03T03:35Z claude created
 2026-06-03T05:10Z claude note corrected the root cause: the version.go "drift" is STOCK gofmt doc-comment smart-quoting ('' -> U+201D, two backticks -> U+201C; proposal #51082, Go 1.19+), NOT a corrupt/broken/padme toolchain. Refs golang/go#61365, #76975.
 2026-06-03T06:00Z claude note policy decided (author): STOP fighting gofmt -- relax the ASCII guard to ALLOW U+201C/U+201D in *.go only (embedded assets *.md/.ergrc stay strictly ASCII), so gofmt and the guard no longer conflict. Plus (advisor): reword version.go's shellSingleQuote comment so a comment ABOUT quote-escaping does not itself get smart-quoted into misdocumentation -- the policy is the forward guard, the reword keeps this one doc true. Net: production tree ends with ZERO smart quotes; the allowlist + negative controls protect future gofmt runs.
 
+2026-06-03T15:49Z MinhHaDuong closed — autoclosed — PR #253
 --- body ---
 ## Context
 
