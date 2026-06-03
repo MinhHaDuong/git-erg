@@ -58,6 +58,7 @@ done
 # Negative control: the guard must FAIL if the deployed copy is desynchronised.
 # Prove it on a throwaway copy so we never touch the real tree.
 PROBE=$(mktemp -d)
+trap 'rm -rf "$TDIR" "$PROBE"' EXIT
 cp "$ROOT/src/go/assets/AGENTS.md" "$PROBE/embedded"
 cp "$ROOT/tickets/AGENTS.md" "$PROBE/deployed"
 printf 'LOCAL DRIFT\n' >> "$PROBE/deployed"
@@ -66,7 +67,6 @@ if cmp -s "$PROBE/deployed" "$PROBE/embedded"; then
 else
     pass "negative control: a drifted copy is detected by cmp"
 fi
-rm -rf "$PROBE"
 
 echo ""
 echo "selfcoherence: $PASS passed, $FAIL failed"
