@@ -273,6 +273,54 @@ else
 fi
 rm -rf "$VERSION_TMPDIR2"
 
+# --- post-update asset-drift hint (ticket 0212) ---
+# After the swap, update re-execs the NEW binary's `erg check`; if a stamped
+# asset differs from the new binary's embedded version, it nudges `erg init`.
+WORKD="$WORKROOT/work-drift"
+git clone -q "$REMOTE" "$WORKD"
+cp "$ERG_ABS" "$WORKD/tickets/erg"
+# A manifest whose stamps will NOT match the swapped binary's embedded assets.
+printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:000000\n  AGENTS.md sha256:111111\n' > "$WORKD/tickets/.erg-assets"
+OUTD=$(cd "$WORKD" && ERG_TICKET_DIR="$WORKD/tickets" ./tickets/erg update 2>&1 || true)
+if echo "$OUTD" | grep -q "run 'erg init' to refresh"; then
+    pass "post-update: drift hint fires when a stamped asset differs from the new embedded"
+else
+    fail "post-update: expected the erg init drift hint (got: $OUTD)"
+fi
+
+# No manifest -> no drift hint (nothing to compare against).
+WORKND="$WORKROOT/work-nodrift"
+git clone -q "$REMOTE" "$WORKND"
+cp "$ERG_ABS" "$WORKND/tickets/erg"
+OUTND=$(cd "$WORKND" && ERG_TICKET_DIR="$WORKND/tickets" ./tickets/erg update 2>&1 || true)
+if echo "$OUTND" | grep -q "run 'erg init' to refresh"; then
+    fail "post-update: drift hint fired without a manifest (should not)"
+else
+    pass "post-update: no manifest -> no drift hint"
+fi
+
+# Manifest up to date -> no drift hint (exit criterion: no hint when assets
+# are current). The remote binary differs only by a trailing byte, so a swap
+# happens but its embedded assets are unchanged; `erg init` stamps exactly
+# those assets, so the re-exec'd check finds matching stamps and stays quiet.
+WORKM="$WORKROOT/work-match"
+git clone -q "$REMOTE" "$WORKM"
+cp "$ERG_ABS" "$WORKM/tickets/erg"
+$ERG init "$WORKM" >/dev/null 2>&1
+# Guard: this case is distinct from "no manifest -> no hint" only if init
+# actually stamped a matching manifest. Without the guard a silently-missing
+# manifest would let the test pass via the os.Stat gate, not the matching path.
+if ! grep -q "sha256:[0-9a-f]" "$WORKM/tickets/.erg-assets" 2>/dev/null; then
+    fail "post-update: matching fixture: init wrote no stamped manifest (test would be vacuous)"
+else
+    OUTM=$(cd "$WORKM" && ERG_TICKET_DIR="$WORKM/tickets" ./tickets/erg update 2>&1 || true)
+    if echo "$OUTM" | grep -q "erg: updated" && ! echo "$OUTM" | grep -q "run 'erg init' to refresh"; then
+        pass "post-update: up-to-date manifest -> swap happens but no drift hint"
+    else
+        fail "post-update: matching manifest should swap without a drift hint (got: $OUTM)"
+    fi
+fi
+
 # unknown flag rejection (ticket 0185)
 out=$($ERG update --bogus 2>&1) || rc=$?
 if [ "${rc:-0}" -ne 0 ] && echo "$out" | grep -q "unknown flag"; then
