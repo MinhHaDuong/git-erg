@@ -15,7 +15,7 @@
 #   make ready      List ready tickets
 #   make install-erg-binary              Install erg to ~/.local/bin
 
-TEST_SUITES := validate check list ready update close migrate nextid log label new init install erg_github spec integration main archive rm datasafety security pipeline help version hook godoc docs contract roundtrip verify stderr install-staleness encoding unknown_flags
+TEST_SUITES := validate check list ready update close migrate nextid log label new init install erg_github spec integration main archive rm datasafety security pipeline help version hook godoc docs contract roundtrip verify stderr install-staleness encoding unknown_flags selfcoherence
 TEST_TARGETS := $(TEST_SUITES:%=test-%)
 
 .PHONY: build check test unit-test test-scaling _test-lint docs $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary verify
@@ -79,6 +79,19 @@ test-scaling:
 
 validate: build
 	$(ERG_BIN) check tickets/
+
+# regen-assets regenerates git-erg's own deployed tickets/ assets from the
+# embedded source of truth (src/go/assets/). git-erg dogfoods the embedded
+# defaults verbatim -- no local customization -- so after a change to
+# src/go/assets/ you run this and commit. The self-coherence guard
+# (tests/test_selfcoherence.sh) fails CI if the deployed copy drifts from the
+# embedded source, and `make regen-assets && git diff --exit-code tickets/`
+# must be clean. Only the 2 retained assets are deployed (.ergrc, AGENTS.md);
+# the spec and integration guide are served on demand (erg spec / integration).
+.PHONY: regen-assets
+regen-assets:
+	cp src/go/assets/.ergrc tickets/.ergrc
+	cp src/go/assets/AGENTS.md tickets/AGENTS.md
 
 ready: build
 	$(ERG_BIN) ready tickets/

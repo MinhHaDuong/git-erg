@@ -71,6 +71,18 @@ Then `make test`; both guard tests run as part of it.
 - Format spec: `erg spec` (or `tickets/spec-erg-v1.md`). Design rationale: `pep-erg-v1.md`.
 - Test policy and fixture strategy: `tests/README.md`.
 
+## Dogfood assets (`tickets/.ergrc`, `tickets/AGENTS.md`)
+
+git-erg dogfoods its own embedded assets **verbatim, with no local
+customization**: `tickets/.ergrc` and `tickets/AGENTS.md` are *generated
+artifacts* whose source of truth is `src/go/assets/`. After editing an asset
+under `src/go/assets/`, run `make regen-assets` to copy it into `tickets/` and
+commit both. The self-coherence guard (`tests/test_selfcoherence.sh`) fails CI
+if the deployed copy drifts from the embedded source, so `make regen-assets &&
+git diff --exit-code tickets/` must be clean. (The spec and integration guide
+are not deployed -- they are served on demand via `erg spec` / `erg
+integration`.)
+
 ## Committed helper scripts (the forge layer)
 
 `erg` core is offline and forge-blind. Forge integration lives in committed
