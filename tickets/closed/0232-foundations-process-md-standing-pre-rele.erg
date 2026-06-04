@@ -2,6 +2,7 @@
 Title: FOUNDATIONS-PROCESS.md: standing pre-release foundations-coherence audit
 Created: 2026-06-04
 Author: MinhHaDuong
+Closed: autoclosed — PR #266
 
 --- log ---
 2026-06-04T09:30Z MinhHaDuong created
@@ -9,6 +10,7 @@ Author: MinhHaDuong
 2026-06-04T09:46Z claude note raid execute: process doc + AGENTS.md pointer
 2026-06-04T09:46Z claude note exit criterion 3 (release checklist) delivered via IDH release-skill PR by raid orchestrator; this PR covers criteria 1, 2, 4
 2026-06-04T10:29Z claude note criterion 3 evidence: IDH PR #278 MERGED (release skill now launches Agent C foundations coherence); all four criteria met
+2026-06-04T11:03Z MinhHaDuong closed — autoclosed — PR #266
 --- body ---
 ## Source
 2026-06-04 foundations audit + author decision: the audit prompt
