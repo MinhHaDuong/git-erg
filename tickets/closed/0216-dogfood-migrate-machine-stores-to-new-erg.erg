@@ -2,6 +2,7 @@
 Title: Dogfood-migrate this machine's erg stores to the new capabilities
 Created: 2026-06-03
 Author: claude
+Closed: all 8 stores migrated and verified; runbook executed supervised 2026-06-03/04
 
 --- log ---
 2026-06-03T03:30Z claude created
@@ -9,6 +10,8 @@ Author: claude
 
 2026-06-03T19:52Z claude note supervised run 2026-06-03: six stores migrated and merged -- padme 81d0607, chemin-de-voix d2f2651 (master; hook hardcodes main -> ticket 0219), projtmp in place (not a repo), fuzzy-corpus eed720e (51 tickets, 5 stranded commits pushed), cadens 29e9a14 (37 tickets, 29 files log-line normalization), Climate_finance 6c246ab (126 tickets, 0093->0130 dup renumber, 4 stale Blocked-by dropped). All vendored pinned rev 9c23c37 role traveling + manifests; erg check PASS 0 warnings everywhere. Remaining: aedist (author dirty files), harness (author watching). Side ticket idh 0190: remove stale ticket-close skill.
 2026-06-04T06:23Z claude note harness store migrated 2026-06-04: PR ImperialDragonHarness#249 merged (14 Tag->Label, binary 9c23c37, manifest; .ergrc/AGENTS.md template upgrades verified no authored loss); 0197 close-and-archive in PR #250 auto-merge. 7 of 8 stores done; only aedist remains.
+2026-06-04T07:50Z claude note campaign complete 2026-06-04: aedist migrated (PR #689, ticket 0407 closed + re-triage closures 0404/0388/0390). 8 of 8 stores on rev 9c23c37 role traveling with manifests; every store erg check PASS 0 warnings. Side harvest: IDH 0198+0199 executed via raid (PRs #259/#260), follow-up 0200 filed; git-erg 0219/0220 open.
+2026-06-04T07:50Z MinhHaDuong closed — all 8 stores migrated and verified; runbook executed supervised 2026-06-03/04
 --- body ---
 ## Context
 
@@ -90,9 +93,9 @@ The harness store (~/.claude/tickets) is migrated last, by the author, watching.
 
 - [x] Read-only dry-run sweep across all 9 stores recorded (done -- above).
 - [x] Author has reviewed this runbook and the per-store findings.
-- [ ] Each binary store the author elects is migrated (binary refreshed,
+- [x] Each binary store the author elects is migrated (binary refreshed,
       `erg migrate` where flagged, `erg init` assets refreshed), changes
       reviewed via git diff and committed by the author.
 - [x] Text-only adopters: legacy-format `erg migrate` applied where flagged
       (or a conscious decision to leave them) -- owner's call on the binary.
-- [ ] No store left with an `erg check` VIOLATION that `erg migrate` fixes.
+- [x] No store left with an `erg check` VIOLATION that `erg migrate` fixes.
