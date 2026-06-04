@@ -401,7 +401,8 @@ else
 fi
 
 # --- master-default repo: tickets/erg commit rejected on feature branch ---
-# Reuse the same master-default repo; switch to a feature branch.
+# Fresh master-default repo; stay on the initial 'main' branch, which is NOT
+# the declared default ('master'), so the commit must be rejected.
 REPO2=$(new_repo masterdefault_feature)
 ( cd "$REPO2" && git config user.email t@t && git config user.name t )
 git -C "$REPO2" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
