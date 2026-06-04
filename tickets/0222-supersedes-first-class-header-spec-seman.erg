@@ -10,6 +10,7 @@ Author: MinhHaDuong
 2026-06-04T09:36Z claude note plan: 8 numbered actions across 5 files; closed/archived corpus is fully scanned by loadErgs so cross-ref always resolves; archive.go needs no guard (Superseded-by is internal to the closed carrier)
 2026-06-04T09:43Z claude note feasibility PASS -- shares ergspecv1.go with 0220 in Wave 1, disjoint regions; loadErgs full-walk confirmed so cross-ref sees closed/archived corpus; PEP file is repo-root pep-erg-v1.md
 
+2026-06-04T09:56Z claude note implemented Superseded-by header across 6 files plus tests; make check passes
 --- body ---
 ## Source
 Audit 0221 (2026-06-04) decided ADOPT: 47 verified supersession events
@@ -63,16 +64,16 @@ Cross-project recurrence proves the relation wants tooling support.
   Label (pep section 12 precedent).
 
 ## Exit criteria
-- [ ] Spec section for Superseded-by: in spec-erg-v1.md (semantics,
+- [x] Spec section for Superseded-by: in spec-erg-v1.md (semantics,
       direction: closed ticket carries it, repeatable, validation tier)
-- [ ] erg check validates the cross-reference (unknown ID = error;
+- [x] erg check validates the cross-reference (unknown ID = error;
       carrier still open = warning; self-ref = error)
-- [ ] erg validate accepts the header; unknown-header rejection message
+- [x] erg validate accepts the header; unknown-header rejection message
       no longer fires on it
-- [ ] migrate decision recorded: leave history untouched (decided
+- [x] migrate decision recorded: leave history untouched (decided
       2026-06-04, see log); no migrate.go change
-- [ ] PEP rationale section added (evidence: 0221 tally)
-- [ ] make check passes
+- [x] PEP rationale section added (evidence: 0221 tally)
+- [x] make check passes
 
 ## Plan
 

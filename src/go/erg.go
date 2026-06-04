@@ -235,7 +235,7 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	var title, created, author, closed string
 	var titleLine, createdLine, authorLine int
 	var labels []string
-	var blockedBys []Ref
+	var blockedBys, supersededBys []Ref
 	var blockedByLines, labelLines []int
 	section := "magic" // magic | headers | gap | log | body
 	hasMagic := false
@@ -382,6 +382,25 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 					}
 					blockedBys = append(blockedBys, ref)
 					blockedByLines = append(blockedByLines, lineNum)
+				case "Superseded-by":
+					ref, refErr := parseRef(val)
+					if refErr != nil {
+						errs = append(errs, fmt.Sprintf("%s:%d: %v", name, lineNum, refErr))
+					} else if ref.Kind == RefLocal {
+						// Self-reference is a parse-time error: a ticket cannot
+						// supersede itself. Compare against the ticket's own ID
+						// derived from the filename (same logic as FilenameID).
+						stem := strings.TrimSuffix(name, ".erg")
+						selfID := stem
+						if i := strings.Index(stem, "-"); i > 0 {
+							selfID = stem[:i]
+						}
+						if ref.ID == selfID {
+							errs = append(errs, fmt.Sprintf(
+								"%s:%d: Superseded-by self-reference", name, lineNum))
+						}
+					}
+					supersededBys = append(supersededBys, ref)
 				case "Label":
 					// parseHeaderLine already trims val; skip empties.
 					if val != "" {
@@ -515,16 +534,17 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	}
 
 	return Erg{
-		Path:       path,
-		Title:      title,
-		Created:    created,
-		Author:     author,
-		Closed:     closed,
-		BlockedBys: blockedBys,
-		Labels:     labels,
-		LabelLines: labelLines,
-		LogLines:   logLines,
-		Body:       strings.Join(bodyLines, "\n"),
+		Path:          path,
+		Title:         title,
+		Created:       created,
+		Author:        author,
+		Closed:        closed,
+		BlockedBys:    blockedBys,
+		SupersededBys: supersededBys,
+		Labels:        labels,
+		LabelLines:    labelLines,
+		LogLines:      logLines,
+		Body:          strings.Join(bodyLines, "\n"),
 	}, errs
 }
 

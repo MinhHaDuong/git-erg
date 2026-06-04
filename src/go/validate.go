@@ -161,6 +161,20 @@ func validateCorpus(tickets []Erg, parseErrs [][]string, cfg *Config) []string {
 		}
 	}
 
+	// Rule 15: local Superseded-by refs point to existing ticket IDs in the
+	// corpus. Self-reference is caught at parse time (folded in above).
+	for i := range tickets {
+		t := &tickets[i]
+		name := t.Filename()
+		for _, ref := range t.SupersededBys {
+			corpusOpCount++ // per-ref lookup
+			if ref.Kind == RefLocal && !allIDs[ref.ID] {
+				errors = append(errors, fmt.Sprintf(
+					"%s: Superseded-by '%s' references unknown ticket ID", name, ref.ID))
+			}
+		}
+	}
+
 	// Rule 13: dependency cycles.
 	errors = append(errors, detectCycles(tickets)...)
 	return errors
@@ -219,9 +233,15 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
       open) -- these read as a status assertion about the ticket rather than
       the thing being changed. Enforced on open tickets; closed tickets are
       grandfathered (existing closed history is never flagged).
+  15. Superseded-by values parse as local-ref (NNNN), path-ref (module/NNNN),
+      or forge-ref (host/owner/repo#N) -- same grammar as Blocked-by. Local
+      refs must point to existing ticket IDs. Self-reference is an error.
+      Repeatable (one-to-many supersession). Carried by the CLOSED ticket,
+      pointing at the ticket(s) that replace it; it is durable lineage and is
+      never stripped on close.
 
 Error format: 'filename:LINE: message' when a specific line applies
-(rules 1-7, 9, 11, 14); 'filename: message' when no line applies (rules 8, 12).
+(rules 1-7, 9, 11, 14, 15 self-ref); 'filename: message' when no line applies (rules 8, 12, 10, 15 unknown-ref).
 Line numbers are 1-indexed.
 
 For corpus-level checks (duplicate IDs, cycles), use: erg check [dir]
@@ -297,6 +317,13 @@ func cmdValidate(args []string) int {
 			if ref.Kind == RefLocal && !localIDs[ref.ID] {
 				allErrors = append(allErrors, fmt.Sprintf(
 					"%s: Blocked-by '%s' references unknown ticket ID", name, ref.ID))
+			}
+		}
+		// Rule 15: local Superseded-by refs resolve to a known ticket ID.
+		for _, ref := range t.SupersededBys {
+			if ref.Kind == RefLocal && !localIDs[ref.ID] {
+				allErrors = append(allErrors, fmt.Sprintf(
+					"%s: Superseded-by '%s' references unknown ticket ID", name, ref.ID))
 			}
 		}
 		// Rule 5: Label values from effective vocabulary.

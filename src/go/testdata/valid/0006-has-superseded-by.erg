@@ -1,0 +1,13 @@
+%erg 0.1
+Title: Old Ticket Superseded By A Replacement
+Created: 2024-03-01
+Author: test
+Closed: superseded by 0001
+Superseded-by: 0001
+
+--- log ---
+2024-03-01T10:00Z test created
+2024-03-01T11:00Z test note superseded by 0001
+--- body ---
+This closed ticket carries a Superseded-by header pointing at its
+replacement (0001). The header is durable lineage and is never stripped.

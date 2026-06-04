@@ -230,6 +230,27 @@ func TestValidateErg(t *testing.T) {
 			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n",
 			wantErrors: false,
 		},
+		{
+			// Rule 15: a Superseded-by local ref pointing at a ticket ID not
+			// present in the (single-ticket) corpus is an unknown-ref error.
+			// 0099 is neither self nor present, so this isolates the cross-ref
+			// check from the self-ref guard.
+			name:       "Superseded-by unknown ID",
+			filename:   "0001-test.erg",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nClosed: done\nSuperseded-by: 0099\n\n--- log ---\n--- body ---\n",
+			wantErrors: true,
+			wantSubstr: "unknown ticket ID",
+		},
+		{
+			// Rule 15: self-reference is a parse-time error (a ticket cannot
+			// supersede itself). 0001 in 0001-test.erg resolves in the
+			// single-ticket corpus, so only the self-ref guard can flag it.
+			name:       "Superseded-by self-ref",
+			filename:   "0001-test.erg",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nClosed: done\nSuperseded-by: 0001\n\n--- log ---\n--- body ---\n",
+			wantErrors: true,
+			wantSubstr: "self-reference",
+		},
 	}
 
 	for _, tc := range cases {
@@ -679,4 +700,54 @@ func TestTitleStatusWordRule_Fixtures(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestSupersededByCorpus exercises rule 15 (Superseded-by cross-reference) in a
+// multi-ticket corpus -- the single-ticket TestValidateErg harness cannot hold
+// a resolving ref without it being a self-reference, so a genuine "accepted"
+// case needs two tickets.
+func TestSupersededByCorpus(t *testing.T) {
+	t.Run("closed carrier with resolving ref accepted", func(t *testing.T) {
+		dir := t.TempDir()
+		// 0001 is the replacement (open); 0002 is the closed old ticket that
+		// points at it. The header lives on the CLOSED ticket.
+		writeErg(t, dir, "0001-replacement.erg",
+			"%erg 0.1\nTitle: Replacement\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		writeErg(t, dir, "0002-old.erg",
+			"%erg 0.1\nTitle: Old\nCreated: 2024-01-01\nAuthor: test\nClosed: superseded\nSuperseded-by: 0001\n\n--- log ---\n--- body ---\n")
+
+		tickets, parseErrs := loadErgs(dir)
+		errs := validateCorpus(tickets, parseErrs, nil)
+		if len(errs) != 0 {
+			t.Errorf("expected no errors for a resolving Superseded-by ref, got: %v", errs)
+		}
+	})
+
+	t.Run("repeatable: two Superseded-by lines accepted", func(t *testing.T) {
+		dir := t.TempDir()
+		// One-to-many supersession: 0003 superseded by both 0001 and 0002.
+		writeErg(t, dir, "0001-repl-a.erg",
+			"%erg 0.1\nTitle: A\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		writeErg(t, dir, "0002-repl-b.erg",
+			"%erg 0.1\nTitle: B\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		writeErg(t, dir, "0003-old.erg",
+			"%erg 0.1\nTitle: Old\nCreated: 2024-01-01\nAuthor: test\nClosed: superseded\nSuperseded-by: 0001\nSuperseded-by: 0002\n\n--- log ---\n--- body ---\n")
+
+		tickets, parseErrs := loadErgs(dir)
+		// Both refs must be parsed (catches accidental singleton-key
+		// registration, which would error on the second line).
+		var old Erg
+		for i := range tickets {
+			if tickets[i].FilenameID() == "0003" {
+				old = tickets[i]
+			}
+		}
+		if len(old.SupersededBys) != 2 {
+			t.Fatalf("expected 2 parsed Superseded-by refs, got %d", len(old.SupersededBys))
+		}
+		errs := validateCorpus(tickets, parseErrs, nil)
+		if len(errs) != 0 {
+			t.Errorf("expected no errors for two resolving Superseded-by refs, got: %v", errs)
+		}
+	})
 }

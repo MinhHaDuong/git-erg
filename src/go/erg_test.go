@@ -404,6 +404,49 @@ func TestStaleBlockedBy(t *testing.T) {
 	})
 }
 
+// TestOpenCarrierSupersededBy exercises openCarrierSupersededBy (check.go).
+// An OPEN ticket carrying a Superseded-by header is a transition smell and
+// must warn; a CLOSED carrier (the normal pattern) must not.
+func TestOpenCarrierSupersededBy(t *testing.T) {
+	t.Run("open carrier warns", func(t *testing.T) {
+		dir := t.TempDir()
+		// 0001 is the replacement (open); 0002 carries Superseded-by but is
+		// itself still OPEN -- the smell case.
+		writeErg(t, dir, "0001-replacement.erg",
+			"%erg 0.1\nTitle: Replacement\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		writeErg(t, dir, "0002-open-carrier.erg",
+			"%erg 0.1\nTitle: Old\nCreated: 2024-01-01\nAuthor: test\nSuperseded-by: 0001\n\n--- log ---\n--- body ---\n")
+
+		tickets, _ := loadErgs(dir)
+		warnings := openCarrierSupersededBy(tickets)
+		found := false
+		for _, w := range warnings {
+			if strings.Contains(w, "0002") && strings.Contains(w, "open ticket carries Superseded-by") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected an open-carrier warning mentioning 0002, got: %v", warnings)
+		}
+	})
+
+	t.Run("closed carrier does not warn", func(t *testing.T) {
+		dir := t.TempDir()
+		writeErg(t, dir, "0001-replacement.erg",
+			"%erg 0.1\nTitle: Replacement\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		// 0002 carries Superseded-by AND is closed -- the normal pattern.
+		writeErg(t, dir, "0002-closed-carrier.erg",
+			"%erg 0.1\nTitle: Old\nCreated: 2024-01-01\nAuthor: test\nClosed: superseded\nSuperseded-by: 0001\n\n--- log ---\n--- body ---\n")
+
+		tickets, _ := loadErgs(dir)
+		warnings := openCarrierSupersededBy(tickets)
+		if len(warnings) != 0 {
+			t.Errorf("expected no warning for a closed carrier, got: %v", warnings)
+		}
+	})
+}
+
 // TestDispatchRegistrySync walks the switch statement in main.go and
 // compares its case labels against the commands registry in helptext.go.
 // If someone adds a commandEntry but forgets the switch case (or vice
