@@ -10,6 +10,7 @@ Author: MinhHaDuong
 2026-06-04T14:10Z claude note imagine: install-only rule absent from AGENTS.md; migrate policy already in manual post-0224; README needs invariants link block
 2026-06-04T14:14Z claude note plan: install-only rule in AGENTS.md line 55; README invariants block after line 51; sub-task 2 already satisfied by 0224
 2026-06-04T14:22Z claude note feasibility: PASS -- insertion points verified, no guard covers root AGENTS.md/README
+2026-06-04T20:17Z claude note execute: AGENTS.md scope-confinement + README invariants block; manual already covers migrate policy
 --- body ---
 ## Source
 2026-06-04 foundations audit (Communicate). Live contracts stated only
@@ -34,10 +35,10 @@ README sells hand-edit-wins and offline but never lists them.
    deliberate here and stops at one copy.
 
 ## Exit criteria
-- [ ] install-only-outside-mutator stated outside the charter
-- [ ] migrate asset-refresh policy documented, matching 0224 outcome
-- [ ] README invariants block present, pointing at AGENTS.md + PEP
-- [ ] make check passes
+- [x] install-only-outside-mutator stated outside the charter
+- [x] migrate asset-refresh policy documented, matching 0224 outcome
+- [x] README invariants block present, pointing at AGENTS.md + PEP
+- [x] make check passes
 
 ## Imagine (raid 2026-06-04)
 - Why now: Two live contributor contracts -- install-is-the-only-outside-mutating-verb and migrate's asset-refresh exemption -- exist only in the French charter (docs/erg-imagine-charter.md:42, 124-127) and CHANGELOG:22. A contributor editing the code never reads those; root /AGENTS.md and the manual are the documents they do read. The gap is real (grep of /AGENTS.md and src/go/assets/AGENTS.md both return zero hits for the install-only rule). The README sells offline and hand-edit-wins but never gives users the compact seven-invariant view already present in /AGENTS.md lines 24-54; the link is missing, not the content.

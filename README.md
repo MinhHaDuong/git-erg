@@ -50,6 +50,19 @@ database. Delete `tickets/` and it never existed.
   Cursor, Aider, Codex, …) reads, writes, and closes tickets with the tools it
   already has.
 
+## Seven operating invariants
+
+The `erg` CLI rests on seven non-negotiable properties (law:
+[AGENTS.md](AGENTS.md), rationale: [pep-erg-v1.md](pep-erg-v1.md)):
+
+- **Never lose data** -- atomic write, validate before replace, no truncation on kill.
+- **Agnostic** -- a hand edit always wins; the plain `.erg` file is the contract.
+- **Offline / disconnected** -- no network calls, ever; listing work is a local file read.
+- **Standalone** -- one static binary plus POSIX; zero third-party dependencies.
+- **Stateless** -- the files are the only state; no `pending`/`claimed`/`doing` tags.
+- **Fast** -- linear in corpus size; invoked per-commit, per-push, in agent loops.
+- **Small** -- the binary is committed and travels with every clone; size is paid by all.
+
 ## Want more? Add the `erg` binary (optional)
 
 The `erg` CLI is a fast, token-saving upgrade *on the same files*: strict
