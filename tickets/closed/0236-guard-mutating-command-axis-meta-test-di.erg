@@ -2,6 +2,7 @@
 Title: Guard: mutating-command axis meta-test -- dispatch set must be covered by strictwrite CMDS
 Created: 2026-06-04
 Author: MinhHaDuong
+Closed: implemented in PR #279 -- meta-test merged; close commit missed by pre-close CI bounce
 
 --- log ---
 2026-06-04T10:59Z MinhHaDuong created
@@ -10,6 +11,7 @@ Author: MinhHaDuong
 2026-06-04T14:16Z claude note plan: TestMutatingCommandsCMDSCoverage in erg_test.go; totality+regex+exclusion-assert+negative-control design
 2026-06-04T14:22Z claude note feasibility: PASS -- 19 commands, CMDS 7 entries at line 136, precedent test at erg_test.go:454
 2026-06-04T14:27Z claude note execute: meta-test added, negative + manual failure proofs recorded
+2026-06-04T15:39Z MinhHaDuong closed — implemented in PR #279 -- meta-test merged; close commit missed by pre-close CI bounce
 --- body ---
 ## Source
 /verify on PR #270 (ticket 0227), 2026-06-04 -- raised independently by
