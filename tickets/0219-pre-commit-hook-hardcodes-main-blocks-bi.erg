@@ -5,6 +5,9 @@ Author: claude
 
 --- log ---
 2026-06-03T18:58Z claude created
+2026-06-04T09:32Z claude note imagine: shell-snippet detection (git symbolic-ref origin/HEAD, ${default_branch:-main} fallback) in hookBody + same edit in integration.md; .ergrc key option YAGNI-dropped; author flag confirmed -- the hookBody/integration.md coherence guard does NOT exist (test_selfcoherence.sh covers .ergrc/AGENTS.md only), the execute agent must ADD it, not rely on it
+2026-06-04T09:35Z claude note plan: replace hardcoded "main" with dynamic default-branch detection in hookBody + integration.md; add master-repo test + coherence test in existing files
+2026-06-04T09:43Z claude note feasibility PASS -- no shared-file conflict in Wave 1; integration.md also edited by 0223 in Wave 2 (sequenced)
 
 --- body ---
 ## Source
@@ -41,3 +44,95 @@ drift.
       by a test)
 - [ ] integration.md snippet matches the installed hook
 - [ ] make check passes
+
+## Plan
+
+### Actions (file:line precision)
+
+1. **src/go/install.go lines 80-108** — replace the `hookBody` const.
+   The two lines to change are:
+   - Line 80 (first comment): update to reflect dynamic detection.
+   - Lines 83-88 (the if-block): replace
+     ```
+     branch=$(git branch --show-current)
+     if [ "$branch" != "main" ]; then
+     ```
+     with:
+     ```
+     default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+     default_branch=${default_branch:-main}
+     branch=$(git branch --show-current)
+     if [ "$branch" != "$default_branch" ]; then
+     ```
+   The fallback `${default_branch:-main}` handles repos with no remote (offline,
+   bare, fresh `git init` before a first push).
+
+2. **src/go/assets/integration.md lines 32-41** — update the `# >>> erg managed >>>` snippet
+   block (lines 31-61 in the rendered file) to match the new hookBody exactly.
+   The if-block starting at line 35 needs the same four-line replacement as Action 1.
+   Line 32 comment also needs updating to mention dynamic detection.
+
+3. **tests/test_install.sh** — add two new test cases AFTER the existing
+   `erg-github` test (currently the last test, ending around line 381):
+   - **master-default repo test**: `git init -b master`, install hook,
+     stage `tickets/erg` on `master` branch → commit must SUCCEED (exit 0).
+     Also verify: staging on a feature branch in that repo → commit must FAIL.
+   - This test exercises the `git symbolic-ref` path when there IS a remote
+     whose HEAD points to master.  Companion: test with NO remote (fallback to
+     "main") using `git init -b main` (already covered by existing tests).
+
+4. **tests/test_selfcoherence.sh** — add a new guard (after the existing
+   tests, before the final summary) that extracts the shell block from
+   `src/go/assets/integration.md` between the `# >>> erg managed >>>` and
+   `# <<< erg managed <<<` markers and byte-compares it against the `hookBody`
+   Go const as installed into a fresh hook.  Concretely:
+   - Run `erg install --hooks` on a temp repo; extract the managed block from
+     the resulting `.git/hooks/pre-commit`.
+   - Extract the snippet block from `src/go/assets/integration.md` (strip the
+     ` ``` ` fences and the marker lines themselves).
+   - `cmp -s` the two extracts; fail if they differ.
+   - Add a negative control: mutate one extract and verify cmp detects the
+     difference.
+
+### First test description
+
+"master-default repo: `tickets/erg` commit allowed on master" in
+`tests/test_install.sh`: create a git repo with `-b master`, add a remote
+`origin` whose HEAD resolves to `master` (or skip the remote and rely on the
+fallback path by naming the initial branch `main` in a no-remote scenario).
+The simplest approach that exercises the real fix: `git init -b master` then
+`git remote add origin .` + `git fetch origin` is heavy; instead use
+`git symbolic-ref refs/remotes/origin/HEAD` set manually:
+```sh
+REPO=$(new_repo masterdefault)
+git -C "$REPO" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
+$ERG install "$REPO" --hooks >/dev/null 2>&1
+( cd "$REPO" && git config user.email t@t && git config user.name t )
+( cd "$REPO" && git switch -q -c master 2>/dev/null || git checkout -q -b master 2>/dev/null || true )
+# Stage tickets/erg on master → must succeed
+( cd "$REPO" && git add tickets/erg && git commit -q -m "erg refresh on master" ) && rc=0 || rc=$?
+# Expect exit 0
+```
+
+### Dependencies
+
+None. No new Go packages, no new test files needed (both additions go into
+existing test files already in TEST_SUITES).
+
+### Tautology-scan verdict
+
+**PASS — tests are non-tautological.**
+
+- The master-repo test would FAIL with the current (broken) implementation
+  because `branch=master != "main"` → hook exits 1. It would also FAIL with a
+  trivially wrong implementation that always exits 1 (hook blocks everything).
+  It would PASS only if the installed hook correctly detects `master` as the
+  default branch.
+
+- The coherence test in test_selfcoherence.sh compares the actual bytes of the
+  installed hook's managed block against the actual bytes of the integration.md
+  snippet. A wrong implementation where hookBody and integration.md diverge
+  (e.g. the fix is applied to one but not the other) will be caught. A trivially
+  passing implementation (always returning empty or the same string) would fail
+  the negative control. The test does NOT merely check "both contain some
+  string" — it does a full byte comparison after stripping fences/markers.
