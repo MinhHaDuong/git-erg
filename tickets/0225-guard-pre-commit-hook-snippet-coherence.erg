@@ -2,11 +2,11 @@
 Title: Guard: pre-commit hook snippet coherence -- integration.md vs install.go hookBody
 Created: 2026-06-04
 Author: MinhHaDuong
-Blocked-by: 0219
 
 --- log ---
 2026-06-04T09:30Z MinhHaDuong created
 
+2026-06-04T11:00Z MinhHaDuong note blocker 0219 closed — Blocked-by removed.
 --- body ---
 ## Source
 2026-06-04 foundations audit (guard sweep): tests/test_selfcoherence.sh

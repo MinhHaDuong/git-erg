@@ -2,6 +2,7 @@
 Title: pre-commit hook hardcodes main; blocks binary refresh on master-default repos
 Created: 2026-06-03
 Author: claude
+Closed: autoclosed — PR #268
 
 --- log ---
 2026-06-03T18:58Z claude created
@@ -9,6 +10,7 @@ Author: claude
 2026-06-04T09:35Z claude note plan: replace hardcoded "main" with dynamic default-branch detection in hookBody + integration.md; add master-repo test + coherence test in existing files
 2026-06-04T09:43Z claude note feasibility PASS -- no shared-file conflict in Wave 1; integration.md also edited by 0223 in Wave 2 (sequenced)
 
+2026-06-04T11:00Z MinhHaDuong closed — autoclosed — PR #268
 --- body ---
 ## Source
 Found live during the 0216 dogfood migration: committing the refreshed
