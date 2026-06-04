@@ -29,11 +29,13 @@ upgrade.
 
 ```sh
 # >>> erg managed >>>
-# Reject tickets/erg commit on non-main branches.
+# Reject tickets/erg commit on non-default branches.
 # CI rebuilds the binary after merge; feature PRs must not include it.
 if git diff --cached --name-only | grep -q '^tickets/erg$'; then
+    default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+    default_branch=${default_branch:-main}
     branch=$(git branch --show-current)
-    if [ "$branch" != "main" ]; then
+    if [ "$branch" != "$default_branch" ]; then
         echo "pre-commit: do not commit tickets/erg in feature branches." >&2
         echo " CI rebuilds the binary after merge. To override: git commit --no-verify" >&2
         exit 1

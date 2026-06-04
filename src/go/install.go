@@ -73,15 +73,19 @@ var agentsMarkerSets = [][2]string{
 
 // hookBody is the canonical content placed between the hook markers. It runs
 // erg validate + check on staged .erg files and rejects committing tickets/erg
-// outside main. It deliberately does NOT run erg archive (charter blocker #2:
+// outside the repo's default branch (detected dynamically via origin/HEAD,
+// falling back to "main" for repos with no remote). It deliberately does NOT
+// run erg archive (charter blocker #2:
 // archive in pre-commit corrupts the commit; autoarchive belongs in pre-push).
 // It contains no `exit 0`, so when it is prepended into a shared hook control
 // falls through to any third-party content after the block on success.
-const hookBody = `# Reject tickets/erg commit on non-main branches.
+const hookBody = `# Reject tickets/erg commit on non-default branches.
 # CI rebuilds the binary after merge; feature PRs must not include it.
 if git diff --cached --name-only | grep -q '^tickets/erg$'; then
+    default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+    default_branch=${default_branch:-main}
     branch=$(git branch --show-current)
-    if [ "$branch" != "main" ]; then
+    if [ "$branch" != "$default_branch" ]; then
         echo "pre-commit: do not commit tickets/erg in feature branches." >&2
         echo " CI rebuilds the binary after merge. To override: git commit --no-verify" >&2
         exit 1
