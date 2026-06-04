@@ -5,6 +5,9 @@ Author: MinhHaDuong
 
 --- log ---
 2026-06-04T09:01Z MinhHaDuong created
+2026-06-04T09:32Z claude note imagine: three prose edits (helpUpdate after migration paragraph, helpInit before exit-codes, integration.md new "Keeping a store current" subsection); MUST describe migrate per 0224's author reframe -- migrate does not touch .ergrc at all, config delivery is erg init's job; executes in Wave 2 after 0224 merges
+2026-06-04T09:40Z claude note plan: three prose insertions, no code; check tests/test_docs.sh section counts before adding the integration.md subsection; eyeball all four wordings (update/init/migrate/integration) for coherence since no automated guard covers them
+2026-06-04T09:43Z claude note feasibility PASS -- shares init.go with 0224 in Wave 2, disjoint regions (helpInit const vs installAssets); sequential merge + rebase within wave
 
 --- body ---
 ## Source
@@ -51,3 +54,34 @@ cover drift where applicable.
 - [ ] integration.md documents the keep-current sequence and the
       .ergrc shadowing behaviour (defaults frozen-by-copy)
 - [ ] make check passes
+
+## Plan
+1. src/go/update.go helpUpdate (const ~line 22): after the existing
+   migration-guidance paragraph, add one paragraph -- `erg update`
+   replaces the binary only, never store files; embedded-asset and
+   default changes are delivered by a follow-up `erg init`. (The code
+   already hints this at update.go:215-219 when it detects asset
+   drift; help text catches up to behaviour.)
+2. src/go/init.go helpInit (const ~line 26): before the exit-codes
+   summary, one sentence naming `erg update && erg init` as the
+   canonical absorb-new-defaults sequence + the shadowing mechanic
+   (defaults frozen-by-copy into .ergrc at init time; update alone
+   cannot un-shadow).
+3. src/go/assets/integration.md: new subsection "Keeping a store
+   current": update (binary only) -> init (assets via dpkg 3-state;
+   .ergrc vocabulary frozen-by-copy) -> migrate (ticket-format
+   conversion + layout; does NOT touch .ergrc -- post-0224 behaviour).
+4. Check tests/test_docs.sh: if it counts integration.md sections,
+   bump the expected count with the new subsection.
+
+First test: extend the docs test (or add one) asserting helpUpdate
+mentions "erg init" and integration.md contains the keep-current
+subsection -- catches silent drop of either edit.
+
+Dependencies: Wave 2 -- executes after 0224 merges (must document the
+post-reframe migrate behaviour, and 0219 also edits integration.md in
+Wave 1).
+
+Tautology scan: a pure string-presence test is weak but appropriate
+for prose; the real guard is coherence eyeball across the four
+wordings, recorded in the PR description.
