@@ -126,6 +126,12 @@ Two mechanisms exist because they serve different purposes. The `Closed:` header
 - Three statuses (open/doing/closed): no way to express "waiting for review" without a separate mechanism.
 - Four statuses (open/doing/pending/closed): consumes even more tokens to manage and still never right.
 - Labels for sub-states: would require validating label values, adding complexity to the closed header set.
+- `state: "open" | "closed"` string (GitHub/GitLab convention): aligns with common forge APIs but
+  was tried and rejected. String fields with a small fixed vocabulary invite creative filling —
+  agents write `state: "in progress"`, `state: "wip"`, `state: "done"`. A boolean inferred from
+  the presence of a `Closed:` header leaves nothing to be creative about: the header is either
+  there or it is not. The forge-alignment value did not outweigh this; erg's `--json` output is
+  for local script consumption, not GitHub/GitLab import.
 
 ### 6. Coordination is out of scope
 
