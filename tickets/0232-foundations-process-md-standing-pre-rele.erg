@@ -1,0 +1,38 @@
+%erg 0.1
+Title: FOUNDATIONS-PROCESS.md: standing pre-release foundations-coherence audit
+Created: 2026-06-04
+Author: MinhHaDuong
+
+--- log ---
+2026-06-04T09:30Z MinhHaDuong created
+
+--- body ---
+## Source
+2026-06-04 foundations audit + author decision: the audit prompt
+becomes a standing pre-release QA process. AGENTS.md:61-67 already
+establishes the pattern for posture properties that drift as the tool
+changes (UX-PROCESS.md, SECURITY-PROCESS.md): agents do the legwork, a
+falsifiable subset runs in CI, humans gate the findings, re-run per
+release. Foundations coherence (do the docs and the guards still
+match?) is exactly that class.
+
+## Fix
+Write FOUNDATIONS-PROCESS.md modeled on the two existing process docs:
+- Sweep: inventory contracts across the constitution (AGENTS.md), the
+  rationale (PEP), the spec, process docs, and the guard tests.
+- Verify: compute the disjoint union (stated-without-guard) U
+  (guarded-without-statement) -- the healthy region is the
+  intersection; each side has a distinct remediation (a test vs a
+  sentence). List tensions between doc sites explicitly.
+- Communicate: check the canonical-source-plus-pointers structure;
+  flag contracts living only in decision records (charter) or
+  CHANGELOG.
+Reference it from the AGENTS.md posture paragraph alongside UX and
+security; add it to the pre-release checklist the release flow runs.
+
+## Exit criteria
+- [ ] FOUNDATIONS-PROCESS.md exists with the three-phase method
+      (sweep / verify-disjoint-union / communicate)
+- [ ] AGENTS.md posture paragraph references it
+- [ ] Release procedure lists it alongside UX and security audits
+- [ ] make check passes

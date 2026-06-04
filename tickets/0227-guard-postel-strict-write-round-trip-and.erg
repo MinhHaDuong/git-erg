@@ -1,0 +1,33 @@
+%erg 0.1
+Title: Guard: Postel strict-write round-trip and closed-header-set growth coverage
+Created: 2026-06-04
+Author: MinhHaDuong
+
+--- log ---
+2026-06-04T09:30Z MinhHaDuong created
+
+--- body ---
+## Source
+2026-06-04 foundations audit: Postel's law (spec + PEP section 11)
+promises strict-on-write, but enforcement is scattered per-command;
+there is no named universal guard "every write command's output
+re-validates clean". Separately, v1HeaderKeys (ergspecv1.go) can grow
+without a matching invalid-fixture, silently shrinking validation
+coverage. Note: tests/test_datasafety.sh lossless tests already cover
+body-preservation and log-append per command -- reference, do not
+duplicate.
+
+## Fix
+1. Round-trip guard: for each mutating command (new, log, close, tag,
+   untag, archive, migrate) run against a fixture store, then
+   erg validate every touched file and assert PASS. One loop, one
+   guard, future commands join automatically via the dispatch
+   registry.
+2. Closed-set growth meta-test: every key in v1HeaderKeys must have a
+   golden invalid fixture (or an entry in an explicit exemption list)
+   exercising its validation path.
+
+## Exit criteria
+- [ ] Round-trip guard covers all mutating commands from the registry
+- [ ] Meta-test fails when a header key is added without fixture
+- [ ] make check passes

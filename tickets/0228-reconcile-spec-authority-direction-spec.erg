@@ -1,0 +1,36 @@
+%erg 0.1
+Title: Reconcile spec authority direction -- spec-normative vs align-spec-to-behavior vs file-is-contract
+Created: 2026-06-04
+Author: MinhHaDuong
+
+--- log ---
+2026-06-04T09:30Z MinhHaDuong created
+
+--- body ---
+## Source
+2026-06-04 foundations audit, TENSION-01. Three sites, three authority
+structures:
+- spec-erg-v1.md:9 "This file is normative"
+- spec-erg-v1.md:11 "Any divergence between this document and the erg
+  binary must be resolved by aligning the specification with the
+  behavior."
+- README.md:85 "Normative specification: erg spec"
+- AGENTS.md:35 "the plain .erg file is the contract and the binary is
+  optional"
+No reconciliation of which applies when.
+
+## Proposed resolution (author ratifies wording at PR review)
+Three scopes, one sentence each in the spec's preamble:
+- The SPEC is normative for FILES: what is a valid %erg 0.1 ticket.
+- The BINARY is normative for the SPEC'S TEXT: divergence is spec
+  errata, fixed by aligning the spec to behavior -- UNLESS the
+  behavior violates a stated invariant, in which case it is a bug.
+- The PEP arbitrates intent when the above two collide.
+README wording stays "normative specification" (correct under scope
+1); AGENTS.md "file is the contract" stays (it speaks of agnosticism,
+not spec authority) -- add a pointer if it sharpens the read.
+
+## Exit criteria
+- [ ] Authority paragraph in spec-erg-v1.md preamble (3 scopes)
+- [ ] No remaining contradiction among spec/README/AGENTS readings
+- [ ] make check passes (spec is embedded: rebuild + selfcoherence)
