@@ -1,0 +1,35 @@
+%erg 0.1
+Title: Guard: mutating-command axis meta-test -- dispatch set must be covered by strictwrite CMDS
+Created: 2026-06-04
+Author: MinhHaDuong
+
+--- log ---
+2026-06-04T10:59Z MinhHaDuong created
+
+--- body ---
+## Source
+/verify on PR #270 (ticket 0227), 2026-06-04 -- raised independently by
+all three review angles, out of scope for that diff.
+
+## Context
+0227 gave the header-key axis a self-syncing meta-test
+(TestV1HeaderKeys_FixtureCoverage iterates v1HeaderKeys), but the
+command axis of the strict-write guard is a hardcoded CMDS list in
+tests/test_strictwrite.sh. If a future mutating subcommand enters the
+dispatch without joining CMDS, the round-trip guard silently shrinks --
+the exact drift 0227 exists to prevent, on the other axis. Verified
+complete today (7 ticket-writers in CMDS; rm/init/install/update are
+documented exclusions).
+
+## Fix
+A mirror Go meta-test asserting the mutating subset of the dispatch
+registry is contained in test_strictwrite.sh's CMDS (parse the script's
+CMDS= line; classify registry commands as mutating via an explicit
+in-test map with the four documented exclusions). Negative control:
+doctored registry copy with an extra mutating command must trip it.
+
+## Exit criteria
+- [ ] Meta-test fails when a mutating dispatch command is absent from
+      CMDS (negative control proves it)
+- [ ] The four exclusions are asserted, not silently skipped
+- [ ] make check passes

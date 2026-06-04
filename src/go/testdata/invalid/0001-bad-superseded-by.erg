@@ -1,0 +1,8 @@
+%erg 0.1
+Title: Bad Superseded-by ref
+Created: 2024-01-01
+Author: test
+Superseded-by: 9999
+
+--- log ---
+--- body ---
