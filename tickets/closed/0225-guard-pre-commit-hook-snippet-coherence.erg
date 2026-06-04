@@ -2,6 +2,7 @@
 Title: Guard: pre-commit hook snippet coherence -- integration.md vs install.go hookBody
 Created: 2026-06-04
 Author: MinhHaDuong
+Closed: autoclosed — PR #276
 
 --- log ---
 2026-06-04T09:30Z MinhHaDuong created
@@ -9,6 +10,7 @@ Author: MinhHaDuong
 2026-06-04T11:00Z MinhHaDuong note blocker 0219 closed — Blocked-by removed.
 2026-06-04T14:05Z claude note imagine: guard already satisfied by 0219 commit 473d987 on main; premise stale; execute should verify and close
 2026-06-04T14:20Z claude note verified premise stale: guard iv landed in 473d987 (0219); make test-selfcoherence 9/9 incl negative control; all exit criteria already satisfied on main
+2026-06-04T15:34Z MinhHaDuong closed — autoclosed — PR #276
 --- body ---
 ## Source
 2026-06-04 foundations audit (guard sweep): tests/test_selfcoherence.sh
