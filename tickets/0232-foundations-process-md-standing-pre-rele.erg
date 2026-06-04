@@ -6,6 +6,8 @@ Author: MinhHaDuong
 --- log ---
 2026-06-04T09:30Z MinhHaDuong created
 
+2026-06-04T09:46Z claude note raid execute: process doc + AGENTS.md pointer
+2026-06-04T09:46Z claude note exit criterion 3 (release checklist) delivered via IDH release-skill PR by raid orchestrator; this PR covers criteria 1, 2, 4
 --- body ---
 ## Source
 2026-06-04 foundations audit + author decision: the audit prompt
