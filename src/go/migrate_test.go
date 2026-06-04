@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -182,5 +183,205 @@ func TestMigrateFileIdempotent(t *testing.T) {
 	}
 	if string(again) != string(after) {
 		t.Errorf("second migrate altered content:\n first: %q\nsecond: %q", string(after), string(again))
+	}
+}
+
+// TestFoldLogLines exercises the pure folding function directly: stamp
+// normalisation, multi-form continuation folding, and blank handling (the
+// orphan-untouched invariant is covered by TestFoldLogLinesOrphan).
+func TestFoldLogLines(t *testing.T) {
+	in := []string{
+		"2024-01-01 alice created",                          // date-only stamp -> normalise
+		"2024-01-02T10:00Z bob note long detail that wraps", // full-timestamp entry with continuation
+		"",                        // blank between entry and its continuation -> dropped
+		"  indented continuation", // indented wrap
+		"unindented continuation", // unindented prose
+		"1. numbered list item",   // numbered-list continuation
+		"",                        // inter-entry blank -> preserved
+		"2024-01-03T12:00Z carol note Short entry", // clean second entry (boundary)
+		"", // trailing blank before --- body --- -> preserved
+	}
+	want := []string{
+		"2024-01-01T00:00Z alice created",
+		"2024-01-02T10:00Z bob note long detail that wraps indented continuation unindented continuation 1. numbered list item",
+		"",
+		"2024-01-03T12:00Z carol note Short entry",
+		"",
+	}
+	out, folded, stamped := foldLogLines(in)
+	if !folded {
+		t.Error("folded = false, want true")
+	}
+	if !stamped {
+		t.Error("stamped = false, want true")
+	}
+	if len(out) != len(want) {
+		t.Fatalf("len(out) = %d, want %d\n got: %#v\nwant: %#v", len(out), len(want), out, want)
+	}
+	for i := range want {
+		if out[i] != want[i] {
+			t.Errorf("out[%d] = %q, want %q", i, out[i], want[i])
+		}
+	}
+}
+
+// TestFoldLogLinesOrphan confirms orphan content before the first timestamped
+// entry is emitted verbatim and NOT folded (no parent entry to fold onto).
+func TestFoldLogLinesOrphan(t *testing.T) {
+	in := []string{
+		"orphan line with no timestamp",
+		"2024-01-02T10:00Z alice note Real entry",
+	}
+	out, folded, stamped := foldLogLines(in)
+	if folded {
+		t.Error("folded = true, want false (orphan must not fold)")
+	}
+	if stamped {
+		t.Error("stamped = true, want false")
+	}
+	if len(out) != 2 || out[0] != "orphan line with no timestamp" {
+		t.Errorf("orphan not preserved verbatim: %#v", out)
+	}
+}
+
+// TestMigrateFileLogFold checks the end-to-end migrateFile rewrite: a fixture
+// with a date-only stamp, a wrapped multi-line detail, and inter-entry blanks
+// folds to a clean, validate-passing store.
+func TestMigrateFileLogFold(t *testing.T) {
+	dir := t.TempDir()
+	input := "%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\n\n" +
+		"--- log ---\n" +
+		"2024-01-01 alice created\n" +
+		"2024-01-02T10:00Z bob note This is a long note that wraps\n" +
+		"onto this line\n" +
+		"and this line too\n" +
+		"\n" +
+		"2024-01-03T12:00Z carol note Short entry\n" +
+		"\n" +
+		"--- body ---\n" +
+		"body text\n"
+	want := "%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\n\n" +
+		"--- log ---\n" +
+		"2024-01-01T00:00Z alice created\n" +
+		"2024-01-02T10:00Z bob note This is a long note that wraps onto this line and this line too\n" +
+		"\n" +
+		"2024-01-03T12:00Z carol note Short entry\n" +
+		"\n" +
+		"--- body ---\n" +
+		"body text\n"
+	path := writeErg(t, dir, "0001-ticket.erg", input)
+
+	res, err := migrateFile(path)
+	if err != nil {
+		t.Fatalf("migrateFile: %v", err)
+	}
+	if !res.folded || !res.stamped || !res.changed {
+		t.Errorf("res = %+v, want folded && stamped && changed", res)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if string(got) != want {
+		t.Errorf("content mismatch:\n got: %q\nwant: %q", string(got), want)
+	}
+	// The migrated store must pass validation (no malformed log lines).
+	if _, errs := parseErg(path); len(errs) > 0 {
+		t.Errorf("migrated file does not validate: %v", errs)
+	}
+}
+
+// TestMigrateFileIdempotentFold runs migrateFile twice on a fold fixture and
+// byte-compares the two outputs. The fixture deliberately carries blanks
+// (trailing pre-body blank, inter-entry blank, entry/continuation blank) so a
+// blank-accumulation regression on the second run would be caught.
+func TestMigrateFileIdempotentFold(t *testing.T) {
+	dir := t.TempDir()
+	input := "%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\n\n" +
+		"--- log ---\n" +
+		"2024-01-01 alice created\n" + // date-only stamp
+		"2024-01-02T10:00Z bob note wraps\n" + // entry with continuation
+		"\n" + // blank between entry and continuation -> dropped
+		"  indented detail\n" +
+		"unindented detail\n" +
+		"1. numbered item\n" +
+		"\n" + // inter-entry blank -> preserved
+		"2024-01-03T12:00Z carol note clean\n" + // full-timestamp, no continuation (regression guard)
+		"\n" + // trailing blank before body -> preserved (CRITICAL invariant)
+		"--- body ---\n" +
+		"body text\n"
+	path := writeErg(t, dir, "0001-ticket.erg", input)
+
+	first, err := migrateFile(path)
+	if err != nil {
+		t.Fatalf("first migrate: %v", err)
+	}
+	if !first.changed {
+		t.Fatal("first migrate should have changed the file")
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read after first: %v", err)
+	}
+	// The richest fixture (indented + unindented + numbered-list continuation,
+	// date-only stamp, all blank forms) must validate after one migrate pass --
+	// this is exit criterion 1 ("validate passes on every file").
+	if _, errs := parseErg(path); len(errs) > 0 {
+		t.Errorf("migrated fixture does not validate: %v", errs)
+	}
+
+	second, err := migrateFile(path)
+	if err != nil {
+		t.Fatalf("second migrate: %v", err)
+	}
+	if second.changed {
+		t.Error("second migrate should be a no-op")
+	}
+	again, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read after second: %v", err)
+	}
+	if string(again) != string(after) {
+		t.Errorf("second migrate altered content (byte-compare):\n first: %q\nsecond: %q", string(after), string(again))
+	}
+}
+
+// TestMigrateFileOrphanUntouched confirms orphan content before the first
+// timestamped log entry is left verbatim and still flagged by the validator.
+func TestMigrateFileOrphanUntouched(t *testing.T) {
+	dir := t.TempDir()
+	input := "%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\n\n" +
+		"--- log ---\n" +
+		"orphan line with no timestamp\n" +
+		"2024-01-02T10:00Z alice note Real entry\n" +
+		"\n" +
+		"--- body ---\n"
+	path := writeErg(t, dir, "0001-ticket.erg", input)
+
+	res, err := migrateFile(path)
+	if err != nil {
+		t.Fatalf("migrateFile: %v", err)
+	}
+	if res.folded {
+		t.Error("res.folded = true, want false (orphan must not fold)")
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if !strings.Contains(string(got), "orphan line with no timestamp") {
+		t.Errorf("orphan line not preserved verbatim:\n%q", string(got))
+	}
+	// Validator must still flag the orphan as a malformed log line.
+	_, errs := parseErg(path)
+	foundMalformed := false
+	for _, e := range errs {
+		if strings.Contains(e, "malformed log line") {
+			foundMalformed = true
+			break
+		}
+	}
+	if !foundMalformed {
+		t.Errorf("expected a malformed-log-line violation for the orphan, got: %v", errs)
 	}
 }
