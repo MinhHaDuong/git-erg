@@ -414,6 +414,8 @@ func TestValidateErg_GoldenInvalid(t *testing.T) {
 	// suite into a tautology.
 	wantSubstr := map[string]string{
 		"0001-bad-created-date.erg":  "Created",
+		"0001-bad-label.erg":         "unknown Label value",
+		"0001-empty-closed.erg":      "non-empty",
 		"0001-bad-forge-host.erg":    "malformed ref",
 		"0001-bad-log-timestamp.erg": "log line",
 		"0001-bad-log-verb.erg":      "log line",
@@ -432,7 +434,13 @@ func TestValidateErg_GoldenInvalid(t *testing.T) {
 	fixtures, _ := filepath.Glob("testdata/invalid/*.erg")
 	for _, path := range fixtures {
 		t.Run(filepath.Base(path), func(t *testing.T) {
-			_, errs := parseErg(path)
+			// Run the full validator, not just parseErg: some header-value
+			// rules (e.g. Label vocabulary) live in validateCorpus, not the
+			// parser. validateCorpus merges parseErrs and only appends corpus
+			// errors, so every parser-level fixture keeps its error too.
+			// nil cfg uses the default label set (matching TestValidateErg).
+			erg, parseErrs := parseErg(path)
+			errs := validateCorpus([]Erg{erg}, [][]string{parseErrs}, nil)
 			if len(errs) == 0 {
 				t.Fatalf("expected at least one error, got none")
 			}
@@ -444,6 +452,94 @@ func TestValidateErg_GoldenInvalid(t *testing.T) {
 				t.Errorf("expected an error containing %q, got: %v", want, errs)
 			}
 		})
+	}
+}
+
+// headerKeysWithoutFixture returns the keys in keys that have no invalid
+// fixture exercising their validation path. A key is "covered" when some
+// testdata/invalid/*.erg references it -- either the key (lowercased) appears
+// in the fixture's filename (e.g. "0001-bad-label.erg" for Label) or the
+// fixture content carries a literal "Key:" header line (e.g.
+// "0001-bad-forge-host.erg" carries a "Blocked-by:" line). The exemptions set
+// names keys deliberately left without a fixture; it is empty by design --
+// every header key should have a negative test. Extracted as a helper so the
+// meta-test's negative control can drive it with a doctored key set.
+func headerKeysWithoutFixture(keys map[string]bool, fixtureDir string, exemptions map[string]bool) ([]string, error) {
+	paths, err := filepath.Glob(filepath.Join(fixtureDir, "*.erg"))
+	if err != nil {
+		return nil, err
+	}
+	type fixture struct {
+		name    string
+		content string
+	}
+	fixtures := make([]fixture, 0, len(paths))
+	for _, p := range paths {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return nil, err
+		}
+		fixtures = append(fixtures, fixture{name: filepath.Base(p), content: string(data)})
+	}
+	var missing []string
+	for key := range keys {
+		if exemptions[key] {
+			continue
+		}
+		covered := false
+		lowerKey := strings.ToLower(key)
+		headerLine := key + ":"
+		for _, f := range fixtures {
+			if strings.Contains(strings.ToLower(f.name), lowerKey) {
+				covered = true
+				break
+			}
+			// Match the header at a line start so "Label:" inside a body or a
+			// substring of another key does not falsely count.
+			for _, line := range strings.Split(f.content, "\n") {
+				if strings.HasPrefix(line, headerLine) {
+					covered = true
+					break
+				}
+			}
+			if covered {
+				break
+			}
+		}
+		if !covered {
+			missing = append(missing, key)
+		}
+	}
+	return missing, nil
+}
+
+// TestV1HeaderKeys_FixtureCoverage is a meta-test: every recognised header key
+// (v1HeaderKeys, ergspecv1.go) must have a golden invalid fixture exercising
+// its validation path, so the validation surface cannot silently shrink when a
+// key is added. The exemption map is empty by design. A negative control runs
+// the same check against a key set with an injected bogus key and asserts the
+// gap is reported -- proving the check has teeth.
+func TestV1HeaderKeys_FixtureCoverage(t *testing.T) {
+	exemptions := map[string]bool{} // empty by design: every key gets a fixture
+
+	missing, err := headerKeysWithoutFixture(v1HeaderKeys, "testdata/invalid", exemptions)
+	if err != nil {
+		t.Fatalf("scanning fixtures: %v", err)
+	}
+	if len(missing) != 0 {
+		t.Errorf("header keys with no invalid fixture: %v -- add a testdata/invalid/*.erg exercising each (or an explicit exemption)", missing)
+	}
+
+	// Negative control: inject a key that no fixture can possibly reference and
+	// confirm the check flags it. Guards against a predicate that always
+	// reports "covered".
+	doctored := map[string]bool{"Bogusnonexistentkey": true}
+	gaps, err := headerKeysWithoutFixture(doctored, "testdata/invalid", exemptions)
+	if err != nil {
+		t.Fatalf("negative control scan: %v", err)
+	}
+	if len(gaps) != 1 || gaps[0] != "Bogusnonexistentkey" {
+		t.Errorf("negative control: expected injected key reported as missing, got %v", gaps)
 	}
 }
 
