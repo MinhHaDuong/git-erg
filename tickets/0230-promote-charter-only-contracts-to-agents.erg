@@ -7,6 +7,9 @@ Author: MinhHaDuong
 2026-06-04T09:30Z MinhHaDuong created
 
 2026-06-04T12:00Z MinhHaDuong note blocker 0224 closed — Blocked-by removed.
+2026-06-04T14:10Z claude note imagine: install-only rule absent from AGENTS.md; migrate policy already in manual post-0224; README needs invariants link block
+2026-06-04T14:14Z claude note plan: install-only rule in AGENTS.md line 55; README invariants block after line 51; sub-task 2 already satisfied by 0224
+2026-06-04T14:22Z claude note feasibility: PASS -- insertion points verified, no guard covers root AGENTS.md/README
 --- body ---
 ## Source
 2026-06-04 foundations audit (Communicate). Live contracts stated only
@@ -35,3 +38,103 @@ README sells hand-edit-wins and offline but never lists them.
 - [ ] migrate asset-refresh policy documented, matching 0224 outcome
 - [ ] README invariants block present, pointing at AGENTS.md + PEP
 - [ ] make check passes
+
+## Imagine (raid 2026-06-04)
+- Why now: Two live contributor contracts -- install-is-the-only-outside-mutating-verb and migrate's asset-refresh exemption -- exist only in the French charter (docs/erg-imagine-charter.md:42, 124-127) and CHANGELOG:22. A contributor editing the code never reads those; root /AGENTS.md and the manual are the documents they do read. The gap is real (grep of /AGENTS.md and src/go/assets/AGENTS.md both return zero hits for the install-only rule). The README sells offline and hand-edit-wins but never gives users the compact seven-invariant view already present in /AGENTS.md lines 24-54; the link is missing, not the content.
+- Scope check: Sub-task 1 (install-only rule) -- genuine gap; lands in root /AGENTS.md (contributor-facing policy), NOT in src/go/assets/AGENTS.md (adopter template) and NOT in erg-manual.md (generated artifact). Sub-task 2 (migrate policy) -- 0224 has landed; docs/erg-manual.md lines 368-370 already state the settled policy verbatim (AGENTS.md force-overwrite, .ergrc excluded, config delivered by erg init). This sub-task reduces to verifying the landed text matches exit-criteria intent -- no new writing required. Sub-task 3 (README block) -- the seven invariants already exist in root /AGENTS.md:24-54; the README needs one block that names them and links there + PEP, not a re-paste.
+- Simplest path: (1) Append one paragraph to root /AGENTS.md under the invariants section: install is the only verb that mutates outside tickets/, and only behind explicit opt-in flags, because all other verbs must stay offline and scope-confined. (2) Verify docs/erg-manual.md migrate section matches 0224 intent (already done -- PASS). (3) Add a "Seven operating invariants" bullet block to README after the "Why it's a no-brainer" section: seven one-liners keyed to the names in /AGENTS.md, with links to /AGENTS.md (law) and pep-erg-v1.md (why). Total diff: ~15-20 lines across two files; make check to close. Note: erg-manual.md is 100% generated from erg --help --all (Makefile:140; header "Generated from: erg") -- if migrate helptext ever needs updating, it must route through helptext.go + make docs, never hand-edited; current text needs no change.
+- Antipattern scan: Doc-drift risk if the install-only rule is added to src/go/assets/AGENTS.md instead of root /AGENTS.md -- the adopter template would gain a git-erg-internal policy rule that confuses users of erg in their own projects. Route to root /AGENTS.md only. YAGNI: sub-task 2 is already satisfied; do not re-document what the manual already states correctly. Copy-proliferation: README block must link, not re-paste the invariants -- the ticket already says "stops at one copy"; confirm Execute honors this. No other antipattern found.
+
+## Plan (raid 2026-06-04)
+
+### Actions
+
+1. AGENTS.md (root, line 55 -- after the Small bullet, before the blank line at 55):
+   Append one paragraph after the seven-invariants list (after line 54 "...0146 guards it)."):
+
+   "Scope confinement: `install` is the only verb that mutates outside `tickets/` (`.git/hooks`
+   and the root `AGENTS.md` pointer), and only behind explicit opt-in flags (`--hooks`,
+   `--inject-agents`) that default to off. Every other verb stays confined to `tickets/` and
+   offline. This is the implementation of the Offline and Agnostic invariants at the command
+   boundary -- a contributor adding a new verb must respect the same scope."
+
+   Insertion: after line 54 of AGENTS.md (the closing parenthesis of the Small bullet),
+   before the blank line that precedes "Audits are the evidence engine." (current line 56).
+   This places the rule inside the invariants section, immediately after the enumeration.
+
+   CONFIRMED: root /AGENTS.md is hand-maintained. It is NOT generated, NOT embedded in
+   src/go/assets/, and NOT covered by the selfcoherence byte-comparison guard. The
+   selfcoherence guard (tests/test_selfcoherence.sh lines 44-56) compares
+   tickets/AGENTS.md against src/go/assets/AGENTS.md -- root /AGENTS.md is a completely
+   separate file. No guard constrains what may be added to root /AGENTS.md.
+
+2. docs/erg-manual.md -- no action required.
+   VERIFIED: lines 367-374 already state the settled 0224 policy verbatim:
+   "tickets/AGENTS.md (force-overwrite, no prompt -- agent docs track the binary;
+   .ergrc is configuration, delivered by 'erg init', so run 'erg update && erg init'
+   to refresh it with the dpkg 3-state rule that preserves local edits)".
+   This matches exit-criterion intent exactly. Sub-task 2 is DONE.
+
+3. README.md -- insert a "Seven operating invariants" block after the "Why it's a
+   no-brainer" section (after line 51 -- the Agent-native bullet -- before the blank
+   line and "## Want more?" heading at line 53).
+
+   Draft block (7 lines, one per invariant, linking AGENTS.md law + PEP why):
+
+   "## Seven operating invariants
+
+   The `erg` CLI is built on seven non-negotiable properties (law: [AGENTS.md](AGENTS.md),
+   rationale: [pep-erg-v1.md](pep-erg-v1.md)):
+
+   - **Never lose data** -- atomic write, validate-before-replace, no truncation on kill.
+   - **Agnostic** -- hand edit always wins; the plain `.erg` file is the contract.
+   - **Offline** -- zero network calls; listing work is a local file read.
+   - **Standalone** -- one static binary plus POSIX; zero third-party dependencies.
+   - **Stateless** -- files are the only state; no pending/claimed/doing tags.
+   - **Fast** -- linear in corpus size; invoked per-commit, per-push, in agent loops.
+   - **Small** -- binary committed and travels with every clone; size is paid by all."
+
+   Insertion: after README.md line 51 (end of the "Why it's a no-brainer" bullet list),
+   before the blank line leading into "## Want more? Add the erg binary (optional)".
+   This creates EXACTLY ONE copy of the invariant names in README -- the block names
+   them and links to AGENTS.md (where the full authoritative text lives) and pep-erg-v1.md
+   (where the rationale lives). It does NOT re-paste the law text.
+
+   CONFIRMED: no test in test_docs.sh constrains the README heading count or section
+   order in the area of the insertion. The existing tests check: (a) no bare-ID erg validate
+   example, (b) install step names tickets/erg, (c) CONTRIBUTING.md checklist tokens.
+   None of these are affected by adding a new section between lines 51-53.
+
+   CONFIRMED: test_encoding.sh ASCII guard covers src/go/** only -- it does NOT scan
+   README.md or root AGENTS.md. Both target files are free of encoding constraints.
+
+### First test
+
+Run `make check` (= make test + make validate) after applying both edits.
+The affected suites are:
+- tests/test_docs.sh -- verifies the README is consistent (existing checks unaffected;
+  the new block introduces no bare IDs and does not touch the install step wording).
+- tests/test_selfcoherence.sh -- not affected (root /AGENTS.md is not in scope).
+- tests/test_encoding.sh -- not affected (neither README nor root AGENTS.md is scanned).
+- make validate (erg check tickets/) -- must pass on the ticket file itself.
+
+Manual spot-check: grep for "Seven operating invariants" in README.md and for
+"Scope confinement" in AGENTS.md to confirm insertion landed correctly.
+
+### Dependencies
+
+- 0224 (migrate asset-refresh policy) -- already merged. Sub-task 2 verified DONE.
+- No other open blockers.
+
+### Drift scan
+
+- Root /AGENTS.md is hand-maintained, separate from src/go/assets/AGENTS.md (the adopter
+  template). Adding the install-only paragraph to root /AGENTS.md creates no copy in the
+  adopter template and does not trigger the selfcoherence guard. Safe.
+- README block names the seven invariants by their canonical names and links to AGENTS.md.
+  The law text itself remains in AGENTS.md only -- no copy proliferation.
+- docs/erg-manual.md is 100% generated (make docs from erg --help --all); it is not
+  touched by this ticket. The migrate policy already in it (lines 367-374) is the
+  authoritative post-0224 statement; no parallel copy is introduced.
+- src/go/assets/AGENTS.md (adopter template) is NOT modified -- adding git-erg-internal
+  contributor policy there would confuse adopters. Confirmed no drift risk.
