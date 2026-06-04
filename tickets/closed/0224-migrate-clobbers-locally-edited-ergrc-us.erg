@@ -2,6 +2,7 @@
 Title: migrate clobbers locally-edited .ergrc -- use the dpkg 3-state rule like init
 Created: 2026-06-04
 Author: MinhHaDuong
+Closed: autoclosed — PR #275
 
 --- log ---
 2026-06-04T09:01Z MinhHaDuong created
@@ -10,6 +11,7 @@ Author: MinhHaDuong
 2026-06-04T09:36Z claude note plan: add paths param to installAssets; migrateLayout passes migrateAssetPaths=["tickets/AGENTS.md"]; 4 new tests in migrate_test.go + 2 in test_migrate.sh; update helpMigrate wording
 2026-06-04T09:43Z claude note feasibility PASS -- Wave 2 after 0220 (both touch migrate.go + migrate_test.go + helpMigrate); shares init.go with 0223, disjoint regions
 
+2026-06-04T12:00Z MinhHaDuong closed — autoclosed — PR #275
 --- body ---
 ## Source
 2026-06-04 conversation on migrate vs update. Spotted by code reading
