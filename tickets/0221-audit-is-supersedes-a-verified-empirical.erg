@@ -6,6 +6,10 @@ Author: MinhHaDuong
 --- log ---
 2026-06-04T08:20Z MinhHaDuong created
 
+2026-06-04T08:39Z claude note sweep 1/8 aedist (391 files, 44 grep hits): 18 verified events (19 declaring tickets) -- 0015->0025; 0060->0097; 0073->0072+0084+0094; 0141<->0156; 0177->0181; 0143->0174+0192; 0135<->0202; 0153->0199+0200; 0154->0199+0200; 0140->0205; 0144->0202; 0228->0229; 0158->0142+0143; 0166->0199; 0202->0250; 0289<->0292; 0205->0406; 0291->0292 (the known prior). Rejected: model/snippet/script supersessions (0039,0167,0168,0173,0235-style), supersession-by-commits with no ticket ID (0149)
+2026-06-04T08:39Z claude note sweep 2/8 chemin-de-voix (225 files): 26 verified events -- 0058->0068; 0222->0226+0227; mass closure of 24 LoRA tickets (0149,0150,0154,0155,0159,0160,0164,0165,0169,0170,0174,0175,0179,0180,0184,0185,0189,0190,0194,0195,0199,0200,0204,0205) all Closed: superseded by 0237+0238. Rejected: script-replaced-by-script (0235,0251), estimate superseded (0052), explicit reste-valide (0244)
+2026-06-04T08:39Z claude note sweep 3/8 git-erg (221 files): 3 verified events -- 0006->0013+0014; 0018->0030; 0037<->0041. Rejected: superseded-by-PR not ticket (0112, names PR #105 only), spec examples (0012), file/doc replacements (0087,0125). Running tally 47 events across 3 stores >= 10/3 threshold: STOP-ADOPT fires, sweep stops per declared rule
+2026-06-04T08:39Z claude decision ADOPT -- 47 events / 3 stores (aedist 18, chemin-de-voix 26, git-erg 3), criteria untouched since filing. Patterns for the spec: one-to-many (X superseded by A+B), batch many-to-one (24 tickets -> 0237+0238), declarations on either or both sides of the pair. Spec ticket spawned: 0222
 --- body ---
 ## Question
 Should `Supersedes: NNNN` become a first-class %erg header (with
