@@ -2,11 +2,13 @@
 Title: Guard: Postel strict-write round-trip and closed-header-set growth coverage
 Created: 2026-06-04
 Author: MinhHaDuong
+Closed: autoclosed — PR #270
 
 --- log ---
 2026-06-04T09:30Z MinhHaDuong created
 
 2026-06-04T09:49Z claude note raid execute: add tests/test_strictwrite.sh round-trip guard over mutating cmds + Go meta-test TestV1HeaderKeys_FixtureCoverage; fill Closed/Label invalid fixtures; rewrite GoldenInvalid to run validateCorpus
+2026-06-04T11:10Z MinhHaDuong closed — autoclosed — PR #270
 --- body ---
 ## Source
 2026-06-04 foundations audit: Postel's law (spec + PEP section 11)
