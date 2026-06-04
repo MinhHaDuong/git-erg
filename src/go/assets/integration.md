@@ -159,9 +159,11 @@ What each command does (and does not) touch:
 
 - `erg migrate`: ticket-format conversion (Status: -> Closed:, Tag: -> Label:,
   etc.) and project layout upgrade (archive/ -> closed/, stale hook rewrites).
-  Does NOT touch .ergrc -- configuration delivery is `erg init`'s job.
-  Run `erg migrate` after `erg update && erg init` when the new binary
-  introduced ticket-format changes.
+  It rewrites the .ergrc `[tags]` section header to `[labels]` as a one-time
+  format migration, but does NOT deliver or refresh configuration content --
+  the default label vocabulary and other config is `erg init`'s job, not
+  migrate's. Run `erg migrate` after `erg update && erg init` when the new
+  binary introduced ticket-format changes.
 
 Canonical full sequence: `erg update && erg init`, then `erg migrate DIR` when
 the release notes mention format changes.
