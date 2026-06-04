@@ -1,0 +1,30 @@
+%erg 0.1
+Title: Guard: single-threaded determinism -- no goroutines on default path, byte-stable output
+Created: 2026-06-04
+Author: MinhHaDuong
+
+--- log ---
+2026-06-04T09:30Z MinhHaDuong created
+
+--- body ---
+## Source
+2026-06-04 foundations audit: PEP section 10 states "single-threaded
+by design ... output ordering deterministic (reproducible list/check,
+golden-file tests)"; any future parallelism gated behind an explicit
+--jobs flag defaulting to 1. The guard sweep found NO enforcement:
+no goroutine guard, no determinism probe.
+
+## Fix
+Mechanical-first, two layers:
+1. Grep ratchet: zero goroutine-launch statements (`go ` keyword) in
+   src/go non-test code -- zero today, so the ratchet starts clean.
+2. Determinism probe: build a fixture corpus twice with different file
+   creation order, run check/list/ready, byte-compare the outputs
+   (and byte-compare across two consecutive runs on the same corpus).
+Follow the 0146 negative-control convention for both layers.
+
+## Exit criteria
+- [ ] Goroutine grep ratchet in make test with negative control
+- [ ] Output-determinism probe (creation-order shuffle + rerun) green
+- [ ] Negative controls prove both guards can fail
+- [ ] make check passes

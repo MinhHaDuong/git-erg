@@ -1,0 +1,35 @@
+%erg 0.1
+Title: PEP: absorb the seven-invariant hierarchy; AGENTS.md back-reference for the security-posture premise
+Created: 2026-06-04
+Author: MinhHaDuong
+
+--- log ---
+2026-06-04T09:30Z MinhHaDuong created
+
+--- body ---
+## Source
+2026-06-04 foundations audit, TENSION-02 + TENSION-04.
+- PEP:301 still frames the contract as "six traits" (agnostic,
+  offline, standalone, fast, small, stateless); never-lose-data
+  appears only as a C-disqualifier aside (PEP:309). AGENTS.md:24
+  states "Seven invariants, one above the rest". The PEP never
+  absorbed the hierarchy.
+- AGENTS.md:68 sizes security to "a binary embarked in thousands of
+  repos" as if fact; docs/audit-infrastructure-class.md:167-194
+  resolves this honestly (a CHOSEN design class that OBLIGATES the
+  controls) but AGENTS.md never points back.
+
+## Fix
+1. PEP: short subsection stating the seven-invariant hierarchy
+   (never-lose-data is the job; the six traits guard the form),
+   updating the six-traits passage to reference it; pointer to
+   AGENTS.md as the operating statement.
+2. AGENTS.md: one clause on the posture paragraph -- premise justified
+   in docs/audit-infrastructure-class.md (design-class choice, not
+   measured adoption).
+
+## Exit criteria
+- [ ] PEP states seven invariants with the hierarchy; six-traits
+      passage updated, not contradicting
+- [ ] AGENTS.md back-references audit-infrastructure-class.md
+- [ ] make check passes

@@ -1,0 +1,29 @@
+%erg 0.1
+Title: STATE: refresh dreamlist -- contract-guard idea shipped (0146); prune stale entries
+Created: 2026-06-04
+Author: MinhHaDuong
+
+--- log ---
+2026-06-04T09:30Z MinhHaDuong created
+
+--- body ---
+## Source
+2026-06-04 foundations audit, STATE.md check. The deferred-ideas entry
+"feat: tests guaranteeing fundamental design criteria (disconnected,
+agnostic, discoverable)" largely SHIPPED as tests/test_contract.sh
+(ticket 0146: offline, standalone, stateless, small, fast guards with
+negative controls). Keeping a shipped idea on the dreamlist invites a
+duplicate effort.
+
+## Fix
+- Remove or annotate the shipped entry (note the agnostic/discoverable
+  remainder if judged still live -- hand-edit-wins has no direct
+  guard).
+- Sweep the other deferred entries for staleness while there.
+- Regenerate the Status section (stale commit list, ticket counts).
+Respect the STATE.md format spec: 40-line cap, status-only.
+
+## Exit criteria
+- [ ] Dreamlist reflects reality (shipped entries gone or annotated)
+- [ ] Status section regenerated
+- [ ] STATE.md stays within format spec
