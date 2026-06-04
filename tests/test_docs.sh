@@ -43,6 +43,15 @@ else
     fail "make docs: docs/erg-manual.md is missing or empty"
 fi
 
+# make docs must leave no drift: the committed docs/erg-manual.md must match
+# the freshly regenerated output (drift guard for PR #269 / ticket 0235 -- a
+# help-text change with no manual regen slipped past the non-empty check).
+if git diff --exit-code docs/erg-manual.md >/dev/null 2>&1; then
+    pass "make docs: docs/erg-manual.md is current (no drift)"
+else
+    fail "make docs: docs/erg-manual.md is stale -- run 'make docs' and commit"
+fi
+
 # README must not show `erg validate <ID>` — validate takes file paths, not IDs
 # (regression guard for 0161; the broken example was `tickets/erg validate 01`).
 if grep -Eq 'erg validate [0-9]+( |$)' README.md; then
