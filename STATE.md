@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-06-04T09:45Z — Since 05-30: the 0204 imagine-charter raid landed (0205–0215, PRs #239–#254: init/install split, spec/integration print-on-demand, erg-github forge layer, .erg-assets manifest, drift warning, version role). The 0216 dogfood campaign migrated all 8 machine stores to rev 9c23c37 (closed, #257). gofmt smart-quote policy settled (0217). Open: 0219 (hook hardcodes main), 0220 (migrate folds wrapped log lines) — both evidence-backed from the campaign._
+_Last updated: 2026-06-04T20:45Z — Today: spec authority preamble ratified (0228, #273). Guards raid closed 0225 + 0230 + 0233–0236 (PRs #276–#283, all APPROVED r1): docs drift guard live in CI, CMDS-coverage meta-test, hook fixtures install the shipped hook, offline-grep scoped to Go source, charter contracts promoted to AGENTS.md/README. Earlier waves: raid 219–224 and 0223/0224/0229 (#268–#275)._
 
 ## North star:
 
@@ -8,9 +8,8 @@ An agent-friendly local ticket system for development in disconnected environmen
 
 ## Milestones
 
-- Audits complete (UX 0152, security 0151, data-safety 0149); dogfood migration
-  complete machine-wide (0216). Queue: 0219, 0220 — both empirically motivated.
-  Bar for new work stays "verified empirical need" per AGENTS.md.
+- Audits, dogfood migration (0216), and guard sweep (raid 2026-06-04) complete.
+  Queue: 0237 only. Bar for new work stays "verified empirical need" per AGENTS.md.
 
 ## Notes
 
@@ -30,9 +29,12 @@ Premature, unproven, or waiting on evidence. Do not promote without AGENTS.md ba
 - feat: AI script to realign docs and code (partial: 0232)
 
 ## Status
-<!-- generated 2026-06-04T09:45Z -->
-**Tickets:** 11 ready · 2 blocked — `erg ready tickets/` for full list
+<!-- generated 2026-06-04T20:40Z -->
+
+**Tickets:** 1 ready · 0 blocked — `erg ready tickets/` for full list
 **Recent commits:**
-  1643ddb ticket(0225-0232): foundations audit follow-ups -- guards, reconciliations, standing QA
-  52cda8f ticket(0223,0224): update&&init delivery doc; migrate must stop clobbering .ergrc
-  88bca90 ticket(0221): close and archive — PR #262
+  448064b Merge pull request #283 from MinhHaDuong/t0230
+  0d7a314 ticket(0230): close and archive — PR #283
+  a34bf35 ticket(0237): guard for install-only-outside-mutator invariant
+  7314ed8 doc(0230): promote charter-only contracts to AGENTS.md and README
+  f830046 ticket(0230): import raid annotations
