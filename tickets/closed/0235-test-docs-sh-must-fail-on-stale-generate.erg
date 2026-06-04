@@ -2,6 +2,7 @@
 Title: test_docs.sh must fail on stale generated manual (docs drift guard)
 Created: 2026-06-04
 Author: MinhHaDuong
+Closed: autoclosed — PR #278
 
 --- log ---
 2026-06-04T10:36Z MinhHaDuong created
@@ -10,6 +11,7 @@ Author: MinhHaDuong
 2026-06-04T14:12Z claude note plan: insert git diff --exit-code docs/erg-manual.md after make docs non-empty check; one-off negative control in PR body
 2026-06-04T14:22Z claude note feasibility: PASS -- lines 39/44 and helpers verified
 2026-06-04T14:26Z claude note execute: drift guard added, negative control demonstrated
+2026-06-04T15:37Z MinhHaDuong closed — autoclosed — PR #278
 --- body ---
 ## Context
 Surfaced by /verify on PR #269 (raid 219-224, ticket 0220): the PR
