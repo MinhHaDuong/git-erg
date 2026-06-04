@@ -9,6 +9,7 @@ Author: MinhHaDuong
 2026-06-04T14:06Z claude note imagine: totality-check closes tautology; anchor to commands slice; CMDS parsed from shell with non-empty guard
 2026-06-04T14:16Z claude note plan: TestMutatingCommandsCMDSCoverage in erg_test.go; totality+regex+exclusion-assert+negative-control design
 2026-06-04T14:22Z claude note feasibility: PASS -- 19 commands, CMDS 7 entries at line 136, precedent test at erg_test.go:454
+2026-06-04T14:27Z claude note execute: meta-test added, negative + manual failure proofs recorded
 --- body ---
 ## Source
 /verify on PR #270 (ticket 0227), 2026-06-04 -- raised independently by
@@ -32,10 +33,10 @@ in-test map with the four documented exclusions). Negative control:
 doctored registry copy with an extra mutating command must trip it.
 
 ## Exit criteria
-- [ ] Meta-test fails when a mutating dispatch command is absent from
+- [x] Meta-test fails when a mutating dispatch command is absent from
       CMDS (negative control proves it)
-- [ ] The four exclusions are asserted, not silently skipped
-- [ ] make check passes
+- [x] The four exclusions are asserted, not silently skipped
+- [x] make check passes
 
 ## Imagine (raid 2026-06-04)
 - Why now: 0227 closed the header-key axis gap; /verify on PR #270 raised
