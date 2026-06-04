@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-05-30T21:00Z — Mega session: UX audit (0152) completed and merged (#221); security process doc (0201) added (#228); cross-worktree ticket-store rejection (0200) shipped (#232/#233); signed release tag 2026-05-30 (0151, #204). All 202 tickets closed and archived. Queue is empty — evidence-first before promoting anything._
+_Last updated: 2026-06-04T08:10Z — Since 05-30: the 0204 imagine-charter raid landed (0205–0215, PRs #239–#254: init/install split, spec/integration print-on-demand, erg-github forge layer, .erg-assets manifest, drift warning, version role). The 0216 dogfood campaign migrated all 8 machine stores to rev 9c23c37 (closed, #257). gofmt smart-quote policy settled (0217). Open: 0219 (hook hardcodes main), 0220 (migrate folds wrapped log lines) — both evidence-backed from the campaign._
 
 ## North star:
 
@@ -8,8 +8,9 @@ An agent-friendly local ticket system for development in disconnected environmen
 
 ## Milestones
 
-- All audits complete (UX: 0152, security: 0151, data-safety: 0149). Queue is empty.
-  Bar for new work: "verified empirical need" per AGENTS.md. Audits before features.
+- Audits complete (UX 0152, security 0151, data-safety 0149); dogfood migration
+  complete machine-wide (0216). Queue: 0219, 0220 — both empirically motivated.
+  Bar for new work stays "verified empirical need" per AGENTS.md.
 
 ## Notes
 
@@ -31,9 +32,9 @@ Premature, unproven, or waiting on evidence. Do not promote without AGENTS.md ba
 - audit: go coding practices, lint, smells
 
 ## Status
-<!-- generated 2026-05-30T21:00Z (housekeeping sweep) -->
-**Tickets:** 0 ready · 202 closed — queue empty · tests green
+<!-- generated 2026-06-04T08:08Z -->
+**Tickets:** 2 ready · 0 blocked — `erg ready tickets/` for full list
 **Recent commits:**
-  fd0a619 fix: drop stale erg log step in UX-PROCESS.md; archive 0195/0202
-  8867787 ticket(0200): close and archive — PR #232
-  d9daf8f ticket(0201): close and archive — PR #228
+  493ecfd Merge pull request #234 from MinhHaDuong/worktree-housekeeping-state-2026-05-30
+  6284b53 Merge pull request #257 from MinhHaDuong/t0216-close
+  3e8a074 ticket(0216): close and archive — dogfood migration campaign complete
