@@ -2,6 +2,8 @@
 # Integration tests for: pre-commit hook — reject tickets/erg on feature branches
 set -eu
 
+ERG="${ERG_BIN:-build/erg}"
+ERG_ABS=$(CDPATH= cd "$(dirname "$ERG")" && pwd)/$(basename "$ERG")
 PASS=0
 FAIL=0
 
@@ -24,25 +26,13 @@ git config user.name "Test"
 # the host's global git config (which may point at an unreachable signer).
 git config commit.gpgsign false
 
-# Install the hook fragment
+# Install the real shipped hook (not a hand-rolled copy that can silently
+# diverge from hookBody). The cp places the binary that the .erg validate path
+# in Test 4 will exec; "$ERG_ABS" is required because we have cd'd into "$REPO".
+mkdir -p tickets
+cp "$ERG_ABS" tickets/erg
 mkdir -p .git/hooks
-cat > .git/hooks/pre-commit << 'HOOK'
-# Reject tickets/erg commit on non-main branches
-if git diff --cached --name-only | grep -q '^tickets/erg$'; then
-    branch=$(git branch --show-current)
-    if [ "$branch" != "main" ]; then
-        echo "pre-commit: do not commit tickets/erg in feature branches." >&2
-        echo " CI rebuilds the binary after merge. Use 'make build' and test" >&2
-        echo " with build/erg. To override: git commit --no-verify" >&2
-        exit 1
-    fi
-fi
-HOOK
-chmod +x .git/hooks/pre-commit
-
-# Create a fake binary
-printf '\x7fELF' > tickets/erg
-chmod +x tickets/erg
+"$ERG_ABS" install . --hooks >/dev/null
 
 # Create an initial commit on main so we can branch
 echo "init" > README
@@ -61,15 +51,15 @@ fi
 # --- Test 2: error message names the right remedy ---
 git add tickets/erg
 msg=$(git commit -m "add binary" 2>&1 || true)
-if echo "$msg" | grep -q "make build"; then
-    pass "feature branch: error message mentions make build"
+if echo "$msg" | grep -q "do not commit tickets/erg"; then
+    pass "feature branch: error message names the tickets/erg guard"
 else
-    fail "feature branch: error message mentions make build (got: $msg)"
+    fail "feature branch: error message names the tickets/erg guard (got: $msg)"
 fi
-if echo "$msg" | grep -q "build/erg"; then
-    pass "feature branch: error message mentions build/erg"
+if echo "$msg" | grep -q "CI rebuilds the binary after merge"; then
+    pass "feature branch: error message explains CI rebuild"
 else
-    fail "feature branch: error message mentions build/erg (got: $msg)"
+    fail "feature branch: error message explains CI rebuild (got: $msg)"
 fi
 if echo "$msg" | grep -q "no-verify"; then
     pass "feature branch: error message mentions --no-verify override"

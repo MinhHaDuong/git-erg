@@ -9,6 +9,7 @@ Author: MinhHaDuong
 2026-06-04T14:08Z claude note imagine: drift is 3-way (branch guard, missing validate/check section, stale error text); extraction via erg install --hooks is simplest path; tautology risk absent
 2026-06-04T14:18Z claude note plan: replace both heredocs with erg install --hooks; drop ELF stub; update Test 2 assertions to real rejection strings
 2026-06-04T14:22Z claude note feasibility: WARN -- test_roundtrip.sh heredoc actually spans 33-53 not 34-53; all other ranges correct; execute from context
+2026-06-04T14:27Z claude note execute: fixtures now install real hook; behavioral proofs recorded
 --- body ---
 ## Context
 Surfaced by the /verify gate on PR #268 (raid 219-224, ticket 0219).
@@ -33,9 +34,9 @@ A grep for '"main"' (hardcoded literal in hook-shaped fixtures) over
 tests/*.sh returns no hits outside the negative-control cases.
 
 ## Exit criteria
-- [ ] test_hook.sh fixture matches shipped hookBody behaviour
-- [ ] test_roundtrip.sh fixture matches shipped hookBody behaviour
-- [ ] make check passes
+- [x] test_hook.sh fixture matches shipped hookBody behaviour
+- [x] test_roundtrip.sh fixture matches shipped hookBody behaviour
+- [x] make check passes
 
 ## Imagine (raid 2026-06-04)
 - Why now: 0219 replaced the hardcoded `!= "main"` guard with dynamic default-branch

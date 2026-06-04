@@ -30,27 +30,11 @@ cp "$ERG" "$REPO/tickets/erg"
 chmod +x "$REPO/tickets/erg"
 $ERG init "$REPO" >/dev/null 2>&1
 
-# Install hook per integration.md step 1
+# Install the hook via the real shipped installer rather than a hand-rolled
+# heredoc copy that can silently diverge from hookBody. The binary is already
+# at "$REPO/tickets/erg" (cp above), satisfying the install precondition.
 mkdir -p "$REPO/.git/hooks"
-cat > "$REPO/.git/hooks/pre-commit" << 'HOOK'
-#!/bin/sh
-if git diff --cached --name-only | grep -q '^tickets/erg$'; then
-    branch=$(git branch --show-current)
-    if [ "$branch" != "main" ]; then
-        echo "pre-commit: do not commit tickets/erg in feature branches." >&2
-        exit 1
-    fi
-fi
-erg_files=$(git diff --cached --name-only | grep '\.erg$' || true)
-if [ -n "$erg_files" ]; then
-    erg_bin="tickets/erg"
-    if [ -x "$erg_bin" ]; then
-        $erg_bin validate $erg_files || { echo "ERROR: validation failed" >&2; exit 1; }
-        $erg_bin check tickets/ || { echo "ERROR: check failed" >&2; exit 1; }
-    fi
-fi
-HOOK
-chmod +x "$REPO/.git/hooks/pre-commit"
+"$ERG" install "$REPO" --hooks >/dev/null
 
 # Verify all install artifacts exist
 for f in tickets/.ergrc tickets/AGENTS.md tickets/erg; do
