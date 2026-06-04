@@ -7,6 +7,8 @@ Author: MinhHaDuong
 2026-06-04T09:30Z MinhHaDuong created
 
 2026-06-04T11:00Z MinhHaDuong note blocker 0219 closed — Blocked-by removed.
+2026-06-04T14:05Z claude note imagine: guard already satisfied by 0219 commit 473d987 on main; premise stale; execute should verify and close
+2026-06-04T14:20Z claude note verified premise stale: guard iv landed in 473d987 (0219); make test-selfcoherence 9/9 incl negative control; all exit criteria already satisfied on main
 --- body ---
 ## Source
 2026-06-04 foundations audit (guard sweep): tests/test_selfcoherence.sh
@@ -23,7 +25,29 @@ Follow the 0146 convention: include a negative control that mutates
 one side in a temp copy and asserts the guard goes red.
 
 ## Exit criteria
-- [ ] Guard test wired into make test (TEST_SUITES or selfcoherence)
-- [ ] Negative control proves the guard can fail
-- [ ] Guard is green against the post-0219 hook form
-- [ ] make check passes
+- [x] Guard test wired into make test (TEST_SUITES or selfcoherence)
+- [x] Negative control proves the guard can fail
+- [x] Guard is green against the post-0219 hook form
+- [x] make check passes
+
+## Imagine (raid 2026-06-04)
+- Why now: ticket filed 2026-06-04 during audit sweep asserting guard "does not
+  exist" -- but commit 473d987 (fix(0219), merged to main) already added block
+  (iv) to tests/test_selfcoherence.sh (lines 82-123) covering exactly this: it
+  installs the hook via `erg install --hooks`, extracts the managed block, and
+  byte-compares it against the integration.md snippet between the erg managed
+  markers, with a negative control proving the comparison can detect a mutation.
+  The premise is stale; all four exit criteria are already satisfied on main.
+- Scope check: zero new code needed -- Execute should verify the suite is green
+  against the post-0219 dynamic-default-branch hookBody (criteria 3) and confirm
+  `selfcoherence` is in TEST_SUITES (criteria 1, confirmed: Makefile line 18).
+  Do NOT reimplement the guard; that would produce a duplicate test.
+- Simplest path: Execute runs `make test-selfcoherence`, confirms PASS for all
+  four assertions (clean-init, dogfood, orphan, hook-coherence + their negatives),
+  ticks exit criteria, and closes 0225. No file changes beyond the ticket.
+- Antipattern scan: chief risk is a tautological duplicate -- if Execute
+  re-implements the guard from the ticket description without reading the file
+  first, it creates redundant test code. The existing extraction strategy
+  (awk over installed hook + awk over integration.md, grep -v marker lines,
+  shell string compare) is the simplest correct approach for one guard; no
+  general extraction framework is needed (YAGNI). Otherwise clean.
