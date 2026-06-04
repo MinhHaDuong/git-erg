@@ -2,6 +2,7 @@
 Title: Hermetic test fixtures in test_hook.sh and test_roundtrip.sh replicate outdated hook logic
 Created: 2026-06-04
 Author: MinhHaDuong
+Closed: autoclosed — PR #280
 
 --- log ---
 2026-06-04T10:15Z MinhHaDuong created
@@ -10,6 +11,7 @@ Author: MinhHaDuong
 2026-06-04T14:18Z claude note plan: replace both heredocs with erg install --hooks; drop ELF stub; update Test 2 assertions to real rejection strings
 2026-06-04T14:22Z claude note feasibility: WARN -- test_roundtrip.sh heredoc actually spans 33-53 not 34-53; all other ranges correct; execute from context
 2026-06-04T14:27Z claude note execute: fixtures now install real hook; behavioral proofs recorded
+2026-06-04T20:13Z MinhHaDuong closed — autoclosed — PR #280
 --- body ---
 ## Context
 Surfaced by the /verify gate on PR #268 (raid 219-224, ticket 0219).
