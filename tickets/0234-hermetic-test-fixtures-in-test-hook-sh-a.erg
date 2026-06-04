@@ -6,6 +6,9 @@ Author: MinhHaDuong
 --- log ---
 2026-06-04T10:15Z MinhHaDuong created
 
+2026-06-04T14:08Z claude note imagine: drift is 3-way (branch guard, missing validate/check section, stale error text); extraction via erg install --hooks is simplest path; tautology risk absent
+2026-06-04T14:18Z claude note plan: replace both heredocs with erg install --hooks; drop ELF stub; update Test 2 assertions to real rejection strings
+2026-06-04T14:22Z claude note feasibility: WARN -- test_roundtrip.sh heredoc actually spans 33-53 not 34-53; all other ranges correct; execute from context
 --- body ---
 ## Context
 Surfaced by the /verify gate on PR #268 (raid 219-224, ticket 0219).
@@ -33,3 +36,128 @@ tests/*.sh returns no hits outside the negative-control cases.
 - [ ] test_hook.sh fixture matches shipped hookBody behaviour
 - [ ] test_roundtrip.sh fixture matches shipped hookBody behaviour
 - [ ] make check passes
+
+## Imagine (raid 2026-06-04)
+- Why now: 0219 replaced the hardcoded `!= "main"` guard with dynamic default-branch
+  detection and added the erg validate/check section to hookBody, but the two shell
+  fixtures were never updated. The drift is larger than the ticket title suggests:
+  test_hook.sh's hand-rolled hook is missing the entire validate/check section and
+  its error message text ("make build", "build/erg") no longer matches the shipped
+  hook; test_roundtrip.sh carries the same truncated hook. Both now exercise logic
+  that was never shipped.
+- Scope check: two files (test_hook.sh, test_roundtrip.sh), two hand-rolled hook
+  fragments. The two fixtures are asymmetric: test_roundtrip.sh already uses the
+  real binary and tests install/uninstall round-trip, so replacing the cat heredoc
+  with `$ERG install "$REPO" --hooks` is strictly more faithful. test_hook.sh is
+  more involved: it uses an ELF stub for Tests 1-3, but Test 4 stages a .erg file
+  and the real hook will exec `tickets/erg validate` -- the stub must be replaced
+  with the real binary there, and Test 2's string assertions ("make build",
+  "build/erg") must update to the shipped strings.
+- Simplest path: for both fixtures, call `erg install --hooks` into the temp repo
+  rather than maintaining a hand-rolled copy. No install.go parsing needed; the
+  binary provides the hook text. Hermetic and offline: the dynamic default-branch
+  detection falls back to "main" when no remote is configured, which is exactly
+  the test environment -- behavior is stable without network. Regarding 0225: if
+  0225 lands a reusable shell extraction helper, source it; if 0225 leaves guard
+  (iv) inline (current state: test_selfcoherence.sh lines 86-94), no sharing is
+  needed -- test_hook/roundtrip install the whole hook and assert behavior, not
+  block content. Never parse install.go directly.
+- Antipattern scan: tautological-test risk is NOT present -- these tests assert
+  behavioral outcomes (commit reject/allow, round-trip file hygiene), not
+  string-equality with hookBody. A logic bug in hookBody would still surface as a
+  wrong accept/reject. The hookBody == documentation equality is separately owned
+  by guard (iv) / ticket 0225. Division of labor is clean. No premature abstraction
+  risk: 2-3 inline call sites, no existing sourced shell library; inline matches
+  precedent.
+
+## Plan (raid 2026-06-04)
+
+### Actions
+
+1. tests/test_hook.sh lines 1-4 (header): add ERG/ERG_ABS lines after line 4:
+   ERG="${ERG_BIN:-build/erg}"
+   ERG_ABS=$(CDPATH= cd "$(dirname "$ERG")" && pwd)/$(basename "$ERG")
+   (mirrors test_install.sh:5-6 and test_roundtrip.sh:5)
+
+2. tests/test_hook.sh line 27 (comment "# Install the hook fragment"):
+   replace lines 27-41 (comment + mkdir + cat heredoc + HOOK + chmod) with:
+   mkdir -p tickets
+   cp "$ERG_ABS" tickets/erg
+   mkdir -p .git/hooks
+   "$ERG_ABS" install . --hooks >/dev/null
+   The cp is the install precondition (install.go:181-186: binaryPath stat).
+   install forces exec bits (readHookFile:370) so chmod is not needed.
+   Invocation must be "$ERG_ABS" not "$ERG" because cd "$REPO" (line 18) changes
+   directory and a relative ERG path would be unreachable.
+
+3. tests/test_hook.sh line 43-45 (ELF stub block: comment + printf + chmod):
+   replace with nothing -- the cp in Action 2 already placed the real binary
+   at tickets/erg. Removing the stub is the sole purpose of this deletion.
+
+4. tests/test_hook.sh lines 64-68 (Test 2 "make build" and "build/erg" assertions):
+   drop the two grep blocks for "make build" (lines 64-67) and "build/erg"
+   (lines 69-72). Replace with grep blocks for:
+     "do not commit tickets/erg"   (install.go hookBody:89)
+     "CI rebuilds the binary after merge"  (install.go hookBody:90)
+   Keep the existing "no-verify" assertion (line 74-78) unchanged.
+   Rationale: the branch-guard rejection path (install.go:88-92) never reaches
+   the validate section and thus never emits "make build" or "build/erg". Those
+   strings appear only on the binary-not-found path (install.go:109). Confirmed
+   empirically: actual rejection output is "pre-commit: do not commit tickets/erg
+   in feature branches." and "CI rebuilds the binary after merge. To override: git
+   commit --no-verify".
+
+5. tests/test_roundtrip.sh lines 34-53 (comment + cat heredoc + HOOK + chmod):
+   replace with:
+   "$ERG" install "$REPO" --hooks >/dev/null
+   The test already cp's "$ERG" to "$REPO/tickets/erg" (line 29) before this
+   block, satisfying the install precondition. "$REPO" is absolute. chmod is
+   redundant (install forces exec bits). No erg init needed: empirically verified
+   that "tickets/erg check tickets/" passes on a bare store with only tickets/erg
+   present (no .ergrc, no AGENTS.md).
+
+### Hermeticity notes
+
+- Install invocability (install time): install.go:335-350 (resolveHooksDir) shells
+  out to "git -C root rev-parse --git-path hooks" -- requires a git repo, no
+  network. install.go:181-186 requires tickets/erg present. Both conditions are
+  met before the call in both tests.
+- Hook offline fallback (commit time, test_hook.sh Tests 1-3): install.go:85-86
+  sets default_branch via git symbolic-ref (fails silently with no remote) and
+  falls back to "main" via ${default_branch:-main}. In the temp repo with no
+  remote the fallback fires, so the branch guard still rejects feature/test. This
+  is the commit-time fallback, distinct from the install-time preconditions above.
+
+### First test
+
+Run make check-fast and observe that test_hook.sh and test_roundtrip.sh pass.
+To prove failure: revert only Action 4 (keep "make build" assertion) and confirm
+test_hook.sh Test 2 fails with "FAIL: feature branch: error message mentions make
+build". To prove the ELF removal works: revert Action 3 only and confirm Test 4
+passes (real validate+check runs with the real binary, not the stub that could not
+exec).
+
+### Dependencies
+
+- build/erg must be built (make build) before running the affected tests. Both
+  test_roundtrip.sh (line 5: ERG_BIN:-build/erg) and the new test_hook.sh header
+  depend on it. No other ticket dependency: Action 2 uses install.go as-is (current
+  HEAD); 0225 (guard iv inline vs. extracted helper) does not affect this ticket
+  because test_hook.sh and test_roundtrip.sh assert behavioral outcomes, not block
+  content equality.
+
+### Tautology scan
+
+No tautology risk. Tests assert accept/reject outcomes (commit allowed or blocked)
+and round-trip file hygiene -- not string equality with hookBody. A logic error in
+hookBody (e.g. wrong branch variable) would produce a wrong commit result and the
+test would catch it. The only new string assertions (Action 4) check for two
+substrings present in both the test's expectation and the shipped hook's rejection
+path, but the hook itself is not the test oracle -- git commit's stderr is. Guard
+(iv) in test_selfcoherence.sh owns the hookBody == integration.md equality check
+separately. Division of labor is clean.
+
+After the change, Test 4 is strictly more behavioral than before: the real binary
+now executes "tickets/erg validate" and "tickets/erg check tickets/" during the
+commit (hookBody:96-112), whereas the ELF stub was never invoked. A validate or
+check regression would now surface here.
