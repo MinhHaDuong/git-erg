@@ -122,7 +122,7 @@ func TestInstallAssetsHistoricalUpgrade(t *testing.T) {
 	}
 
 	// refuseDiverged=true (init default), dryRun=false.
-	created, refreshed, skipped, _, err := installAssets(root, true, false)
+	created, refreshed, skipped, _, err := installAssets(root, initAssetPaths, true, false)
 	if err != nil {
 		t.Fatalf("installAssets: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestInstallAssetsUnknownPreserved(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(ticketsDir, ".ergrc"), []byte(local), 0644); err != nil {
 		t.Fatal(err)
 	}
-	_, _, skipped, _, err := installAssets(root, true, false)
+	_, _, skipped, _, err := installAssets(root, initAssetPaths, true, false)
 	if err != nil {
 		t.Fatalf("installAssets: %v", err)
 	}

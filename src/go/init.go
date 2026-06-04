@@ -12,6 +12,15 @@ var initAssetPaths = []string{
 	"tickets/AGENTS.md",
 }
 
+// migrateAssetPaths is the subset of assets that `erg migrate` refreshes during
+// its layout sweep. It deliberately excludes tickets/.ergrc: configuration
+// delivery is `erg init`'s job (the dpkg 3-state compare that preserves local
+// edits). AGENTS.md keeps the charter's force-overwrite behaviour here because
+// agent operating instructions must track the binary (ticket 0224).
+var migrateAssetPaths = []string{
+	"tickets/AGENTS.md",
+}
+
 // orphanAssetPaths lists assets that older erg versions deposited during init
 // but are now served on demand via erg spec / erg integration. If a file at
 // one of these paths matches the current embedded content exactly, init
@@ -78,9 +87,11 @@ overwrite). See "Exit codes" in erg --help --all.
 // counts of how many files were newly created, refreshed (overwritten with
 // different content), skipped (differed from embedded but refuseDiverged was
 // set), or left unchanged (byte-identical to the embedded copy). Shared by
-// `erg init` and by `erg migrate`'s layout sweep. Error messages are
-// unwrapped -- no "init:" prefix -- so each caller can label them with its own
-// command name.
+// `erg init` and by `erg migrate`'s layout sweep. The caller supplies the exact
+// asset list via paths: `erg init` passes initAssetPaths (both assets); `erg
+// migrate` passes migrateAssetPaths (AGENTS.md only -- .ergrc is configuration,
+// delivered by init, ticket 0224). Error messages are unwrapped -- no "init:"
+// prefix -- so each caller can label them with its own command name.
 //
 // When refuseDiverged is true, files that differ from the embedded asset go
 // through the dpkg 3-state compare: a clean upgrade (on-disk matches the
@@ -93,11 +104,11 @@ overwrite). See "Exit codes" in erg --help --all.
 // orphan sweep is not performed; instead a preview line is printed for each
 // asset describing the action that would be taken. The returned counts are the
 // same as a real run would produce.
-func installAssets(root string, refuseDiverged, dryRun bool) (created, refreshed, skipped, unchanged int, err error) {
+func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (created, refreshed, skipped, unchanged int, err error) {
 	// The .erg-assets stamp from a previous init (nil if absent or malformed):
 	// name -> recorded SHA-256. Read once; the dpkg compare consults it per asset.
 	stamps := readManifest(root)
-	for _, rel := range initAssetPaths {
+	for _, rel := range paths {
 		content, ok := bootstrapAsset(rel)
 		if !ok {
 			return created, refreshed, skipped, unchanged, fmt.Errorf("missing embedded asset: %s", rel)
@@ -213,7 +224,7 @@ func cmdInit(args []string) int {
 
 	// --force overwrites divergent files; without it, they are preserved.
 	refuseDiverged := !force
-	created, refreshed, skipped, unchanged, err := installAssets(root, refuseDiverged, dryRun)
+	created, refreshed, skipped, unchanged, err := installAssets(root, initAssetPaths, refuseDiverged, dryRun)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "init: %v\n", err)
 		return 1

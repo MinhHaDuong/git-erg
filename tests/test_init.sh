@@ -415,15 +415,17 @@ else
     fail "dpkg: --force did not overwrite (rc=$frc)"
 fi
 
-# migrate stays force-overwrite (exempt from the dpkg compare).
+# migrate no longer touches .ergrc at all (ticket 0224): configuration delivery
+# is erg init's job (the dpkg 3-state compare). A locally-edited .ergrc must
+# survive erg migrate byte-identical -- migrate's asset refresh covers AGENTS.md.
 MG="$TDIR/dpkg-migrate"
 mkdir -p "$MG/tickets"; touch "$MG/tickets/erg"
 printf 'EDITED ERGRC\n' > "$MG/tickets/.ergrc"
 $ERG migrate "$MG/tickets" >/dev/null 2>&1
-if ! grep -q 'EDITED ERGRC' "$MG/tickets/.ergrc"; then
-    pass "dpkg: migrate force-overwrites (exempt from the compare)"
+if grep -q 'EDITED ERGRC' "$MG/tickets/.ergrc"; then
+    pass "dpkg: migrate leaves .ergrc untouched (config delivery is erg init's job)"
 else
-    fail "dpkg: migrate preserved a divergent file (should force-overwrite)"
+    fail "dpkg: migrate clobbered a locally-edited .ergrc (should leave it untouched)"
 fi
 
 # Loud output (criterion 5): an unchanged file names itself in NORMAL mode,
