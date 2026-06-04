@@ -65,8 +65,10 @@ legwork (red-team passes, persona dry-runs), a falsifiable subset runs in CI,
 and humans gate the findings (0151 security, 0152 UX). The UX dry-run
 procedure is in `UX-PROCESS.md`. The security red-team procedure is in
 `SECURITY-PROCESS.md`. The foundations-coherence procedure is in
-`FOUNDATIONS-PROCESS.md`. For a binary embarked
-in thousands of repos, the security bar is maximal — supply-chain and mass-RCE
+`FOUNDATIONS-PROCESS.md`. A binary embarked in thousands of repos is a
+deliberate design-class choice, not measured adoption
+(see `docs/audit-infrastructure-class.md`); under that class the security bar
+is maximal — supply-chain and mass-RCE
 class — and reproducible builds are the keystone control, **verifiable locally
 and offline** (rebuild the in-repo `src/go/` with git+go; no phone-home). The
 displayed hash uses a widely-available algorithm (SHA-256, recomputable with
