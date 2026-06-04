@@ -205,7 +205,7 @@ fi
 
 # Test: the binary carries no embedded network/TLS client. `erg update` now
 # shells out to git, so the offline invariant holds everywhere — guard it.
-if grep -rEn 'net/http|crypto/tls' src/go/ >/dev/null 2>&1; then
+if grep -rEn --include='*.go' 'net/http|crypto/tls' src/go/ >/dev/null 2>&1; then
     fail "source imports net/http or crypto/tls — erg must carry no network code"
 else
     pass "no net/http or crypto/tls in source (offline invariant)"

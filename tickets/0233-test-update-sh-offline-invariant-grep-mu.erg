@@ -9,6 +9,7 @@ Author: MinhHaDuong
 2026-06-04T14:03Z claude note imagine: add --include='*.go' to grep; test_contract.sh already guards semantics via go list -deps
 2026-06-04T14:12Z claude note plan: one-line --include='*.go' fix at test_update.sh:208; imagine's precedent claim corrected
 2026-06-04T14:22Z claude note feasibility: PASS -- line 208 verified, sole src/go grep in file
+2026-06-04T14:24Z claude note execute: --include filter applied, both controls verified
 --- body ---
 ## Context
 Found during raid 219-224 (2026-06-04) by the 0222 execute agent: a
@@ -31,9 +32,9 @@ src/go/, the suite passes; with a real `import "net/http"` added to a
 .go file, the suite fails.
 
 ## Exit criteria
-- [ ] Stray compiled binary in src/go/ no longer fails test_update.sh
-- [ ] The invariant still catches a real net/http import in a .go file
-- [ ] make check passes
+- [x] Stray compiled binary in src/go/ no longer fails test_update.sh
+- [x] The invariant still catches a real net/http import in a .go file
+- [x] make check passes
 
 ## Imagine (raid 2026-06-04)
 - Why now: the 0222 execute agent hit a live false-positive during the current raid; the sharp edge is active and reproducible whenever any developer or agent runs `go build ./...` inside src/go/ (produces a binary with embedded stdlib symbol strings including "net/http"), while the guarded make-build outputs only to build/erg (stripped -s -w, never in src/go/). No prior guard existed.
