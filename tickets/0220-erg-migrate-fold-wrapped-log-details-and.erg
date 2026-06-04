@@ -1,0 +1,55 @@
+%erg 0.1
+Title: erg migrate: fold wrapped log details and normalize date-only timestamps
+Created: 2026-06-03
+Author: claude
+
+--- log ---
+2026-06-03T19:54Z claude created
+
+--- body ---
+## Source
+0216 dogfood migration, 2026-06-03. Two of the six migrated stores
+(cadens: 29 files, Climate_finance: 7 files) needed the same one-off
+Python script after `erg migrate` ran clean -- the legacy pattern is
+common enough to absorb into migrate itself.
+
+## Context
+`%erg v1`-era stores wrote log entries as a timestamped line followed by
+free-form block content: indented wrap continuations, unindented prose
+paragraphs, numbered lists, blank-line-separated paragraphs -- even
+whole review documents. They also wrote date-only stamps
+(`2026-04-23 claude ...` without `THH:MMZ`). All of these are
+malformed-log-line violations under %erg 0.1, and migrate currently
+leaves them: a store can exit `erg migrate` still failing validation.
+
+That breaks migrate's implicit contract ("after migration, erg validate
+will reject any REMAINING legacy lines" reads as: format legacies are
+gone). It also defeats the per-file pre-commit validate on any repo
+that installs hooks after migrating.
+
+## Fix
+Two new idempotent migrate rules, same spirit as the interior-blank
+sweep (accept on read, autofix on write), applied inside the log
+section only:
+
+1. Fold: any line that does not start with a `YYYY-MM-DD` timestamp is
+   joined (single-space, stripped) onto the preceding entry's line.
+   Blank lines between an entry and its continuation content are
+   dropped. Content before the first timestamped entry is left
+   untouched (still a violation -- it has no parent entry; do not guess).
+2. Stamp: a leading `YYYY-MM-DD ` (date, no time) is rewritten to
+   `YYYY-MM-DDT00:00Z ` -- the conventional date-only normalization.
+
+Reference behaviour: the throwaway normalizer used in the 0216 run
+(joined 29 cadens + 7 Climate_finance files; full corpus validate PASS
+after). Content is preserved verbatim modulo whitespace joins.
+
+## Exit criteria
+- [ ] `erg migrate` on a fixture with wrapped details, unindented
+      paragraphs, numbered lists, blank separators, and date-only
+      stamps produces a store where `erg validate` passes on every file
+- [ ] Idempotent: second run byte-identical (byte-compare, not counts)
+- [ ] Orphan content before the first log entry is NOT folded and still
+      reported by validate
+- [ ] migrate summary line reports the two new rewrite counts
+- [ ] make check passes
