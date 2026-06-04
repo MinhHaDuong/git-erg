@@ -6,6 +6,10 @@ Author: MinhHaDuong
 --- log ---
 2026-06-04T10:59Z MinhHaDuong created
 
+2026-06-04T14:06Z claude note imagine: totality-check closes tautology; anchor to commands slice; CMDS parsed from shell with non-empty guard
+2026-06-04T14:16Z claude note plan: TestMutatingCommandsCMDSCoverage in erg_test.go; totality+regex+exclusion-assert+negative-control design
+2026-06-04T14:22Z claude note feasibility: PASS -- 19 commands, CMDS 7 entries at line 136, precedent test at erg_test.go:454
+2026-06-04T14:27Z claude note execute: meta-test added, negative + manual failure proofs recorded
 --- body ---
 ## Source
 /verify on PR #270 (ticket 0227), 2026-06-04 -- raised independently by
@@ -29,7 +33,140 @@ in-test map with the four documented exclusions). Negative control:
 doctored registry copy with an extra mutating command must trip it.
 
 ## Exit criteria
-- [ ] Meta-test fails when a mutating dispatch command is absent from
+- [x] Meta-test fails when a mutating dispatch command is absent from
       CMDS (negative control proves it)
-- [ ] The four exclusions are asserted, not silently skipped
-- [ ] make check passes
+- [x] The four exclusions are asserted, not silently skipped
+- [x] make check passes
+
+## Imagine (raid 2026-06-04)
+- Why now: 0227 closed the header-key axis gap; /verify on PR #270 raised
+  the command axis gap independently from all three review angles. Both axes
+  need the same meta-test discipline or the strict-write guard silently shrinks
+  when a new mutating subcommand enters the dispatch without joining CMDS.
+- Scope check: test-only change; no production code touched. The dispatch is a
+  non-iterable switch in main.go, but helptext.go exposes var commands
+  ([]commandEntry, package main) -- a _test.go can range it directly, exactly
+  as 0227 ranges v1HeaderKeys. One residual axis stays out of scope: a command
+  present in the switch but absent from the commands slice would escape this
+  meta-test; that is a pre-existing, separate drift vector not targetted here.
+- Simplest path: iterate commands, require every entry to be explicitly classified
+  (mutating OR readonly) in an in-test map -- unclassified names are a test
+  failure. Compute mutating-set minus exclusions and assert equality (==, not
+  just subset) with the CMDS set parsed from test_strictwrite.sh. Totality check
+  closes the tautology: a new mutating command forgotten in both CMDS and the
+  in-test map becomes "unclassified" and fails loud. Parse CMDS by regex on the
+  single-line quoted assignment; guard that the parsed set is non-empty so a
+  broken regex cannot pass vacuously. Negative control: inject "frobnicate" into
+  the mutating set, assert it is reported missing from CMDS -- mirrors 0227's
+  doctored-key design exactly.
+- Antipattern scan: tautological-test risk is real but closed by the totality
+  check (unclassified command is a failure, not a silent default). Irreducible
+  residual: a mutating command misclassified as readonly cannot be caught by
+  static analysis alone -- only the shell round-trip catches it if it is in CMDS.
+  Acceptable, parallel to 0227's fixtures not verifying they exercise their
+  validation path. No premature abstraction: Mutating bool on commandEntry would
+  conflate help metadata with mutation semantics and churn all 19 literals; the
+  in-test map is the right boundary.
+
+## Plan (raid 2026-06-04)
+
+### Actions
+
+1. Add `TestMutatingCommandsCMDSCoverage` to
+   src/go/erg_test.go (peer to `TestDispatchRegistrySync` at line 454;
+   different axis -- mutating-subset vs CMDS, not switch vs registry).
+   Add `"regexp"` to the import block in that file.
+
+2. In-test classification map (all 19 registry entries, exhaustive):
+   mutating: new, close, log, label, unlabel, archive, migrate
+   readonly: validate, check, list, ready, next-id, spec, integration,
+             version, rm, init, install, update
+   Note: rm/init/install/update are readonly FOR THIS TEST (they are the
+   four documented exclusions -- they write non-.erg outputs -- classified
+   readonly in the map so they do not appear in the mutating set and
+   therefore do not trigger a missing-from-CMDS failure).
+
+3. Totality loop (anti-tautology core):
+   `for _, c := range commands { if _, ok := classification[c.Name]; !ok {
+       t.Errorf("command %q not classified ...", c.Name) } }`
+   An unclassified entry (e.g. a new subcommand) fails here, not silently.
+
+4. Parse CMDS from tests/test_strictwrite.sh:
+   - Read file at path `"../../tests/test_strictwrite.sh"` (relative to
+     src/go cwd, where `go test` always runs -- confirmed by Makefile
+     `cd src/go && go test ./...`).
+   - Apply `(?m)^CMDS="([^"]*)"` (multiline flag required: the file has a
+     comment `# CMDS list below.` at line 10 and the assignment at line
+     136; without `(?m)` Go's RE2 `^` anchors to start-of-text only and
+     returns no match).
+   - `strings.Fields` the captured group -> set.
+   - Non-empty guard: if the set is empty, `t.Fatal("parsed CMDS set is
+     empty -- regex mismatch or file missing, cannot validate")`.
+
+5. Exclusions assertion (exit criterion 2 -- asserted not silently skipped):
+   for each of {rm, init, install, update}: assert the name IS present in
+   the classification map with value false (readonly). Fail if any exclusion
+   key is absent, e.g. a typo "instal" would otherwise silently narrow the
+   mutating set without notice. These four are expected readonly; the test
+   records the intent explicitly.
+
+6. Shared helper `missingFromCMDS(classification map[string]bool,
+   exclusions map[string]bool, cmdsSet map[string]bool) []string`:
+   iterates classification, collects names where value==true (mutating)
+   and name not in exclusions, checks each against cmdsSet, returns
+   missing names. Both the real assertion and the negative control call
+   this helper -- ensures the negative control exercises the real
+   comparison path (mirrors 0227's `headerKeysWithoutFixture` design).
+
+7. Equality assertion (set equality, not just subset):
+   (a) real: assert `missingFromCMDS(classification, exclusions, cmdsSet)`
+       returns empty -- mutating minus exclusions is contained in CMDS.
+   (b) surplus: assert no name in cmdsSet is absent from the mutating set
+       minus exclusions -- CMDS contains no phantom (undocumented) entry.
+   Together these assert exact equality.
+
+8. Negative control (inject "frobnicate"):
+   - Copy the classification map; add `"frobnicate": true`.
+   - Call `missingFromCMDS(doctored, exclusions, cmdsSet)`.
+   - Assert result contains "frobnicate". If not, the helper always
+     reports empty and cannot catch drift.
+
+9. Manual "prove it can fail" smoke (for execute agent to run, not
+   automated): transiently edit tests/test_strictwrite.sh to remove
+   "migrate" from the CMDS= line, run
+   `cd src/go && go test -run TestMutatingCommandsCMDSCoverage .`,
+   confirm red with "migrate missing from CMDS", revert. This verifies
+   the real file-parse-then-compare path, not only the in-memory control.
+
+### First test
+
+Pass: `go test -run TestMutatingCommandsCMDSCoverage ./...` on today's
+tree (7 mutating == 7 in CMDS).
+Fail: same test after transiently removing "migrate" from CMDS= in
+tests/test_strictwrite.sh -- must report "migrate missing from CMDS".
+Negative control (in-test): inject "frobnicate" into classification map,
+assert reported as missing; if not reported the helper has a tautology.
+
+### Dependencies
+
+- src/go/helptext.go: `var commands []commandEntry` (package main,
+  accessible to `_test.go` in package main) -- already present.
+- tests/test_strictwrite.sh: CMDS= line at line 136, double-quoted,
+  single assignment -- confirmed format `CMDS="new close log ..."`.
+- No new production files; test-only change.
+- erg_test.go already in package main; needs `"regexp"` import added.
+
+### Tautology scan
+
+Risk: classification map that classifies everything as readonly would
+make the mutating set empty and the equality assertion vacuously pass
+against an empty CMDS. Closed by step 3 (totality loop ensures every
+command is explicitly classified) and step 7b (CMDS surplus check would
+then fail because CMDS has 7 entries while the mutating set is empty).
+Closed independently by the non-empty guard in step 4 (if CMDS parse
+fails, test Fatal-fails rather than vacuously passing).
+Irreducible residual: a mutating command misclassified as readonly in the
+in-test map cannot be caught by static analysis alone; only the shell
+round-trip guard (test_strictwrite.sh) catches it if CMDS is also correct.
+Acceptable -- parallel to 0227's fixtures not verifying they exercise the
+validation path.

@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -512,6 +513,163 @@ func TestDispatchRegistrySync(t *testing.T) {
 	if strings.Join(switchCmds, ",") != strings.Join(registryCmds, ",") {
 		t.Errorf("dispatch switch and commands registry are out of sync\n  switch cases: %v\n  registry:     %v",
 			switchCmds, registryCmds)
+	}
+}
+
+// missingFromCMDS returns the mutating commands (classification[name]==true)
+// that are NOT in the documented exclusions set and NOT present in cmdsSet.
+// A non-empty result means the strict-write round-trip guard
+// (tests/test_strictwrite.sh) would skip a command that mutates .erg files.
+// Extracted as a helper so the meta-test's negative control can drive it with
+// a doctored classification map (mirrors headerKeysWithoutFixture in
+// validate_test.go).
+func missingFromCMDS(classification, exclusions, cmdsSet map[string]bool) []string {
+	var missing []string
+	for name, mutating := range classification {
+		if !mutating || exclusions[name] {
+			continue
+		}
+		if !cmdsSet[name] {
+			missing = append(missing, name)
+		}
+	}
+	sort.Strings(missing)
+	return missing
+}
+
+// TestMutatingCommandsCMDSCoverage is a meta-test for the command axis of the
+// strict-write guard, peer to TestDispatchRegistrySync (which guards the
+// switch-vs-registry axis). TestV1HeaderKeys_FixtureCoverage (validate_test.go)
+// closed the equivalent gap on the header-key axis; this closes it on the
+// command axis. Every command in the dispatch registry (helptext.go's commands
+// slice) must be explicitly classified as mutating or read-only here. The
+// mutating set, minus the four documented exclusions, must exactly equal the
+// CMDS list in tests/test_strictwrite.sh. If a new mutating subcommand enters
+// the dispatch without joining CMDS, the round-trip guard silently shrinks --
+// the exact drift this test exists to prevent.
+func TestMutatingCommandsCMDSCoverage(t *testing.T) {
+	// 1. Exhaustive in-test classification of all 19 registry commands.
+	// true == mutates .erg files (writes a ticket). The totality loop below
+	// fails loud if any registry command is missing from this map, so a new
+	// subcommand cannot slip through unclassified.
+	classification := map[string]bool{
+		// mutating: write or rewrite .erg ticket files
+		"new":     true,
+		"close":   true,
+		"log":     true,
+		"label":   true,
+		"unlabel": true,
+		"archive": true,
+		"migrate": true,
+		// mutating but EXCLUDED from the strict-write round-trip. They mutate
+		// state, so they are honestly classified mutating, but
+		// test_strictwrite.sh's "Excluded by design" notes (near the CMDS=
+		// line) deliberately omit them: rm deletes a file so there is nothing
+		// to re-validate (covered by test_datasafety.sh Guard 6); init touches
+		// non-.erg files (.ergrc); install/update touch the installed binary,
+		// not tickets.
+		"rm":      true,
+		"init":    true,
+		"install": true,
+		"update":  true,
+		// read-only: inspect or validate, never write
+		"validate":    false,
+		"check":       false,
+		"list":        false,
+		"ready":       false,
+		"next-id":     false,
+		"spec":        false,
+		"integration": false,
+		"version":     false,
+	}
+
+	// The four documented exclusions: mutating commands intentionally absent
+	// from CMDS because the strict-write round-trip cannot drive them.
+	exclusions := map[string]bool{
+		"rm": true, "init": true, "install": true, "update": true,
+	}
+
+	// 2. Totality loop (anti-tautology core): every registry command must be
+	// classified. An unclassified entry (e.g. a freshly added subcommand)
+	// fails here rather than silently defaulting and escaping the comparison.
+	for _, c := range commands {
+		if _, ok := classification[c.Name]; !ok {
+			t.Errorf("command %q is in the dispatch registry but not classified mutating/readonly in this test -- add it (and to CMDS in tests/test_strictwrite.sh if it mutates .erg files)", c.Name)
+		}
+	}
+
+	// 3. Exclusions assertion (exit criterion 2): each of the four exclusions
+	// must be present in the classification map AND marked mutating. A typo
+	// (e.g. "instal") would otherwise silently narrow the mutating set without
+	// notice; this records the intent explicitly and fails loud on drift.
+	for name := range exclusions {
+		mutating, ok := classification[name]
+		if !ok {
+			t.Errorf("exclusion %q is not present in the classification map -- exclusions must be classified mutating", name)
+			continue
+		}
+		if !mutating {
+			t.Errorf("exclusion %q is classified read-only; exclusions are mutating commands deliberately omitted from CMDS", name)
+		}
+	}
+
+	// 4. Parse CMDS from the strict-write script. go test runs with cwd set to
+	// the package dir (src/go), so the script is at ../../tests/.
+	scriptPath := filepath.Join("..", "..", "tests", "test_strictwrite.sh")
+	data, err := os.ReadFile(scriptPath)
+	if err != nil {
+		t.Fatalf("reading %s: %v", scriptPath, err)
+	}
+	// (?m) is required: the assignment is at line ~136, not start-of-file, and
+	// Go's RE2 anchors ^ to start-of-text without the multiline flag.
+	re := regexp.MustCompile(`(?m)^CMDS="([^"]*)"`)
+	m := re.FindSubmatch(data)
+	if m == nil {
+		t.Fatalf("no CMDS=\"...\" assignment found in %s -- regex mismatch or file moved", scriptPath)
+	}
+	cmdsSet := map[string]bool{}
+	for _, name := range strings.Fields(string(m[1])) {
+		cmdsSet[name] = true
+	}
+	// Non-empty guard: a broken regex or empty list must not pass vacuously.
+	if len(cmdsSet) == 0 {
+		t.Fatal("parsed CMDS set is empty -- regex mismatch or empty assignment, cannot validate")
+	}
+
+	// 5. Set equality, direction A: every mutating non-excluded command is in
+	// CMDS (the guard covers all of them).
+	if missing := missingFromCMDS(classification, exclusions, cmdsSet); len(missing) != 0 {
+		t.Errorf("mutating commands missing from CMDS in %s: %v -- add them to the CMDS= line so the strict-write round-trip exercises them", scriptPath, missing)
+	}
+
+	// 6. Set equality, direction B: CMDS contains no phantom entry that is not
+	// a mutating, non-excluded command (no undocumented or stale name).
+	for name := range cmdsSet {
+		mutating := classification[name]
+		if !mutating || exclusions[name] {
+			t.Errorf("CMDS in %s contains %q, which is not a non-excluded mutating command (mutating=%v, excluded=%v) -- remove it or fix the classification", scriptPath, name, mutating, exclusions[name])
+		}
+	}
+
+	// 7. Negative control: inject a bogus mutating command and confirm the
+	// helper reports it missing from CMDS. Guards against a helper that always
+	// returns empty (a tautological pass). Mirrors the doctored-key control in
+	// TestV1HeaderKeys_FixtureCoverage.
+	doctored := map[string]bool{}
+	for k, v := range classification {
+		doctored[k] = v
+	}
+	doctored["frobnicate"] = true
+	gaps := missingFromCMDS(doctored, exclusions, cmdsSet)
+	found := false
+	for _, g := range gaps {
+		if g == "frobnicate" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("negative control: injected \"frobnicate\" not reported missing from CMDS (got %v) -- the helper has a tautology", gaps)
 	}
 }
 
