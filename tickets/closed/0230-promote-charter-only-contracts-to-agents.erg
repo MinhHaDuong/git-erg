@@ -2,6 +2,7 @@
 Title: Promote charter-only contracts to AGENTS.md/manual; README seven-invariants block
 Created: 2026-06-04
 Author: MinhHaDuong
+Closed: autoclosed — PR #283
 
 --- log ---
 2026-06-04T09:30Z MinhHaDuong created
@@ -11,6 +12,7 @@ Author: MinhHaDuong
 2026-06-04T14:14Z claude note plan: install-only rule in AGENTS.md line 55; README invariants block after line 51; sub-task 2 already satisfied by 0224
 2026-06-04T14:22Z claude note feasibility: PASS -- insertion points verified, no guard covers root AGENTS.md/README
 2026-06-04T20:17Z claude note execute: AGENTS.md scope-confinement + README invariants block; manual already covers migrate policy
+2026-06-04T20:34Z MinhHaDuong closed — autoclosed — PR #283
 --- body ---
 ## Source
 2026-06-04 foundations audit (Communicate). Live contracts stated only
