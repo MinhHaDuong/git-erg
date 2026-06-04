@@ -1,0 +1,34 @@
+%erg 0.1
+Title: Guard: enforce install-only-outside-mutator invariant with a test
+Created: 2026-06-04
+Author: MinhHaDuong
+
+--- log ---
+2026-06-04T20:32Z MinhHaDuong created
+
+--- body ---
+## Context
+/verify on PR #283 (ticket 0230) adherence pass: the newly documented
+"install is the only erg verb that mutates outside tickets/" contract
+(AGENTS.md Scope confinement paragraph) is asserted in prose but
+enforced by nothing. A prose contract with no guard is exactly the
+drift class this raid spent wave 1 closing (0234/0235/0236).
+
+## Actions
+1. Add a guard test: run each non-install command from the dispatch
+   registry in a scratch repo and assert no writes land outside
+   tickets/ (snapshot the tree before/after, diff). Alternatively a
+   static check over the dispatch registry if runtime probing is
+   too coarse.
+2. Follow the 0236 meta-test precedent: totality over the registry,
+   documented exclusions explicit, negative control included.
+
+## Test
+Negative control: a doctored command (or a temp copy of one) that
+writes a file at repo root must trip the guard.
+
+## Exit criteria
+- [ ] Guard fails when a non-install command writes outside tickets/
+      (negative control proves it)
+- [ ] Green on current main
+- [ ] make check passes
