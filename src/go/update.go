@@ -44,6 +44,17 @@ After a successful update, checks whether any .erg files in the ticket store sti
 legacy Status: headers. If found, prints explicit migration guidance: 'erg migrate DIR',
 'git diff tickets/', 'git commit'. The update command never mutates ticket files itself --
 migration is a separate, reviewable step.
+
+erg update replaces the binary only -- it never writes or modifies any store file
+(.ergrc, AGENTS.md, or tickets). Embedded-asset changes and new default label vocabulary
+are delivered by a follow-up 'erg init'. The canonical sequence after an update is:
+
+  erg update && erg init
+
+erg init applies the dpkg-style 3-state rule: byte-identical files are left untouched;
+a file that matches the previously recorded stock hash is a clean upgrade and is
+overwritten; a locally-edited file is preserved (exit 2). Running erg update alone is
+never sufficient to absorb new defaults.
 `
 
 // resolveUpdateRemote applies the update-source precedence: the ERG_UPDATE_URL
