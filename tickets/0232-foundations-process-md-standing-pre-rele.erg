@@ -8,6 +8,7 @@ Author: MinhHaDuong
 
 2026-06-04T09:46Z claude note raid execute: process doc + AGENTS.md pointer
 2026-06-04T09:46Z claude note exit criterion 3 (release checklist) delivered via IDH release-skill PR by raid orchestrator; this PR covers criteria 1, 2, 4
+2026-06-04T10:29Z claude note criterion 3 evidence: IDH PR #278 MERGED (release skill now launches Agent C foundations coherence); all four criteria met
 --- body ---
 ## Source
 2026-06-04 foundations audit + author decision: the audit prompt
@@ -36,5 +37,7 @@ security; add it to the pre-release checklist the release flow runs.
 - [ ] FOUNDATIONS-PROCESS.md exists with the three-phase method
       (sweep / verify-disjoint-union / communicate)
 - [ ] AGENTS.md posture paragraph references it
-- [ ] Release procedure lists it alongside UX and security audits
+- [x] Release procedure lists it alongside UX and security audits
+      (delivered: IDH release-skill PR #278, merged 2026-06-04 -- Agent C
+      foundations coherence in the parallel audit panel)
 - [ ] make check passes
