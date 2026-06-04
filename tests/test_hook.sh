@@ -29,9 +29,8 @@ git config commit.gpgsign false
 # Install the real shipped hook (not a hand-rolled copy that can silently
 # diverge from hookBody). The cp places the binary that the .erg validate path
 # in Test 4 will exec; "$ERG_ABS" is required because we have cd'd into "$REPO".
-mkdir -p tickets
+# install creates the hooks dir itself (install.go resolveHooksDir → MkdirAll).
 cp "$ERG_ABS" tickets/erg
-mkdir -p .git/hooks
 "$ERG_ABS" install . --hooks >/dev/null
 
 # Create an initial commit on main so we can branch

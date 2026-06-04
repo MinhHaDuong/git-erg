@@ -33,7 +33,7 @@ $ERG init "$REPO" >/dev/null 2>&1
 # Install the hook via the real shipped installer rather than a hand-rolled
 # heredoc copy that can silently diverge from hookBody. The binary is already
 # at "$REPO/tickets/erg" (cp above), satisfying the install precondition.
-mkdir -p "$REPO/.git/hooks"
+# install creates the hooks dir itself (install.go resolveHooksDir → MkdirAll).
 "$ERG" install "$REPO" --hooks >/dev/null
 
 # Verify all install artifacts exist
