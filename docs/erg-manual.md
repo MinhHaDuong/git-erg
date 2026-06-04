@@ -339,9 +339,18 @@ rules are:
   - Interior blank lines inside the header block -> swept (ticket 0141:
     accept on read, autofix on write). The first blank line still terminates
     the header block; only blanks between header lines are removed.
+  - Log continuation lines: any non-blank line in the log section that does
+    not start with a YYYY-MM-DD timestamp is joined (single space, stripped)
+    onto the preceding log entry. Blank lines between an entry and its
+    continuation content are dropped. Content before the first timestamped
+    entry is untouched.
+  - Date-only log stamps: a leading 'YYYY-MM-DD ' (date, no T separator) is
+    rewritten to 'YYYY-MM-DDT00:00Z '.
   - No legacy line and no interior blanks -> no-op.
 
-After migration, erg validate will reject any remaining Status:, Tags:, or Tag: lines.
+After migration, erg validate will reject any remaining Status:, Tags:, or Tag: lines,
+and folds legacy wrapped log details plus date-only log stamps so a migrated store
+passes validation (orphan content before the first log entry is left for validate to flag).
 
 When DIR is named "tickets" (the canonical layout), also performs a one-time
 project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
