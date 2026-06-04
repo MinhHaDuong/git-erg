@@ -99,6 +99,24 @@ var filenameRE = regexp.MustCompile(`^\d{4}-[a-z0-9]+(?:-[a-z0-9]+)*\.erg$`)
 //	iso-datetime := 4DIGIT "-" 2DIGIT "-" 2DIGIT "T" 2DIGIT ":" 2DIGIT "Z"
 var logLineRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z\s+\S+\s+\S+`)
 
+// logEntryPrefixRE matches any log line that opens a new log entry:
+// a line whose first 10 characters form a YYYY-MM-DD date. Used by
+// foldLogLines to distinguish entry-openers from continuation lines.
+//
+// ABNF production:
+//
+//	log-entry-prefix := 4DIGIT "-" 2DIGIT "-" 2DIGIT
+var logEntryPrefixRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}`)
+
+// logDateOnlyRE matches a date-only log entry stamp (YYYY-MM-DD followed
+// by a space, not a T). Used by foldLogLines to normalise legacy date-only
+// stamps to YYYY-MM-DDT00:00Z form.
+//
+// ABNF production:
+//
+//	log-date-only := 4DIGIT "-" 2DIGIT "-" 2DIGIT SP
+var logDateOnlyRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2} `)
+
 // hostRE matches the host component of a forge ref.
 // Colons and underscores are excluded; must start and end with an
 // alphanumeric character.

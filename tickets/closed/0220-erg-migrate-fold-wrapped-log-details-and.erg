@@ -1,0 +1,357 @@
+%erg 0.1
+Title: erg migrate: fold wrapped log details and normalize date-only timestamps
+Created: 2026-06-03
+Author: claude
+Closed: autoclosed — PR #269
+
+--- log ---
+2026-06-03T19:54Z claude created
+2026-06-04T09:32Z claude note imagine: single foldLogLines pass in migrate.go (state machine: seenFirstEntry orphan gate, pendingBlanks buffer flushed only before timestamp/body/EOF); stamp discriminator = space-after-date vs T-after-date; regexes go in ergspecv1.go with ABNF comments; CRITICAL invariant -- blank before --- body --- preserved, idempotency fixture must include blanks or the accumulation bug escapes
+2026-06-04T09:35Z claude note plan: foldLogLines(log []string)([]string,bool,bool) in migrate.go after Closed-insert; two regexes in ergspecv1.go; two migrateResult fields + counters + Printf lines; helpMigrate updated; Go unit tests with blank+orphan+stamp fixtures
+2026-06-04T09:43Z claude note feasibility PASS -- shares ergspecv1.go with 0222 in Wave 1, disjoint regions (~line 100 vs 24-68), 2 PRs is below coordination-PR threshold, rebase at merge
+
+2026-06-04T11:03Z MinhHaDuong closed — autoclosed — PR #269
+--- body ---
+## Source
+0216 dogfood migration, 2026-06-03. Two of the six migrated stores
+(cadens: 29 files, Climate_finance: 7 files) needed the same one-off
+Python script after `erg migrate` ran clean -- the legacy pattern is
+common enough to absorb into migrate itself.
+
+## Context
+`%erg v1`-era stores wrote log entries as a timestamped line followed by
+free-form block content: indented wrap continuations, unindented prose
+paragraphs, numbered lists, blank-line-separated paragraphs -- even
+whole review documents. They also wrote date-only stamps
+(`2026-04-23 claude ...` without `THH:MMZ`). All of these are
+malformed-log-line violations under %erg 0.1, and migrate currently
+leaves them: a store can exit `erg migrate` still failing validation.
+
+That breaks migrate's implicit contract ("after migration, erg validate
+will reject any REMAINING legacy lines" reads as: format legacies are
+gone). It also defeats the per-file pre-commit validate on any repo
+that installs hooks after migrating.
+
+## Fix
+Two new idempotent migrate rules, same spirit as the interior-blank
+sweep (accept on read, autofix on write), applied inside the log
+section only:
+
+1. Fold: any line that does not start with a `YYYY-MM-DD` timestamp is
+   joined (single-space, stripped) onto the preceding entry's line.
+   Blank lines between an entry and its continuation content are
+   dropped. Content before the first timestamped entry is left
+   untouched (still a violation -- it has no parent entry; do not guess).
+2. Stamp: a leading `YYYY-MM-DD ` (date, no time) is rewritten to
+   `YYYY-MM-DDT00:00Z ` -- the conventional date-only normalization.
+
+Reference behaviour: the throwaway normalizer used in the 0216 run
+(joined 29 cadens + 7 Climate_finance files; full corpus validate PASS
+after). Content is preserved verbatim modulo whitespace joins.
+
+## Exit criteria
+- [ ] `erg migrate` on a fixture with wrapped details, unindented
+      paragraphs, numbered lists, blank separators, and date-only
+      stamps produces a store where `erg validate` passes on every file
+- [ ] Idempotent: second run byte-identical (byte-compare, not counts)
+- [ ] Orphan content before the first log entry is NOT folded and still
+      reported by validate
+- [ ] migrate summary line reports the two new rewrite counts
+- [ ] make check passes
+
+## Plan
+
+### Verification of validator behavior (prerequisite for correctness)
+
+Confirmed in src/go/erg.go lines 395-399: the log-section parser skips blank
+lines (only appends when `trimmed != ""`). Rule 11 check (lines 493-498) also
+skips blank `trimmed`. Therefore:
+- Blank lines inside the log section are invisible to the validator — preserving
+  them after folding satisfies "validate passes" (exit criterion 1).
+- Non-blank lines that don't match `logLineRE` ARE flagged — orphan content
+  before the first timestamped entry still fails (exit criterion 3 confirmed).
+
+### Actions (numbered, file:line precise)
+
+**1. src/go/ergspecv1.go — add two new regexes after logLineRE (line 100)**
+
+Add adjacent to `logLineRE` with ABNF comments:
+
+```go
+// logEntryPrefixRE matches any log line that opens a new log entry:
+// a line whose first 10 characters form a YYYY-MM-DD date. Used by
+// foldLogLines to distinguish entry-openers from continuation lines.
+//
+// ABNF production:
+//
+//  log-entry-prefix := 4DIGIT "-" 2DIGIT "-" 2DIGIT
+var logEntryPrefixRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}`)
+
+// logDateOnlyRE matches a date-only log entry stamp (YYYY-MM-DD followed
+// by a space, not a T). Used by foldLogLines to normalise legacy date-only
+// stamps to YYYY-MM-DDT00:00Z form.
+//
+// ABNF production:
+//
+//  log-date-only := 4DIGIT "-" 2DIGIT "-" 2DIGIT SP
+var logDateOnlyRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2} `)
+```
+
+**2. src/go/migrate.go — add foldLogLines function (after migrateErgrc, ~line 447)**
+
+Signature:
+```go
+func foldLogLines(log []string) (out []string, folded bool, stamped bool)
+```
+
+State machine (operates on the log-section slice only — preamble and body are
+never passed in):
+- Maintain: `cur string` (accumulated entry text), `pendingBlanks []string`,
+  `seenFirstEntry bool`.
+- For each `line` in `log`:
+  - If `strings.TrimSpace(line) == ""`: append to `pendingBlanks`.
+  - Else if `logEntryPrefixRE.MatchString(line)` (new entry opener):
+    - Emit `cur` if non-empty (flush current accumulated entry).
+    - Flush `pendingBlanks` to `out` (preserve inter-entry blanks).
+    - Reset `pendingBlanks`.
+    - Set `seenFirstEntry = true`.
+    - If `logDateOnlyRE.MatchString(line)`: rewrite `line[:10] + "T00:00Z" +
+      line[10:]` (line[10] is the space, so result is `...T00:00Z rest`);
+      set `stamped = true`.
+    - Start new entry: `cur = line`.
+  - Else (non-blank, non-entry — continuation or orphan):
+    - If `seenFirstEntry`: drop `pendingBlanks` (blanks between entry and its
+      continuation are discarded); `cur += " " + strings.TrimSpace(line)`;
+      set `folded = true`.
+    - Else (orphan before first entry): flush `pendingBlanks`, emit `line`
+      verbatim; `pendingBlanks = nil`.
+- After loop: emit `cur` if non-empty; flush `pendingBlanks` (preserves
+  trailing blank before `--- body ---`).
+
+Idempotency argument: after one pass, every non-blank non-entry-opener line is
+either folded onto its parent entry or emitted as an orphan. No such lines
+remain, so a second pass has nothing to fold or stamp (date-only stamps already
+rewritten to T00:00Z, which `logDateOnlyRE` does not match).
+
+**3. src/go/migrate.go — wire foldLogLines into migrateFile (~line 363-365)**
+
+After the `wasClosed` insertion block (after line 363), before `strings.Join`
+(line 365):
+
+```go
+// Locate log and body separators in the (possibly rewritten) out slice.
+logStartIdx := -1
+bodyStartIdx := len(out)
+for i, line := range out {
+    if strings.TrimSpace(line) == separatorLog && logStartIdx < 0 {
+        logStartIdx = i
+    }
+    if strings.TrimSpace(line) == separatorBody {
+        bodyStartIdx = i
+        break
+    }
+}
+if logStartIdx >= 0 {
+    logSlice := out[logStartIdx+1 : bodyStartIdx]
+    folded, didFold, didStamp := foldLogLines(logSlice)
+    if didFold || didStamp {
+        // Build fresh slice to avoid append aliasing into out's backing array.
+        newOut := make([]string, 0, len(out))
+        newOut = append(newOut, out[:logStartIdx+1]...)
+        newOut = append(newOut, folded...)
+        newOut = append(newOut, out[bodyStartIdx:]...)
+        out = newOut
+        res.folded = didFold
+        res.stamped = didStamp
+    }
+}
+```
+
+**4. src/go/migrate.go — extend migrateResult struct (~line 260-267)**
+
+Add two fields:
+```go
+folded  bool // at least one log continuation line was folded onto its entry
+stamped bool // at least one date-only log stamp was normalised to T00:00Z
+```
+
+**5. src/go/migrate.go — extend cmdMigrate counters and summary (~lines 68-119)**
+
+Add counters:
+```go
+migratedFolded  := 0
+migratedStamped := 0
+```
+
+In the per-file results block (~lines 91-106), add after the blanksSwept block:
+```go
+if res.folded {
+    migratedFolded++
+}
+if res.stamped {
+    migratedStamped++
+}
+```
+
+Add two Printf lines in the summary block (~line 118-119):
+```go
+fmt.Printf("log continuation fold: %d tickets\n", migratedFolded)
+fmt.Printf("date-only stamp normalise: %d tickets\n", migratedStamped)
+```
+
+**6. src/go/migrate.go — extend helpMigrate (~lines 14-46)**
+
+Add two rules to the bullet list in the `helpMigrate` constant, after the
+"Interior blank lines" bullet:
+
+```
+  - Log continuation lines: any non-blank line in the log section that does
+    not start with a YYYY-MM-DD timestamp is joined (single space, stripped)
+    onto the preceding log entry. Blank lines between an entry and its
+    continuation content are dropped. Content before the first timestamped
+    entry is untouched.
+  - Date-only log stamps: a leading 'YYYY-MM-DD ' (date, no T separator) is
+    rewritten to 'YYYY-MM-DDT00:00Z '.
+```
+
+Also update the "After migration" sentence to mention these two new rules.
+
+### Test plan (Go unit tests in src/go/migrate_test.go)
+
+**Test A — TestFoldLogLines (pure-function unit test)**
+
+Tests `foldLogLines` directly with a fixture containing:
+- a full-timestamp entry with single-line detail (must survive unchanged)
+- a date-only stamp entry (must be normalised to T00:00Z)
+- a full-timestamp entry followed by: blank line, indented continuation,
+  unindented continuation, numbered-list item — all joined in order with
+  single spaces, blanks dropped
+- blank lines between this entry and the next (preserved in output as
+  inter-entry blanks)
+- a second full-timestamp entry (clean — tests boundary)
+- a trailing blank after the last entry (preserved — validates the
+  "blank before --- body ---" invariant)
+
+Assert:
+- `folded == true`
+- `stamped == true`
+- exact `out` slice matches expected (in-order, single-space joins, orphan
+  untouched, inter-entry blank preserved, trailing blank preserved)
+
+Tautology check: a no-op implementation returns `(log, false, false)` —
+it fails because `out` != expected folded content. A fold-only (no stamp)
+implementation fails because date-only stamp not rewritten. A
+global-fold (orphans too) fails because orphan line is altered.
+
+**Test B — TestMigrateFileLogFold (integration test via migrateFile)**
+
+Fixture content (full .erg file):
+```
+%erg 0.1
+Title: T
+Created: 2024-01-01
+Author: test
+
+--- log ---
+2024-01-01 alice created
+2024-01-02T10:00Z bob note This is a long note that wraps
+onto this line
+and this line too
+
+2024-01-03T12:00Z carol note Short entry
+
+--- body ---
+body text
+```
+
+After migration:
+```
+%erg 0.1
+Title: T
+Created: 2024-01-01
+Author: test
+
+--- log ---
+2024-01-01T00:00Z alice created
+2024-01-02T10:00Z bob note This is a long note that wraps onto this line and this line too
+
+2024-01-03T12:00Z carol note Short entry
+
+--- body ---
+body text
+```
+
+Assert:
+- `res.folded == true`, `res.stamped == true`, `res.changed == true`
+- file content byte-equals the expected string above
+
+**Test C — TestMigrateFileIdempotentFold (idempotency test)**
+
+Same fixture as Test B. Run `migrateFile` twice.
+Assert:
+- first run: `res.changed == true`
+- read file bytes after first run → `after`
+- second run: `res.changed == false`
+- read file bytes after second run → bytes must equal `after` (byte-compare,
+  not count check)
+
+Tautology check: this fixture has blanks, wrapped lines, and date-only stamps.
+A no-op implementation fails TestB's content assertion. TestC alone cannot be
+passed by a no-op (TestB ensures the first-run content is correct, TestC
+ensures the second run is a no-op on that correct content).
+
+**Test D — TestMigrateFileOrphanUntouched**
+
+Fixture with orphan text before the first timestamped entry:
+```
+%erg 0.1
+Title: T
+Created: 2024-01-01
+Author: test
+
+--- log ---
+orphan line with no timestamp
+2024-01-02T10:00Z alice note Real entry
+
+--- body ---
+```
+
+Assert:
+- `res.folded == false` (orphan is NOT folded)
+- file content after migration still contains `orphan line with no timestamp`
+  verbatim
+- run `parseErg` on the migrated file; assert errs contains a malformed-log-line
+  violation for the orphan (validator still flags it)
+
+Tautology check: a global-fold implementation would fold orphan onto the next
+entry (wrong) — this test would fail because the orphan disappears from the
+file. The parseErg assertion confirms the orphan is still a violation.
+
+### Fixture sketch
+
+The idempotency fixture in TestC must include (all in one file to avoid a
+combination explosion):
+1. Trailing blank before `--- body ---` (preserving this is the CRITICAL invariant)
+2. Inter-entry blank line (must survive folding)
+3. Blank between an entry-opener and its continuation (must be dropped)
+4. Multi-line continuation spanning both indented and unindented forms
+5. Numbered-list item continuation
+6. Date-only stamp entry
+7. A full-timestamp entry with no continuation (regression guard — must be
+   byte-identical after fold)
+
+### Dependencies
+
+None. Implementation is self-contained in `src/go/migrate.go` (new function +
+wiring + bookkeeping) and `src/go/ergspecv1.go` (two new regexes). No new files
+needed. No Blocked-by header required.
+
+### Tautology-scan verdict
+
+PASS — each test is designed to fail under a wrong or missing implementation:
+- TestA catches wrong join order, missing stamp, global orphan fold, lost blanks
+- TestB+C together: TestB catches wrong content; TestC catches blank accumulation
+  on second run (the byte-compare, not marker-count pattern per memory entry)
+- TestD catches treating orphans as foldable continuations
+- The stamp idempotency guard (full timestamps in the same fixture) catches
+  re-stamping bugs

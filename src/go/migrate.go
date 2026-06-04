@@ -29,9 +29,18 @@ rules are:
   - Interior blank lines inside the header block -> swept (ticket 0141:
     accept on read, autofix on write). The first blank line still terminates
     the header block; only blanks between header lines are removed.
+  - Log continuation lines: any non-blank line in the log section that does
+    not start with a YYYY-MM-DD timestamp is joined (single space, stripped)
+    onto the preceding log entry. Blank lines between an entry and its
+    continuation content are dropped. Content before the first timestamped
+    entry is untouched.
+  - Date-only log stamps: a leading 'YYYY-MM-DD ' (date, no T separator) is
+    rewritten to 'YYYY-MM-DDT00:00Z '.
   - No legacy line and no interior blanks -> no-op.
 
-After migration, erg validate will reject any remaining Status:, Tags:, or Tag: lines.
+After migration, erg validate will reject any remaining Status:, Tags:, or Tag: lines,
+and folds legacy wrapped log details plus date-only log stamps so a migrated store
+passes validation (orphan content before the first log entry is left for validate to flag).
 
 When DIR is named "tickets" (the canonical layout), also performs a one-time
 project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
@@ -70,6 +79,8 @@ func cmdMigrate(args []string) int {
 	migratedLabels := 0
 	migratedMagic := 0
 	migratedBlanks := 0
+	migratedFolded := 0
+	migratedStamped := 0
 	alreadyClean := 0
 
 	err = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
@@ -103,6 +114,12 @@ func cmdMigrate(args []string) int {
 		if res.blanksSwept {
 			migratedBlanks++
 		}
+		if res.folded {
+			migratedFolded++
+		}
+		if res.stamped {
+			migratedStamped++
+		}
 		return nil
 	})
 	if err != nil {
@@ -116,6 +133,8 @@ func cmdMigrate(args []string) int {
 	fmt.Printf("Tag: \u2192 Label: rewrite: %d tickets\n", migratedLabels)
 	fmt.Printf("%%erg v1 \u2192 %%erg 0.1 rewrite: %d tickets\n", migratedMagic)
 	fmt.Printf("interior header blank sweep: %d tickets\n", migratedBlanks)
+	fmt.Printf("log continuation fold: %d tickets\n", migratedFolded)
+	fmt.Printf("date-only stamp normalise: %d tickets\n", migratedStamped)
 	fmt.Printf("already clean: %d tickets\n", alreadyClean)
 
 	// Rewrite the .ergrc [tags] section header to [labels] (idempotent).
@@ -264,6 +283,8 @@ type migrateResult struct {
 	labelsRewritten bool // at least one preamble `Tag:`/`Tags:` line was rewritten to `Label:`
 	magicRewritten  bool // legacy `%erg v1` magic line was rewritten to `%erg 0.1`
 	blanksSwept     bool // at least one interior header blank line was removed
+	folded          bool // at least one log continuation line was folded onto its entry
+	stamped         bool // at least one date-only log stamp was normalised to T00:00Z
 }
 
 // migrateFile rewrites a single .erg file in place. The rewrite is preamble-bounded
@@ -362,6 +383,35 @@ func migrateFile(path string) (migrateResult, error) {
 		out = append(out[:insertAt], append([]string{header}, out[insertAt:]...)...)
 	}
 
+	// Fold legacy free-form log content (wrapped detail, prose paragraphs,
+	// numbered lists) onto its parent entry, and normalise date-only stamps.
+	// Operates on the log section only -- preamble and body untouched.
+	logStartIdx := -1
+	bodyStartIdx := len(out)
+	for i, line := range out {
+		if strings.TrimSpace(line) == separatorLog && logStartIdx < 0 {
+			logStartIdx = i
+		}
+		if strings.TrimSpace(line) == separatorBody {
+			bodyStartIdx = i
+			break
+		}
+	}
+	if logStartIdx >= 0 {
+		logSlice := out[logStartIdx+1 : bodyStartIdx]
+		foldedSlice, didFold, didStamp := foldLogLines(logSlice)
+		if didFold || didStamp {
+			// Build a fresh slice to avoid append aliasing into out's backing array.
+			newOut := make([]string, 0, len(out))
+			newOut = append(newOut, out[:logStartIdx+1]...)
+			newOut = append(newOut, foldedSlice...)
+			newOut = append(newOut, out[bodyStartIdx:]...)
+			out = newOut
+			res.folded = didFold
+			res.stamped = didStamp
+		}
+	}
+
 	rejoined := strings.Join(out, "\n")
 	if hadTrailingNewline {
 		rejoined += "\n"
@@ -444,6 +494,75 @@ func migrateErgrc(dir string) bool {
 		return false
 	}
 	return true
+}
+
+// foldLogLines folds legacy free-form log content into well-formed %erg 0.1
+// log lines. It operates on the log-section slice ONLY (the lines between
+// `--- log ---` and `--- body ---`); preamble and body are never passed in.
+//
+// Two rewrites, both idempotent:
+//
+//  1. Fold: any non-blank line that does not open a new entry (its first 10
+//     characters are not a YYYY-MM-DD date) is joined, single-space and
+//     stripped, onto the preceding entry. Blank lines between an entry and its
+//     continuation are dropped. Content before the first timestamped entry is
+//     an orphan -- it has no parent entry, so it is emitted verbatim and left
+//     for the validator to flag.
+//  2. Stamp: a leading `YYYY-MM-DD ` (date, no T separator) on an entry-opener
+//     is rewritten to `YYYY-MM-DDT00:00Z `.
+//
+// Blank-line preservation is precise: a blank is emitted iff it is followed by
+// a new entry-opener, the body separator, or EOF -- never before continuation
+// text. This keeps inter-entry blanks and the canonical trailing blank before
+// `--- body ---`, while discarding blanks that merely separated an entry from
+// its wrapped detail. The result is a byte-level no-op on an already-clean log.
+func foldLogLines(log []string) (out []string, folded bool, stamped bool) {
+	var cur string
+	var pendingBlanks []string
+	hasCur := false
+	seenFirstEntry := false
+	for _, line := range log {
+		if strings.TrimSpace(line) == "" {
+			pendingBlanks = append(pendingBlanks, line)
+			continue
+		}
+		if logEntryPrefixRE.MatchString(line) {
+			// New entry opener: flush the accumulated entry and any pending
+			// blanks (inter-entry blanks are preserved).
+			if hasCur {
+				out = append(out, cur)
+			}
+			out = append(out, pendingBlanks...)
+			pendingBlanks = nil
+			seenFirstEntry = true
+			if logDateOnlyRE.MatchString(line) {
+				// line[10] is the space after the date; splice in T00:00Z.
+				line = line[:10] + "T00:00Z" + line[10:]
+				stamped = true
+			}
+			cur = line
+			hasCur = true
+			continue
+		}
+		// Non-blank, non-opener: continuation or orphan.
+		if seenFirstEntry {
+			// Continuation: drop the pending blanks that separated this detail
+			// from its entry, then fold onto the current entry.
+			pendingBlanks = nil
+			cur += " " + strings.TrimSpace(line)
+			folded = true
+			continue
+		}
+		// Orphan before the first entry: emit verbatim, leave for the validator.
+		out = append(out, pendingBlanks...)
+		pendingBlanks = nil
+		out = append(out, line)
+	}
+	if hasCur {
+		out = append(out, cur)
+	}
+	out = append(out, pendingBlanks...)
+	return out, folded, stamped
 }
 
 // hasStatusHeader scans dir for any .erg file containing a `Status:` line
