@@ -33,7 +33,8 @@ echo "=== determinism (single-threaded, byte-stable output; ticket 0226) ==="
 # A line whose first non-space token is `go ` launches a goroutine. Exclude
 # *_test.go (test scaffolding may legitimately use concurrency). grep exits 1 on
 # no-match, which is the PASS case under set -e, so guard the assignment.
-GO_HITS=$(grep -Pn '^\s*go\s' src/go/*.go 2>/dev/null | grep -v '_test.go' || true)
+# POSIX BRE (not grep -P, which is a GNU extension) keeps the suite portable.
+GO_HITS=$(grep -n '^[[:space:]]*go[[:space:]]' src/go/*.go 2>/dev/null | grep -v '_test.go' || true)
 if [ -z "$GO_HITS" ]; then
     pass "no goroutine-launch statements in src/go non-test code"
 else
@@ -51,7 +52,7 @@ func negctrl() {
 	go func() {}()
 }
 EOF
-NEG_GO_HITS=$(grep -Pn '^\s*go\s' src/go/*.go 2>/dev/null | grep -v '_test.go' || true)
+NEG_GO_HITS=$(grep -n '^[[:space:]]*go[[:space:]]' src/go/*.go 2>/dev/null | grep -v '_test.go' || true)
 if [ -n "$NEG_GO_HITS" ]; then
     pass "goroutine ratchet (neg control): planted goroutine launch detected"
 else
