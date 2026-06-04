@@ -68,16 +68,25 @@ func (t *Erg) Filename() string {
 	return filepath.Base(t.Path)
 }
 
+// filenameID extracts the numeric prefix from a ticket basename (e.g., "0042"
+// from "0042-add-auth.erg"). Returns the full stem when no dash is present,
+// which may be empty or non-numeric -- callers must guard against empty-string
+// returns. Shared by FilenameID (post-parse) and the parser's self-ref check
+// (which only has the raw basename, before the Erg value is constructed).
+func filenameID(basename string) string {
+	stem := strings.TrimSuffix(basename, ".erg")
+	if idx := strings.Index(stem, "-"); idx > 0 {
+		return stem[:idx]
+	}
+	return stem
+}
+
 // FilenameID extracts the numeric prefix from the filename (e.g., "0042"
 // from "0042-add-auth.erg"). Returns the full stem when no dash is present,
 // which may be empty or non-numeric -- callers (close, archive, check) must
 // guard against empty-string returns.
 func (t *Erg) FilenameID() string {
-	stem := strings.TrimSuffix(t.Filename(), ".erg")
-	if idx := strings.Index(stem, "-"); idx > 0 {
-		return stem[:idx]
-	}
-	return stem
+	return filenameID(t.Filename())
 }
 
 func isLetter(c byte) bool {
@@ -235,7 +244,7 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	var title, created, author, closed string
 	var titleLine, createdLine, authorLine int
 	var labels []string
-	var blockedBys []Ref
+	var blockedBys, supersededBys []Ref
 	var blockedByLines, labelLines []int
 	section := "magic" // magic | headers | gap | log | body
 	hasMagic := false
@@ -382,6 +391,19 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 					}
 					blockedBys = append(blockedBys, ref)
 					blockedByLines = append(blockedByLines, lineNum)
+				case "Superseded-by":
+					ref, refErr := parseRef(val)
+					if refErr != nil {
+						errs = append(errs, fmt.Sprintf("%s:%d: %v", name, lineNum, refErr))
+					} else if ref.Kind == RefLocal && ref.ID == filenameID(name) {
+						// Self-reference is a parse-time error: a ticket cannot
+						// supersede itself. The Erg value is not yet constructed
+						// here, so compare against the ID derived directly from
+						// the basename (shared with FilenameID).
+						errs = append(errs, fmt.Sprintf(
+							"%s:%d: Superseded-by self-reference", name, lineNum))
+					}
+					supersededBys = append(supersededBys, ref)
 				case "Label":
 					// parseHeaderLine already trims val; skip empties.
 					if val != "" {
@@ -515,16 +537,17 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	}
 
 	return Erg{
-		Path:       path,
-		Title:      title,
-		Created:    created,
-		Author:     author,
-		Closed:     closed,
-		BlockedBys: blockedBys,
-		Labels:     labels,
-		LabelLines: labelLines,
-		LogLines:   logLines,
-		Body:       strings.Join(bodyLines, "\n"),
+		Path:          path,
+		Title:         title,
+		Created:       created,
+		Author:        author,
+		Closed:        closed,
+		BlockedBys:    blockedBys,
+		SupersededBys: supersededBys,
+		Labels:        labels,
+		LabelLines:    labelLines,
+		LogLines:      logLines,
+		Body:          strings.Join(bodyLines, "\n"),
 	}, errs
 }
 

@@ -25,13 +25,14 @@ type Erg struct {
 	Path string
 
 	// v1 headers -- typed fields populated from first occurrence
-	Title      string   // required, non-empty (validator rule 2)
-	Created    string   // required, non-empty
-	Author     string   // required, non-empty
-	Closed     string   // optional; first non-empty Closed: value when present
-	BlockedBys []Ref    // possibly empty; one entry per `Blocked-by:` line, parsed at parse time
-	Labels     []string // possibly empty; one entry per `Label:` line, trimmed; empties skipped
-	LabelLines []int    // 1-indexed line numbers for each Label entry
+	Title         string   // required, non-empty (validator rule 2)
+	Created       string   // required, non-empty
+	Author        string   // required, non-empty
+	Closed        string   // optional; first non-empty Closed: value when present
+	BlockedBys    []Ref    // possibly empty; one entry per `Blocked-by:` line, parsed at parse time
+	SupersededBys []Ref    // possibly empty; one entry per `Superseded-by:` line; durable lineage carried by the CLOSED ticket
+	Labels        []string // possibly empty; one entry per `Label:` line, trimmed; empties skipped
+	LabelLines    []int    // 1-indexed line numbers for each Label entry
 
 	LogLines []string // one structured event per entry
 	Body     string   // multiline
@@ -64,7 +65,7 @@ type Ref struct {
 // Used to classify header lines as known/unknown during parsing.
 var v1HeaderKeys = map[string]bool{
 	"Title": true, "Created": true, "Author": true,
-	"Closed": true, "Blocked-by": true, "Label": true,
+	"Closed": true, "Blocked-by": true, "Superseded-by": true, "Label": true,
 }
 
 // v1SingletonKeys is the subset of v1HeaderKeys that may appear at most

@@ -62,6 +62,24 @@ func staleBlockedBy(tickets []Erg) []string {
 	return warnings
 }
 
+// openCarrierSupersededBy warns about open tickets that carry a Superseded-by
+// header. The normal pattern is for the CLOSED (old) ticket to carry
+// Superseded-by once its replacement is filed; an open carrier is a transition
+// smell (the supersession header is in place but the old ticket has not been
+// closed yet). The warning is non-fatal: the transition window is legitimate.
+func openCarrierSupersededBy(tickets []Erg) []string {
+	var warnings []string
+	for i := range tickets {
+		t := &tickets[i]
+		if !t.IsClosed() && len(t.SupersededBys) > 0 {
+			warnings = append(warnings, fmt.Sprintf(
+				"WARN %s: open ticket carries Superseded-by -- close this ticket or remove the header",
+				t.Filename()))
+		}
+	}
+	return warnings
+}
+
 // strayGoSource warns when Go source files (*.go, go.mod, go.sum) are found
 // in dir itself or in the legacy dir/tools/go/ subdirectory.
 func strayGoSource(dir string) []string {
@@ -132,8 +150,9 @@ func headerBlankWarnings(dir string) []string {
 }
 
 // corpusWarnings returns the combined set of non-fatal warnings (folder/header
-// mismatch, stale Blocked-by, stray Go source, encoding, interior header
-// blanks) for the already-loaded tickets rooted at dir. The dir-based scans
+// mismatch, stale Blocked-by, open Superseded-by carrier, stray Go source,
+// encoding, interior header blanks) for the already-loaded tickets rooted at
+// dir. The dir-based scans
 // (stray Go source, encoding, header blanks) walk dir directly. Returns nil
 // when there are no tickets -- callers that chain it (erg init) must not fail
 // on a read-only warning pass. The append order is the single source of truth
@@ -145,6 +164,7 @@ func corpusWarnings(tickets []Erg, dir string) []string {
 	var warnings []string
 	warnings = append(warnings, folderClosure(tickets)...)
 	warnings = append(warnings, staleBlockedBy(tickets)...)
+	warnings = append(warnings, openCarrierSupersededBy(tickets)...)
 	warnings = append(warnings, strayGoSource(dir)...)
 	warnings = append(warnings, encodingWarnings(dir)...)
 	warnings = append(warnings, headerBlankWarnings(dir)...)
@@ -164,12 +184,16 @@ under DIR recursively and verifies invariants that require a global view:
 
   - No duplicate ticket IDs across the corpus.
   - All Blocked-by local refs point to tickets that exist in the corpus.
+  - All Superseded-by local refs point to tickets that exist in the corpus.
   - No dependency cycles among Blocked-by edges.
   - All per-ticket format rules (delegates to validateCorpus, which folds in parser-emitted errors).
 
 Additionally emits warnings (non-fatal) for:
 
   - Folder/header mismatch: open ticket in closed/ or closed ticket not in closed/.
+  - Open Superseded-by carrier: an open ticket carries a Superseded-by header
+    (the normal pattern is for the closed ticket to carry it; close the old
+    ticket or remove the header).
   - Stray Go source files (*.go, go.mod, go.sum) inside the ticket store directory.
   - Interior header blank: a blank line inside the header block (tolerated on
     read; run 'erg migrate' to normalise).

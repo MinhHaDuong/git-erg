@@ -54,9 +54,15 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
       open) -- these read as a status assertion about the ticket rather than
       the thing being changed. Enforced on open tickets; closed tickets are
       grandfathered (existing closed history is never flagged).
+  15. Superseded-by values parse as local-ref (NNNN), path-ref (module/NNNN),
+      or forge-ref (host/owner/repo#N) -- same grammar as Blocked-by. Local
+      refs must point to existing ticket IDs. Self-reference is an error.
+      Repeatable (one-to-many supersession). Carried by the CLOSED ticket,
+      pointing at the ticket(s) that replace it; it is durable lineage and is
+      never stripped on close.
 
 Error format: 'filename:LINE: message' when a specific line applies
-(rules 1-7, 9, 11, 14); 'filename: message' when no line applies (rules 8, 12).
+(rules 1-7, 9, 11, 14, 15 self-ref); 'filename: message' when no line applies (rules 8, 12, 10, 15 unknown-ref).
 Line numbers are 1-indexed.
 
 For corpus-level checks (duplicate IDs, cycles), use: erg check [dir]
@@ -72,12 +78,16 @@ under DIR recursively and verifies invariants that require a global view:
 
   - No duplicate ticket IDs across the corpus.
   - All Blocked-by local refs point to tickets that exist in the corpus.
+  - All Superseded-by local refs point to tickets that exist in the corpus.
   - No dependency cycles among Blocked-by edges.
   - All per-ticket format rules (delegates to validateCorpus, which folds in parser-emitted errors).
 
 Additionally emits warnings (non-fatal) for:
 
   - Folder/header mismatch: open ticket in closed/ or closed ticket not in closed/.
+  - Open Superseded-by carrier: an open ticket carries a Superseded-by header
+    (the normal pattern is for the closed ticket to carry it; close the old
+    ticket or remove the header).
   - Stray Go source files (*.go, go.mod, go.sum) inside the ticket store directory.
   - Interior header blank: a blank line inside the header block (tolerated on
     read; run 'erg migrate' to normalise).

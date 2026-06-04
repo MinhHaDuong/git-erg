@@ -71,6 +71,7 @@ format literals.
 | `Author` | yes | no | line | Agent or human identifier (non-empty) |
 | `Closed` | no | no | line | Closure reason (PR ref, supersession note, etc.); non-empty |
 | `Blocked-by` | no | yes | ref | Local `NNNN`, path-ref `module/NNNN`, or forge ref `host/owner/repo#N` (see grammar) |
+| `Superseded-by` | no | yes | ref | Same grammar as `Blocked-by`; carried by the CLOSED ticket, pointing at its replacement(s) |
 | `Label` | no | yes | enum | Configurable via `.ergrc [labels]`; defaults: `needs-human`, `deferred` |
 
 **All header values are line-strings -- single line, no embedded newlines.**
@@ -121,6 +122,21 @@ default. One `Blocked-by:` line per dependency; remove the line once the depende
 
 **Resolution and cycle detection** for path-refs are deferred to a follow-up implementation ticket.
 Tools that cannot resolve a path-ref treat it as blocking (same behaviour as offline forge refs).
+
+**`Superseded-by` references** record supersession lineage and use the same
+reference grammar as `Blocked-by` (local-ref, path-ref, forge-ref). The header
+is carried by the **CLOSED (old) ticket** and points at the ticket(s) that
+replace it -- there is no header on the new ticket. It is repeatable: one ticket
+may be superseded by several (`Superseded-by: 0199` and `Superseded-by: 0200`
+on the same closed ticket). A local-ref must point to an existing ticket ID
+(unknown ID is a corpus error). Self-reference is an error. A carrier that is
+still open is a corpus warning -- the normal pattern is to close the old ticket
+before or when adding the supersession header (the transition window is
+legitimate, hence a warning rather than an error). No cycle machinery applies:
+supersession is acyclic by construction, since the superseded ticket is closed
+first. `erg close` does **not** strip `Superseded-by` lines -- unlike
+`Blocked-by` (removed when the blocker closes), supersession is durable lineage
+that survives closure and archival of either side.
 
 There is no pending or doing header. If two agents need to avoid stepping on each other, they should
 coordinate via out-of-band signals -- typically a git branch whose name contains the ticket ID.
