@@ -9,6 +9,7 @@ Author: MinhHaDuong
 2026-06-04T09:40Z claude note plan: three prose insertions, no code; check tests/test_docs.sh section counts before adding the integration.md subsection; eyeball all four wordings (update/init/migrate/integration) for coherence since no automated guard covers them
 2026-06-04T09:43Z claude note feasibility PASS -- shares init.go with 0224 in Wave 2, disjoint regions (helpInit const vs installAssets); sequential merge + rebase within wave
 
+2026-06-04T11:48Z claude bump verify-reroll -- round 1: integration.md:162 migrate bullet states 'Does NOT touch .ergrc' -- false, migrate.go:141 migrateErgrc rewrites [tags]->[labels] header; self-contradicts the 'Tag: -> Label:' clause in the same bullet
 --- body ---
 ## Source
 2026-06-04 conversation on migrate vs update, prompted by a live
