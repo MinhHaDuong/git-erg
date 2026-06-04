@@ -2,6 +2,7 @@
 Title: erg migrate: fold wrapped log details and normalize date-only timestamps
 Created: 2026-06-03
 Author: claude
+Closed: autoclosed — PR #269
 
 --- log ---
 2026-06-03T19:54Z claude created
@@ -9,6 +10,7 @@ Author: claude
 2026-06-04T09:35Z claude note plan: foldLogLines(log []string)([]string,bool,bool) in migrate.go after Closed-insert; two regexes in ergspecv1.go; two migrateResult fields + counters + Printf lines; helpMigrate updated; Go unit tests with blank+orphan+stamp fixtures
 2026-06-04T09:43Z claude note feasibility PASS -- shares ergspecv1.go with 0222 in Wave 1, disjoint regions (~line 100 vs 24-68), 2 PRs is below coordination-PR threshold, rebase at merge
 
+2026-06-04T11:03Z MinhHaDuong closed — autoclosed — PR #269
 --- body ---
 ## Source
 0216 dogfood migration, 2026-06-03. Two of the six migrated stores
