@@ -53,6 +53,14 @@ Seven invariants, one above the rest — **never lose data** is the tool's
   removal cut the shipped binary to ~2.4 MB); guard against dependency bloat
   (0147 builds it static+stripped; 0146 guards it).
 
+Scope confinement: `install` is the only verb that mutates outside `tickets/`
+(`.git/hooks` and the root `AGENTS.md` pointer), and only behind explicit
+opt-in flags (`--hooks`, `--inject-agents`) that default to off. Every other
+verb stays confined to `tickets/` and offline. This is the implementation of
+the Offline and Standalone invariants at the command boundary -- a contributor
+adding a new verb must respect the same scope, or move the mutation behind an
+equally explicit opt-in.
+
 Audits are the evidence engine. Prefer an audit that discovers real need
 over a feature built on a guess — the audit tells you whether the feature
 is felt at all. Build the thing the audit justifies, not the thing the
