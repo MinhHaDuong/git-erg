@@ -1,14 +1,14 @@
 # Ticket format spec -- %erg 0.1
 
 Author: Minh Ha-Duong <minh.ha-duong@cnrs.fr>
-Last modified: 2026-05-30
+Last modified: 2026-06-04
 Status: Working draft
 
 ## Introduction
 
-`git-erg` is an agent-friendly local ticket system for development in disconnected environments. Tickets are committed to git and travel with the repo. This file is normative and defines the format for valid `%erg 0.1` files. Command documentation is available via `erg COMMAND --help` and `erg --help --all`.
+`git-erg` is an agent-friendly local ticket system for development in disconnected environments. Tickets are committed to git and travel with the repo. Command documentation is available via `erg COMMAND --help` and `erg --help --all`.
 
-Any divergence between this document and the `erg` binary must be resolved by aligning the specification with the behavior. Rationale is in `pep-erg-v1.md`.
+**Authority, three scopes.** (1) This spec is normative for *files*: it defines what constitutes a valid `%erg 0.1` ticket, and a hand-edited file that satisfies it is valid regardless of binary version. (2) The `erg` binary is normative for *this spec's text*: divergence between the spec's wording and the binary's behavior is spec errata, resolved by aligning the spec to the behavior -- unless the behavior violates a stated invariant, in which case it is a binary bug. Rationale is in `pep-erg-v1.md`. (3) The PEP arbitrates intent when the two scopes above conflict.
 
 ## File format
 
