@@ -2,11 +2,13 @@
 Title: Reconcile spec authority direction -- spec-normative vs align-spec-to-behavior vs file-is-contract
 Created: 2026-06-04
 Author: MinhHaDuong
+Closed: autoclosed — PR #273
 
 --- log ---
 2026-06-04T09:30Z MinhHaDuong created
 
 2026-06-04T11:13Z claude note raid execute: Authority three-scopes paragraph in spec preamble; README/AGENTS unchanged per ticket
+2026-06-04T13:52Z MinhHaDuong closed — autoclosed — PR #273
 --- body ---
 ## Source
 2026-06-04 foundations audit, TENSION-01. Three sites, three authority
