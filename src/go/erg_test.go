@@ -561,11 +561,13 @@ func TestMutatingCommandsCMDSCoverage(t *testing.T) {
 		"unlabel": true,
 		"archive": true,
 		"migrate": true,
-		// mutating but EXCLUDED from the strict-write round-trip (see below):
-		// rm deletes a ticket; init/install/update write non-.erg outputs
-		// (config, the erg binary). They mutate state, so they are honestly
-		// classified mutating, but the strict-write guard's round-trip cannot
-		// exercise them, so test_strictwrite.sh deliberately omits them.
+		// mutating but EXCLUDED from the strict-write round-trip. They mutate
+		// state, so they are honestly classified mutating, but
+		// test_strictwrite.sh's "Excluded by design" notes (near the CMDS=
+		// line) deliberately omit them: rm deletes a file so there is nothing
+		// to re-validate (covered by test_datasafety.sh Guard 6); init touches
+		// non-.erg files (.ergrc); install/update touch the installed binary,
+		// not tickets.
 		"rm":      true,
 		"init":    true,
 		"install": true,
