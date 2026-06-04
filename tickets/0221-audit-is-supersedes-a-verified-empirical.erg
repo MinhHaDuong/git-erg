@@ -1,0 +1,62 @@
+%erg 0.1
+Title: Audit: is Supersedes: a verified empirical need? (machine-wide log sweep, criteria-first)
+Created: 2026-06-04
+Author: MinhHaDuong
+
+--- log ---
+2026-06-04T08:20Z MinhHaDuong created
+
+--- body ---
+## Question
+Should `Supersedes: NNNN` become a first-class %erg header (with
+cross-ref validation in erg check, like Blocked-by)? Today it is
+rejected as an unknown header. Known prior: exactly ONE wild instance
+(aedist 0292 superseding 0291, found during the 0407 migration and
+folded into the log).
+
+The STATE bar applies: "verified empirical need" -- no feature without
+evidence. This audit produces the evidence, or kills the idea.
+
+## Decision criteria -- FIXED BEFORE the sweep (do not adjust after)
+A "supersession event" = one ticket whose log, body, or Closed: reason
+declares that another, NAMED ticket replaces it or is replaced by it
+(naming an ID is required; vague "this is obsolete" does not count).
+
+- ADOPT   : >= 10 events across >= 3 stores. Cross-project recurrence
+            proves the relation wants tooling support.
+- REJECT  : < 4 events after a full sweep, OR futility stop (below).
+            Close this ticket with the counts; the log-line convention
+            (see 0292) remains the documented way.
+- DEFER   : 4-9 events. Keep the log convention, re-audit on the next
+            machine-wide migration or in ~3 months, whichever first.
+
+## Early-stopping rules (sequential, sweep largest stores first)
+Sweep order, descending corpus size (machine padme, 2026-06-04):
+aedist (391), chemin-de-voix (225), git-erg (220), IDH (197),
+Climate_finance (126), fuzzy-corpus (51), cadens (37), padme (13).
+
+- STOP-ADOPT  : the moment the running tally reaches 10 events across
+                >= 3 stores -- stop sweeping, decide ADOPT.
+- STOP-REJECT : after the three largest stores (836 tickets, ~66% of
+                the ~1260 corpus) yield <= 1 event total -- stop, decide
+                REJECT. Rationale: 2.5x the remaining corpus could not
+                reach the DEFER floor at the observed density.
+
+## Sweep mechanics
+Per store, candidate grep (case-insensitive, EN+FR stores):
+  grep -rliE 'supersed|replaced by|obsoleted by|superseded|remplac[ée]
+  par|voir plut[oô]t' tickets/ --include='*.erg'
+Then human-verify each hit: count it only if it NAMES a ticket ID and
+expresses replacement (not mere mention). Record per-store counts and
+the verified event list in this ticket's log as the sweep proceeds --
+the running log IS the early-stop state.
+
+## Exit criteria
+- [ ] Criteria above untouched since filing (audit integrity)
+- [ ] Sweep log: per-store verified counts, in the declared order,
+      stopping where a rule fires
+- [ ] Decision recorded: ADOPT / REJECT / DEFER with the tally
+- [ ] If ADOPT: spec ticket spawned (header semantics, check rules,
+      migrate rule for retrofitting log-line conventions); this ticket
+      closes referencing it. Otherwise this ticket closes with the
+      verdict.
