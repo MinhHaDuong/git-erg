@@ -1,0 +1,56 @@
+%erg 0.1
+Title: Supersedes: first-class header -- spec semantics, check cross-ref validation, migrate retrofit
+Created: 2026-06-04
+Author: MinhHaDuong
+
+--- log ---
+2026-06-04T08:39Z MinhHaDuong created
+
+--- body ---
+## Source
+Audit 0221 (2026-06-04) decided ADOPT: 47 verified supersession events
+across 3 stores (aedist 18, chemin-de-voix 26, git-erg 3), STOP-ADOPT
+fired after the three largest stores. Full event list in 0221's log.
+Cross-project recurrence proves the relation wants tooling support.
+
+## Empirical patterns the design must cover (from the sweep)
+- One-to-many: a ticket superseded by several (0153 -> 0199+0200;
+  chemin 0222 -> 0226+0227).
+- Batch many-to-one: 24 LoRA tickets all superseded by 0237+0238 in
+  one mass closure (chemin-de-voix).
+- Declared on either side or both: old ticket says "superseded by N",
+  new ticket says "supersedes N" (aedist 0141<->0156, 0289<->0292).
+- Out of scope: supersession by PR/commits/scripts/models with no
+  ticket ID (git-erg 0112 names only PR #105) -- stays a log-line
+  convention, not a header.
+
+## Spec questions to settle
+- Header on which side? Sweep shows the durable record usually lives
+  in the CLOSED ticket ("superseded by"); the header on the new ticket
+  (Supersedes: NNNN) matches the one wild instance (aedist 0292) and
+  is what the 0221 question proposed. Decide direction, or both.
+- Repeatable? One-to-many and many-to-one patterns say yes (like
+  Blocked-by).
+- check rules: referenced ID must exist (like Blocked-by cross-ref);
+  superseded target SHOULD be closed -- warning or error when open?
+- Self-reference and cycles rejected (reuse Blocked-by DAG machinery?).
+- migrate retrofit: recognize the documented log-line convention
+  ("superseded by NNNN" in Closed:/log) -- decide whether migrate
+  rewrites it into the header or leaves history untouched (0221 events
+  are historical record; retrofitting may be wrong -- bias to leave).
+- PEP note: X-Supersedes was explicitly rejected in the PR #385 era
+  (open extension headers); adding Supersedes to the CLOSED set via
+  version bump is the sanctioned path (pep-erg-v1.md section 2). Spec
+  bump 0.1 -> 0.2 or document as backward-compatible addition like
+  Label (pep section 12 precedent).
+
+## Exit criteria
+- [ ] Spec section for Supersedes: in spec-erg-v1.md (semantics,
+      direction, repeatability, validation tier)
+- [ ] erg check validates the cross-reference (unknown ID = violation)
+- [ ] erg validate accepts the header; unknown-header rejection message
+      no longer fires on it
+- [ ] migrate decision recorded (retrofit or leave history) and, if
+      retrofit, implemented idempotently with byte-compare test
+- [ ] PEP rationale section added (evidence: 0221 tally)
+- [ ] make check passes
