@@ -1,0 +1,51 @@
+%erg 0.1
+Title: migrate clobbers locally-edited .ergrc -- use the dpkg 3-state rule like init
+Created: 2026-06-04
+Author: MinhHaDuong
+
+--- log ---
+2026-06-04T09:01Z MinhHaDuong created
+
+--- body ---
+## Source
+2026-06-04 conversation on migrate vs update. Spotted by code reading
+(src/go/migrate.go, migrateLayout), not yet by a field incident --
+fix before it becomes one.
+
+## Context
+`migrateLayout` calls `installAssets(root, false, false)`:
+refuseDiverged=false means files differing from the embedded asset are
+overwritten UNCONDITIONALLY. For AGENTS.md that is arguably fine
+(agent instructions should track the binary), but `.ergrc` is user
+configuration: a project that customized its `[labels]` vocabulary or
+`[update] url` loses the edit silently on the next `erg migrate`.
+
+`erg init` already has the right behaviour: refuseDiverged=true runs
+the dpkg 3-state compare -- byte-identical: skip; matches the
+.erg-assets stamp or a known shipped hash (clean upgrade): overwrite;
+matches neither (local edit): preserve, message, exit 2. Only
+`init --force` clobbers.
+
+migrate's helpMigrate even advertises the current behaviour
+("refreshes init assets (overwrites diverged files without
+prompting)") -- so this is documented-but-wrong, not undocumented:
+the doc must change with the code.
+
+## Fix
+Make migrate's asset refresh use the same protective path as init:
+call installAssets with refuseDiverged=true. A preserved local edit
+should not fail the migration (migrate's exit code stays governed by
+the migration itself); print the same preserve message so the user
+knows the file was kept. Update helpMigrate wording accordingly.
+
+Consider in passing whether the migrate summary line should count
+skipped assets (it already prints created/refreshed/unchanged).
+
+## Exit criteria
+- [ ] Locally-edited .ergrc survives `erg migrate` (test: customize a
+      label line, run migrate, byte-compare)
+- [ ] Untouched stock .ergrc is still cleanly upgraded by migrate
+      (stamp/shipped-hash path still works)
+- [ ] helpMigrate no longer says "overwrites diverged files without
+      prompting"; describes the 3-state rule instead
+- [ ] make check passes
