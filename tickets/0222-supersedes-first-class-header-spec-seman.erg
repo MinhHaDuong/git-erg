@@ -5,6 +5,10 @@ Author: MinhHaDuong
 
 --- log ---
 2026-06-04T08:39Z MinhHaDuong created
+2026-06-04T09:32Z MinhHaDuong decided spec questions: header is Superseded-by: on the CLOSED ticket (repeatable); carrier still open = warning; referenced ID must exist = error; self-ref rejected, no cycle machinery; migrate retrofit = leave history untouched
+2026-06-04T09:32Z claude note imagine: mirror Blocked-by machinery (ergspecv1.go registry, erg.go parse case, validate cross-ref, check warning); do NOT mirror close.go ref-removal -- supersession is durable lineage; no version bump, Label precedent (pep sec 12)
+2026-06-04T09:36Z claude note plan: 8 numbered actions across 5 files; closed/archived corpus is fully scanned by loadErgs so cross-ref always resolves; archive.go needs no guard (Superseded-by is internal to the closed carrier)
+2026-06-04T09:43Z claude note feasibility PASS -- shares ergspecv1.go with 0220 in Wave 1, disjoint regions; loadErgs full-walk confirmed so cross-ref sees closed/archived corpus; PEP file is repo-root pep-erg-v1.md
 
 --- body ---
 ## Source
@@ -24,7 +28,21 @@ Cross-project recurrence proves the relation wants tooling support.
   ticket ID (git-erg 0112 names only PR #105) -- stays a log-line
   convention, not a header.
 
-## Spec questions to settle
+## Decisions (author, 2026-06-04)
+- Direction: `Superseded-by:` on the CLOSED ticket -- the durable record
+  lives where the sweep found it. No header on the new ticket.
+- Repeatable: yes (one-to-many: a ticket superseded by several).
+- check rules: referenced ID must exist (error, like Blocked-by
+  cross-ref); ticket carrying Superseded-by still open = WARNING
+  (transition window between filing the successor and closing the old).
+- Self-reference rejected (error). No cycle-detection machinery --
+  defer until a real cycle is ever observed.
+- migrate retrofit: leave history untouched. Historical "superseded by
+  NNNN" log lines stay as-is; the header is for new supersessions.
+- No version bump: backward-compatible addition to the closed set,
+  Label precedent (pep section 12). Magic line stays %erg 0.1.
+
+## Spec questions to settle (settled above -- kept for the record)
 - Header on which side? Sweep shows the durable record usually lives
   in the CLOSED ticket ("superseded by"); the header on the new ticket
   (Supersedes: NNNN) matches the one wild instance (aedist 0292) and
@@ -45,12 +63,254 @@ Cross-project recurrence proves the relation wants tooling support.
   Label (pep section 12 precedent).
 
 ## Exit criteria
-- [ ] Spec section for Supersedes: in spec-erg-v1.md (semantics,
-      direction, repeatability, validation tier)
-- [ ] erg check validates the cross-reference (unknown ID = violation)
+- [ ] Spec section for Superseded-by: in spec-erg-v1.md (semantics,
+      direction: closed ticket carries it, repeatable, validation tier)
+- [ ] erg check validates the cross-reference (unknown ID = error;
+      carrier still open = warning; self-ref = error)
 - [ ] erg validate accepts the header; unknown-header rejection message
       no longer fires on it
-- [ ] migrate decision recorded (retrofit or leave history) and, if
-      retrofit, implemented idempotently with byte-compare test
+- [ ] migrate decision recorded: leave history untouched (decided
+      2026-06-04, see log); no migrate.go change
 - [ ] PEP rationale section added (evidence: 0221 tally)
 - [ ] make check passes
+
+## Plan
+
+### Closed/archived-corpus decision
+
+`loadErgs` (src/go/erg.go:668) does a full recursive `filepath.WalkDir`
+of the ticket store, including `tickets/closed/`. Both `validateCorpus`
+and `corpusWarnings` receive the complete slice. Therefore `allIDs` in
+`validateCorpus` always contains IDs from closed and archived tickets.
+
+**Decision**: The cross-ref check for `Superseded-by` uses the same
+`allIDs` map already built for Blocked-by (validate.go:144-148).
+A `Superseded-by` in a closed ticket referencing another closed or
+archived ticket resolves without special handling.
+
+**Archive guard**: `archive.go` guards only against archiving a ticket
+that open tickets still `Blocked-by`-reference (i.e. a ticket that
+blocks others). `Superseded-by` points FROM the old ticket TO its
+replacements — the old ticket is the carrier, its refs are internal to
+it. When the old (closed) ticket is archived, no open ticket references
+it via `Superseded-by`. No archive guard needed.
+
+**Self-ref check**: Implemented at parse time in the `Superseded-by`
+case (erg.go), mirroring how cycle detection handles self-loops for
+Blocked-by. A ref whose ID equals the ticket's own `FilenameID()`
+is a parse-time error: `%s:%d: Superseded-by self-reference`.
+
+### Actions
+
+**Action 1 — ergspecv1.go: register header and add Erg fields**
+File: `src/go/ergspecv1.go`
+- Line 66-68: add `"Superseded-by": true` to `v1HeaderKeys`.
+  `v1SingletonKeys` is NOT modified — the header is repeatable.
+- Lines 24-38 (`Erg` struct): add two new fields after `BlockedBys`:
+  ```
+  SupersededBys     []Ref
+  SupersededByLines []int
+  ```
+
+**Action 2 — erg.go: parse Superseded-by in the header switch**
+File: `src/go/erg.go`
+- In `parseErgBytes`, inside the header switch (after the `case
+  "Blocked-by":` block, ~lines 378-384):
+  ```go
+  case "Superseded-by":
+      ref, refErr := parseRef(val)
+      if refErr != nil {
+          errs = append(errs, fmt.Sprintf("%s:%d: %v", name, lineNum, refErr))
+      } else if ref.Kind == RefLocal && ref.ID == strings.TrimSuffix(
+          strings.SplitN(name, "-", 2)[0], "") {
+          errs = append(errs, fmt.Sprintf(
+              "%s:%d: Superseded-by self-reference", name, lineNum))
+      }
+      supersededBys = append(supersededBys, ref)
+      supersededByLines = append(supersededByLines, lineNum)
+  ```
+  Note: the self-ref check compares `ref.ID` against the ticket's own
+  4-digit prefix extracted from `name` (the basename). Extract via the
+  same pattern as `FilenameID()`: `stem[:strings.Index(stem, "-")]`.
+- Declare locals alongside `blockedBys`/`blockedByLines`:
+  ```go
+  var supersededBys []Ref
+  var supersededByLines []int
+  ```
+- Add to the returned `Erg` struct at the bottom of `parseErgBytes`:
+  ```
+  SupersededBys:     supersededBys,
+  SupersededByLines: supersededByLines,
+  ```
+
+**Action 3 — validate.go: add cross-ref rule for Superseded-by**
+File: `src/go/validate.go`
+- In `validateCorpus`, after the Rule 10 block (lines 152-162), add:
+  ```go
+  // Superseded-by cross-ref: referenced ID must exist in corpus.
+  for i := range tickets {
+      t := &tickets[i]
+      name := t.Filename()
+      for _, ref := range t.SupersededBys {
+          corpusOpCount++
+          if ref.Kind == RefLocal && !allIDs[ref.ID] {
+              errors = append(errors, fmt.Sprintf(
+                  "%s: Superseded-by '%s' references unknown ticket ID",
+                  name, ref.ID))
+          }
+      }
+  }
+  ```
+- In `helpValidate` (lines 193-230): add a new rule 15 entry after
+  the rule 14 block:
+  ```
+    15. Superseded-by values parse as local-ref (NNNN) or forge-ref
+        (host/owner/repo#N) (same grammar as Blocked-by). Local refs
+        must point to existing ticket IDs. Self-reference is an error.
+        Repeatable (one-to-many supersession). Carried by the CLOSED
+        ticket only.
+  ```
+  Update the `Error format:` line to mention rule 15.
+- In `cmdValidate`, after the Rule 10 block (lines 294-300), add the
+  same per-file `Superseded-by` ref check against `localIDs`.
+
+**Action 4 — check.go: add openCarrierSupersededBy warning**
+File: `src/go/check.go`
+- Add a new function `openCarrierSupersededBy` after `staleBlockedBy`
+  (after line 63):
+  ```go
+  // openCarrierSupersededBy warns about open tickets that carry a
+  // Superseded-by header. The normal pattern is for the CLOSED ticket to
+  // carry Superseded-by; an open carrier is a transition smell.
+  func openCarrierSupersededBy(tickets []Erg) []string {
+      var warnings []string
+      for i := range tickets {
+          t := &tickets[i]
+          if !t.IsClosed() && len(t.SupersededBys) > 0 {
+              warnings = append(warnings, fmt.Sprintf(
+                  "WARN %s: open ticket carries Superseded-by -- close this ticket or remove the header",
+                  t.Filename()))
+          }
+      }
+      return warnings
+  }
+  ```
+- In `corpusWarnings` (line 146-151): add the call after `staleBlockedBy`:
+  ```go
+  warnings = append(warnings, openCarrierSupersededBy(tickets)...)
+  ```
+- Update `helpCheck` docstring to mention the new warning.
+
+**Action 5 — spec-erg-v1.md: add header row and semantics paragraph**
+File: `src/go/assets/spec-erg-v1.md`
+- In the header table (lines 66-75): add after the `Blocked-by` row:
+  ```
+  | `Superseded-by` | no | yes | ref | Local `NNNN` or forge ref `host/owner/repo#N`; carried by the CLOSED ticket |
+  ```
+- After the `Blocked-by` references grammar block (around line 121),
+  add a `Superseded-by` semantics paragraph:
+  ```
+  **`Superseded-by` references** record supersession lineage. The
+  header is carried by the CLOSED (old) ticket and points at the
+  ticket(s) that replace it. Repeatable (one ticket may be superseded
+  by several). The referenced ID must exist in the corpus (error if
+  unknown). A carrier that is still open is a corpus warning -- the
+  normal pattern is to close the old ticket before or when filing the
+  supersession header. Self-reference is an error. No cycle machinery
+  (supersession DAGs are acyclic by construction: the old ticket is
+  always closed first). `erg close` does NOT strip `Superseded-by`
+  lines -- supersession is durable lineage.
+  ```
+
+**Action 6 — pep-erg-v1.md: add section 15 rationale**
+File: `pep-erg-v1.md` (repo root)
+- After section 14 (lines 422-428), add:
+  ```
+  ### 15. Superseded-by: durable lineage in the closed ticket
+
+  <!-- GENERATED by Claude — human review needed -->
+
+  A `Superseded-by:` header (added after the 0221 audit) records
+  supersession lineage as a first-class field. The audit found 47
+  verified supersession events across 3 stores (aedist 18,
+  chemin-de-voix 26, git-erg 3), proving the relation wants tooling
+  support. Key design choices:
+
+  **Direction**: the header is carried by the CLOSED (old) ticket,
+  pointing at its replacement(s). The durable record lives where the
+  sweep found it: in the closed ticket. No header on the new ticket --
+  `Supersedes: NNNN` was the alternative but had only one wild
+  instance in the audit (aedist 0292) vs. 46 "superseded by" patterns
+  in the closed ticket.
+
+  **Repeatable**: yes -- one-to-many and many-to-one supersession
+  patterns are common (0153->0199+0200; 24 LoRA tickets->0237+0238).
+  Mirrors the `Label` and `Blocked-by` repeatability decision.
+
+  **No version bump**: backward-compatible addition to the closed header
+  set (v1HeaderKeys). Tickets without the header remain valid. Same
+  precedent as `Label` (section 12).
+
+  **No migrate retrofit**: historical "superseded by NNNN" log lines are
+  durable record; retrofitting would be wrong. The header is for new
+  supersessions only.
+
+  **close.go does not strip Superseded-by**: unlike `Blocked-by` (which
+  is removed when the blocker closes), supersession is a permanent
+  historical fact. The ref stays even after both sides are closed.
+
+  **No archive guard**: `Superseded-by` is internal to the old (closed)
+  ticket; it does not block other open tickets. No open ticket
+  `Blocked-by`-references the closed carrier. `erg archive` requires
+  no change.
+  ```
+
+**Action 7 — tests**
+Files: `src/go/validate_test.go`, `src/go/check_test.go`
+
+Tests to add in `validate_test.go` (as new cases in `TestValidateErg`):
+- `"Superseded-by accepted"`: ticket with `Superseded-by: 0001` in a
+  corpus where `0001` exists → `wantErrors: false`. Catches a broken
+  registry (unknown-header error fires).
+- `"Superseded-by unknown ID"`: ticket with `Superseded-by: 0099`
+  where 0099 does not exist → `wantErrors: true`, `wantSubstr:
+  "unknown ticket ID"`. Catches missing cross-ref check.
+- `"Superseded-by self-ref"`: ticket `0001-x.erg` with `Superseded-by:
+  0001` → `wantErrors: true`, `wantSubstr: "self-reference"`. Catches
+  missing self-ref guard.
+- `"Superseded-by repeatable"`: ticket with two `Superseded-by:` lines
+  → `wantErrors: false`. Catches accidental singleton-key registration.
+
+Tests to add in `check_test.go`:
+- `"open carrier warning"`: open ticket with `Superseded-by: 0001` (0001
+  exists and is also open) → `corpusWarnings` returns a warning
+  containing "open ticket carries Superseded-by". Catches missing or
+  misfiring warning function.
+- `"closed carrier no warning"`: closed ticket with `Superseded-by: 0002`
+  (0002 exists) → `corpusWarnings` returns no Superseded-by warning.
+  Catches a warning that fires on closed carriers.
+
+**Action 8 — testdata golden fixture**
+File: `src/go/testdata/valid/0002-has-superseded-by.erg` (new file)
+Content: minimal closed ticket with `Superseded-by: 0001` (0001 also
+present in testdata/valid/). Ensures `TestValidateErg_GoldenValid` covers
+the new header.
+
+### Tautology-scan verdict
+
+| Test | Catches wrong impl? |
+|------|---------------------|
+| Superseded-by accepted (round-trip) | YES — catches if v1HeaderKeys missing |
+| Unknown-header NOT firing | Covered by the accepted case above |
+| Unknown ref = error | YES — catches if cross-ref check absent |
+| Open carrier = warning | YES — catches if openCarrierSupersededBy absent |
+| Closed carrier = no warning | YES — catches inverted condition bug |
+| Self-ref = error | YES — catches missing self-ref guard |
+| Repeatable (two lines, no error) | YES — catches accidental singleton entry |
+
+All 7 tests would catch a distinct wrong implementation. No tautologies.
+
+### Dependencies
+
+None — all changes are within this repo's Go source. No external deps,
+no version bump, no migrate.go change.
