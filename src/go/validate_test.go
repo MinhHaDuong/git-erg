@@ -415,6 +415,7 @@ func TestValidateErg_GoldenInvalid(t *testing.T) {
 	wantSubstr := map[string]string{
 		"0001-bad-created-date.erg":  "Created",
 		"0001-bad-label.erg":         "unknown Label value",
+		"0001-bad-superseded-by.erg": "references unknown ticket ID",
 		"0001-empty-closed.erg":      "non-empty",
 		"0001-bad-forge-host.erg":    "malformed ref",
 		"0001-bad-log-timestamp.erg": "log line",
