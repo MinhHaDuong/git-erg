@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-06-04T08:10Z — Since 05-30: the 0204 imagine-charter raid landed (0205–0215, PRs #239–#254: init/install split, spec/integration print-on-demand, erg-github forge layer, .erg-assets manifest, drift warning, version role). The 0216 dogfood campaign migrated all 8 machine stores to rev 9c23c37 (closed, #257). gofmt smart-quote policy settled (0217). Open: 0219 (hook hardcodes main), 0220 (migrate folds wrapped log lines) — both evidence-backed from the campaign._
+_Last updated: 2026-06-04T09:45Z — Since 05-30: the 0204 imagine-charter raid landed (0205–0215, PRs #239–#254: init/install split, spec/integration print-on-demand, erg-github forge layer, .erg-assets manifest, drift warning, version role). The 0216 dogfood campaign migrated all 8 machine stores to rev 9c23c37 (closed, #257). gofmt smart-quote policy settled (0217). Open: 0219 (hook hardcodes main), 0220 (migrate folds wrapped log lines) — both evidence-backed from the campaign._
 
 ## North star:
 
@@ -27,14 +27,12 @@ Premature, unproven, or waiting on evidence. Do not promote without AGENTS.md ba
 - feat: Flag blocking tags as a first-class concept.
 - feat: erg new with body on the line.
 - audit: usage in idh.
-- feat: tests guaranteeing fundamental design criteria (disconnected, agnostic, discoverable)
-- feat: AI script to realign docs and code
-- audit: go coding practices, lint, smells
+- feat: AI script to realign docs and code (partial: 0232)
 
 ## Status
-<!-- generated 2026-06-04T08:08Z -->
-**Tickets:** 2 ready · 0 blocked — `erg ready tickets/` for full list
+<!-- generated 2026-06-04T09:45Z -->
+**Tickets:** 11 ready · 2 blocked — `erg ready tickets/` for full list
 **Recent commits:**
-  493ecfd Merge pull request #234 from MinhHaDuong/worktree-housekeeping-state-2026-05-30
-  6284b53 Merge pull request #257 from MinhHaDuong/t0216-close
-  3e8a074 ticket(0216): close and archive — dogfood migration campaign complete
+  1643ddb ticket(0225-0232): foundations audit follow-ups -- guards, reconciliations, standing QA
+  52cda8f ticket(0223,0224): update&&init delivery doc; migrate must stop clobbering .ergrc
+  88bca90 ticket(0221): close and archive — PR #262
