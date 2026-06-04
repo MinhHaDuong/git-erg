@@ -94,6 +94,22 @@ else
     fail "Makefile: check is not declared .PHONY"
 fi
 
+# helpUpdate must mention 'erg init' as the asset/defaults delivery step
+# (regression guard for 0223: update-only is not enough to absorb new defaults).
+if "$ERG" update --help 2>/dev/null | grep -qF 'erg init'; then
+    pass "helpUpdate names 'erg init' as the asset/defaults delivery step"
+else
+    fail "helpUpdate missing 'erg init' reference (ticket 0223 regression)"
+fi
+
+# integration.md must contain the 'Keeping a store current' subsection.
+INTEG_SRC="${INTEG_SRC:-src/go/assets/integration.md}"
+if [ -f "$INTEG_SRC" ] && grep -qF 'Keeping a store current' "$INTEG_SRC"; then
+    pass "integration.md contains 'Keeping a store current' subsection"
+else
+    fail "integration.md missing 'Keeping a store current' subsection (ticket 0223 regression)"
+fi
+
 echo ""
 if [ "$FAIL" -eq 0 ]; then
     echo "docs: PASS ($PASS checks)"

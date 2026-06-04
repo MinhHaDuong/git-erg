@@ -136,6 +136,38 @@ rm ~/.local/bin/erg
 `tickets/closed/`) are yours -- erg never deletes them. Remove them
 yourself if you no longer need them.
 
+## Keeping a store current
+
+After upgrading the erg binary, run both commands to absorb embedded-asset
+changes and updated default label vocabulary:
+
+  erg update && erg init
+
+What each command does (and does not) touch:
+
+- `erg update`: replaces the binary only. Never writes .ergrc, AGENTS.md, or
+  any store file. Asset and default-vocabulary changes in the new binary are
+  NOT yet visible to the store -- they require a follow-up `erg init`.
+
+- `erg init`: delivers embedded-asset changes via the dpkg 3-state rule
+  (byte-identical: skip; untouched stock matching the .erg-assets stamp: clean
+  upgrade, overwritten; locally edited: preserved, exit 2; `--force` to
+  override). The default label vocabulary is frozen-by-copy into .ergrc at
+  init time -- a new default added later to the binary is shadowed by the
+  existing file and never takes effect until `erg init` overwrites it. Running
+  `erg update` alone cannot un-shadow a frozen vocabulary.
+
+- `erg migrate`: ticket-format conversion (Status: -> Closed:, Tag: -> Label:,
+  etc.) and project layout upgrade (archive/ -> closed/, stale hook rewrites).
+  It rewrites the .ergrc `[tags]` section header to `[labels]` as a one-time
+  format migration, but does NOT deliver or refresh configuration content --
+  the default label vocabulary and other config is `erg init`'s job, not
+  migrate's. Run `erg migrate` after `erg update && erg init` when the new
+  binary introduced ticket-format changes.
+
+Canonical full sequence: `erg update && erg init`, then `erg migrate DIR` when
+the release notes mention format changes.
+
 ## Optional: .gitignore
 
 Add `tickets/erg` to `.gitignore` if you do not want to commit the

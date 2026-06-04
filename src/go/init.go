@@ -78,6 +78,13 @@ After a successful run (not in dry-run), init chains a read-only corpus check
 and prints any warnings, but its exit code reflects the init outcome only --
 the chained warnings never change it.
 
+Canonical keep-current sequence: 'erg update && erg init'. erg update replaces the
+binary; erg init delivers embedded-asset changes and refreshes the default label
+vocabulary. The default vocabulary is frozen-by-copy into .ergrc at init time -- a
+new default added later to the binary is shadowed by the existing file and never takes
+effect until erg init overwrites the file (clean upgrade) or the user opts in with
+--force (local edit). erg update alone cannot un-shadow a frozen vocabulary.
+
 Exit codes: 0 success; 1 a hard error (bad flag, missing binary, write
 failure); 2 local edits were preserved and skipped (run with --force to
 overwrite). See "Exit codes" in erg --help --all.

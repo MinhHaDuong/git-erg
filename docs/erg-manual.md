@@ -422,6 +422,13 @@ After a successful run (not in dry-run), init chains a read-only corpus check
 and prints any warnings, but its exit code reflects the init outcome only --
 the chained warnings never change it.
 
+Canonical keep-current sequence: 'erg update && erg init'. erg update replaces the
+binary; erg init delivers embedded-asset changes and refreshes the default label
+vocabulary. The default vocabulary is frozen-by-copy into .ergrc at init time -- a
+new default added later to the binary is shadowed by the existing file and never takes
+effect until erg init overwrites the file (clean upgrade) or the user opts in with
+--force (local edit). erg update alone cannot un-shadow a frozen vocabulary.
+
 Exit codes: 0 success; 1 a hard error (bad flag, missing binary, write
 failure); 2 local edits were preserved and skipped (run with --force to
 overwrite). See "Exit codes" in erg --help --all.
@@ -542,3 +549,14 @@ After a successful update, checks whether any .erg files in the ticket store sti
 legacy Status: headers. If found, prints explicit migration guidance: 'erg migrate DIR',
 'git diff tickets/', 'git commit'. The update command never mutates ticket files itself --
 migration is a separate, reviewable step.
+
+erg update replaces the binary only -- it never writes or modifies any store file
+(.ergrc, AGENTS.md, or tickets). Embedded-asset changes and new default label vocabulary
+are delivered by a follow-up 'erg init'. The canonical sequence after an update is:
+
+  erg update && erg init
+
+erg init applies the dpkg-style 3-state rule: byte-identical files are left untouched;
+a file that matches the previously recorded stock hash is a clean upgrade and is
+overwritten; a locally-edited file is preserved (exit 2). Running erg update alone is
+never sufficient to absorb new defaults.
