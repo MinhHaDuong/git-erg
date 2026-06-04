@@ -365,7 +365,10 @@ passes validation (orphan content before the first log entry is left for validat
 When DIR is named "tickets" (the canonical layout), also performs a one-time
 project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
 renames archive/ to closed/ if archive/ exists and closed/ does not, refreshes
-init assets (overwrites diverged files without prompting), and rewrites .git/hooks/pre-commit if it references
+tickets/AGENTS.md (force-overwrite, no prompt -- agent docs track the binary;
+.ergrc is configuration, delivered by 'erg init', so run 'erg update && erg
+init' to refresh it with the dpkg 3-state rule that preserves local edits), and
+rewrites .git/hooks/pre-commit if it references
 the legacy tickets/tools/go/erg path or the legacy 'validate tickets/' CLI
 form. The hook rewrite is content-based and idempotent; hooks without legacy
 patterns are left untouched.

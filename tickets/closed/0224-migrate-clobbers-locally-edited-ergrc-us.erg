@@ -1,0 +1,182 @@
+%erg 0.1
+Title: migrate clobbers locally-edited .ergrc -- use the dpkg 3-state rule like init
+Created: 2026-06-04
+Author: MinhHaDuong
+Closed: autoclosed — PR #275
+
+--- log ---
+2026-06-04T09:01Z MinhHaDuong created
+2026-06-04T09:32Z claude note raid flag: charter (docs/erg-imagine-charter.md:124-127) deliberately keeps migrate force-overwrite ("la migration est une etape revue") -- this ticket as filed reverses a documented decision, escalated to author
+2026-06-04T09:32Z MinhHaDuong reframed -- leave configuration-file delivery to erg init (dpkg model); migrate stops touching .ergrc entirely; AGENTS.md refresh keeps force-overwrite so the charter decision stays intact for what migrate still touches
+2026-06-04T09:36Z claude note plan: add paths param to installAssets; migrateLayout passes migrateAssetPaths=["tickets/AGENTS.md"]; 4 new tests in migrate_test.go + 2 in test_migrate.sh; update helpMigrate wording
+2026-06-04T09:43Z claude note feasibility PASS -- Wave 2 after 0220 (both touch migrate.go + migrate_test.go + helpMigrate); shares init.go with 0223, disjoint regions
+
+2026-06-04T12:00Z MinhHaDuong closed — autoclosed — PR #275
+--- body ---
+## Source
+2026-06-04 conversation on migrate vs update. Spotted by code reading
+(src/go/migrate.go, migrateLayout), not yet by a field incident --
+fix before it becomes one.
+
+## Context
+`migrateLayout` calls `installAssets(root, false, false)`:
+refuseDiverged=false means files differing from the embedded asset are
+overwritten UNCONDITIONALLY. For AGENTS.md that is arguably fine
+(agent instructions should track the binary), but `.ergrc` is user
+configuration: a project that customized its `[labels]` vocabulary or
+`[update] url` loses the edit silently on the next `erg migrate`.
+
+`erg init` already has the right behaviour: refuseDiverged=true runs
+the dpkg 3-state compare -- byte-identical: skip; matches the
+.erg-assets stamp or a known shipped hash (clean upgrade): overwrite;
+matches neither (local edit): preserve, message, exit 2. Only
+`init --force` clobbers.
+
+migrate's helpMigrate even advertises the current behaviour
+("refreshes init assets (overwrites diverged files without
+prompting)") -- so this is documented-but-wrong, not undocumented:
+the doc must change with the code.
+
+## Fix (reframed by author, 2026-06-04)
+Original fix proposed refuseDiverged=true, but the charter
+(docs/erg-imagine-charter.md:124-127) deliberately keeps migrate's
+asset refresh in force-overwrite. Author resolution: separation of
+concerns instead of a protection flag.
+
+- migrate's asset refresh excludes .ergrc entirely: configuration
+  delivery is `erg init`'s job (dpkg 3-state model already in place).
+  AGENTS.md stays force-overwrite via migrate (agent docs track the
+  binary; charter decision intact).
+- migrateErgrc (the [tags]->[labels] content rewrite of the user's own
+  .ergrc) is format migration, not asset refresh -- it stays.
+- helpMigrate wording updated: asset refresh covers AGENTS.md;
+  .ergrc is delivered by `erg init` (point to the update && init
+  sequence, see 0223).
+- Adjust the migrate summary counts if .ergrc's exclusion changes them.
+
+## Exit criteria
+- [ ] Locally-edited .ergrc survives `erg migrate` (test: customize a
+      label line, run migrate, byte-compare)
+- [ ] Stock .ergrc is also left untouched by migrate (delivery of
+      refreshed defaults is `erg init`'s job, dpkg path tested there)
+- [ ] migrateErgrc [tags]->[labels] rewrite still works (format
+      migration of the user's own file, distinct from asset refresh)
+- [ ] AGENTS.md refresh by migrate still force-overwrites (charter
+      decision intact, covered by a test)
+- [ ] helpMigrate no longer says .ergrc is refreshed; names `erg init`
+      as the config delivery path
+- [ ] make check passes
+
+## Plan
+
+### Exclusion mechanism
+
+Add a `paths []string` parameter as the first argument of `installAssets`
+(src/go/init.go:96). Callers pass the exact asset list they want processed:
+
+- `cmdInit` (init.go:216): passes `initAssetPaths` (unchanged — both assets)
+- `manifest_test.go` calls (lines 125, 154): pass `initAssetPaths` (unchanged)
+- `migrateLayout` (migrate.go:220): passes `migrateAssetPaths` (new package-level
+  var, `["tickets/AGENTS.md"]` only)
+
+This is the least-invasive, most explicit approach: no boolean flag, no new wrapper
+function, no magic nil-means-all. Consistent with the existing style (initAssetPaths
+is already a named package-level var).
+
+### Actions (file:line precision)
+
+1. **src/go/init.go:10-13** — Add `migrateAssetPaths` alongside `initAssetPaths`:
+   ```go
+   var migrateAssetPaths = []string{
+       "tickets/AGENTS.md",
+   }
+   ```
+
+2. **src/go/init.go:96** — Change signature to:
+   ```go
+   func installAssets(root string, paths []string, refuseDiverged, dryRun bool)
+   ```
+   Replace the `initAssetPaths` loop variable with `paths` on the for-loop line
+   (init.go:100: `for _, rel := range initAssetPaths` → `for _, rel := range paths`).
+
+3. **src/go/init.go:216** — Update `cmdInit` call site:
+   `installAssets(root, initAssetPaths, refuseDiverged, dryRun)`
+
+4. **src/go/migrate.go:220** — Update `migrateLayout` call site:
+   `installAssets(root, migrateAssetPaths, false, false)`
+
+5. **src/go/migrate.go:223** — Update summary printf: the `%d unchanged` count
+   now only counts AGENTS.md, not .ergrc. No change to the printf itself but the
+   count semantics are now correct by construction.
+
+6. **src/go/manifest_test.go:125, 154** — Update both `installAssets` calls to
+   pass `initAssetPaths` as the second argument (no behavior change in those tests).
+
+7. **src/go/migrate.go:14-46 (helpMigrate const)** — Rewrite the sentence:
+   "refreshes init assets (overwrites diverged files without prompting)"
+   to: "refreshes AGENTS.md (overwrites diverged files without prompting; .ergrc
+   is configuration -- delivered by `erg init`, see update && init sequence)".
+
+### New tests
+
+**src/go/migrate_test.go** — 4 unit tests in a new `TestMigrateLayoutErgrc`
+function (or appended to existing table-driven tests):
+
+a. **Locally-edited .ergrc survives migrateLayout** — create a custom `.ergrc`
+   with a unique byte marker, call `migrateLayout(dir)` (direct function call),
+   read back and byte-compare. Catches: if installAssets processes .ergrc,
+   the content changes.
+
+b. **Stock .ergrc (absent) is NOT created by migrateLayout** — no .ergrc pre-exists
+   in the temp dir, call `migrateLayout(dir)`, assert the file still does not exist.
+   Catches: if installAssets creates .ergrc, the file appears.
+
+c. **Diverged AGENTS.md is force-overwritten by migrateLayout** — write a diverged
+   AGENTS.md (content = "DIVERGED\n"), call `migrateLayout(dir)`, assert content
+   differs from "DIVERGED\n" (matches the embedded asset). This is the tautological
+   check: the test would catch a wrong implementation that preserves AGENTS.md.
+
+d. **migrateErgrc [tags]->[labels] still works after the asset exclusion** —
+   write a `.ergrc` with `[tags]` header, call `cmdMigrate` (or `migrateErgrc`
+   directly), assert `[labels]` is in the output. Confirms format migration
+   (distinct from asset refresh) is not accidentally broken. This test already
+   exists (TestMigrateErgrc in migrate_test.go:127) — verify it still covers the
+   case, add a note only if something changes.
+
+**tests/test_migrate.sh** — 2 integration-level shell tests to cover the full
+`erg migrate` command path:
+
+e. **Locally-edited .ergrc survives erg migrate (shell-level)** — create project
+   with a diverged .ergrc (custom label line), run `$ERG migrate`, byte-compare
+   before and after. Must use actual file content comparison, not just existence.
+
+f. **Diverged AGENTS.md is overwritten by erg migrate (shell-level)** — create
+   project with AGENTS.md = "DIVERGED", run `$ERG migrate`, assert content is NOT
+   "DIVERGED". This catches a regression where the exclusion accidentally extends
+   to AGENTS.md.
+
+### Tautology-scan verdict
+
+- Test (a): byte-compare after a real migrateLayout run over a custom .ergrc.
+  Catches the wrong implementation (installAssets processes .ergrc) — PASS.
+- Test (b): checks file absence after a real run. Catches wrong implementation
+  (installAssets creates .ergrc) — PASS.
+- Test (c): asserts AGENTS.md content changed from "DIVERGED" to embedded.
+  Catches wrong implementation (AGENTS.md excluded like .ergrc) — PASS.
+- Test (e): shell-level byte-compare, same discriminating power as (a) — PASS.
+- Test (f): shell-level non-equality, same discriminating power as (c) — PASS.
+- migrateErgrc test: already tautological (test (d) maps to existing coverage).
+
+### Dependencies
+
+This ticket executes in Wave 2 (after 0220 merges). Ticket 0220 also touches
+migrate.go (migrateHook area). After 0220 merges, rebase this branch onto
+current origin/main before implementing — no structural conflict expected
+(different functions), but line numbers above are based on current HEAD and may
+shift by ~1-5 lines.
+
+### First test to write
+
+Test (a): `TestMigrateLayoutPreservesErgrc` in src/go/migrate_test.go.
+Write first, before changing installAssets, to confirm it fails with the
+current code (red), then passes after the fix (green).

@@ -370,6 +370,37 @@ else
 fi
 rm -rf "$BDIR"
 
+# --- Layout migration: locally-edited .ergrc survives erg migrate (ticket 0224) ---
+# migrate's asset refresh must not touch .ergrc: configuration delivery is
+# erg init's job (dpkg 3-state). A user-customized .ergrc must come out byte-identical.
+EDIR=$(mktemp -d)
+mkdir -p "$EDIR/tickets"
+cp "$ERG" "$EDIR/tickets/erg"
+printf '[labels]\nMIGRATE-0224-SHELL-MARKER\nneeds-human\n' > "$EDIR/tickets/.ergrc"
+cp "$EDIR/tickets/.ergrc" "$EDIR/snapshot-ergrc"
+"$ERG" migrate "$EDIR/tickets" >/dev/null 2>&1
+if cmp -s "$EDIR/tickets/.ergrc" "$EDIR/snapshot-ergrc"; then
+    pass "layout migration: locally-edited .ergrc survives erg migrate (byte-identical)"
+else
+    fail "layout migration: locally-edited .ergrc survives erg migrate (byte-identical)"
+fi
+rm -rf "$EDIR"
+
+# --- Layout migration: diverged AGENTS.md IS overwritten by erg migrate (ticket 0224) ---
+# The exclusion must not extend to AGENTS.md: agent docs track the binary, so a
+# diverged AGENTS.md is force-overwritten (charter decision intact).
+ADIR=$(mktemp -d)
+mkdir -p "$ADIR/tickets"
+cp "$ERG" "$ADIR/tickets/erg"
+printf 'DIVERGED\n' > "$ADIR/tickets/AGENTS.md"
+"$ERG" migrate "$ADIR/tickets" >/dev/null 2>&1
+if [ "$(cat "$ADIR/tickets/AGENTS.md")" = "DIVERGED" ]; then
+    fail "layout migration: diverged AGENTS.md overwritten by erg migrate"
+else
+    pass "layout migration: diverged AGENTS.md overwritten by erg migrate"
+fi
+rm -rf "$ADIR"
+
 # --- Layout migration: merge archive/ into existing closed/ (no conflict) ---
 MDIR2=$(mktemp -d)
 mkdir -p "$MDIR2/tickets"

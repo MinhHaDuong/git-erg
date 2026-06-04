@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -384,4 +385,89 @@ func TestMigrateFileOrphanUntouched(t *testing.T) {
 	if !foundMalformed {
 		t.Errorf("expected a malformed-log-line violation for the orphan, got: %v", errs)
 	}
+}
+
+// setupMigrateLayoutDir builds a hermetic project tree for migrateLayout tests:
+// <tmp>/tickets/ named literally "tickets" so installAssets (which writes paths
+// prefixed "tickets/" relative to root = filepath.Dir(dir)) targets it, plus a
+// stub tickets/erg so migrateLayout skips the multi-MB os.Executable() self-copy.
+// Returns the tickets dir to pass to migrateLayout.
+func setupMigrateLayoutDir(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	ticketsDir := filepath.Join(root, "tickets")
+	if err := os.MkdirAll(ticketsDir, 0755); err != nil {
+		t.Fatalf("mkdir tickets: %v", err)
+	}
+	// Stub binary so migrateLayout does not copy os.Executable() into the tree.
+	if err := os.WriteFile(filepath.Join(ticketsDir, "erg"), []byte("stub"), 0755); err != nil {
+		t.Fatalf("write stub erg: %v", err)
+	}
+	return ticketsDir
+}
+
+// TestMigrateLayoutErgrc covers ticket 0224: migrate's asset refresh must stop
+// touching .ergrc entirely (configuration delivery belongs to `erg init`), while
+// AGENTS.md keeps the charter's force-overwrite behaviour.
+func TestMigrateLayoutErgrc(t *testing.T) {
+	// (a) A locally-edited .ergrc survives migrateLayout byte-for-byte.
+	t.Run("locally-edited .ergrc survives migrateLayout", func(t *testing.T) {
+		ticketsDir := setupMigrateLayoutDir(t)
+		custom := []byte("[labels]\nMIGRATE-0224-UNIQUE-MARKER\nneeds-human\n")
+		ergrcPath := filepath.Join(ticketsDir, ".ergrc")
+		if err := os.WriteFile(ergrcPath, custom, 0644); err != nil {
+			t.Fatalf("write .ergrc: %v", err)
+		}
+		if code := migrateLayout(ticketsDir); code != 0 {
+			t.Fatalf("migrateLayout returned %d, want 0", code)
+		}
+		got, err := os.ReadFile(ergrcPath)
+		if err != nil {
+			t.Fatalf("read back .ergrc: %v", err)
+		}
+		if string(got) != string(custom) {
+			t.Errorf(".ergrc was modified by migrateLayout:\n got: %q\nwant: %q", string(got), string(custom))
+		}
+	})
+
+	// (b) An absent .ergrc is NOT created by migrateLayout.
+	t.Run("absent .ergrc is not created by migrateLayout", func(t *testing.T) {
+		ticketsDir := setupMigrateLayoutDir(t)
+		ergrcPath := filepath.Join(ticketsDir, ".ergrc")
+		if code := migrateLayout(ticketsDir); code != 0 {
+			t.Fatalf("migrateLayout returned %d, want 0", code)
+		}
+		if _, err := os.Stat(ergrcPath); !os.IsNotExist(err) {
+			t.Errorf(".ergrc should not exist after migrateLayout, stat err = %v", err)
+		}
+	})
+
+	// (c) A diverged AGENTS.md IS force-overwritten by migrateLayout (charter
+	// decision intact: agent docs track the binary). This guards the exclusion
+	// from accidentally swallowing AGENTS.md.
+	t.Run("diverged AGENTS.md is force-overwritten by migrateLayout", func(t *testing.T) {
+		ticketsDir := setupMigrateLayoutDir(t)
+		agentsPath := filepath.Join(ticketsDir, "AGENTS.md")
+		diverged := []byte("DIVERGED\n")
+		if err := os.WriteFile(agentsPath, diverged, 0644); err != nil {
+			t.Fatalf("write AGENTS.md: %v", err)
+		}
+		if code := migrateLayout(ticketsDir); code != 0 {
+			t.Fatalf("migrateLayout returned %d, want 0", code)
+		}
+		got, err := os.ReadFile(agentsPath)
+		if err != nil {
+			t.Fatalf("read back AGENTS.md: %v", err)
+		}
+		if string(got) == string(diverged) {
+			t.Error("AGENTS.md was preserved, want force-overwrite with embedded content")
+		}
+		embedded, ok := bootstrapAsset("tickets/AGENTS.md")
+		if !ok {
+			t.Fatal("embedded tickets/AGENTS.md asset missing")
+		}
+		if string(got) != embedded {
+			t.Errorf("AGENTS.md not overwritten with embedded content:\n got: %q", string(got))
+		}
+	})
 }
