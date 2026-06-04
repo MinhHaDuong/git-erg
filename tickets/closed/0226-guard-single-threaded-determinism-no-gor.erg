@@ -2,10 +2,13 @@
 Title: Guard: single-threaded determinism -- no goroutines on default path, byte-stable output
 Created: 2026-06-04
 Author: MinhHaDuong
+Closed: tickets/
 
 --- log ---
 2026-06-04T09:30Z MinhHaDuong created
 
+2026-06-04T09:46Z claude note raid execute: new tests/test_determinism.sh (L1 goroutine grep ratchet + neg-control plant; L2 hand-written fixed-ID corpus in one store, byte-compare check/list/ready across reversed write-order + rerun, neg-control via appended byte); register determinism in Makefile TEST_SUITES; make check
+2026-06-04T09:48Z MinhHaDuong closed — tickets/
 --- body ---
 ## Source
 2026-06-04 foundations audit: PEP section 10 states "single-threaded
