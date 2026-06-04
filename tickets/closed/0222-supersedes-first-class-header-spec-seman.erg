@@ -2,6 +2,7 @@
 Title: Supersedes: first-class header -- spec semantics, check cross-ref validation, migrate retrofit
 Created: 2026-06-04
 Author: MinhHaDuong
+Closed: autoclosed — PR #271
 
 --- log ---
 2026-06-04T08:39Z MinhHaDuong created
@@ -11,6 +12,7 @@ Author: MinhHaDuong
 2026-06-04T09:43Z claude note feasibility PASS -- shares ergspecv1.go with 0220 in Wave 1, disjoint regions; loadErgs full-walk confirmed so cross-ref sees closed/archived corpus; PEP file is repo-root pep-erg-v1.md
 
 2026-06-04T09:56Z claude note implemented Superseded-by header across 6 files plus tests; make check passes
+2026-06-04T11:05Z MinhHaDuong closed — autoclosed — PR #271
 --- body ---
 ## Source
 Audit 0221 (2026-06-04) decided ADOPT: 47 verified supersession events
