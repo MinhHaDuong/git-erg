@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-06-04T20:45Z — Today: spec authority preamble ratified (0228, #273). Guards raid closed 0225 + 0230 + 0233–0236 (PRs #276–#283, all APPROVED r1): docs drift guard live in CI, CMDS-coverage meta-test, hook fixtures install the shipped hook, offline-grep scoped to Go source, charter contracts promoted to AGENTS.md/README. Earlier waves: raid 219–224 and 0223/0224/0229 (#268–#275)._
+_Last updated: 2026-06-05T07:55Z — Today: scope-confinement guard landed end-to-end across three execution modes: 0237 via overnight remote routine (#285), 0238 via raid (#287, snapshot now content-aware via cksum), 0239 direct (#288, hermetic overwrite control). All APPROVED r1, zero bumps. Yesterday: spec authority ratified (0228, #273); guards raid 0225+0230+0233–0236 (#276–#283)._
 
 ## North star:
 
@@ -8,8 +8,8 @@ An agent-friendly local ticket system for development in disconnected environmen
 
 ## Milestones
 
-- Audits, dogfood migration (0216), and guard sweep (raid 2026-06-04) complete.
-  Queue: 0237 only. Bar for new work stays "verified empirical need" per AGENTS.md.
+- Audits, dogfood migration (0216), guard sweep, scope confinement (0237–0239)
+  complete. Queue: empty. Bar for new work: "verified empirical need" (AGENTS.md).
 
 ## Notes
 
@@ -29,12 +29,12 @@ Premature, unproven, or waiting on evidence. Do not promote without AGENTS.md ba
 - feat: AI script to realign docs and code (partial: 0232)
 
 ## Status
-<!-- generated 2026-06-04T20:40Z -->
+<!-- generated 2026-06-05T07:55Z -->
 
-**Tickets:** 1 ready · 0 blocked — `erg ready tickets/` for full list
+**Tickets:** 0 ready · 0 blocked — `erg ready tickets/` for full list
 **Recent commits:**
-  448064b Merge pull request #283 from MinhHaDuong/t0230
-  0d7a314 ticket(0230): close and archive — PR #283
-  a34bf35 ticket(0237): guard for install-only-outside-mutator invariant
-  7314ed8 doc(0230): promote charter-only contracts to AGENTS.md and README
-  f830046 ticket(0230): import raid annotations
+  32f5baf Merge pull request #288 from MinhHaDuong/t0239
+  f5ef748 ticket(0239): close and archive — PR #288
+  9d9ecd9 Merge pull request #287 from MinhHaDuong/t0238
+  80a5a26 Merge pull request #286 from MinhHaDuong/ticket-snapshot-digest
+  8331a94 Merge pull request #285 from MinhHaDuong/t0237
