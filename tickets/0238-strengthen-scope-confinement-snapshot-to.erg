@@ -7,6 +7,7 @@ Author: MinhHaDuong
 2026-06-05T06:24Z MinhHaDuong created
 
 2026-06-05T06:38Z claude note Imagine (raid 2026-06-05): SOUND. Approach: append '| xargs cksum' to snapshot() pipeline (cksum precedent: test_contract.sh:196 store_sum; POSIX, no new deps). Traced all 18 commands: .git/config/HEAD/description/hooks/*.sample/info-exclude static in scratch repos -- no false positives, exclusion list unchanged. Overwrite negative control target: .git/description (exists in every fresh repo, never touched by the 18). Red step mandatory: control must FAIL against path-only snapshot first. Feasibility PASS (cksum precedent + description existence + xargs non-empty input verified empirically). Caveat for executor: scratch paths must stay space-free for xargs. Drift guard: exit criteria unchanged.
+2026-06-05T06:41Z claude note Execute (raid 2026-06-05): red step confirmed gap (control failed against path-only snapshot), cksum fix applied, suite 20/20, make check exit 0
 --- body ---
 ## Context
 The scope-confinement guard (ticket 0237, PR #285) snapshots the tree outside
@@ -36,6 +37,6 @@ current path-only snapshot(), proving the gap is real before fixing it.
 - Suite stays hermetic and POSIX-shell only, per existing tests/ conventions.
 
 ## Exit criteria
-- [ ] snapshot() detects in-place content changes outside tickets/
-- [ ] Negative control proves overwrite detection (and creation control kept)
-- [ ] make check passes
+- [x] snapshot() detects in-place content changes outside tickets/
+- [x] Negative control proves overwrite detection (and creation control kept)
+- [x] make check passes
