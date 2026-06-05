@@ -20,3 +20,4 @@ src/go/*.out
 # Stray binary from `go build .` (defaults output to ./git-erg)
 src/go/git-erg
 tickets/erg
+.claude/tmp/
