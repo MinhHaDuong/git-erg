@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 )
 
 // makeCorpus creates n valid .erg files in dir, numbered 9001..9000+n
@@ -114,9 +113,10 @@ func TestParseOnce(t *testing.T) {
 
 // TestLinearOpCount guards against structural regression in corpus operations:
 // extra loads, growing ref counts, additional traversal passes. The counter
-// tracks per-ref and per-edge work. The idExists timing subtest guards
-// against a linear scan replacing the O(1) map lookup -- a per-call counter
-// is blind to that mutation (fang-audit 2026-06-05, gaze round-1 REROLL).
+// tracks per-ref and per-edge work. The idExists timing guard lives in
+// scaling_test.go (build-tagged `scaling`) -- a per-call counter in the
+// default suite is blind to a linear scan replacing the O(1) map lookup
+// (fang-audit 2026-06-05, gaze round-1 REROLL).
 func TestLinearOpCount(t *testing.T) {
 	t.Run("corpus validation scales linearly with refs", func(t *testing.T) {
 		nSmall := 50
@@ -155,61 +155,6 @@ func TestLinearOpCount(t *testing.T) {
 		if countSmall < floorSmall {
 			t.Errorf("countSmall = %d, want >= %d (absolute floor for n=%d); a counter site was likely dropped",
 				countSmall, floorSmall, nSmall)
-		}
-	})
-
-	t.Run("idExists lookup time is O(1) in map size", func(t *testing.T) {
-		// A per-call counter (refLookupComparisons++) is blind to a linear
-		// scan injected inside idExists -- it increments once per call
-		// regardless of internal complexity. This timing subtest catches
-		// the mutation directly: build maps of 100 and 10_000 entries,
-		// measure per-call lookup time, and assert the ratio stays below
-		// 5.0. A linear scan produces ratio ~100x; even noisy CI sees >10x.
-		//
-		// Warm-up and repeated iterations absorb allocator jitter. The 5.0
-		// ceiling is ~250x looser than the expected ~1.0 ratio, so this
-		// never flakes on O(1) lookups but always catches O(N) scans.
-		const nSmall = 100
-		const nLarge = 10_000
-		const iters = 100_000
-
-		smallMap := make(map[string]bool, nSmall)
-		for i := 0; i < nSmall; i++ {
-			smallMap[fmt.Sprintf("%04d", i)] = true
-		}
-		largeMap := make(map[string]bool, nLarge)
-		for i := 0; i < nLarge; i++ {
-			largeMap[fmt.Sprintf("%04d", i)] = true
-		}
-
-		// Probe key that exists in both maps.
-		probe := fmt.Sprintf("%04d", nSmall/2)
-
-		// Warm up.
-		for i := 0; i < 1000; i++ {
-			idExists(smallMap, probe)
-			idExists(largeMap, probe)
-		}
-
-		start := time.Now()
-		for i := 0; i < iters; i++ {
-			idExists(smallMap, probe)
-		}
-		durSmall := time.Since(start)
-
-		start = time.Now()
-		for i := 0; i < iters; i++ {
-			idExists(largeMap, probe)
-		}
-		durLarge := time.Since(start)
-
-		if durSmall == 0 {
-			t.Fatal("durSmall is 0 -- timing resolution too low")
-		}
-		ratio := float64(durLarge) / float64(durSmall)
-		if ratio > 5.0 {
-			t.Errorf("idExists timing ratio (map %d vs %d) = %.2f; want <= 5.0 for O(1) lookup "+
-				"(small=%v, large=%v)", nSmall, nLarge, ratio, durSmall, durLarge)
 		}
 	})
 
