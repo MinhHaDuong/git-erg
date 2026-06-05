@@ -4,9 +4,10 @@
 # AGENTS.md "Scope confinement" paragraph: install is the only erg verb that
 # mutates outside tickets/. This suite enforces that contract at runtime: for
 # each non-install command a scratch git repo is set up, a snapshot of all
-# files outside tickets/ is taken before the command, the command runs, and the
-# snapshot is compared after. Any file created or modified outside tickets/ is a
-# test failure.
+# files outside tickets/ (path plus a cksum content signature) is taken before
+# the command, the command runs, and the snapshot is compared after. The content
+# signature catches in-place overwrites, not just creation/deletion. Any file
+# created, deleted, or modified outside tickets/ is a test failure.
 #
 # Excluded by design:
 #   install  is the one command permitted to write outside tickets/ (behind
@@ -55,7 +56,10 @@ EOF
     echo "$r"
 }
 
-# snapshot <repo>: list all regular files outside tickets/.
+# snapshot <repo>: list all regular files outside tickets/ paired with a
+# content signature (cksum). The signature makes the snapshot detect in-place
+# overwrites of existing files, not just creation/deletion -- a path-only list
+# is blind to a command that rewrites a file's CONTENT.
 # Excludes volatile git internals (.git/objects, .git/refs, .git/logs,
 # .git/index, .git/FETCH_HEAD, .git/packed-refs) that read-only git
 # calls may touch; includes .git/hooks/ because that is the known
@@ -74,7 +78,7 @@ snapshot() {
         ! -path "$repo/.git/index" \
         ! -path "$repo/.git/FETCH_HEAD" \
         ! -path "$repo/.git/packed-refs" \
-        -type f | sort
+        -type f | sort | xargs cksum
 }
 
 # run_cmd <repo> <cmd>: run erg <cmd> with arguments appropriate to the scratch
@@ -146,6 +150,23 @@ if [ "$nc_before" != "$nc_after" ]; then
     pass "negative-control: snapshot detects file written at repo root"
 else
     fail "negative-control: snapshot did not detect intruder.txt at repo root (guard has no teeth)"
+fi
+
+# ---------------------------------------------------------------------------
+# Negative control: overwrite the CONTENT of a file that already exists outside
+# tickets/ and verify the snapshot detects it. A path-only snapshot is blind to
+# in-place overwrites, so this proves the content signature has teeth. The
+# target is .git/description -- present in every fresh repo, never written by
+# any of the 18 confined commands.
+# ---------------------------------------------------------------------------
+OW_REPO=$(new_repo "overwrite-control")
+ow_before=$(snapshot "$OW_REPO")
+printf 'clobbered\n' > "$OW_REPO/.git/description"
+ow_after=$(snapshot "$OW_REPO")
+if [ "$ow_before" != "$ow_after" ]; then
+    pass "negative-control: snapshot detects in-place overwrite of .git/description"
+else
+    fail "negative-control: snapshot did not detect overwrite of .git/description (snapshot is path-only, no content signature)"
 fi
 
 echo "scopeconfinement: $PASS passed, $FAIL failed"
