@@ -1,0 +1,42 @@
+%erg 0.1
+Title: Make scope-confinement overwrite control hermetic (own file, not git template artifact)
+Created: 2026-06-05
+Author: MinhHaDuong
+
+--- log ---
+2026-06-05T06:58Z MinhHaDuong created
+
+--- body ---
+## Context
+The overwrite negative control added in ticket 0238 (PR #287) clobbers
+.git/description to prove the snapshot detects in-place content changes.
+That file exists only because git's default template ships it: under a
+stripped or custom init.templateDir the control would silently degrade to
+a vacuous creation test. Non-blocking /verify minor on PR #287; works on
+standard git init everywhere CI runs today, so low urgency -- hermeticity
+polish, not a live bug.
+
+## Relevant files
+- `tests/test_scopeconfinement.sh` -- overwrite negative control block (clobbers $repo/.git/description)
+
+## Actions
+1. In the overwrite control, create the control's own file outside
+   tickets/ in the scratch repo (e.g. probe.txt at repo root), snapshot,
+   overwrite its content (same byte length, to also prove the signature
+   is content-based not size-based), snapshot, assert difference.
+2. Drop the .git/description dependency.
+
+## Test
+Red step: temporarily simulate a stripped template (delete .git/description
+in the scratch repo before the control runs) and confirm the CURRENT
+control passes vacuously; then switch to the self-created file and confirm
+detection still trips.
+
+## Invariants
+- Suite stays hermetic and POSIX-shell only.
+- All 18 confined commands and both existing controls keep passing (20/20 baseline from 0238).
+
+## Exit criteria
+- [ ] Overwrite control creates and overwrites its own file (no git template dependency)
+- [ ] Same-length overwrite is detected (content-based proof)
+- [ ] make check passes
