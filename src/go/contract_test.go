@@ -113,8 +113,9 @@ func TestParseOnce(t *testing.T) {
 
 // TestLinearOpCount guards against structural regression in corpus operations:
 // extra loads, growing ref counts, additional traversal passes. The counter
-// tracks per-ref and per-edge work; the wall-clock backstop in
-// test_contract.sh covers algorithmic regression inside individual lookups.
+// tracks per-ref and per-edge work; refLookupComparisons tracks per-comparison
+// work inside rule-10/15 lookups (the map-level counter is blind to a linear
+// scan replacing the O(1) map, fang-audit 2026-06-05).
 func TestLinearOpCount(t *testing.T) {
 	t.Run("corpus validation scales linearly with refs", func(t *testing.T) {
 		nSmall := 50
@@ -123,14 +124,18 @@ func TestLinearOpCount(t *testing.T) {
 		dirSmall := t.TempDir()
 		makeCorpusWithRefs(t, dirSmall, nSmall)
 		resetCorpusOpCount()
+		resetRefLookupComparisons()
 		cmdCheck([]string{dirSmall})
 		countSmall := corpusOpCount
+		lookupsSmall := refLookupComparisons
 
 		dirLarge := t.TempDir()
 		makeCorpusWithRefs(t, dirLarge, nLarge)
 		resetCorpusOpCount()
+		resetRefLookupComparisons()
 		cmdCheck([]string{dirLarge})
 		countLarge := corpusOpCount
+		lookupsLarge := refLookupComparisons
 
 		if countSmall == 0 {
 			t.Fatal("countSmall is 0 -- corpusOpCount instrumentation broken")
@@ -140,6 +145,15 @@ func TestLinearOpCount(t *testing.T) {
 		if ratio < 1.5 || ratio > 2.5 {
 			t.Errorf("corpus op-count ratio = %.2f (N=%d->%d ops, 2N=%d->%d ops); want ~2.0 for linear scaling",
 				ratio, nSmall, countSmall, nLarge, countLarge)
+		}
+
+		if lookupsSmall == 0 {
+			t.Fatal("lookupsSmall is 0 -- refLookupComparisons instrumentation broken")
+		}
+		lookupRatio := float64(lookupsLarge) / float64(lookupsSmall)
+		if lookupRatio < 1.5 || lookupRatio > 2.5 {
+			t.Errorf("ref-lookup comparison ratio = %.2f (N=%d->%d, 2N=%d->%d); want ~2.0 for O(1) map lookup per ref",
+				lookupRatio, nSmall, lookupsSmall, nLarge, lookupsLarge)
 		}
 
 		// Absolute floor: for a chained corpus of n tickets, corpusOpCount must

@@ -25,6 +25,15 @@ var corpusOpCount int
 
 func resetCorpusOpCount() { corpusOpCount = 0 }
 
+var refLookupComparisons int
+
+func resetRefLookupComparisons() { refLookupComparisons = 0 }
+
+func idExists(allIDs map[string]bool, id string) bool {
+	refLookupComparisons++
+	return allIDs[id]
+}
+
 // IsClosed reports whether the ticket is closed under the v1 criterion:
 // either a path component test fires, or a `Closed:` preamble header is
 // present with a non-empty value.
