@@ -156,17 +156,21 @@ fi
 # Negative control: overwrite the CONTENT of a file that already exists outside
 # tickets/ and verify the snapshot detects it. A path-only snapshot is blind to
 # in-place overwrites, so this proves the content signature has teeth. The
-# target is .git/description -- present in every fresh repo, never written by
-# any of the 18 confined commands.
+# control creates its own probe file rather than borrowing a git-template
+# artifact like .git/description (absent under a stripped init.templateDir,
+# where the control would degrade to a vacuous creation test). The overwrite
+# keeps the byte length identical, so detection must come from the content
+# checksum, not the size column.
 # ---------------------------------------------------------------------------
 OW_REPO=$(new_repo "overwrite-control")
+printf 'aaaa\n' > "$OW_REPO/probe.txt"
 ow_before=$(snapshot "$OW_REPO")
-printf 'clobbered\n' > "$OW_REPO/.git/description"
+printf 'bbbb\n' > "$OW_REPO/probe.txt"
 ow_after=$(snapshot "$OW_REPO")
 if [ "$ow_before" != "$ow_after" ]; then
-    pass "negative-control: snapshot detects in-place overwrite of .git/description"
+    pass "negative-control: snapshot detects same-length in-place overwrite of probe.txt"
 else
-    fail "negative-control: snapshot did not detect overwrite of .git/description (snapshot is path-only, no content signature)"
+    fail "negative-control: snapshot did not detect same-length overwrite of probe.txt (content signature has no teeth)"
 fi
 
 echo "scopeconfinement: $PASS passed, $FAIL failed"
