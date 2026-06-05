@@ -2,11 +2,13 @@
 Title: Make scope-confinement overwrite control hermetic (own file, not git template artifact)
 Created: 2026-06-05
 Author: MinhHaDuong
+Closed: autoclosed — PR #288
 
 --- log ---
 2026-06-05T06:58Z MinhHaDuong created
 
 2026-06-05T07:26Z claude note Execute: red step confirmed vacuous pass under simulated stripped template (rm .git/description -> control still PASSed via creation); replaced with own probe.txt + same-length aaaa->bbbb overwrite; suite 20/20; make check exit 0
+2026-06-05T07:38Z MinhHaDuong closed — autoclosed — PR #288
 --- body ---
 ## Context
 The overwrite negative control added in ticket 0238 (PR #287) clobbers
