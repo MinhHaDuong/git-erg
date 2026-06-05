@@ -25,12 +25,7 @@ var corpusOpCount int
 
 func resetCorpusOpCount() { corpusOpCount = 0 }
 
-var refLookupComparisons int
-
-func resetRefLookupComparisons() { refLookupComparisons = 0 }
-
 func idExists(allIDs map[string]bool, id string) bool {
-	refLookupComparisons++
 	return allIDs[id]
 }
 
