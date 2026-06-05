@@ -1,0 +1,146 @@
+{
+  "PROJECT": "git-erg",
+  "OUTPUT": "~/git-erg/FANG-AUDIT.md",
+  "DEFAULT_TAGS": "",
+  "GUARD_TAGS": "-tags scaling",
+  "RUN_TEST": "cd src/go && go test <TAGS> -count=1 ./...",
+  "LANGUAGE": "Go",
+  "PACKAGE_HINT": "package main, in src/go/",
+  "SRC_DIR": "src/go",
+  "UNTRACKED_SEED": [
+    {
+      "dest": "src/go/resource_test.go",
+      "from": "~/git-erg/src/go/resource_test.go"
+    }
+  ],
+  "MUTATION_HEURISTICS": "flip a boundary < to <=, drop a Close(), skip a validation branch, off-by-one an index, negate a predicate",
+  "BEHAVIORAL": [
+    {
+      "test": "atomicwrite_test.go",
+      "src": [
+        "atomicwrite.go"
+      ]
+    },
+    {
+      "test": "check_test.go",
+      "src": [
+        "check.go"
+      ]
+    },
+    {
+      "test": "close_test.go",
+      "src": [
+        "close.go"
+      ]
+    },
+    {
+      "test": "config_test.go",
+      "src": [
+        "config.go"
+      ]
+    },
+    {
+      "test": "contract_test.go",
+      "src": [
+        "check.go",
+        "list.go",
+        "validate.go"
+      ]
+    },
+    {
+      "test": "erg_test.go",
+      "src": [
+        "erg.go"
+      ]
+    },
+    {
+      "test": "identity_test.go",
+      "src": [
+        "identity.go"
+      ]
+    },
+    {
+      "test": "list_test.go",
+      "src": [
+        "list.go"
+      ]
+    },
+    {
+      "test": "migrate_test.go",
+      "src": [
+        "migrate.go"
+      ]
+    },
+    {
+      "test": "new_test.go",
+      "src": [
+        "new.go"
+      ]
+    },
+    {
+      "test": "nextid_test.go",
+      "src": [
+        "nextid.go"
+      ]
+    },
+    {
+      "test": "ref_test.go",
+      "src": [
+        "ref.go"
+      ]
+    },
+    {
+      "test": "refs_test.go",
+      "src": [
+        "refs.go"
+      ]
+    },
+    {
+      "test": "refs_git_test.go",
+      "src": [
+        "refs.go"
+      ]
+    },
+    {
+      "test": "resolve_test.go",
+      "src": [
+        "main.go"
+      ]
+    },
+    {
+      "test": "tag_test.go",
+      "src": [
+        "tag.go"
+      ]
+    },
+    {
+      "test": "validate_test.go",
+      "src": [
+        "validate.go"
+      ]
+    }
+  ],
+  "GUARDS": [
+    {
+      "test": "scaling_test.go",
+      "src": [
+        "erg.go"
+      ],
+      "canary": "In erg.go make loadErgs (line ~664) re-parse each ticket more than once \u2014 e.g. wrap the per-file parse in a nested loop over the corpus so total work is O(N^2). This reintroduces the quadratic re-parse the scaling guard exists to catch; TestScalingLinear* must go red."
+    },
+    {
+      "test": "resource_test.go",
+      "src": [
+        "check.go",
+        "list.go",
+        "close.go",
+        "rm.go",
+        "ready.go",
+        "erg.go"
+      ],
+      "canary": "Introduce a file-descriptor leak in a corpus read/command path exercised by TestScalingFDHygiene (the cmdCheck/cmdList/cmdReady/cmdClose/cmdRm read path). E.g. os.Open a file (or open a git pipe) without closing it, or delete a Close()/defer f.Close() on the ticket-read path. TestScalingFDHygiene must report a leaked fd."
+    }
+  ],
+  "PRECHECK_CMD": "python3 ~/.claude/scripts/test-quality.py flakiness --package-dir src/go --runs 3",
+  "RISK": {}
+}
