@@ -1,0 +1,40 @@
+%erg 0.1
+Title: Strengthen scope-confinement snapshot to detect in-place overwrites
+Created: 2026-06-05
+Author: MinhHaDuong
+
+--- log ---
+2026-06-05T06:24Z MinhHaDuong created
+
+--- body ---
+## Context
+The scope-confinement guard (ticket 0237, PR #285) snapshots the tree outside
+tickets/ before and after each non-install command. Its snapshot() is a path
+list only (`find -type f | sort`), so it detects file creation and deletion
+but is blind to a command overwriting the CONTENT of an existing file outside
+tickets/. The negative control proves teeth against creation only. Flagged as
+a non-blocking finding by /verify on PR #285.
+
+## Relevant files
+- `tests/test_scopeconfinement.sh` -- snapshot() at ~line 63; negative control at ~line 140
+
+## Actions
+1. Extend snapshot() lines with a content signature per file (e.g. `cksum`,
+   or size+mtime if hashing every .git file is too slow -- measure first).
+2. Extend the negative control: overwrite the content of an existing file
+   outside tickets/ (e.g. clobber the seed README) and assert the guard trips.
+3. Keep the existing creation-detection control.
+
+## Test
+Red step: add the overwrite negative control first -- it must FAIL against the
+current path-only snapshot(), proving the gap is real before fixing it.
+
+## Invariants
+- All 18 confined commands still pass the guard (no false positives from
+  volatile git internals -- keep or refine the existing exclusion list).
+- Suite stays hermetic and POSIX-shell only, per existing tests/ conventions.
+
+## Exit criteria
+- [ ] snapshot() detects in-place content changes outside tickets/
+- [ ] Negative control proves overwrite detection (and creation control kept)
+- [ ] make check passes
