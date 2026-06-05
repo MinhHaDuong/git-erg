@@ -59,4 +59,23 @@ func TestHeaderBlankWarnings(t *testing.T) {
 			t.Errorf("warning from nested dir leaks path separator: %q", w[0])
 		}
 	})
+
+	t.Run("non-.erg files are ignored even with interior header blanks", func(t *testing.T) {
+		dir := t.TempDir()
+		writeErg(t, dir, "0001-real.erg",
+			"%erg 0.1\nTitle: T\nCreated: 2024-01-01\n\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		// A .txt file with erg-shaped content and an interior header blank.
+		os.WriteFile(
+			dir+"/notes.txt",
+			[]byte("%erg 0.1\nTitle: T\nCreated: 2024-01-01\n\nAuthor: test\n\n--- log ---\n--- body ---\n"),
+			0644,
+		)
+		w := headerBlankWarnings(dir)
+		if len(w) != 1 {
+			t.Fatalf("got %d warnings, want exactly 1 (the .erg file only): %v", len(w), w)
+		}
+		if !strings.Contains(w[0], "0001-real.erg") {
+			t.Errorf("warning should name the .erg file, got: %q", w[0])
+		}
+	})
 }

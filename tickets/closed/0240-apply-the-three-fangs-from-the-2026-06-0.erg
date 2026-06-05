@@ -2,10 +2,12 @@
 Title: Apply the three fangs from the 2026-06-05 mutation audit
 Created: 2026-06-05
 Author: MinhHaDuong
+Closed: autoclosed — PR #294
 
 --- log ---
 2026-06-05T15:59Z MinhHaDuong created
 
+2026-06-05T19:36Z MinhHaDuong closed — autoclosed — PR #294
 --- body ---
 ## Context
 The 2026-06-05 fang-audit (mutation-testing fan-out, 19/19 files, canary

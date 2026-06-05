@@ -269,6 +269,115 @@ func TestScalingLinearNegativeControl(t *testing.T) {
 	}
 }
 
+// TestIdExistsO1 verifies that idExists performs an O(1) map lookup, not a
+// linear scan over all keys. A per-call counter in the default suite is blind
+// to a linear scan injected inside idExists (fang-audit 2026-06-05): the
+// counter increments once per call regardless of internal complexity. This
+// timing microbenchmark catches the mutation directly: 100k lookups on maps
+// of 100 vs 10_000 entries; a linear scan produces ratio ~100x, well above
+// the 5.0 ceiling. The 5.0 threshold is ~250x looser than the expected ~1.0
+// ratio, so it never flakes on O(1) lookups.
+//
+// Build-tagged `scaling` alongside its siblings because wall-clock assertions
+// are CI-box-dependent (ticket convention: timing guards live here, not in
+// the per-merge default suite).
+func TestIdExistsO1(t *testing.T) {
+	const nSmall = 100
+	const nLarge = 10_000
+	const iters = 100_000
+
+	smallMap := make(map[string]bool, nSmall)
+	for i := 0; i < nSmall; i++ {
+		smallMap[fmt.Sprintf("%04d", i)] = true
+	}
+	largeMap := make(map[string]bool, nLarge)
+	for i := 0; i < nLarge; i++ {
+		largeMap[fmt.Sprintf("%04d", i)] = true
+	}
+
+	// Probe key that exists in both maps.
+	probe := fmt.Sprintf("%04d", nSmall/2)
+
+	// Warm up.
+	for i := 0; i < 1000; i++ {
+		idExists(smallMap, probe)
+		idExists(largeMap, probe)
+	}
+
+	start := time.Now()
+	for i := 0; i < iters; i++ {
+		idExists(smallMap, probe)
+	}
+	durSmall := time.Since(start)
+
+	start = time.Now()
+	for i := 0; i < iters; i++ {
+		idExists(largeMap, probe)
+	}
+	durLarge := time.Since(start)
+
+	if durSmall == 0 {
+		t.Fatal("durSmall is 0 -- timing resolution too low")
+	}
+	ratio := float64(durLarge) / float64(durSmall)
+	t.Logf("idExists timing: small(%d)=%v large(%d)=%v ratio=%.2f", nSmall, durSmall, nLarge, durLarge, ratio)
+	if ratio > 5.0 {
+		t.Errorf("idExists timing ratio (map %d vs %d) = %.2f; want <= 5.0 for O(1) lookup "+
+			"(small=%v, large=%v)", nSmall, nLarge, ratio, durSmall, durLarge)
+	}
+}
+
+// TestIdExistsO1NegativeControl proves the timing guard has teeth: it calls
+// a linear-scan wrapper through the same measurement harness and asserts the
+// ratio exceeds the ceiling. If this ever passes, TestIdExistsO1's green is
+// vacuous.
+func TestIdExistsO1NegativeControl(t *testing.T) {
+	const nSmall = 100
+	const nLarge = 10_000
+	const iters = 10_000 // fewer iters -- the linear scan is slow at 10k entries
+
+	smallMap := make(map[string]bool, nSmall)
+	for i := 0; i < nSmall; i++ {
+		smallMap[fmt.Sprintf("%04d", i)] = true
+	}
+	largeMap := make(map[string]bool, nLarge)
+	for i := 0; i < nLarge; i++ {
+		largeMap[fmt.Sprintf("%04d", i)] = true
+	}
+	probe := fmt.Sprintf("%04d", nSmall/2)
+
+	linearScan := func(m map[string]bool, id string) bool {
+		for k := range m {
+			if k == id {
+				return true
+			}
+		}
+		return false
+	}
+
+	start := time.Now()
+	for i := 0; i < iters; i++ {
+		linearScan(smallMap, probe)
+	}
+	durSmall := time.Since(start)
+
+	start = time.Now()
+	for i := 0; i < iters; i++ {
+		linearScan(largeMap, probe)
+	}
+	durLarge := time.Since(start)
+
+	if durSmall == 0 {
+		t.Fatal("durSmall is 0 -- timing resolution too low")
+	}
+	ratio := float64(durLarge) / float64(durSmall)
+	t.Logf("linear-scan control: small(%d)=%v large(%d)=%v ratio=%.2f", nSmall, durSmall, nLarge, durLarge, ratio)
+	if ratio <= 5.0 {
+		t.Errorf("negative control: linear-scan ratio %.2f did not exceed 5.0 -- the O(1) guard is vacuous",
+			ratio)
+	}
+}
+
 // TestScalingCorpusValid pins the "validates clean" invariant in code rather
 // than prose: a malformed fixture would silently make the whole ladder measure
 // an error path instead of the success path. It builds the corpus and asserts

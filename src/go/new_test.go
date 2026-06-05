@@ -18,6 +18,9 @@ func TestSlugify(t *testing.T) {
 			// truncated to 40 chars: "this-is-a-very-long-title-that-exceeds-f"
 			// trailing char is 'f' (from "forty"), not a hyphen, so TrimRight is a no-op
 			"this-is-a-very-long-title-that-exceeds-f"},
+		// Boundary pair: pins both sides of the > 40 truncation.
+		{strings.Repeat("a", 40), strings.Repeat("a", 40)},
+		{strings.Repeat("a", 41), strings.Repeat("a", 40)},
 		{"", "untitled"},
 		{"!@#$%^&*()", "untitled"},
 	}

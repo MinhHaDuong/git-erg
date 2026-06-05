@@ -113,8 +113,10 @@ func TestParseOnce(t *testing.T) {
 
 // TestLinearOpCount guards against structural regression in corpus operations:
 // extra loads, growing ref counts, additional traversal passes. The counter
-// tracks per-ref and per-edge work; the wall-clock backstop in
-// test_contract.sh covers algorithmic regression inside individual lookups.
+// tracks per-ref and per-edge work. The idExists timing guard lives in
+// scaling_test.go (build-tagged `scaling`) -- a per-call counter in the
+// default suite is blind to a linear scan replacing the O(1) map lookup
+// (fang-audit 2026-06-05, gaze round-1 REROLL).
 func TestLinearOpCount(t *testing.T) {
 	t.Run("corpus validation scales linearly with refs", func(t *testing.T) {
 		nSmall := 50

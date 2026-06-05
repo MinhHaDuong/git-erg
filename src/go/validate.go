@@ -154,7 +154,7 @@ func validateCorpus(tickets []Erg, parseErrs [][]string, cfg *Config) []string {
 		name := t.Filename()
 		for _, ref := range t.BlockedBys {
 			corpusOpCount++ // per-ref lookup
-			if ref.Kind == RefLocal && !allIDs[ref.ID] {
+			if ref.Kind == RefLocal && !idExists(allIDs, ref.ID) {
 				errors = append(errors, fmt.Sprintf(
 					"%s: Blocked-by '%s' references unknown ticket ID", name, ref.ID))
 			}
@@ -168,7 +168,7 @@ func validateCorpus(tickets []Erg, parseErrs [][]string, cfg *Config) []string {
 		name := t.Filename()
 		for _, ref := range t.SupersededBys {
 			corpusOpCount++ // per-ref lookup
-			if ref.Kind == RefLocal && !allIDs[ref.ID] {
+			if ref.Kind == RefLocal && !idExists(allIDs, ref.ID) {
 				errors = append(errors, fmt.Sprintf(
 					"%s: Superseded-by '%s' references unknown ticket ID", name, ref.ID))
 			}
