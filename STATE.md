@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-06-05T07:55Z — Today: scope-confinement guard landed end-to-end across three execution modes: 0237 via overnight remote routine (#285), 0238 via raid (#287, snapshot now content-aware via cksum), 0239 direct (#288, hermetic overwrite control). All APPROVED r1, zero bumps. Yesterday: spec authority ratified (0228, #273); guards raid 0225+0230+0233–0236 (#276–#283)._
+_Last updated: 2026-06-05T08:50Z — Today: scope-confinement guard landed end-to-end (0237 remote #285, 0238 raid #287, 0239 direct #288 — all APPROVED r1, zero bumps). Ops: repo auto-merge enabled; traveling binary 8331a94 propagated to all 5 consuming repos via PRs; .claude/tmp gitignored (#290); morning-healthcheck routine retired; rtk 0.42.1. Yesterday: spec authority ratified (0228); guards raid 0225+0230+0233–0236._
 
 ## North star:
 
@@ -29,12 +29,11 @@ Premature, unproven, or waiting on evidence. Do not promote without AGENTS.md ba
 - feat: AI script to realign docs and code (partial: 0232)
 
 ## Status
-<!-- generated 2026-06-05T07:55Z -->
+<!-- generated 2026-06-05T08:38Z -->
 
-**Tickets:** 0 ready · 0 blocked — `erg ready tickets/` for full list
 **Recent commits:**
+  66ae418 Merge pull request #290 from MinhHaDuong/gitignore-claude-tmp
+  6805f60 chore: gitignore .claude/tmp/
+  adb55aa Merge pull request #289 from MinhHaDuong/housekeeping-20260605
+  91986af chore: housekeeping -- refresh STATE.md after scope-confinement trilogy
   32f5baf Merge pull request #288 from MinhHaDuong/t0239
-  f5ef748 ticket(0239): close and archive — PR #288
-  9d9ecd9 Merge pull request #287 from MinhHaDuong/t0238
-  80a5a26 Merge pull request #286 from MinhHaDuong/ticket-snapshot-digest
-  8331a94 Merge pull request #285 from MinhHaDuong/t0237
