@@ -1,0 +1,41 @@
+%erg 0.1
+Title: Apply the three fangs from the 2026-06-05 mutation audit
+Created: 2026-06-05
+Author: MinhHaDuong
+
+--- log ---
+2026-06-05T15:59Z MinhHaDuong created
+
+--- body ---
+## Context
+The 2026-06-05 fang-audit (mutation-testing fan-out, 19/19 files, canary
+gate PASS on both guards) found 86 confirmed fangs and exactly 3 toothless
+tests — all true coverage gaps (no test anywhere caught the mutation). Full
+report with distinguishing inputs: FANG-AUDIT.md (repo root). All three
+were spot-checked against source before this ticket was filed.
+
+The three gaps, with the audit's suggested fangs:
+
+1. **new_test.go / TestSlugify** — the `len(s) > 40` truncation boundary
+   (new.go:22) is only exercised at 65 chars, deep inside the region; a
+   `> 41` off-by-one survives. Fang: boundary pair — a title slugifying to
+   exactly 41 chars asserts a 40-char result, and a 40-char one asserts
+   untouched.
+2. **check_test.go / TestHeaderBlankWarnings** — the `.erg` suffix filter
+   (check.go:136) is untested; dropping it entirely survives because all
+   fixtures are written via writeErg. Fang: subtest with a non-.erg file
+   containing an erg-shaped interior-header-blank, assert only .erg files
+   are reported. Red-control it.
+3. **contract_test.go / TestLinearOpCount** — corpusOpCount increments once
+   per ref OUTSIDE the rule-10 lookup (validate.go), so a quadratic scan
+   inside the lookup is invisible; the file's own comment delegates this to
+   test_contract.sh wall-clock. Fang: count per-comparison inside rule 10's
+   resolution (deterministic, stays in the default suite) rather than
+   per-ref — or a Go-level timing backstop marked integration.
+
+## Exit criteria
+- [ ] TestSlugify pins both sides of the 40-char boundary (41→40 truncated, 40 untouched)
+- [ ] TestHeaderBlankWarnings has a non-.erg fixture asserted ignored, with a red-control
+- [ ] TestLinearOpCount (or a sibling) detects an O(N) scan injected inside rule 10's per-ref resolution
+- [ ] Each new fang verified red against its row's mutation from FANG-AUDIT.md before the fix is declared done
+- [ ] Default suite passes
