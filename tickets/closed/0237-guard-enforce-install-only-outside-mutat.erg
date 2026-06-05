@@ -2,11 +2,13 @@
 Title: Guard: enforce install-only-outside-mutator invariant with a test
 Created: 2026-06-04
 Author: MinhHaDuong
+Closed: autoclosed — PR #285
 
 --- log ---
 2026-06-04T20:32Z MinhHaDuong created
 2026-06-05T00:00Z claude note execute: added tests/test_scopeconfinement.sh (runtime guard, 18 cmds + negative-control) and TestScopeConfinementCoverage Go meta-test (totality over registry, 1 exclusion: install)
 
+2026-06-05T06:22Z MinhHaDuong closed — autoclosed — PR #285
 --- body ---
 ## Context
 /verify on PR #283 (ticket 0230) adherence pass: the newly documented
