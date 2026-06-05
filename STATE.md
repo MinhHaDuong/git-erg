@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-06-05T08:50Z — Today: scope-confinement guard landed end-to-end (0237 remote #285, 0238 raid #287, 0239 direct #288 — all APPROVED r1, zero bumps). Ops: repo auto-merge enabled; traveling binary 8331a94 propagated to all 5 consuming repos via PRs; .claude/tmp gitignored (#290); morning-healthcheck routine retired; rtk 0.42.1. Yesterday: spec authority ratified (0228); guards raid 0225+0230+0233–0236._
+_Last updated: 2026-06-05T19:45Z — Today pm: fang-audit on the Go suite (19/19 files, canary PASS, 86 caught / 3 toothless): report committed (#293), the 3 fangs applied (0240, #294 — gaze r1 caught my counter-fang being itself toothless; replaced with a scaling-tag timing guard); 3 Workflow-runtime bugs in the fang-audit skill fixed (IDH 0223/#309). Today am: scope-confinement trilogy 0237–0239; auto-merge enabled; binary propagated; rtk 0.42.1._
 
 ## North star:
 
@@ -8,8 +8,9 @@ An agent-friendly local ticket system for development in disconnected environmen
 
 ## Milestones
 
-- Audits, dogfood migration (0216), guard sweep, scope confinement (0237–0239)
-  complete. Queue: empty. Bar for new work: "verified empirical need" (AGENTS.md).
+- Audits (incl. fang-audit 2026-06-05: FANG-AUDIT.md, all 3 gaps closed), dogfood
+  migration (0216), guard sweep, scope confinement (0237–0239) complete.
+  Queue: empty. Bar for new work: "verified empirical need" (AGENTS.md).
 
 ## Notes
 
@@ -29,11 +30,11 @@ Premature, unproven, or waiting on evidence. Do not promote without AGENTS.md ba
 - feat: AI script to realign docs and code (partial: 0232)
 
 ## Status
-<!-- generated 2026-06-05T08:38Z -->
+<!-- generated 2026-06-05T19:42Z -->
 
 **Recent commits:**
-  66ae418 Merge pull request #290 from MinhHaDuong/gitignore-claude-tmp
-  6805f60 chore: gitignore .claude/tmp/
-  adb55aa Merge pull request #289 from MinhHaDuong/housekeeping-20260605
-  91986af chore: housekeeping -- refresh STATE.md after scope-confinement trilogy
-  32f5baf Merge pull request #288 from MinhHaDuong/t0239
+  818fd84 chore: rebuild bootstrap binary [skip ci]
+  a8f4bef Merge pull request #294 from MinhHaDuong/t0240
+  d152cb6 ticket(0240): close and archive — PR #294
+  d0cf7cc test: move idExists timing fang behind //go:build scaling
+  df8d1d9 test: replace toothless per-call counter with timing fang for idExists
