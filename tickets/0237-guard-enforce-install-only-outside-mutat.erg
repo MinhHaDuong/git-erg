@@ -5,6 +5,7 @@ Author: MinhHaDuong
 
 --- log ---
 2026-06-04T20:32Z MinhHaDuong created
+2026-06-05T00:00Z claude note execute: added tests/test_scopeconfinement.sh (runtime guard, 18 cmds + negative-control) and TestScopeConfinementCoverage Go meta-test (totality over registry, 1 exclusion: install)
 
 --- body ---
 ## Context
@@ -28,7 +29,7 @@ Negative control: a doctored command (or a temp copy of one) that
 writes a file at repo root must trip the guard.
 
 ## Exit criteria
-- [ ] Guard fails when a non-install command writes outside tickets/
+- [x] Guard fails when a non-install command writes outside tickets/
       (negative control proves it)
-- [ ] Green on current main
+- [x] Green on current main
 - [ ] make check passes
