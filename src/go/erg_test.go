@@ -673,6 +673,131 @@ func TestMutatingCommandsCMDSCoverage(t *testing.T) {
 	}
 }
 
+// TestScopeConfinementCoverage is a meta-test for the scope-confinement guard
+// (tests/test_scopeconfinement.sh), peer to TestMutatingCommandsCMDSCoverage.
+// AGENTS.md "Scope confinement" paragraph: install is the only erg verb that
+// mutates outside tickets/. The runtime guard exercises each non-install
+// command in a scratch repo and asserts no writes land outside tickets/. This
+// meta-test closes the totality gap: every command in the dispatch registry
+// must be explicitly classified here (covered by the shell test or excluded
+// with a documented reason). If a new command enters the dispatch without
+// joining CMDS in test_scopeconfinement.sh, this meta-test fails loud.
+func TestScopeConfinementCoverage(t *testing.T) {
+	// 1. Exhaustive in-test classification of all 19 registry commands.
+	// true == command is subject to scope confinement (must not write outside
+	// tickets/). The totality loop below fails loud if any registry command is
+	// missing from this map, so a new subcommand cannot slip through
+	// unclassified.
+	classification := map[string]bool{
+		// Covered by test_scopeconfinement.sh CMDS: each must not write
+		// outside tickets/ and is tested at runtime in a scratch repo.
+		"validate":    true,
+		"check":       true,
+		"list":        true,
+		"ready":       true,
+		"next-id":     true,
+		"new":         true,
+		"close":       true,
+		"log":         true,
+		"label":       true,
+		"unlabel":     true,
+		"archive":     true,
+		"rm":          true,
+		"migrate":     true,
+		"init":        true,
+		"spec":        true,
+		"integration": true,
+		"version":     true,
+		"update":      true,
+		// Excluded: install is the one command explicitly permitted to write
+		// outside tickets/ (behind --hooks and --inject-agents, which default
+		// to off). Marking it false records the deliberate exemption rather
+		// than an oversight.
+		"install": false,
+	}
+
+	// The one documented exclusion: install is the confinement boundary, not a
+	// command subject to it. Any new command that legitimately needs to write
+	// outside tickets/ must be added here with a comment explaining why.
+	exclusions := map[string]bool{
+		"install": true,
+	}
+
+	// 2. Totality loop (anti-tautology core): every registry command must be
+	// classified. An unclassified entry (e.g. a freshly added subcommand)
+	// fails here rather than silently escaping the scope check.
+	for _, c := range commands {
+		if _, ok := classification[c.Name]; !ok {
+			t.Errorf("command %q is in the dispatch registry but not classified in TestScopeConfinementCoverage -- add it (and to CMDS in tests/test_scopeconfinement.sh if it must not write outside tickets/)", c.Name)
+		}
+	}
+
+	// 3. Exclusion assertion: each exclusion must be present in the
+	// classification map. A typo (e.g. "instal") would silently narrow the
+	// covered set without notice.
+	for name := range exclusions {
+		if _, ok := classification[name]; !ok {
+			t.Errorf("exclusion %q is not present in the classification map -- exclusions must be classified", name)
+		}
+	}
+
+	// 4. Parse CMDS from the scope confinement script. go test runs with cwd
+	// set to the package dir (src/go), so the script is at ../../tests/.
+	scriptPath := filepath.Join("..", "..", "tests", "test_scopeconfinement.sh")
+	data, err := os.ReadFile(scriptPath)
+	if err != nil {
+		t.Fatalf("reading %s: %v", scriptPath, err)
+	}
+	// (?m) is required: the CMDS assignment is not at start-of-file.
+	re := regexp.MustCompile(`(?m)^CMDS="([^"]*)"`)
+	m := re.FindSubmatch(data)
+	if m == nil {
+		t.Fatalf("no CMDS=\"...\" assignment found in %s -- regex mismatch or file moved", scriptPath)
+	}
+	cmdsSet := map[string]bool{}
+	for _, name := range strings.Fields(string(m[1])) {
+		cmdsSet[name] = true
+	}
+	// Non-empty guard: a broken regex or empty list must not pass vacuously.
+	if len(cmdsSet) == 0 {
+		t.Fatal("parsed CMDS set is empty -- regex mismatch or empty assignment, cannot validate")
+	}
+
+	// 5. Set equality, direction A: every scope-confined command must be in
+	// CMDS so the shell guard exercises it.
+	if missing := missingFromCMDS(classification, exclusions, cmdsSet); len(missing) != 0 {
+		t.Errorf("commands subject to scope confinement but missing from CMDS in %s: %v -- add them so the guard exercises them", scriptPath, missing)
+	}
+
+	// 6. Set equality, direction B: CMDS contains no phantom entry that is
+	// not a confined, non-excluded command.
+	for name := range cmdsSet {
+		confined := classification[name]
+		if !confined || exclusions[name] {
+			t.Errorf("CMDS in %s contains %q, which is not a scope-confined command (confined=%v, excluded=%v) -- remove it or fix the classification", scriptPath, name, confined, exclusions[name])
+		}
+	}
+
+	// 7. Negative control: inject a bogus command and confirm missingFromCMDS
+	// reports it missing. Guards against a helper that always returns empty.
+	doctored := map[string]bool{}
+	for k, v := range classification {
+		doctored[k] = v
+	}
+	doctored["frobnicate"] = true
+	gaps := missingFromCMDS(doctored, exclusions, cmdsSet)
+	found := false
+	for _, g := range gaps {
+		if g == "frobnicate" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("negative control: injected \"frobnicate\" not reported missing from CMDS (got %v) -- the helper has a tautology", gaps)
+	}
+}
+
 // TestFolderClosure exercises folderClosure (check.go:12).
 func TestFolderClosure(t *testing.T) {
 	t.Run("open ticket in closed dir warns", func(t *testing.T) {
