@@ -6,6 +6,7 @@ Author: MinhHaDuong
 --- log ---
 2026-06-05T06:58Z MinhHaDuong created
 
+2026-06-05T07:26Z claude note Execute: red step confirmed vacuous pass under simulated stripped template (rm .git/description -> control still PASSed via creation); replaced with own probe.txt + same-length aaaa->bbbb overwrite; suite 20/20; make check exit 0
 --- body ---
 ## Context
 The overwrite negative control added in ticket 0238 (PR #287) clobbers
@@ -37,6 +38,6 @@ detection still trips.
 - All 18 confined commands and both existing controls keep passing (20/20 baseline from 0238).
 
 ## Exit criteria
-- [ ] Overwrite control creates and overwrites its own file (no git template dependency)
-- [ ] Same-length overwrite is detected (content-based proof)
-- [ ] make check passes
+- [x] Overwrite control creates and overwrites its own file (no git template dependency)
+- [x] Same-length overwrite is detected (content-based proof)
+- [x] make check passes
