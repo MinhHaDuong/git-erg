@@ -2,10 +2,12 @@
 Title: Hook template: agnostic remediation text instead of 'Run make build first'
 Created: 2026-06-08
 Author: MinhHaDuong
+Closed: implemented — agnostic remediation wording + ratchet test (build/erg embeds no 'Run make build first')
 
 --- log ---
 2026-06-08T12:57Z MinhHaDuong created
 
+2026-06-08T13:02Z MinhHaDuong closed — implemented — agnostic remediation wording + ratchet test (build/erg embeds no 'Run make build first')
 --- body ---
 ## Context
 
