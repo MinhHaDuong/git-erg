@@ -56,7 +56,8 @@ if [ -n "$erg_files" ]; then
             exit 1
         fi
     else
-        echo "ERROR: tickets/erg not found. Run 'make build' first." >&2
+        echo "ERROR: tickets/erg not found. Build it from the git-erg source" >&2
+        echo "  (make build there), or 'git pull' if your project vendors the committed binary." >&2
         exit 1
     fi
 fi

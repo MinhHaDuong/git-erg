@@ -415,6 +415,32 @@ else
     fail "master-default repo: tickets/erg commit was NOT rejected on non-default branch (expected rejection)"
 fi
 
+# --- ratchet: hook remediation text is build-system-agnostic (ticket 0242) ---
+# The 'Run make build first' remediation is wrong for adopters that VENDOR the
+# committed binary (no make build target). The string is embedded in the binary
+# and re-emitted on every install --hooks, so it must be fixed upstream and
+# never reappear. Assert both embedded surfaces (hookBody + the integration.md
+# asset) via strings, and the emitted hook carries the agnostic wording.
+REPO=$(new_repo agnostic_remediation)
+$ERG install "$REPO" --hooks >/dev/null 2>&1
+HOOK="$REPO/.git/hooks/pre-commit"
+if grep -qF "Run 'make build' first" "$HOOK"; then
+    fail "ratchet: emitted hook still says \"Run 'make build' first\" (0242)"
+else
+    pass "ratchet: emitted hook drops the build-system-specific remediation (0242)"
+fi
+if grep -qF "if your project vendors the committed binary" "$HOOK"; then
+    pass "ratchet: emitted hook carries the agnostic remediation (0242)"
+else
+    fail "ratchet: emitted hook missing the agnostic remediation wording (0242)"
+fi
+# strings covers BOTH embedded surfaces (hookBody AND the integration.md asset).
+if strings "$ERG_ABS" | grep -qF "Run 'make build' first"; then
+    fail "ratchet: built binary still embeds \"Run 'make build' first\" (0242)"
+else
+    pass "ratchet: built binary embeds no \"Run 'make build' first\" (0242)"
+fi
+
 echo ""
 echo "install: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
