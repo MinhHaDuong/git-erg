@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-06-08T12:45Z — Raid closed 0241 (close-without-archive escape, #298): erg check now treats folder/header closure as an error (caught by pre-commit hook + CI), and `erg install --hooks` installs the pre-push hook too; end-to-end regression test in test_hook.sh. Queue empty again. Prior (2026-06-05): fang-audit on the Go suite (#293, fangs in #294/0240); scope-confinement trilogy 0237–0239._
+_Last updated: 2026-06-08T13:21Z — Closed 0242 (#301): pre-commit hook remediation text now build-system-agnostic — works for vendored-binary adopters (IDH) with no `make build` target; filed from cross-repo IDH tracker 0231 (IDH re-vendors on its own). Prior: 0241 close-without-archive escape (#298, erg check + pre-push hook); fang-audit (#293/#294/0240); scope-confinement trilogy 0237–0239. Queue empty._
 
 ## North star:
 
@@ -30,11 +30,11 @@ Premature, unproven, or waiting on evidence. Do not promote without AGENTS.md ba
 - feat: AI script to realign docs and code (partial: 0232)
 
 ## Status
-<!-- generated 2026-06-08T12:45Z -->
+<!-- generated 2026-06-08T13:21Z -->
 
 **Recent commits:**
-  ac76d08 chore: rebuild bootstrap binary [skip ci]
-  a3bbc92 Merge pull request #298 from MinhHaDuong/t0241
-  223972a test(0241): end-to-end regression test for the escape path
-  0cf2b06 ticket(0241): close and archive — PR forthcoming
-  3c11a37 feat(0241): close the close-without-archive escape
+  8e825b3 chore: rebuild bootstrap binary [skip ci]
+  616b023 Merge pull request #301 from MinhHaDuong/t0242
+  d65e309 ticket(0242): close and archive
+  917056b feat(0242): build-system-agnostic hook remediation text
+  3046aea Merge pull request #300 from MinhHaDuong/chore/hook-template-agnostic-remediation
