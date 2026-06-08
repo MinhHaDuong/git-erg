@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-06-05T19:45Z — Today pm: fang-audit on the Go suite (19/19 files, canary PASS, 86 caught / 3 toothless): report committed (#293), the 3 fangs applied (0240, #294 — gaze r1 caught my counter-fang being itself toothless; replaced with a scaling-tag timing guard); 3 Workflow-runtime bugs in the fang-audit skill fixed (IDH 0223/#309). Today am: scope-confinement trilogy 0237–0239; auto-merge enabled; binary propagated; rtk 0.42.1._
+_Last updated: 2026-06-08T12:45Z — Raid closed 0241 (close-without-archive escape, #298): erg check now treats folder/header closure as an error (caught by pre-commit hook + CI), and `erg install --hooks` installs the pre-push hook too; end-to-end regression test in test_hook.sh. Queue empty again. Prior (2026-06-05): fang-audit on the Go suite (#293, fangs in #294/0240); scope-confinement trilogy 0237–0239._
 
 ## North star:
 
@@ -30,11 +30,11 @@ Premature, unproven, or waiting on evidence. Do not promote without AGENTS.md ba
 - feat: AI script to realign docs and code (partial: 0232)
 
 ## Status
-<!-- generated 2026-06-05T19:42Z -->
+<!-- generated 2026-06-08T12:45Z -->
 
 **Recent commits:**
-  818fd84 chore: rebuild bootstrap binary [skip ci]
-  a8f4bef Merge pull request #294 from MinhHaDuong/t0240
-  d152cb6 ticket(0240): close and archive — PR #294
-  d0cf7cc test: move idExists timing fang behind //go:build scaling
-  df8d1d9 test: replace toothless per-call counter with timing fang for idExists
+  ac76d08 chore: rebuild bootstrap binary [skip ci]
+  a3bbc92 Merge pull request #298 from MinhHaDuong/t0241
+  223972a test(0241): end-to-end regression test for the escape path
+  0cf2b06 ticket(0241): close and archive — PR forthcoming
+  3c11a37 feat(0241): close the close-without-archive escape
