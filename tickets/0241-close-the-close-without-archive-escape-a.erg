@@ -1,0 +1,80 @@
+%erg 0.1
+Title: Close the close-without-archive escape: autoarchive or enforce on the merge path
+Created: 2026-06-08
+Author: MinhHaDuong
+
+--- log ---
+2026-06-08T09:32Z MinhHaDuong created
+
+--- body ---
+
+## Context
+
+When a ticket is closed but its PR merges **outside** `erg-pr-merge`, the
+`erg archive` step is skipped and the closed ticket lingers in `tickets/`
+instead of `tickets/closed/`. This is a recurring loophole: closing and
+archiving are two steps, and only the `erg-pr-merge` path couples them.
+
+Downstream, the Imperial Dragon harness added a *reactive* detection net
+(healthcheck check 9 "Ticket archival", via `project-state.py
+tickets.closed_unarchived`; harness PR #340) that flags the escape every sweep
+and offers `erg archive` as a fix-now repair. That catches it after the fact —
+this ticket is the *root-cause* side: make archival happen (or be enforced) on
+the merge path itself, so the escape stops occurring rather than being swept up.
+
+## Current mechanisms (partial, and why they leak)
+
+- **`erg-pr-merge`** runs `erg archive` — but only when that is the merge path.
+  A plain `gh pr merge` / GitHub-UI merge bypasses it entirely.
+- **`erg install --push-hook`** installs a pre-push hook that lists
+  closed-but-unarchived tickets (read-only `erg archive --dry-run`) and prints
+  the archive+commit+push recipe. But it is: (a) **opt-in** (separate flag, not
+  part of `--hooks`); (b) **warn-only** — never blocks, never mutates; (c)
+  **push-triggered** — a merge that lands server-side without the merger pushing
+  the closed ticket locally never fires it. See `install.go` lines ~30-37,
+  ~78-79 ("autoarchive belongs in pre-push") and ~114-116.
+
+So the guard nearest the source exists but is too weak/optional to close the
+escape, and `erg archive` stays effectively manual outside `erg-pr-merge`.
+
+## Relevant files
+
+- `src/go/install.go` — hook installer; `planHook` (pre-commit), `planPushHook`
+  (pre-push, warn-only), `--hooks` / `--push-hook` flag handling.
+- `src/go/archive.go` — `erg archive` and its `--dry-run` detection mode.
+- `src/go/integration.go` — the printed setup guide for hooks/CI.
+- (harness, for reference) `scripts/project-state.py` + `skills/healthcheck`
+  check 9 — the reactive net this ticket would make largely unnecessary.
+
+## Options (pick one — this is the design decision)
+
+1. **Promote the pre-push hook into the default `--hooks` set**, and/or have
+   `erg init` wire it. Still warn-only, but no longer opt-in — closes the
+   "nobody installed it" gap. Lowest blast radius.
+2. **Enforcing pre-push hook** — block the push when closed-but-unarchived
+   tickets exist (with a documented `--no-verify` escape). Stronger, but a
+   blocking hook on shared branches needs care.
+3. **CI gate** — `erg archive --dry-run` fails CI if any closed ticket is
+   unarchived. Catches the server-side-merge case the local hook can't, since
+   it runs on the merge commit regardless of who/where merged.
+4. **Autoarchive on merge** — a `post-merge` hook that runs `erg archive`
+   (mutates + commits). Most automatic; but post-merge mutate-and-commit has
+   sharp edges (detached states, conflicts) — weigh against option 3.
+
+Likely a combination: (1)+(3) covers both the local and server-side paths
+without a blocking hook.
+
+## Exit criteria
+
+- [ ] A decision recorded among the options above (or a documented hybrid).
+- [ ] The chosen mechanism implemented in git-erg with tests.
+- [ ] `erg integration` / help text updated to describe it.
+- [ ] A closed-but-unarchived ticket no longer escapes the chosen path
+      (regression test demonstrating the escape is now caught/prevented).
+
+## Invariants
+
+- Do not make archival corrupt a commit (the documented reason archive is not
+  in pre-commit). Read-only detection must stay read-only.
+- The harness healthcheck net (PR #340) stays as defence-in-depth; this ticket
+  reduces how often it fires, it does not replace it.
