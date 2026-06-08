@@ -289,13 +289,13 @@ if [ "$rc" -eq 0 ] && [ -x "$PUSH" ]; then
 else
     fail "--push-hook: pre-push not created (rc=$rc, out: $out)"
 fi
-# It must not be installed by --hooks alone (opt-in separation).
+# --hooks now includes the pre-push hook (ticket 0241).
 REPO2=$(new_repo hooksonly)
 $ERG install "$REPO2" --hooks >/dev/null 2>&1
-if [ ! -f "$REPO2/.git/hooks/pre-push" ]; then
-    pass "--hooks alone does NOT install the pre-push hook (opt-in separation)"
+if [ -f "$REPO2/.git/hooks/pre-push" ] && [ -x "$REPO2/.git/hooks/pre-push" ]; then
+    pass "--hooks installs the pre-push hook"
 else
-    fail "--hooks alone installed a pre-push hook (scope creep)"
+    fail "--hooks did not install the pre-push hook"
 fi
 
 # --- pre-push hook: warn-only, never blocks, mutates nothing ---

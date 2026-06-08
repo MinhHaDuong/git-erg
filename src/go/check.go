@@ -10,25 +10,27 @@ import (
 	"strings"
 )
 
-// folderClosure warns about tickets whose open/closed state conflicts with
-// their directory placement.
+// folderClosure detects tickets whose open/closed state conflicts with
+// their directory placement. Both directions are corpus integrity violations:
+// a closed ticket outside closed/ is the "close-without-archive" escape
+// (ticket 0241); an open ticket inside closed/ hides active work.
 func folderClosure(tickets []Erg) []string {
-	var warnings []string
+	var errs []string
 	for i := range tickets {
 		t := &tickets[i]
 		inClosedDir := pathIsClosed(filepath.Dir(t.Path))
 		hasClosed := t.Closed != ""
 
 		if inClosedDir && !hasClosed {
-			warnings = append(warnings, fmt.Sprintf(
-				"WARN %s: open ticket in closed/ directory", t.Filename()))
+			errs = append(errs, fmt.Sprintf(
+				"%s: open ticket in closed/ directory -- move it out or remove the Closed: header", t.Filename()))
 		}
 		if !inClosedDir && hasClosed {
-			warnings = append(warnings, fmt.Sprintf(
-				"WARN %s: closed ticket not in closed/ directory", t.Filename()))
+			errs = append(errs, fmt.Sprintf(
+				"%s: closed ticket not in closed/ directory -- run 'erg archive'", t.Filename()))
 		}
 	}
-	return warnings
+	return errs
 }
 
 // staleBlockedBy warns about open tickets whose Blocked-by local refs
@@ -149,20 +151,20 @@ func headerBlankWarnings(dir string) []string {
 	return warnings
 }
 
-// corpusWarnings returns the combined set of non-fatal warnings (folder/header
-// mismatch, stale Blocked-by, open Superseded-by carrier, stray Go source,
-// encoding, interior header blanks) for the already-loaded tickets rooted at
-// dir. The dir-based scans
-// (stray Go source, encoding, header blanks) walk dir directly. Returns nil
-// when there are no tickets -- callers that chain it (erg init) must not fail
-// on a read-only warning pass. The append order is the single source of truth
-// shared by cmdCheck and the init chaining, so both report identically.
+// corpusWarnings returns the combined set of non-fatal warnings (stale
+// Blocked-by, open Superseded-by carrier, stray Go source, encoding,
+// interior header blanks) for the already-loaded tickets rooted at dir.
+// Folder/header mismatches are now errors (validateCorpus, ticket 0241).
+// The dir-based scans (stray Go source, encoding, header blanks) walk dir
+// directly. Returns nil when there are no tickets -- callers that chain it
+// (erg init) must not fail on a read-only warning pass. The append order is
+// the single source of truth shared by cmdCheck and the init chaining, so
+// both report identically.
 func corpusWarnings(tickets []Erg, dir string) []string {
 	if len(tickets) == 0 {
 		return nil
 	}
 	var warnings []string
-	warnings = append(warnings, folderClosure(tickets)...)
 	warnings = append(warnings, staleBlockedBy(tickets)...)
 	warnings = append(warnings, openCarrierSupersededBy(tickets)...)
 	warnings = append(warnings, strayGoSource(dir)...)
@@ -188,9 +190,11 @@ under DIR recursively and verifies invariants that require a global view:
   - No dependency cycles among Blocked-by edges.
   - All per-ticket format rules (delegates to validateCorpus, which folds in parser-emitted errors).
 
+  - Folder/header closure: open ticket in closed/ or closed ticket not in
+    closed/ (the "close-without-archive" escape -- run 'erg archive').
+
 Additionally emits warnings (non-fatal) for:
 
-  - Folder/header mismatch: open ticket in closed/ or closed ticket not in closed/.
   - Open Superseded-by carrier: an open ticket carries a Superseded-by header
     (the normal pattern is for the closed ticket to carry it; close the old
     ticket or remove the header).

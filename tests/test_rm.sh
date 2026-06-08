@@ -177,6 +177,8 @@ else
 fi
 
 # --- Corpus stays check-clean after a --force cascade ---
+# Archive closed tickets first — erg check enforces folder closure (0241).
+$ERG archive "$CLOSED_DIR" >/dev/null 2>&1
 if $ERG check "$CLOSED_DIR" >/dev/null 2>&1; then
     pass "corpus: erg check clean after --force (no dangling ref)"
 else

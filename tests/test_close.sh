@@ -473,8 +473,11 @@ else
     left=$(grep -E 'Blocked-by' "$STORE/0002-dep.erg" || true)
     fail "file-form: step 3 clears edges in the file's own store (out=$OUT, left: $left)"
 fi
+# Archive the closed ticket before checking — erg check now enforces
+# folder closure (ticket 0241: closed-but-unarchived is an error).
+"$ERG" archive "$STORE" >/dev/null 2>&1
 if "$ERG" check "$STORE" >/dev/null 2>&1; then
-    pass "file-form: file's own store stays check-clean after close"
+    pass "file-form: file's own store stays check-clean after close+archive"
 else
     diag=$("$ERG" check "$STORE" 2>&1 || true)
     fail "file-form: file's own store stays check-clean (got: $diag)"
