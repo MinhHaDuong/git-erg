@@ -2,11 +2,13 @@
 Title: Close the close-without-archive escape: autoarchive or enforce on the merge path
 Created: 2026-06-08
 Author: MinhHaDuong
+Closed: implemented — hybrid (1)+(3) via erg check promotion + --hooks pre-push
 
 --- log ---
 2026-06-08T09:32Z MinhHaDuong created
 2026-06-08T14:30Z claude note reimagine — hybrid (1)+(3): promote folderClosure to error in erg check + promote pre-push into --hooks
 
+2026-06-08T12:23Z MinhHaDuong closed — implemented — hybrid (1)+(3) via erg check promotion + --hooks pre-push
 --- body ---
 
 ## Context
