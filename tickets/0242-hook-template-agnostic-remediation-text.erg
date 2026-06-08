@@ -1,0 +1,67 @@
+%erg 0.1
+Title: Hook template: agnostic remediation text instead of 'Run make build first'
+Created: 2026-06-08
+Author: MinhHaDuong
+
+--- log ---
+2026-06-08T12:57Z MinhHaDuong created
+
+--- body ---
+## Context
+
+The pre-commit hook template git-erg installs (and re-emits on every
+`erg install --hooks`) tells a user whose `tickets/erg` is missing to:
+
+    ERROR: tickets/erg not found. Run 'make build' first.
+
+That remediation is wrong for any project that **vendors** the committed
+binary at `tickets/erg` rather than building it — e.g. the Imperial Dragon
+Harness, where there is no `make build` target; the binary is refreshed via
+`git pull` or rebuilt from this (git-erg) source. Because the string lives in
+the template embedded in the binary, an adopter cannot durably hand-edit it:
+the next `erg install --hooks` re-emits the managed block and clobbers the
+fix. So the durable fix belongs here, upstream.
+
+Filed from IDH tracker tickets/0231 (cross-repo). Only the `Run 'make build'
+first` remediation is wrong — the twin "do not commit tickets/erg in feature
+branches" line is correct (the binary is committed on main only); leave it.
+
+## Relevant files
+
+- `src/go/install.go:107` — the authoritative embedded hook template string
+  (`echo "ERROR: tickets/erg not found. Run 'make build' first." >&2`). This
+  is what gets compiled into the binary and re-emitted by `erg install --hooks`.
+- `src/go/assets/integration.md:59` — the documentation mirror of the same line.
+- `src/go/version.go:180` — `{"./build/erg", "run: make build"}` is a
+  build-provenance label, NOT hook text; do not touch (verify in review).
+
+## Actions
+
+1. Replace the remediation wording in `src/go/install.go` with text that is
+   true both for git-erg itself (which has `make build`) and for vendored-binary
+   adopters, e.g.:
+       ERROR: tickets/erg not found. Build it from the git-erg source
+       (make build there), or 'git pull' if your project vendors the
+       committed binary.
+2. Update the `src/go/assets/integration.md` mirror to match.
+3. Rebuild the binary so the embedded template carries the new text.
+
+## Test
+
+- A ratchet/unit test asserting the freshly built binary's hook template no
+  longer contains `Run 'make build' first`:
+      strings ./build/erg | grep -q "Run 'make build' first"   # must be empty
+  Prove RED against the current binary first.
+
+## Exit criteria
+
+- [ ] `src/go/install.go` hook template uses agnostic remediation wording.
+- [ ] `src/go/assets/integration.md` mirror updated to match.
+- [ ] Ratchet test: built binary contains no `Run 'make build' first`.
+- [ ] `make check` (or git-erg's equivalent) passes.
+
+## Cross-repo note
+
+IDH tracker tickets/0231 stays open until this lands AND IDH re-vendors the
+corrected binary. After this merges + the binary is rebuilt/released, IDH
+picks it up on a main-only merge and closes 0231 there.
