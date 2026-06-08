@@ -5,6 +5,7 @@ Author: MinhHaDuong
 
 --- log ---
 2026-06-08T09:32Z MinhHaDuong created
+2026-06-08T14:30Z claude note reimagine — hybrid (1)+(3): promote folderClosure to error in erg check + promote pre-push into --hooks
 
 --- body ---
 
@@ -61,8 +62,25 @@ escape, and `erg archive` stays effectively manual outside `erg-pr-merge`.
    (mutates + commits). Most automatic; but post-merge mutate-and-commit has
    sharp edges (detached states, conflicts) — weigh against option 3.
 
-Likely a combination: (1)+(3) covers both the local and server-side paths
-without a blocking hook.
+**Decision: hybrid (1)+(3), realized as follows:**
+
+- **(3) via `erg check`**: Promote `folderClosure` from warning to error.
+  `erg check` is already run by the pre-commit hook and by CI, so this catches
+  the escape on both local and server-side merge paths without a new CI step or
+  a new flag. A folder/header mismatch (closed ticket not in `closed/`, or open
+  ticket in `closed/`) is a corpus integrity violation, not a mere warning.
+- **(1) Pre-push promotion**: `erg install --hooks` now installs both pre-commit
+  and pre-push hooks. `--push-hook` remains for standalone use.
+
+## Actions
+
+1. `check.go`: move `folderClosure` call from `corpusWarnings` to `validateCorpus`;
+   change message prefix from "WARN" to error format.
+2. `install.go`: when `hooks` is true, also plan the push hook; update `helpInstall`.
+3. `assets/integration.md`: update section 3 (pre-push is now part of `--hooks`).
+4. `tests/test_check.sh`: flip folderClosure assertions from warn/exit-0 to error/exit-1.
+5. `tests/test_install.sh`: assert `--hooks` creates pre-push hook.
+6. Regression test: closed-but-unarchived ticket is caught by `erg check`.
 
 ## Exit criteria
 
