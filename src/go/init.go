@@ -252,15 +252,18 @@ func cmdInit(args []string) int {
 		return 2
 	}
 
-	// Chain a read-only corpus check: print warnings, but the exit code
-	// reflects init only -- warnings never change it.
+	// Chain a read-only corpus check: print warnings and folder-closure
+	// hints, but the exit code reflects init only -- none change it.
 	ticketsDir := filepath.Join(root, "tickets")
 	chained, _ := loadErgs(ticketsDir)
+	for _, e := range folderClosure(chained) {
+		fmt.Fprintln(os.Stderr, e)
+	}
 	for _, w := range corpusWarnings(chained, ticketsDir) {
 		fmt.Fprintln(os.Stderr, w)
 	}
 
-	fmt.Println("Next: erg install --hooks to set up the pre-commit hook.")
+	fmt.Println("Next: erg install --hooks to set up pre-commit and pre-push hooks.")
 	return 0
 }
 

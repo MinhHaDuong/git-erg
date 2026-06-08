@@ -226,7 +226,7 @@ func TestValidateErg(t *testing.T) {
 		},
 		{
 			name:       "Closed header with non-empty value accepted",
-			filename:   "0001-test.erg",
+			filename:   "closed/0001-test.erg",
 			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n",
 			wantErrors: false,
 		},
@@ -236,7 +236,7 @@ func TestValidateErg(t *testing.T) {
 			// 0099 is neither self nor present, so this isolates the cross-ref
 			// check from the self-ref guard.
 			name:       "Superseded-by unknown ID",
-			filename:   "0001-test.erg",
+			filename:   "closed/0001-test.erg",
 			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nClosed: done\nSuperseded-by: 0099\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "unknown ticket ID",
@@ -246,7 +246,7 @@ func TestValidateErg(t *testing.T) {
 			// supersede itself). 0001 in 0001-test.erg resolves in the
 			// single-ticket corpus, so only the self-ref guard can flag it.
 			name:       "Superseded-by self-ref",
-			filename:   "0001-test.erg",
+			filename:   "closed/0001-test.erg",
 			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nClosed: done\nSuperseded-by: 0001\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
 			wantSubstr: "self-reference",
@@ -256,6 +256,9 @@ func TestValidateErg(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
+			if sub := filepath.Dir(tc.filename); sub != "." {
+				os.MkdirAll(filepath.Join(dir, sub), 0755)
+			}
 			path := writeErg(t, dir, tc.filename, tc.content)
 			erg, parseErrs := parseErg(path)
 			// Run the corpus-level rules (10, 13, duplicate IDs) over a
@@ -806,11 +809,12 @@ func TestTitleStatusWordRule_Fixtures(t *testing.T) {
 func TestSupersededByCorpus(t *testing.T) {
 	t.Run("closed carrier with resolving ref accepted", func(t *testing.T) {
 		dir := t.TempDir()
+		os.MkdirAll(filepath.Join(dir, "closed"), 0755)
 		// 0001 is the replacement (open); 0002 is the closed old ticket that
-		// points at it. The header lives on the CLOSED ticket.
+		// points at it. The header lives on the CLOSED ticket (in closed/).
 		writeErg(t, dir, "0001-replacement.erg",
 			"%erg 0.1\nTitle: Replacement\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
-		writeErg(t, dir, "0002-old.erg",
+		writeErg(t, dir, "closed/0002-old.erg",
 			"%erg 0.1\nTitle: Old\nCreated: 2024-01-01\nAuthor: test\nClosed: superseded\nSuperseded-by: 0001\n\n--- log ---\n--- body ---\n")
 
 		tickets, parseErrs := loadErgs(dir)
@@ -822,12 +826,13 @@ func TestSupersededByCorpus(t *testing.T) {
 
 	t.Run("repeatable: two Superseded-by lines accepted", func(t *testing.T) {
 		dir := t.TempDir()
+		os.MkdirAll(filepath.Join(dir, "closed"), 0755)
 		// One-to-many supersession: 0003 superseded by both 0001 and 0002.
 		writeErg(t, dir, "0001-repl-a.erg",
 			"%erg 0.1\nTitle: A\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
 		writeErg(t, dir, "0002-repl-b.erg",
 			"%erg 0.1\nTitle: B\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
-		writeErg(t, dir, "0003-old.erg",
+		writeErg(t, dir, "closed/0003-old.erg",
 			"%erg 0.1\nTitle: Old\nCreated: 2024-01-01\nAuthor: test\nClosed: superseded\nSuperseded-by: 0001\nSuperseded-by: 0002\n\n--- log ---\n--- body ---\n")
 
 		tickets, parseErrs := loadErgs(dir)

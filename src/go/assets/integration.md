@@ -81,13 +81,17 @@ git-erg local tickets: see tickets/AGENTS.md
 <!-- <<< erg managed <<< -->
 ```
 
-## 3. Pre-push warning (optional)
+## 3. Pre-push warning
 
-`erg install --push-hook` adds a pre-push hook that WARNS when tickets are
-closed but not yet archived (it prints the exact `erg archive` + commit + push
-recipe). It mutates nothing and never blocks the push: a pre-push hook cannot
-get a file move into the push it gates, and a mutating hook would leave a dirty
-tree. Archiving stays a deliberate step (`erg archive`, or automatic at merge).
+`erg install --hooks` (step 1) also installs a pre-push hook that WARNS when
+tickets are closed but not yet archived (it prints the exact `erg archive` +
+commit + push recipe). It mutates nothing and never blocks the push: a
+pre-push hook cannot get a file move into the push it gates, and a mutating
+hook would leave a dirty tree. Archiving stays a deliberate step (`erg
+archive`, or automatic at merge).
+
+To install only the pre-push hook without the pre-commit hook, use
+`erg install --push-hook`.
 
 Never put `erg archive` in a pre-commit hook: archive renames files, and a
 pre-commit rename is not re-staged, so the commit would record a deletion

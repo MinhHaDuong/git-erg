@@ -174,7 +174,7 @@ else
     fail "forge ref does not cause local errors"
 fi
 
-# --- Folder closure: open ticket in closed/ warns ---
+# --- Folder closure: open ticket in closed/ is an error (0241) ---
 mkdir -p "$FIXTURES/closure/closed"
 cat > "$FIXTURES/closure/closed/0001-open-in-closed.erg" <<'EOF'
 %erg 0.1
@@ -186,18 +186,18 @@ Author: a
 --- body ---
 EOF
 rc=0; out=$($ERG check "$FIXTURES/closure" 2>&1) || rc=$?
-if echo "$out" | grep -q "WARN.*open ticket in closed"; then
-    pass "open ticket in closed/ warns"
+if echo "$out" | grep -q "VIOLATION.*open ticket in closed"; then
+    pass "open ticket in closed/ is a violation"
 else
-    fail "open ticket in closed/ warns (got: $out)"
+    fail "open ticket in closed/ is a violation (got: $out)"
 fi
-if [ $rc -eq 0 ]; then
-    pass "folder closure warning exits 0"
+if [ $rc -eq 1 ]; then
+    pass "folder closure violation exits 1"
 else
-    fail "folder closure warning exits 0"
+    fail "folder closure violation exits 1 (got rc=$rc)"
 fi
 
-# --- Folder closure: closed ticket at top level warns ---
+# --- Folder closure: closed ticket at top level is an error (0241) ---
 mkdir -p "$FIXTURES/closure2"
 cat > "$FIXTURES/closure2/0001-closed-top.erg" <<'EOF'
 %erg 0.1
@@ -209,11 +209,16 @@ Closed: done
 --- log ---
 --- body ---
 EOF
-out=$($ERG check "$FIXTURES/closure2" 2>&1)
-if echo "$out" | grep -q "WARN.*closed ticket not in closed"; then
-    pass "closed ticket at top level warns"
+rc=0; out=$($ERG check "$FIXTURES/closure2" 2>&1) || rc=$?
+if echo "$out" | grep -q "VIOLATION.*closed ticket not in closed"; then
+    pass "closed-but-unarchived ticket is a violation"
 else
-    fail "closed ticket at top level warns (got: $out)"
+    fail "closed-but-unarchived ticket is a violation (got: $out)"
+fi
+if [ $rc -eq 1 ]; then
+    pass "closed-but-unarchived exits 1"
+else
+    fail "closed-but-unarchived exits 1 (got rc=$rc)"
 fi
 
 # --- Nonexistent dir fails ---
@@ -311,12 +316,25 @@ else
 fi
 
 # --- Plural: 1 warning singular form ---
+# Use a stale Blocked-by (open ticket referencing a closed one) as the warning
+# fixture now that folderClosure produces errors rather than warnings (0241).
 mkdir -p "$FIXTURES/warn1/closed"
-cat > "$FIXTURES/warn1/closed/0001-open-in-closed-sing.erg" <<'EOF'
+cat > "$FIXTURES/warn1/closed/0001-closed-ref.erg" <<'EOF'
 %erg 0.1
-Title: Open but in closed dir
+Title: Closed reference target
 Created: 2026-01-01
 Author: a
+Closed: done
+
+--- log ---
+--- body ---
+EOF
+cat > "$FIXTURES/warn1/0002-stale-blocker.erg" <<'EOF'
+%erg 0.1
+Title: Stale blocker ref
+Created: 2026-01-01
+Author: a
+Blocked-by: 0001
 
 --- log ---
 --- body ---
@@ -334,22 +352,34 @@ else
 fi
 
 # --- Plural: 2 warnings plural form ---
+# Two stale Blocked-by warnings: two open tickets each referencing a closed one.
 mkdir -p "$FIXTURES/warn2/closed"
-cat > "$FIXTURES/warn2/closed/0001-open-in-closed-pl.erg" <<'EOF'
+cat > "$FIXTURES/warn2/closed/0001-closed-ref-pl.erg" <<'EOF'
 %erg 0.1
-Title: Open but in closed dir A
+Title: Closed reference target
 Created: 2026-01-01
 Author: a
+Closed: done
 
 --- log ---
 --- body ---
 EOF
-cat > "$FIXTURES/warn2/0002-closed-top-pl.erg" <<'EOF'
+cat > "$FIXTURES/warn2/0002-stale-a.erg" <<'EOF'
 %erg 0.1
-Title: Closed at top level B
+Title: Stale ref A
 Created: 2026-01-01
 Author: a
-Closed: done
+Blocked-by: 0001
+
+--- log ---
+--- body ---
+EOF
+cat > "$FIXTURES/warn2/0003-stale-b.erg" <<'EOF'
+%erg 0.1
+Title: Stale ref B
+Created: 2026-01-01
+Author: a
+Blocked-by: 0001
 
 --- log ---
 --- body ---
@@ -663,7 +693,10 @@ else
 fi
 
 # --- Rule 14: closed ticket grandfathered under check too ---
-cat > "$FIXTURES/title-rule/0001-bad.erg" <<'EOF'
+# Separate fixture dir to avoid duplicate ID with the open fixture above.
+# Put the closed ticket in closed/ to satisfy folder closure (0241).
+mkdir -p "$FIXTURES/title-gf/closed"
+cat > "$FIXTURES/title-gf/closed/0001-bad.erg" <<'EOF'
 %erg 0.1
 Title: open the config reader to subdir overrides
 Created: 2026-01-01
@@ -674,7 +707,7 @@ Closed: superseded
 2026-01-01T10:00Z a closed — superseded
 --- body ---
 EOF
-out=$($ERG check "$FIXTURES/title-rule" 2>&1) && rc=0 || rc=$?
+out=$($ERG check "$FIXTURES/title-gf" 2>&1) && rc=0 || rc=$?
 if [ "$rc" -eq 0 ]; then
     pass "rule 14: check grandfathers closed ticket"
 else

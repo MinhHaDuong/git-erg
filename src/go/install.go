@@ -19,22 +19,20 @@ has a ticket store (created by erg init).
 By default -- with no flags -- install does nothing outside tickets/. Each
 piece of wiring requires an explicit opt-in flag:
 
-  --hooks              Install (or upgrade) a pre-commit hook that runs
-                       erg validate and erg check on every commit and rejects
-                       commits that modify the traveling binary (tickets/erg)
-                       outside main. The erg block is delimited by sentinel
-                       markers and is inserted right after the shebang so it
-                       runs before any third-party hook content. Existing
-                       content outside the markers is preserved.
+  --hooks              Install (or upgrade) the pre-commit hook (erg validate
+                       + erg check on every commit, rejects tickets/erg on
+                       non-default branches) AND the pre-push hook (warns
+                       about closed-but-unarchived tickets, never blocks).
+                       Both are delimited by sentinel markers and inserted
+                       right after the shebang so they run before any
+                       third-party hook content. Existing content outside
+                       the markers is preserved.
 
-  --push-hook          Install (or upgrade) a pre-push hook that WARNS about
-                       tickets that are closed but not yet archived, printing
-                       the exact archive+commit+push recipe. It mutates
-                       nothing and never blocks the push -- a pre-push hook
-                       cannot get a file move into the push it gates, and a
-                       mutating hook would leave a dirty tree that git reset
-                       could resurrect into a duplicate ticket. The real
-                       archival stays at merge time and via manual erg archive.
+  --push-hook          Install (or upgrade) the pre-push hook alone, without
+                       the pre-commit hook. The hook WARNS about tickets that
+                       are closed but not yet archived, printing the exact
+                       archive+commit+push recipe. It mutates nothing and
+                       never blocks the push.
 
   --inject-agents      Add a one-line pointer to tickets/AGENTS.md inside a
                        sentinel-marked block in the project-root AGENTS.md.
@@ -200,9 +198,16 @@ func cmdInstall(args []string) int {
 		} else {
 			plans = append(plans, plan)
 		}
+		// --hooks includes the pre-push hook (ticket 0241: close the
+		// close-without-archive escape by making the warning universal).
+		if plan, err := planPushHook(root); err != nil {
+			perrs = append(perrs, err.Error())
+		} else {
+			plans = append(plans, plan)
+		}
 	}
 
-	if pushHook {
+	if pushHook && !hooks {
 		if plan, err := planPushHook(root); err != nil {
 			perrs = append(perrs, err.Error())
 		} else {

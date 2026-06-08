@@ -97,6 +97,39 @@ else
     fail "feature branch: .erg ticket files must be allowed"
 fi
 
+# --- Test 5: closed-but-unarchived ticket → pre-commit blocks (0241) ---
+# The escape this ticket closes: someone runs erg close but not erg archive,
+# then commits. erg check (in the pre-commit hook) now rejects this.
+cat > tickets/0002-closed-unarchived.erg << 'ERG'
+%erg 0.1
+Title: Closed but not archived
+Created: 2026-06-08
+Author: test
+Closed: done
+
+--- log ---
+2026-06-08T10:00Z test created
+2026-06-08T10:01Z test closed — done
+
+--- body ---
+ERG
+git add tickets/0002-closed-unarchived.erg
+if git commit -q -m "close without archive" 2>/dev/null; then
+    fail "closed-unarchived: commit must be rejected by pre-commit hook (0241)"
+else
+    pass "closed-unarchived: pre-commit hook blocks closed-but-unarchived ticket"
+fi
+
+# --- Test 6: closed ticket properly archived → pre-commit allows ---
+mkdir -p tickets/closed
+mv tickets/0002-closed-unarchived.erg tickets/closed/
+git add tickets/
+if git commit -q -m "close and archive" 2>/dev/null; then
+    pass "closed-archived: commit allowed when ticket is in closed/"
+else
+    fail "closed-archived: commit must be allowed when ticket is properly archived"
+fi
+
 echo ""
 echo "hook: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

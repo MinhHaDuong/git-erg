@@ -103,6 +103,7 @@ func validateLabelVocabulary(t *Erg, labelSet map[string]bool, validList []strin
 // folds in the per-file parse errors. parseErrs is the parallel-by-index
 // slice of parse errors emitted by parseErg / loadErgs (already covers
 // rules 1-9, 11, 12). validateCorpus adds:
+//   - folder/header closure (ticket 0241: closed-but-unarchived is an error)
 //   - duplicate ID detection (no rule number; corpus-level invariant)
 //   - rule 10: local Blocked-by refs resolve to existing ticket IDs
 //   - rule 13: no dependency cycles among local Blocked-by edges
@@ -113,6 +114,10 @@ func validateCorpus(tickets []Erg, parseErrs [][]string, cfg *Config) []string {
 	for _, e := range parseErrs {
 		errors = append(errors, e...)
 	}
+
+	// Folder/header closure: a closed ticket outside closed/ or an open
+	// ticket inside closed/ is a corpus integrity violation (ticket 0241).
+	errors = append(errors, folderClosure(tickets)...)
 
 	// Rule 5: Label values must be from the effective vocabulary.
 	labelSet := effectiveLabelSet(cfg)
