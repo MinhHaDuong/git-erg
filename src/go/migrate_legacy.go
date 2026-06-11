@@ -99,71 +99,90 @@ func dirContainsTelltale(dir string, telltales []string) bool {
 	return found
 }
 
-// refreshLegacyClaudeBlock rewrites a stale managed git-erg block in the root
-// CLAUDE.md. Detection is two-stage: the block must be delimited by the
-// legacy `# --- git-erg ...` (or canonical) markers AND its interior must
-// carry a stale claim ("no CLI needed", tickets/tools/go/, %erg v1). A block
-// without stale claims, or content outside the markers, is left byte-
-// identical. Unbalanced markers refuse loudly (same policy as install).
-// An absent CLAUDE.md is a silent no-op -- migrate never creates the file.
+// refreshLegacyClaudeBlock rewrites stale managed git-erg blocks in the root
+// CLAUDE.md. Detection is two-stage: a block must be delimited by the legacy
+// `# --- git-erg ...` (or canonical) markers AND its interior must carry a
+// stale claim ("no CLI needed", tickets/tools/go/, %erg v1). Blocks without
+// stale claims, and content outside the markers, are left byte-identical.
+// Every stale block is refreshed, not just the first. Unbalanced markers
+// refuse loudly (same policy as install). An absent or non-regular (e.g.
+// symlinked) CLAUDE.md is a silent no-op -- migrate never creates the file
+// and never writes through a link it did not place.
 func refreshLegacyClaudeBlock(root string) {
 	path := filepath.Join(root, "CLAUDE.md")
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return
 	}
 	lines := splitLinesNoTrailingEmpty(string(data))
 
-	begin, end := findLegacyClaudeBlock(lines)
-	if begin < 0 {
-		return
-	}
-	if end < 0 {
-		fmt.Fprintf(os.Stderr, "migrate: %s: git-erg managed BEGIN marker without a matching END -- fix or remove the stray marker manually\n", path)
-		return
-	}
-	interior := strings.Join(lines[begin+1:end], "\n")
-	if !containsAny(interior, legacyClaudeMDTelltales) {
-		return
-	}
-
 	block := []string{hookMarkerSets[0][0]}
 	block = append(block, strings.Split(claudeMDBody, "\n")...)
 	block = append(block, hookMarkerSets[0][1])
 
-	out := make([]string, 0, len(lines))
-	out = append(out, lines[:begin]...)
-	out = append(out, block...)
-	out = append(out, lines[end+1:]...)
-
-	perm := os.FileMode(0644)
-	if info, serr := os.Stat(path); serr == nil {
-		perm = info.Mode().Perm()
+	var out []string
+	refreshed := false
+	for from := 0; ; {
+		begin, end := findLegacyClaudeBlock(lines, from)
+		if begin < 0 {
+			out = append(out, lines[from:]...)
+			break
+		}
+		if end < 0 {
+			fmt.Fprintf(os.Stderr, "migrate: %s: git-erg managed BEGIN marker without a matching END -- fix or remove the stray marker manually\n", path)
+			return
+		}
+		out = append(out, lines[from:begin]...)
+		if containsAny(strings.Join(lines[begin+1:end], "\n"), legacyClaudeMDTelltales) {
+			out = append(out, block...)
+			refreshed = true
+		} else {
+			out = append(out, lines[begin:end+1]...)
+		}
+		from = end + 1
 	}
-	if werr := os.WriteFile(path, []byte(strings.Join(out, "\n")+"\n"), perm); werr != nil {
+	if !refreshed {
+		return
+	}
+
+	if werr := atomicWriteFile(path, []byte(strings.Join(out, "\n")+"\n"), info.Mode().Perm()); werr != nil {
 		fmt.Fprintf(os.Stderr, "migrate: rewrite %s: %v\n", path, werr)
 		return
 	}
 	fmt.Printf("migrate: refreshed stale git-erg block in %s\n", path)
 }
 
-// findLegacyClaudeBlock locates the first managed git-erg block. Begin/end
-// are recognised in both the canonical install markers and the loose legacy
-// `# --- git-erg ---` family (any line starting with "# --- git-erg").
+// findLegacyClaudeBlock locates the first managed git-erg block at or after
+// index from. Markers are recognised in both the canonical install form and
+// the loose legacy `# --- git-erg ---` family; within the legacy family a
+// line naming "begin" never closes a block and a line naming "end" never
+// opens one (a bare `# --- git-erg ---` delimiter serves as either), so two
+// adjacent labelled blocks pair correctly instead of begin matching begin.
 // Returns (-1, -1) when no begin marker exists, (begin, -1) when unbalanced.
-func findLegacyClaudeBlock(lines []string) (int, int) {
+func findLegacyClaudeBlock(lines []string, from int) (int, int) {
 	isLegacy := func(line string) bool {
 		return strings.HasPrefix(trimMarker(strings.TrimLeft(line, " \t")), "# --- git-erg")
 	}
+	legacyBegin := func(line string) bool {
+		return isLegacy(line) && !strings.Contains(line, "end")
+	}
+	legacyEnd := func(line string) bool {
+		return isLegacy(line) && !strings.Contains(line, "begin")
+	}
 	begin := -1
-	for i, line := range lines {
+	for i := from; i < len(lines); i++ {
+		line := lines[i]
 		if begin < 0 {
-			if isBeginMarker(line, hookMarkerSets) || isLegacy(line) {
+			if isBeginMarker(line, hookMarkerSets) || legacyBegin(line) {
 				begin = i
 			}
 			continue
 		}
-		if isEndMarker(line, hookMarkerSets) || isLegacy(line) {
+		if isEndMarker(line, hookMarkerSets) || legacyEnd(line) {
 			return begin, i
 		}
 	}
@@ -196,20 +215,28 @@ const sweepLegacyRefsMaxSize = 2 << 20 // 2 MiB
 // (resolved via git, so worktrees and core.hooksPath are honoured).
 //
 // Exemptions: the ticket store itself (ticket text may legitimately quote old
-// paths as history), binary files (NUL byte heuristic), non-regular files
-// (symlinks etc.), and files over sweepLegacyRefsMaxSize. Files without a
-// match are left byte-identical.
+// paths as history), nested git repositories and submodules (a directory with
+// its own .git entry is somebody else's work tree), binary files (NUL byte
+// heuristic), non-regular files (symlinks etc.), and files over
+// sweepLegacyRefsMaxSize. Files without a match are left byte-identical.
 func sweepLegacyRefs(root, ticketDirName string) {
 	storeDir := filepath.Join(root, ticketDirName)
-	gitDir := filepath.Join(root, ".git")
+	rootClean := filepath.Clean(root)
 	seen := make(map[string]bool)
 	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
 		if d.IsDir() {
-			if path == storeDir || path == gitDir {
+			if path == storeDir || filepath.Base(path) == ".git" {
 				return filepath.SkipDir
+			}
+			// A directory with its own .git entry (dir or worktree/submodule
+			// gitfile) is somebody else's work tree -- never sweep into it.
+			if filepath.Clean(path) != rootClean {
+				if _, serr := os.Lstat(filepath.Join(path, ".git")); serr == nil {
+					return filepath.SkipDir
+				}
 			}
 			return nil
 		}
@@ -253,7 +280,7 @@ func sweepFile(root, rel string) {
 	if len(applied) == 0 {
 		return
 	}
-	if err := os.WriteFile(path, []byte(updated), info.Mode().Perm()); err != nil {
+	if err := atomicWriteFile(path, []byte(updated), info.Mode().Perm()); err != nil {
 		fmt.Fprintf(os.Stderr, "migrate: rewrite %s: %v\n", path, err)
 		return
 	}

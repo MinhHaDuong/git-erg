@@ -11,6 +11,8 @@ Author: Claude
 2026-06-11T10:30Z Claude note per MinhHaDuong review the sweep must be a plain filesystem walk, not git ls-files: local Claude settings (.claude/settings.local.json) and similar hook-definition files are gitignored, and a tracked-only walk misses them — the original AEDIST evidence was such a file. Added 2 MiB size cap so the full-tree walk stays cheap
 2026-06-11T10:30Z Claude implemented in src/go/migrate_legacy.go (pruneLegacySkills, refreshLegacyClaudeBlock, sweepLegacyRefs wired into migrateLayout) with scratch-repo tests in migrate_legacy_test.go covering the full sweep surface, gitignored settings, negative controls, and idempotency
 
+2026-06-11T12:30Z Claude hardened per self-review of PR #303: sweep skips nested git repos/submodules (a dir with its own .git entry is somebody else's work tree), all rewrites route through atomicWriteFile, CLAUDE.md refresh refuses symlinks and handles every stale block with begin/end-aware legacy marker pairing; each fix test-covered
+
 --- body ---
 ## Context
 

@@ -390,9 +390,9 @@ erg init bundles (ticket 0243):
     references (tickets/tools/go/erg -> tickets/erg, 'erg validate tickets/'
     -> 'erg check tickets/') wherever they appear: git hooks,
     .claude/settings.json, CI workflows, Makefiles, scripts. The ticket
-    store, binary files, and files over 2 MiB are exempt; files without a
-    match are left byte-identical. One notice is printed per artifact pruned
-    or file rewritten.
+    store, nested git repositories and submodules, binary files, and files
+    over 2 MiB are exempt; files without a match are left byte-identical.
+    One notice is printed per artifact pruned or file rewritten.
 
 Does NOT commit. Exits 1 on archive/->closed/ filename collision (both directories are left untouched; the user must resolve manually). Exits 0 otherwise.
 Review the diff with 'git diff tickets/' and commit manually.

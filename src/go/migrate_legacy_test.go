@@ -188,6 +188,51 @@ func TestRefreshLegacyClaudeBlock(t *testing.T) {
 		}
 	})
 
+	t.Run("symlinked CLAUDE.md is not written through", func(t *testing.T) {
+		root := t.TempDir()
+		target := filepath.Join(root, "real.md")
+		content := "# --- git-erg: begin managed block ---\nno CLI needed\n# --- git-erg: end managed block ---\n"
+		if err := os.WriteFile(target, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(target, filepath.Join(root, "CLAUDE.md")); err != nil {
+			t.Skipf("symlink not supported: %v", err)
+		}
+		refreshLegacyClaudeBlock(root)
+		got, _ := os.ReadFile(target)
+		if string(got) != content {
+			t.Errorf("symlink target was modified:\n got: %q\nwant: %q", got, content)
+		}
+	})
+
+	t.Run("two adjacent labelled blocks both pair and refresh correctly", func(t *testing.T) {
+		root := t.TempDir()
+		content := strings.Join([]string{
+			"# --- git-erg: begin managed block ---",
+			"no CLI needed (%erg v1)",
+			"# --- git-erg: end managed block ---",
+			"between",
+			"# --- git-erg: begin managed block ---",
+			"clean current content",
+			"# --- git-erg: end managed block ---",
+		}, "\n") + "\n"
+		path := filepath.Join(root, "CLAUDE.md")
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+		refreshLegacyClaudeBlock(root)
+		got, _ := os.ReadFile(path)
+		s := string(got)
+		if strings.Contains(s, "no CLI needed") {
+			t.Errorf("first (stale) block not refreshed:\n%s", s)
+		}
+		for _, want := range []string{"between", "clean current content", "erg <verb>"} {
+			if !strings.Contains(s, want) {
+				t.Errorf("missing %q after refresh:\n%s", want, s)
+			}
+		}
+	})
+
 	t.Run("unbalanced markers refuse and leave the file unchanged", func(t *testing.T) {
 		root := t.TempDir()
 		content := "# --- git-erg: begin managed block ---\nno CLI needed\n"
@@ -216,6 +261,46 @@ func TestSweepLegacyRefsOutsideGitRepo(t *testing.T) {
 	want := "check:\n\ttickets/erg check tickets/\n"
 	if string(got) != want {
 		t.Errorf("sweep outside a git repo:\n got: %q\nwant: %q", got, want)
+	}
+}
+
+func TestSweepLegacyRefsSkipsNestedRepos(t *testing.T) {
+	root := t.TempDir()
+	stale := "tickets/tools/go/erg validate tickets/\n"
+	// Nested repo with a .git directory.
+	if err := os.MkdirAll(filepath.Join(root, "vendor", "dep", ".git"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	nestedDir := filepath.Join(root, "vendor", "dep", "Makefile")
+	if err := os.WriteFile(nestedDir, []byte(stale), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Submodule-style work tree: .git is a gitfile, not a directory.
+	if err := os.MkdirAll(filepath.Join(root, "sub"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "sub", ".git"), []byte("gitdir: ../.git/modules/sub\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	nestedFile := filepath.Join(root, "sub", "Makefile")
+	if err := os.WriteFile(nestedFile, []byte(stale), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Control in the outer tree: must still be rewritten.
+	outer := filepath.Join(root, "Makefile")
+	if err := os.WriteFile(outer, []byte(stale), 0644); err != nil {
+		t.Fatal(err)
+	}
+	sweepLegacyRefs(root, "tickets")
+	for _, p := range []string{nestedDir, nestedFile} {
+		got, _ := os.ReadFile(p)
+		if string(got) != stale {
+			t.Errorf("%s inside a nested work tree was modified:\n got: %q", p, got)
+		}
+	}
+	got, _ := os.ReadFile(outer)
+	if string(got) != "tickets/erg check tickets/\n" {
+		t.Errorf("outer-tree file not rewritten:\n got: %q", got)
 	}
 }
 
