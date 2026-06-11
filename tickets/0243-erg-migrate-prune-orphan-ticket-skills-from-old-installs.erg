@@ -1,0 +1,79 @@
+%erg 0.1
+Title: erg migrate: prune orphan ticket-* skills and stale prose from old host installs
+Created: 2026-06-11
+Author: Claude
+
+--- log ---
+2026-06-11T08:30Z Claude created
+2026-06-11T08:30Z Claude note transcribed from AEDIST tickets/0355 (filed 2026-05-27 when that agent had no git-erg access)
+2026-06-11T09:00Z Claude note retargeted from erg update to erg migrate: update's contract is binary-only (never writes store files), while migrateLayout is already the home for one-time legacy-install cleanup (removes tickets/tools/, content-rewrites pre-commit hooks, refreshes AGENTS.md, never commits). Added .claude/settings.json hook-command rewrite to scope (AEDIST tickets/0526 evidence was already cited but unactioned).
+
+--- body ---
+## Context
+
+Early `erg init` bundles (pre spec 0.1; e.g. AEDIST PR #570, 2026-05-25)
+vendored five `.claude/skills/ticket-{new,claim,close,ready,release}/`
+skills into host repos, plus a managed CLAUDE.md block claiming "no CLI
+needed" and pointing the validator at `tickets/tools/go/`. Those skills
+duplicated `erg <verb>` in prose and drifted: they described `%erg v1`
+with a `Status:` header, which the 0.1 validator rejects.
+
+The current source no longer ships any of this. But existing host
+installs keep the orphans until someone hand-deletes them (AEDIST had
+to: commit bbd2670d), and stale hook commands like
+`tickets/tools/go/erg validate tickets/` linger in host
+`.claude/settings.json` (AEDIST tickets/0526).
+
+## Actions
+
+All in `erg migrate` (the layout step, which already runs only when DIR is
+the canonical `tickets/` and already removes tickets/tools/, content-rewrites
+the pre-commit hook, and refreshes AGENTS.md — same vintage of cleanup):
+
+1. Detect and remove previously-vendored `.claude/skills/ticket-*` dirs.
+   Those bundles predate provenance markers, so match the known vendored
+   content — tell-tale legacy substrings (`%erg v1`, `Status:` header
+   prose) rather than exact hashes, since hosts may carry minor local
+   edits. Only delete when the tell-tale content is present.
+2. Rewrite/refresh the managed `# --- git-erg ---` CLAUDE.md block if
+   present, dropping "no CLI needed" / `tickets/tools/go/` / `%erg v1`
+   claims.
+3. Rewrite stale hook commands in host `.claude/settings.json` (and any
+   other hook-definition files we vendor into): `tickets/tools/go/erg`
+   -> `tickets/erg`, `validate tickets/` -> `check tickets/` — the same
+   content-based, idempotent rewrite migrateHook applies to
+   .git/hooks/pre-commit (AEDIST tickets/0526).
+4. Emit a one-line notice for each artifact pruned or rewritten.
+5. Optionally, `erg update` may *detect* the orphans post-swap and print
+   "run erg migrate" guidance (parallel to its Status:-header hint), but
+   it never mutates them itself.
+
+## Test
+
+First (red) test: install the old bundle (skills present, stale
+CLAUDE.md block, .claude/settings.json hooks referencing
+tickets/tools/go/erg) into a scratch repo, run `erg migrate tickets`,
+assert the `.claude/skills/ticket-*` directories are gone, the managed
+block no longer mentions skills or `%erg v1`, and settings.json hooks
+reference `tickets/erg ... check tickets/`.
+
+## Invariants
+
+- `erg migrate` never touches skills, CLAUDE.md, or settings.json
+  content outside the git-erg managed blocks / known vendored content
+  (skill dirs without the tell-tale legacy content are left alone).
+- Re-running `erg migrate` is idempotent.
+- `erg update` keeps its binary-only contract: it may hint, never prune.
+- Like the rest of migrate: never commits; user reviews the diff.
+
+## Exit criteria
+
+- [ ] `erg migrate` removes previously-installed `ticket-*` skills from a
+      host repo (verified on a scratch install of the old bundle).
+- [ ] The managed CLAUDE.md block, when refreshed, references
+      `erg <verb>` and `%erg 0.1`, with no "no CLI needed" /
+      `tickets/tools/go/` claims.
+- [ ] Stale `tickets/tools/go/erg` / `validate tickets/` hook commands in
+      `.claude/settings.json` are rewritten to `tickets/erg` /
+      `check tickets/`.
+- [ ] Scratch-repo migrate test passes and is idempotent.
