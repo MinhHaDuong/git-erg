@@ -375,6 +375,25 @@ the legacy tickets/tools/go/erg path or the legacy 'validate tickets/' CLI
 form. The hook rewrite is content-based and idempotent; hooks without legacy
 patterns are left untouched.
 
+The layout upgrade also cleans up artifacts vendored by early (pre spec 0.1)
+erg init bundles (ticket 0243):
+
+  - Removes previously-vendored .claude/skills/ticket-* dirs, content-gated:
+    a dir is deleted only when its files carry the vendored tell-tales
+    ('%erg v1', tickets/tools/go). User-authored skills are never touched.
+  - Refreshes a stale managed git-erg block in the root CLAUDE.md (one that
+    claims "no CLI needed", points at tickets/tools/go/, or describes
+    %erg v1), replacing only the block between the markers.
+  - Sweeps the entire work tree -- gitignored files included, since
+    hook-definition files like .claude/settings.local.json are routinely
+    untracked -- plus the repository hooks directory, rewriting stale
+    references (tickets/tools/go/erg -> tickets/erg, 'erg validate tickets/'
+    -> 'erg check tickets/') wherever they appear: git hooks,
+    .claude/settings.json, CI workflows, Makefiles, scripts. The ticket
+    store, nested git repositories and submodules, binary files, and files
+    over 2 MiB are exempt; files without a match are left byte-identical.
+    One notice is printed per artifact pruned or file rewritten.
+
 Does NOT commit. Exits 1 on archive/->closed/ filename collision (both directories are left untouched; the user must resolve manually). Exits 0 otherwise.
 Review the diff with 'git diff tickets/' and commit manually.
 
