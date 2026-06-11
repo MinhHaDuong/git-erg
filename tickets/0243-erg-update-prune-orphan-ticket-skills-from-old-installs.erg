@@ -1,0 +1,56 @@
+%erg 0.1
+Title: erg update: prune orphan ticket-* skills and stale prose from old host installs
+Created: 2026-06-11
+Author: Claude
+
+--- log ---
+2026-06-11T08:30Z Claude created
+2026-06-11T08:30Z Claude note transcribed from AEDIST tickets/0355 (filed 2026-05-27 when that agent had no git-erg access)
+
+--- body ---
+## Context
+
+Early `erg init` bundles (pre spec 0.1; e.g. AEDIST PR #570, 2026-05-25)
+vendored five `.claude/skills/ticket-{new,claim,close,ready,release}/`
+skills into host repos, plus a managed CLAUDE.md block claiming "no CLI
+needed" and pointing the validator at `tickets/tools/go/`. Those skills
+duplicated `erg <verb>` in prose and drifted: they described `%erg v1`
+with a `Status:` header, which the 0.1 validator rejects.
+
+The current source no longer ships any of this. But existing host
+installs keep the orphans until someone hand-deletes them (AEDIST had
+to: commit bbd2670d), and stale hook commands like
+`tickets/tools/go/erg validate tickets/` linger in host
+`.claude/settings.json` (AEDIST tickets/0526).
+
+## Actions
+
+1. Make `erg update` detect and remove previously-vendored
+   `.claude/skills/ticket-*` dirs — via a provenance marker, or by
+   matching the known vendored content.
+2. Rewrite/refresh the managed `# --- git-erg ---` CLAUDE.md block if
+   present, dropping "no CLI needed" / `tickets/tools/go/` / `%erg v1`
+   claims.
+3. Emit a one-line notice for each artifact pruned.
+
+## Test
+
+First (red) test: install the old bundle (skills present, stale
+CLAUDE.md block) into a scratch repo, run `erg update`, assert the
+`.claude/skills/ticket-*` directories are gone and the managed block no
+longer mentions skills or `%erg v1`.
+
+## Invariants
+
+- `erg update` never touches skills or CLAUDE.md content outside the
+  git-erg provenance markers / known vendored content.
+- Re-running `erg update` is idempotent.
+
+## Exit criteria
+
+- [ ] `erg update` removes previously-installed `ticket-*` skills from a
+      host repo (verified on a scratch install of the old bundle).
+- [ ] The managed CLAUDE.md block, when refreshed, references
+      `erg <verb>` and `%erg 0.1`, with no "no CLI needed" /
+      `tickets/tools/go/` claims.
+- [ ] Scratch-repo update test passes and is idempotent.
