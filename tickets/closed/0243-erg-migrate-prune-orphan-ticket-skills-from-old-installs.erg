@@ -2,6 +2,7 @@
 Title: erg migrate: prune orphan ticket-* skills and stale prose from old host installs
 Created: 2026-06-11
 Author: Claude
+Closed: implemented and merged in PR #303: migrate prunes vendored skills, refreshes CLAUDE.md block, sweeps stale refs repo-wide
 
 --- log ---
 2026-06-11T08:30Z Claude created
@@ -13,6 +14,7 @@ Author: Claude
 
 2026-06-11T12:30Z Claude hardened per self-review of PR #303: sweep skips nested git repos/submodules (a dir with its own .git entry is somebody else's work tree), all rewrites route through atomicWriteFile, CLAUDE.md refresh refuses symlinks and handles every stale block with begin/end-aware legacy marker pairing; each fix test-covered
 
+2026-06-11T12:37Z Claude closed — implemented and merged in PR #303: migrate prunes vendored skills, refreshes CLAUDE.md block, sweeps stale refs repo-wide
 --- body ---
 ## Context
 
