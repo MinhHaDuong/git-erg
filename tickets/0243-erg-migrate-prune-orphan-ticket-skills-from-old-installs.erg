@@ -7,6 +7,7 @@ Author: Claude
 2026-06-11T08:30Z Claude created
 2026-06-11T08:30Z Claude note transcribed from AEDIST tickets/0355 (filed 2026-05-27 when that agent had no git-erg access)
 2026-06-11T09:00Z Claude note retargeted from erg update to erg migrate: update's contract is binary-only (never writes store files), while migrateLayout is already the home for one-time legacy-install cleanup (removes tickets/tools/, content-rewrites pre-commit hooks, refreshes AGENTS.md, never commits). Added .claude/settings.json hook-command rewrite to scope (AEDIST tickets/0526 evidence was already cited but unactioned).
+2026-06-11T09:30Z Claude note generalised the settings.json action into a repo-wide stale-reference sweep (git hooks, CI workflows of any forge, Makefiles, scripts) per MinhHaDuong review: enumerating files one by one is whack-a-mole; walk tracked files + .git/hooks/, exempt the ticket store and binaries
 
 --- body ---
 ## Context
@@ -38,30 +39,43 @@ the pre-commit hook, and refreshes AGENTS.md — same vintage of cleanup):
 2. Rewrite/refresh the managed `# --- git-erg ---` CLAUDE.md block if
    present, dropping "no CLI needed" / `tickets/tools/go/` / `%erg v1`
    claims.
-3. Rewrite stale hook commands in host `.claude/settings.json` (and any
-   other hook-definition files we vendor into): `tickets/tools/go/erg`
-   -> `tickets/erg`, `validate tickets/` -> `check tickets/` — the same
-   content-based, idempotent rewrite migrateHook applies to
-   .git/hooks/pre-commit (AEDIST tickets/0526).
-4. Emit a one-line notice for each artifact pruned or rewritten.
+3. Comprehensive stale-reference sweep, not a hand-picked file list:
+   walk the work tree (git-tracked files plus .git/hooks/) for the
+   legacy patterns `tickets/tools/go/erg` -> `tickets/erg` and
+   `erg validate tickets/` -> `erg check tickets/`, and rewrite them
+   content-based and idempotently wherever they appear — git hooks,
+   `.claude/settings.json`, GitHub workflows (.github/workflows/),
+   other forge CI (.gitlab-ci.yml, .woodpecker/, Jenkinsfile, ...),
+   Makefiles, scripts. Skip binary files and the ticket store itself
+   (ticket text may legitimately quote old paths as history). This
+   generalises the pre-commit-only migrateHook; AEDIST tickets/0526
+   found the same rot in .claude/settings.json, and CI configs and
+   Make rules are the same class of host-side reference.
+4. Emit a one-line notice for each artifact pruned and each file
+   rewritten by the sweep (path + which pattern).
 5. Optionally, `erg update` may *detect* the orphans post-swap and print
    "run erg migrate" guidance (parallel to its Status:-header hint), but
    it never mutates them itself.
 
 ## Test
 
-First (red) test: install the old bundle (skills present, stale
-CLAUDE.md block, .claude/settings.json hooks referencing
-tickets/tools/go/erg) into a scratch repo, run `erg migrate tickets`,
+First (red) test: install the old bundle into a scratch repo with stale
+references seeded across the sweep surface — skills present, stale
+CLAUDE.md block, `.claude/settings.json` hook, a `.github/workflows/`
+job, a Makefile rule, and `.git/hooks/pre-commit`, all referencing
+`tickets/tools/go/erg ... validate tickets/`. Run `erg migrate tickets`,
 assert the `.claude/skills/ticket-*` directories are gone, the managed
-block no longer mentions skills or `%erg v1`, and settings.json hooks
-reference `tickets/erg ... check tickets/`.
+block no longer mentions skills or `%erg v1`, and every seeded file now
+reads `tickets/erg ... check tickets/`. Also seed a ticket body quoting
+the old path and a file with no legacy pattern: both must be untouched.
 
 ## Invariants
 
-- `erg migrate` never touches skills, CLAUDE.md, or settings.json
-  content outside the git-erg managed blocks / known vendored content
-  (skill dirs without the tell-tale legacy content are left alone).
+- `erg migrate` never touches skills or CLAUDE.md content outside the
+  git-erg managed blocks / known vendored content (skill dirs without
+  the tell-tale legacy content are left alone).
+- The sweep rewrites only exact legacy patterns; files without a match
+  are byte-identical afterwards. Ticket store and binary files exempt.
 - Re-running `erg migrate` is idempotent.
 - `erg update` keeps its binary-only contract: it may hint, never prune.
 - Like the rest of migrate: never commits; user reviews the diff.
@@ -73,7 +87,8 @@ reference `tickets/erg ... check tickets/`.
 - [ ] The managed CLAUDE.md block, when refreshed, references
       `erg <verb>` and `%erg 0.1`, with no "no CLI needed" /
       `tickets/tools/go/` claims.
-- [ ] Stale `tickets/tools/go/erg` / `validate tickets/` hook commands in
-      `.claude/settings.json` are rewritten to `tickets/erg` /
-      `check tickets/`.
+- [ ] The repo-wide sweep rewrites stale `tickets/tools/go/erg` /
+      `validate tickets/` references wherever they occur (git hooks,
+      .claude/settings.json, CI workflows, Makefiles, scripts), and
+      leaves non-matching files and the ticket store byte-identical.
 - [ ] Scratch-repo migrate test passes and is idempotent.
