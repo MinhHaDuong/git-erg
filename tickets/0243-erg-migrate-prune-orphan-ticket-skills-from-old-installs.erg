@@ -8,6 +8,8 @@ Author: Claude
 2026-06-11T08:30Z Claude note transcribed from AEDIST tickets/0355 (filed 2026-05-27 when that agent had no git-erg access)
 2026-06-11T09:00Z Claude note retargeted from erg update to erg migrate: update's contract is binary-only (never writes store files), while migrateLayout is already the home for one-time legacy-install cleanup (removes tickets/tools/, content-rewrites pre-commit hooks, refreshes AGENTS.md, never commits). Added .claude/settings.json hook-command rewrite to scope (AEDIST tickets/0526 evidence was already cited but unactioned).
 2026-06-11T09:30Z Claude note generalised the settings.json action into a repo-wide stale-reference sweep (git hooks, CI workflows of any forge, Makefiles, scripts) per MinhHaDuong review: enumerating files one by one is whack-a-mole; walk tracked files + .git/hooks/, exempt the ticket store and binaries
+2026-06-11T10:30Z Claude note per MinhHaDuong review the sweep must be a plain filesystem walk, not git ls-files: local Claude settings (.claude/settings.local.json) and similar hook-definition files are gitignored, and a tracked-only walk misses them — the original AEDIST evidence was such a file. Added 2 MiB size cap so the full-tree walk stays cheap
+2026-06-11T10:30Z Claude implemented in src/go/migrate_legacy.go (pruneLegacySkills, refreshLegacyClaudeBlock, sweepLegacyRefs wired into migrateLayout) with scratch-repo tests in migrate_legacy_test.go covering the full sweep surface, gitignored settings, negative controls, and idempotency
 
 --- body ---
 ## Context
@@ -40,13 +42,17 @@ the pre-commit hook, and refreshes AGENTS.md — same vintage of cleanup):
    present, dropping "no CLI needed" / `tickets/tools/go/` / `%erg v1`
    claims.
 3. Comprehensive stale-reference sweep, not a hand-picked file list:
-   walk the work tree (git-tracked files plus .git/hooks/) for the
-   legacy patterns `tickets/tools/go/erg` -> `tickets/erg` and
+   walk the ENTIRE work tree — a plain filesystem walk, not git
+   ls-files, because hook-definition files like
+   `.claude/settings.local.json` are routinely gitignored and are
+   exactly what this sweep exists for — plus the repository hooks dir,
+   for the legacy patterns `tickets/tools/go/erg` -> `tickets/erg` and
    `erg validate tickets/` -> `erg check tickets/`, and rewrite them
    content-based and idempotently wherever they appear — git hooks,
    `.claude/settings.json`, GitHub workflows (.github/workflows/),
    other forge CI (.gitlab-ci.yml, .woodpecker/, Jenkinsfile, ...),
-   Makefiles, scripts. Skip binary files and the ticket store itself
+   Makefiles, scripts. Skip binary files, files over 2 MiB (wiring is
+   hand-written and small), and the ticket store itself
    (ticket text may legitimately quote old paths as history). This
    generalises the pre-commit-only migrateHook; AEDIST tickets/0526
    found the same rot in .claude/settings.json, and CI configs and
@@ -82,13 +88,14 @@ the old path and a file with no legacy pattern: both must be untouched.
 
 ## Exit criteria
 
-- [ ] `erg migrate` removes previously-installed `ticket-*` skills from a
+- [x] `erg migrate` removes previously-installed `ticket-*` skills from a
       host repo (verified on a scratch install of the old bundle).
-- [ ] The managed CLAUDE.md block, when refreshed, references
+- [x] The managed CLAUDE.md block, when refreshed, references
       `erg <verb>` and `%erg 0.1`, with no "no CLI needed" /
       `tickets/tools/go/` claims.
-- [ ] The repo-wide sweep rewrites stale `tickets/tools/go/erg` /
+- [x] The repo-wide sweep rewrites stale `tickets/tools/go/erg` /
       `validate tickets/` references wherever they occur (git hooks,
-      .claude/settings.json, CI workflows, Makefiles, scripts), and
-      leaves non-matching files and the ticket store byte-identical.
-- [ ] Scratch-repo migrate test passes and is idempotent.
+      .claude/settings.json and gitignored settings.local.json, CI
+      workflows, Makefiles, scripts), and leaves non-matching files and
+      the ticket store byte-identical.
+- [x] Scratch-repo migrate test passes and is idempotent.
