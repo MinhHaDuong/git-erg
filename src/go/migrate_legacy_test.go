@@ -42,13 +42,19 @@ func setupLegacyHostRepo(t *testing.T) (string, string) {
 	ticketsDir := filepath.Join(root, "tickets")
 	write("tickets/erg", "stub", 0755) // skip the os.Executable self-copy
 
-	// Vendored skills: tell-tale legacy content.
+	// Vendored skills: tell-tale legacy content -- except ticket-new, which is
+	// seeded as a user-authored skill under a legacy NAME but with no
+	// tell-tales, to prove deletion keys on content rather than name.
 	for _, name := range legacySkillNames {
+		if name == "ticket-new" {
+			continue
+		}
 		write(".claude/skills/"+name+"/SKILL.md",
 			"Create a ticket in %erg v1 format with a Status: header.\n"+
 				"Validator: tickets/tools/go\n", 0644)
 	}
-	// User-authored skill reusing a vendored name: no tell-tales, must survive.
+	write(".claude/skills/ticket-new/SKILL.md", "My own way of filing tickets.\n", 0644)
+	// User-authored skill under a non-legacy name: never even considered.
 	write(".claude/skills/ticket-triage/SKILL.md", "My own triage notes.\n", 0644)
 
 	// Stale managed CLAUDE.md block, user content on both sides.
@@ -108,14 +114,20 @@ func TestMigrateLayoutLegacyCleanup(t *testing.T) {
 		t.Fatalf("migrateLayout returned %d, want 0", code)
 	}
 
-	// Vendored skills are gone; the user-authored skill survives.
+	// Vendored skills are gone; user-authored skills survive -- including
+	// ticket-new, which carries a legacy NAME but no tell-tale content.
 	for _, name := range legacySkillNames {
+		if name == "ticket-new" {
+			continue
+		}
 		if _, err := os.Stat(filepath.Join(root, ".claude", "skills", name)); !os.IsNotExist(err) {
 			t.Errorf("vendored skill %s still present, stat err = %v", name, err)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(root, ".claude", "skills", "ticket-triage")); err != nil {
-		t.Errorf("user-authored ticket-triage skill was removed: %v", err)
+	for _, name := range []string{"ticket-new", "ticket-triage"} {
+		if _, err := os.Stat(filepath.Join(root, ".claude", "skills", name)); err != nil {
+			t.Errorf("user-authored %s skill was removed: %v", name, err)
+		}
 	}
 
 	// CLAUDE.md block refreshed, user content preserved on both sides.
@@ -230,6 +242,14 @@ func TestRefreshLegacyClaudeBlock(t *testing.T) {
 			if !strings.Contains(s, want) {
 				t.Errorf("missing %q after refresh:\n%s", want, s)
 			}
+		}
+		// The refresh replaces the interior only -- the file keeps its own
+		// marker style instead of gaining the hook-style canonical markers.
+		if n := strings.Count(s, "# --- git-erg: begin managed block ---"); n != 2 {
+			t.Errorf("original begin markers not preserved (found %d, want 2):\n%s", n, s)
+		}
+		if strings.Contains(s, ">>> erg managed >>>") {
+			t.Errorf("hook-style canonical markers leaked into CLAUDE.md:\n%s", s)
 		}
 	})
 

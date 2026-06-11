@@ -120,10 +120,6 @@ func refreshLegacyClaudeBlock(root string) {
 	}
 	lines := splitLinesNoTrailingEmpty(string(data))
 
-	block := []string{hookMarkerSets[0][0]}
-	block = append(block, strings.Split(claudeMDBody, "\n")...)
-	block = append(block, hookMarkerSets[0][1])
-
 	var out []string
 	refreshed := false
 	for from := 0; ; {
@@ -138,7 +134,13 @@ func refreshLegacyClaudeBlock(root string) {
 		}
 		out = append(out, lines[from:begin]...)
 		if containsAny(strings.Join(lines[begin+1:end], "\n"), legacyClaudeMDTelltales) {
-			out = append(out, block...)
+			// Replace the interior only, keeping the block's own marker lines:
+			// CLAUDE.md is the user's markdown, and swapping in the hook-style
+			// canonical markers would change the block's appearance and confuse
+			// tooling keyed on the original format.
+			out = append(out, lines[begin])
+			out = append(out, strings.Split(claudeMDBody, "\n")...)
+			out = append(out, lines[end])
 			refreshed = true
 		} else {
 			out = append(out, lines[begin:end+1]...)
