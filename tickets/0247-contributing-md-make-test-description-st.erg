@@ -1,0 +1,41 @@
+%erg 0.1
+Title: CONTRIBUTING.md make test description stale after check-store gate
+Created: 2026-06-18
+Author: HDMX-coding-agent
+
+--- log ---
+2026-06-18T10:03Z HDMX-coding-agent created
+
+--- body ---
+
+## Context
+
+PR #309 (ticket 0246) added a `check-store` Makefile target -- `erg check
+tickets/` over the real store -- and folded it into `make test`'s
+prerequisites. So `make test` now does THREE things, not two: Go unit tests,
+the shell integration suites, and a store-shape check.
+
+`CONTRIBUTING.md:19` still describes `make test` as "Go unit tests + all shell
+integration suites" -- accurate before #309, now incomplete. Surfaced by the
+/gaze PR-review panel on #309 as a non-blocking doc-propagation gap.
+
+A second-order nuance: `CONTRIBUTING.md:25` calls `make check` "an alias for
+`make test` + `make validate`". Since `make test` now runs `erg check tickets/`
+and `make validate` also runs it, `make check` checks the store twice. Harmless
+(fast, deterministic) but the prose understates what `make test` does alone.
+
+## Relevant files
+- `CONTRIBUTING.md:19` -- the stale `make test` one-liner
+- `CONTRIBUTING.md:25` -- the `make check` alias description (optional clarity touch)
+
+## Actions
+1. Update line 19 to mention the store-shape check `make test` now runs.
+2. Optionally clarify line 25 so the double `erg check` under `make check` is
+   not surprising.
+
+## Test
+- Doc-only change; no automated test. `make check` stays green.
+
+## Exit criteria
+- [ ] CONTRIBUTING.md:19 reflects that `make test` runs a store-shape check
+- [ ] `make check` green on the clean tree

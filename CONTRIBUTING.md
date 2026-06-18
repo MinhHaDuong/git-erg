@@ -16,7 +16,7 @@ agent operating policy lives in `AGENTS.md`, and the test policy lives in
 ```bash
 make build          # build the binary to build/erg
 make check          # pre-PR gate: full test suite + ticket-corpus validation
-make test           # Go unit tests + all shell integration suites
+make test           # Go unit tests + shell integration suites + store-shape check (erg check tickets/)
 make test-<suite>   # run one shell suite, e.g. make test-init
 make unit-test      # Go unit tests with a coverage report
 make validate       # validate the tickets/ corpus
