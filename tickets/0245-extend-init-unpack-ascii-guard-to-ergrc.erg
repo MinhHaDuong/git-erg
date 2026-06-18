@@ -1,0 +1,39 @@
+%erg 0.1
+Title: Extend init-unpack ASCII guard to .ergrc, not just AGENTS.md
+Created: 2026-06-18
+Author: HDMX-coding-agent
+
+--- log ---
+2026-06-18T09:27Z HDMX-coding-agent created
+
+--- body ---
+
+## Context
+
+`erg init` unpacks two embedded assets into a store: `tickets/.ergrc` and
+`tickets/AGENTS.md` (see `src/go/init.go:11-12`). The "init-unpacked AGENTS.md
+contains non-ASCII or non-printable bytes" guard in `tests/test_init.sh:149`
+checks only `AGENTS.md`. `.ergrc` is unpacked the same way but goes unchecked,
+so a non-ASCII byte introduced into `src/go/assets/.ergrc` ships silently.
+
+Surfaced while fixing PR #305 (ticket 0244): a Unicode em-dash slipped into the
+AGENTS.md asset and the guard caught it. The same mistake in `.ergrc` would
+not be caught. `.ergrc` is ASCII today -- this is a guard gap, not a live bug.
+
+## Relevant files
+- `tests/test_init.sh` (~line 149) -- the single-file ASCII assertion
+- `src/go/init.go` (lines 11-12) -- the list of unpacked assets
+
+## Actions
+1. Generalize the guard to assert pure ASCII / printable bytes over **every**
+   unpacked asset, ideally by iterating the same file list `init` uses rather
+   than naming each by hand (so a future third asset is covered automatically).
+
+## Test
+- Red step: a deliberate non-ASCII byte in `src/go/assets/.ergrc` must make
+  `test_init.sh` fail before the guard is generalized.
+
+## Exit criteria
+- [ ] The ASCII/printable guard covers `tickets/.ergrc` as well as `AGENTS.md`
+- [ ] A non-ASCII byte in either unpacked asset fails `make test`
+- [ ] `make test` green on the clean tree
