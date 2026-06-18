@@ -8,6 +8,7 @@
 #   make build      Build the erg binary
 #   make check      Pre-PR gate: full test suite + ticket-corpus validation
 #   make test       Run Go unit tests and shell integration tests
+#   make check-store Gate the ticket store with erg check (local store-shape guard)
 #   make unit-test  Run Go unit tests with coverage report
 #   make test-scaling  Empirical 4x-ladder scaling guard (slow; not in `test`)
 #   make docs       Generate docs/erg-manual.md from erg --help --all
@@ -15,10 +16,10 @@
 #   make ready      List ready tickets
 #   make install-erg-binary              Install erg to ~/.local/bin
 
-TEST_SUITES := validate check list ready update close migrate nextid log label new init install erg_github spec integration main archive rm datasafety security pipeline help version hook godoc docs contract roundtrip verify stderr install-staleness encoding unknown_flags selfcoherence gofmt determinism strictwrite scopeconfinement
+TEST_SUITES := validate check checkstore list ready update close migrate nextid log label new init install erg_github spec integration main archive rm datasafety security pipeline help version hook godoc docs contract roundtrip verify stderr install-staleness encoding unknown_flags selfcoherence gofmt determinism strictwrite scopeconfinement
 TEST_TARGETS := $(TEST_SUITES:%=test-%)
 
-.PHONY: build check test unit-test test-scaling _test-lint docs $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary verify
+.PHONY: build check check-store test unit-test test-scaling _test-lint docs $(TEST_TARGETS) validate ready clean install-erg-binary update-bootstrap-binary verify
 
 ERG_BIN := $(CURDIR)/build/erg
 BOOTSTRAP_BIN := $(CURDIR)/tickets/erg
@@ -58,7 +59,20 @@ unit-test: build
 	cd src/go && go test -cover -coverprofile=$(CURDIR)/build/coverage.out ./... && \
 		go tool cover -func=$(CURDIR)/build/coverage.out
 
-test: unit-test $(TEST_TARGETS)
+# check-store is the LOCAL store-shape gate (ticket 0246). It runs
+# `erg check` over the ticket store and exits non-zero on any corpus
+# violation: closed-but-unarchived ticket, duplicate ID, open/closed
+# folder-closure mismatch. PR #305 shipped a closed ticket left in
+# tickets/ (not tickets/closed/); `erg check` would have caught it
+# instantly, but nothing ran it locally before push -- it failed only in
+# CI. Folding check-store into `make test` turns that into an immediate
+# cheap signal on the normal local flow. STORE is overridable so tests can
+# point the gate at a fixture store with a planted violation.
+STORE ?= tickets/
+check-store: build
+	$(ERG_BIN) check $(STORE)
+
+test: unit-test $(TEST_TARGETS) check-store
 	@echo "ALL TESTS PASSED"
 
 # check is the pre-PR gate alias (cross-project convention): the full test
