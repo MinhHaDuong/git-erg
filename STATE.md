@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-06-08T13:21Z — Closed 0242 (#301): pre-commit hook remediation text now build-system-agnostic — works for vendored-binary adopters (IDH) with no `make build` target; filed from cross-repo IDH tracker 0231 (IDH re-vendors on its own). Prior: 0241 close-without-archive escape (#298, erg check + pre-push hook); fang-audit (#293/#294/0240); scope-confinement trilogy 0237–0239. Queue empty._
+_Last updated: 2026-06-18T10:11Z — Raid closed both #305-roar follow-ups: 0245 (#308) generalized the init-unpack ASCII guard over every unpacked asset (.ergrc, not just AGENTS.md); 0246 (#309) added a `check-store` gate (`erg check tickets/`) folded into `make test`, so store-shape violations fail locally not just in CI. Filed 0247 (#310, open): CONTRIBUTING `make test` description drifted after that gate. Prior: 0242 (#301) build-system-agnostic hook remediation. Queue: 0247 pending review._
 
 ## North star:
 
@@ -30,11 +30,11 @@ Premature, unproven, or waiting on evidence. Do not promote without AGENTS.md ba
 - feat: AI script to realign docs and code (partial: 0232)
 
 ## Status
-<!-- generated 2026-06-08T13:21Z -->
+<!-- generated 2026-06-18T10:11Z -->
 
 **Recent commits:**
-  8e825b3 chore: rebuild bootstrap binary [skip ci]
-  616b023 Merge pull request #301 from MinhHaDuong/t0242
-  d65e309 ticket(0242): close and archive
-  917056b feat(0242): build-system-agnostic hook remediation text
-  3046aea Merge pull request #300 from MinhHaDuong/chore/hook-template-agnostic-remediation
+  74cc065 Merge pull request #309 from MinhHaDuong/t0246-regen-assets-check-store
+  28c7a64 ticket(0246): close and archive — PR #309
+  06101ae Merge pull request #308 from MinhHaDuong/t0245-asset-ascii-guard-ergrc
+  451b3b3 ticket(0245): close and archive — PR #308
+  afc74db ticket(0246): local check-store gate for ticket-store shape
