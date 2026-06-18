@@ -1,0 +1,50 @@
+%erg 0.1
+Title: make regen-assets should run erg check to gate ticket/asset edits locally
+Created: 2026-06-18
+Author: HDMX-coding-agent
+
+--- log ---
+2026-06-18T09:33Z HDMX-coding-agent created
+
+--- body ---
+
+## Context
+
+The asset/ticket-close edit path has no local gate. `make regen-assets` only
+copies `src/go/assets/{.ergrc,AGENTS.md}` into `tickets/` (Makefile ~line 92) --
+it runs no validation. So store-shape violations reach CI before anyone notices.
+
+PR #305 (ticket 0244) shipped a closed ticket left in `tickets/` instead of
+`tickets/closed/`; `erg check` would have caught it instantly, but nothing ran
+`erg check` locally, so it failed only in the `test-check` CI job. A local gate
+turns that into an immediate, cheap signal.
+
+Sibling ticket 0245 covers the ASCII-asset half of the same gap (extending the
+test-init guard to .ergrc). This ticket covers the store-integrity half.
+
+## Relevant files
+- `Makefile` (~line 92, `regen-assets:` target) -- currently a bare two-line copy
+- `src/go/check.go` -- the `erg check` implementation invoked by the gate
+
+## Actions
+1. Make `regen-assets` depend on `build` and run `./build/erg check` after the
+   copy (or add a small `check-store` target wired into the pre-commit hook), so
+   an unarchived closed ticket / duplicate ID / folder-closure violation fails
+   locally before push. Pick whichever fits the existing hook layout -- a
+   pre-commit hook is stronger than coupling it to regen-assets, since most
+   ticket edits don't touch assets.
+
+## Test
+- Red step: a closed-but-unarchived ticket in `tickets/` must make the new gate
+  (or the pre-commit hook) exit non-zero. Cover via a test in `tests/` that
+  invokes the gate against a fixture store with a planted violation.
+
+## Invariants
+- Existing `make build` / `make test` targets keep working unchanged.
+- The gate must not require network access.
+
+## Exit criteria
+- [ ] A store violation (closed-but-unarchived, duplicate ID) fails a local
+      command before push -- not only in CI
+- [ ] A test exercises the gate against a planted violation
+- [ ] `make test` green on the clean tree
