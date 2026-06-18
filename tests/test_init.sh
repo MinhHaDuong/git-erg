@@ -141,16 +141,20 @@ else
     pass "uninstall subcommand removed"
 fi
 
-# --- unpacked AGENTS.md is pure ASCII (no U+FFFD, no stray Unicode) ---
+# --- every unpacked store asset is pure ASCII (no U+FFFD, no stray Unicode) ---
 # The original bug (0160) was a U+FFFD replacement character introduced by a
 # Unicode round-trip. Asserting pure ASCII is strictly stronger than checking
 # for U+FFFD alone and forecloses the whole corruption class.
+# Cover BOTH assets erg init unpacks (see initAssetPaths in src/go/init.go), not
+# just AGENTS.md: a non-ASCII byte in .ergrc was previously unguarded (0245).
 
-if LC_ALL=C grep -nq '[^[:print:][:space:]]' "$REPO/tickets/AGENTS.md"; then
-    fail "init-unpacked AGENTS.md contains non-ASCII or non-printable bytes"
-else
-    pass "init-unpacked AGENTS.md is pure ASCII"
-fi
+for asset in tickets/.ergrc tickets/AGENTS.md; do
+    if LC_ALL=C grep -nq '[^[:print:][:space:]]' "$REPO/$asset"; then
+        fail "init-unpacked $asset contains non-ASCII or non-printable bytes"
+    else
+        pass "init-unpacked $asset is pure ASCII"
+    fi
+done
 
 # unknown flag rejection (ticket 0178)
     out=$($ERG init --bogus 2>&1) && rc=0 || rc=$?
