@@ -2,10 +2,12 @@
 Title: make regen-assets should run erg check to gate ticket/asset edits locally
 Created: 2026-06-18
 Author: HDMX-coding-agent
+Closed: autoclosed — PR #309
 
 --- log ---
 2026-06-18T09:33Z HDMX-coding-agent created
 
+2026-06-18T09:59Z HDMX-coding-agent closed — autoclosed — PR #309
 --- body ---
 
 ## Context
