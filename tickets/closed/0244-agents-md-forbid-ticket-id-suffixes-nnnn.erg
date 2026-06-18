@@ -1,0 +1,25 @@
+%erg 0.1
+Title: AGENTS.md: forbid ticket-ID suffixes (NNNNa/NNNNb), split into new IDs
+Created: 2026-06-18
+Author: HDMX-coding-agent
+Closed: anti-suffix rule added to asset + regen
+
+--- log ---
+2026-06-18T09:09Z HDMX-coding-agent created
+
+2026-06-18T09:12Z HDMX-coding-agent closed — anti-suffix rule added to asset + regen
+--- body ---
+## Context
+A consumer project (Oeconomia climate-finance) hit the optimistic-ID-allocation
+collision and an agent proposed `0134a`/`0134b` suffix tickets. The vendored
+AGENTS.md had no rule against ID suffixing. Add one to the canonical asset so it
+propagates to every store via `erg init` / `erg migrate`.
+
+## Actions
+1. Add an anti-suffix bullet to `src/go/assets/AGENTS.md` (the embedded source of truth).
+2. `make regen-assets` to propagate to this repo's `tickets/AGENTS.md` (dogfood).
+
+## Exit criteria
+- [x] `src/go/assets/AGENTS.md` carries the anti-suffix rule
+- [x] `tickets/AGENTS.md` matches the asset (selfcoherence green)
+- [x] `make build` + test_selfcoherence + test_docs pass
