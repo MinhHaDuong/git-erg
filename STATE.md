@@ -28,6 +28,7 @@ Premature, unproven, or waiting on evidence. Do not promote without AGENTS.md ba
 - feat: erg new with body on the line.
 - audit: usage in idh.
 - feat: AI script to realign docs and code (partial: 0232)
+- feat: Epoch rollover for the ID space — under tickets/closed/, one subdir per epoch (e.g. closed/2026/), a frozen namespace next-id does not scan. Keeps 4-digit width and citable IDs while preserving durable identity (old refs qualify via the existing path-ref grammar, closed/2026/0042). Turns the 9999 "ever-created" ceiling into a "live tickets" ceiling. No empirical pressure yet (store at ~250/9999).
 
 ## Status
 <!-- generated 2026-06-18T10:11Z -->
