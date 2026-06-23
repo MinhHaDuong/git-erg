@@ -1,0 +1,124 @@
+%erg 0.1
+Title: erg close auto-archives ticket into closed/ directory
+Created: 2026-06-23
+Author: HDMX-coding-agent
+
+--- log ---
+2026-06-23T09:23Z HDMX-coding-agent created
+2026-06-23T09:40Z HDMX-coding-agent note phase 1 of the deferred close/archive redesign (STATE "Premature" section); phase 2 = epoch rollover, stays deferred
+
+--- body ---
+## Context
+
+The deferred close/archive redesign (STATE.md, "Premature / unproven" section,
+commits 3451c01 / dca943c) couples two changes: (1) `erg close` auto-moves the
+ticket into `tickets/closed/`, killing the closed-but-unarchived limbo; (2)
+`erg archive` is repurposed to an epoch-rollover sweep (`closed/*.erg →
+closed/<epoch>/`). The combined design was flagged breaking and parked.
+
+This ticket is **phase 1 only**, and the analysis below shows it is **not
+breaking** — contrary to the STATE note, which lumped the breaking bits
+(repurposing `archive`, dropping the nag hook, `next-id` epoch logic) with the
+benign one. Those all stay in **phase 2 (epoch rollover, still deferred)**.
+
+The decoupling: `erg close` gains the move; `erg archive` and the pre-push nag
+hook are left exactly as shipped. `archive` remains the safety-net sweep for
+*hand-closed* tickets (a `Closed:` header added by hand, without `erg close`).
+Net effect of phase 1: `close` becomes one-step; nothing's semantics change;
+`archive` usually finds nothing because `close` already moved the file.
+
+## Relevant files
+
+- `src/go/close.go` — `cmdClose` today writes the `Closed:` header
+  (`insertClosedHeader`), appends the log line, then strips `Blocked-by:` refs
+  from OPEN dependents (`removeBlockedByRef`, step 3). It does NOT move the file.
+  Add the move after step 3.
+- `src/go/archive.go` — `cmdArchive` owns the move primitive today: `MkdirAll`
+  `closed/`, `os.Stat` collision check, `os.Rename` (lines ~146-164), guarded by
+  a reverse `blockedBy` index built from OPEN tickets only (lines ~70-82). Factor
+  the bare move (MkdirAll + collision-check + Rename) into a shared helper so both
+  `close` and (phase 2) the epoch sweep reuse one atomic-move path.
+- `src/go/nextid.go` — `maxIDInDir` uses a recursive `filepath.WalkDir`, so
+  tickets under `closed/` already count as reserved IDs. LEAVE UNTOUCHED in
+  phase 1 (see Invariants). This is what guarantees auto-archiving does not
+  recycle an ID.
+- `src/go/erg.go` — `IsClosed` / `pathIsClosed`: a `closed` path segment at ANY
+  depth reads closed, so the disjunctive read criterion already tolerates the
+  phase-2 `closed/<epoch>/` nesting. Do not tighten it.
+- `tickets/erg` — committed bootstrap binary; must be rebuilt (`make
+  update-bootstrap-binary`, verify with `make verify`).
+- `erg spec` §5 (close = 3-step; archive = mover) — text needs a phase-1 update.
+
+## Actions
+
+1. Extract the move primitive from `cmdArchive` into a shared helper, e.g.
+   `moveTicketToClosed(ticketDir string, t *Erg) error` (MkdirAll `closed/`,
+   `os.Stat` destination collision check, `os.Rename`). Have `cmdArchive` call it.
+2. In `cmdClose`, after step 3 (Blocked-by removal), call the helper to move the
+   just-closed ticket into `tickets/closed/`. Ordering: header-write at the
+   original top-level path → step 3 → move. (close strips all OPEN dependents'
+   refs in step 3, so the move is never blocked — closed dependents keep their
+   historical refs but are not blockers.)
+3. Keep the `CLOSED (already)` idempotency branch BEFORE the move: an
+   already-closed ticket (incl. a hand-closed one still at top-level) is not
+   moved by `close` — `archive` sweeps those. Preserves current idempotency.
+4. Update `helpClose` (the 3-step description) to a 4th step: "moves the closed
+   ticket into DIR/closed/". Update `erg spec` §5 accordingly.
+5. Rebuild the bootstrap binary: `make update-bootstrap-binary`.
+
+## Forward-compatibility with phase 2 (epoch rollover)
+
+Phase 1 must not paint phase 2 into a corner. The four load-bearing constraints:
+
+- **Move to `closed/` TOP-LEVEL only**, never a dated subdir. Phase-2 `next-id`
+  treats top-level `closed/` as current-epoch (IDs still reserved); the dated
+  `closed/<epoch>/` it adds is the frozen, recyclable tier.
+- **Shared move helper** (Action 1) is the primitive phase 2's `closed/*.erg →
+  closed/<epoch>/` sweep reuses — don't inline the rename into `close.go`.
+- **Do not touch `nextid.go`.** Its recursive walk counts everything under
+  `closed/` as reserved — correct for phase 1. Phase 2 is precisely the change
+  that narrows the walk to skip `closed/<epoch>/`; pre-empting it here would
+  conflict.
+- **Do not tighten `pathIsClosed`** — it already matches a `closed` segment at
+  any depth, so phase-2 nesting reads closed for free. Keep the read criterion
+  disjunctive (Closed: header OR path).
+
+## Test
+
+Red step first (`src/go/close_test.go`): `erg close <ID> <reason>` on a
+top-level open ticket must leave the file at `tickets/closed/<ID>-slug.erg`
+(not top-level), with the `Closed:` header and the `closed —` log line intact.
+Add a second assertion that `next-id` after the close still returns an ID
+greater than the just-closed one (ID not recycled — guards the nextid.go
+invariant). Keep an idempotency test: a hand-closed top-level ticket is NOT
+moved by `erg close` (prints `CLOSED (already)`, stays put for `archive`).
+
+## Verification
+
+- [ ] `erg close <ID> <reason>` moves the ticket into `tickets/closed/`
+- [ ] Closed header + `closed —` log line present in the moved file
+- [ ] `next-id` does not recycle the closed ticket's ID
+- [ ] Hand-closed top-level ticket left in place by `close`; swept by `archive`
+- [ ] `erg archive` and the pre-push nag hook behave exactly as before
+- [ ] `make verify` (bootstrap binary byte-matches embedded source)
+- [ ] `make check` passes
+- [ ] `make regen-assets && git diff --exit-code tickets/` clean (embedded assets)
+
+## Invariants
+
+- `nextid.go` untouched — no ID recycling (recursive walk counts `closed/`).
+- The `CLOSED` stdout token is unchanged — `erg-pr-merge` parses it; do not
+  rename it to `ARCHIVED` or `CLOSED (archived)`.
+- `archive.go` semantics and the `erg install --push-hook` nag are unchanged.
+- Existing close tests (header insertion, step-3 Blocked-by removal,
+  idempotency) and archive tests stay green.
+- No test asserts `closed/` is flat / has no subdirectories (phase 2 nests).
+- `erg check` PASS on the store.
+
+## Exit criteria
+
+`erg close` relocates the closed ticket into `tickets/closed/` in addition to
+its existing header + log + Blocked-by-strip steps; `archive` and the nag hook
+unchanged; the move primitive is shared (not inlined) so phase 2 can reuse it;
+`nextid.go` and `pathIsClosed` untouched; help text + spec §5 updated; bootstrap
+binary rebuilt; `make check` and `make verify` pass.
