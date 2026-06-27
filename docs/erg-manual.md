@@ -311,7 +311,9 @@ Run 'erg close ID REASON' (which removes Blocked-by refs automatically) before
 archiving, or manually delete the stale Blocked-by line.
 
 The command creates DIR/closed/ if it does not exist. It will not overwrite
-an existing file at the destination.
+an existing file at the destination: a collision is a real ID conflict, so
+archive reports it, leaves the source in place, and exits non-zero (rename one
+of the two tickets to resolve it).
 
 With -n / --dry-run, archive renames nothing: it prints "WOULD ARCHIVE <file>"
 for each eligible ticket and "WOULD SKIP <file> (needed by ...)" for tickets

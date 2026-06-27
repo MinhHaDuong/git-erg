@@ -81,7 +81,9 @@ Run 'erg close ID REASON' (which removes Blocked-by refs automatically) before
 archiving, or manually delete the stale Blocked-by line.
 
 The command creates DIR/closed/ if it does not exist. It will not overwrite
-an existing file at the destination.
+an existing file at the destination: a collision is a real ID conflict, so
+archive reports it, leaves the source in place, and exits non-zero (rename one
+of the two tickets to resolve it).
 
 With -n / --dry-run, archive renames nothing: it prints "WOULD ARCHIVE <file>"
 for each eligible ticket and "WOULD SKIP <file> (needed by ...)" for tickets
@@ -202,15 +204,19 @@ func cmdArchive(args []string) int {
 		}
 
 		if err := moveTicketToClosed(ticketDir, &t); err != nil {
-			// Preserve archive's historical skip-on-collision behaviour; any
-			// other move failure (symlinked/non-dir closed/, rename error) is
-			// a hard error.
+			// A destination collision is a real ID conflict: a different ticket
+			// already occupies the closed/ basename. Surface it as a hard error
+			// (exit 1) with the source left in place -- skipping with exit 0
+			// left the closed source at top-level, which `erg check` then
+			// hard-fails on forever, invisibly to a scripted caller (ticket
+			// 0249). Other move failures (symlinked/non-dir closed/, rename
+			// error) are likewise hard errors.
 			var col *errMoveCollision
 			if errors.As(err, &col) {
-				fmt.Fprintf(os.Stderr, "archive: destination already exists, skipping: %s\n", col.Dst)
-				continue
+				fmt.Fprintf(os.Stderr, "archive: destination already exists: %s -- resolve the ID conflict (rename one); %s left in place\n", col.Dst, t.Filename())
+			} else {
+				fmt.Fprintf(os.Stderr, "archive: %v\n", err)
 			}
-			fmt.Fprintf(os.Stderr, "archive: %v\n", err)
 			exitCode = 1
 			continue
 		}
