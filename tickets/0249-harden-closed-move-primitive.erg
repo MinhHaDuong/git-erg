@@ -1,0 +1,76 @@
+%erg 0.1
+Title: harden the closed/ move primitive (symlink escape, collision wedge)
+Created: 2026-06-27
+Author: Claude
+
+--- log ---
+2026-06-27T18:05Z Claude created
+2026-06-27T18:05Z Claude note from red-team bug hunt on 0248's surface; couples to 0248 (which extracts this mover into a shared moveTicketToClosed helper and routes erg close through it)
+
+--- body ---
+## Context
+
+Bug hunt on the `erg archive` / `erg close` move path. `cmdArchive`'s mover
+(`MkdirAll closed/` + `os.Stat` collision check + `os.Rename`, archive.go:146-164)
+is the primitive 0248 extracts into a shared `moveTicketToClosed` helper and
+routes `erg close` through. These defects exist in `archive` today and 0248
+would make every `close` inherit them, so the hardening must land in the shared
+helper.
+
+## Findings (reproduced against a scratch store in /tmp)
+
+- **[blocker] Symlinked `closed/` silently exfiltrates the ticket out of the
+  store.** archive.go:146-164. If `tickets/closed` is a symlink to an out-of-store
+  dir, `MkdirAll` is a no-op and `os.Rename` follows the symlinked parent
+  component, moving the `.erg` OUTSIDE the store; `erg check` then reports
+  "no files / PASS". The mover never calls `withinStore`, the only confinement
+  rail in the code — and atomicwrite.go's "symlink AT the target is harmless"
+  reasoning does not cover a symlink as a parent dir component, which is exactly
+  what `closed/` is. Direct "never lose data" violation; 0248 makes every `close`
+  inherit it. Repro: `ln -s /tmp/escape store/tickets/closed; erg archive
+  store/tickets` -> ticket lands in /tmp/escape, check PASS.
+  Fix: in `moveTicketToClosed`, `filepath.EvalSymlinks` the `closed` parent (or
+  `os.Lstat` and refuse a symlinked `closed`) and re-assert `withinStore(ticketDir,
+  dst)` before `os.Rename`.
+
+- **[major] Destination-collision returns exit 0 but leaves a permanent
+  check-failing wedge.** archive.go:155-158. On `os.Stat(dst) == nil` archive
+  prints "destination already exists, skipping" and `continue`s with exitCode
+  unchanged (0). The source stays top-level; `erg check` then HARD-FAILS
+  ("closed ticket not in closed/ -- run 'erg archive'") and re-running archive
+  just re-skips forever (exit 0 each time). A scripted caller / the pre-push hook
+  sees success while the corpus is permanently broken. Realistic trigger: two
+  slugs sharing one ID (one archived, one hand-closed top-level) -> identical
+  `closed/<ID>-slug.erg` basename. 0248 makes `close` hit this too (the
+  fall-through-to-move for closed-but-top-level), so close becomes silently
+  corpus-breaking. Fix: on collision the shared helper returns a non-nil error
+  (exit 1); optionally treat a same-content collision as a no-op success.
+
+- **[minor] `closed/` existing as a regular FILE aborts the move with the header
+  already committed.** archive.go:146-150. `MkdirAll` fails "not a directory",
+  exit 1, ticket stranded top-level. Benign for standalone archive, but under
+  0248 the `Closed:` header + log are already fsync-written before the move, so
+  the failed move leaves a committed-closed ticket that `erg check` flags. Fix:
+  helper returns a clear error; `close` reports the partial state.
+
+- **[minor] Dry-run diverges from the real run on collision.** archive.go:139-143
+  (`-n` prints "WOULD ARCHIVE") vs 154-158 (real prints "skipping"). The pre-push
+  hook relies on `archive -n` as a truthful preview; here it over-promises. Fix:
+  replicate the `os.Stat(dst)` check in the dry-run branch ("WOULD SKIP").
+
+## Test
+
+- Symlinked `closed/`: `erg archive`/`erg close` must REFUSE (or keep the ticket
+  in-store), never relocate outside; `erg check` stays meaningful.
+- Collision: archiving onto an existing `closed/<ID>-slug.erg` exits non-zero and
+  leaves a clear error, not a silent exit-0 wedge.
+- `closed/` as a file: clear error, reported partial state.
+- Dry-run matches the real run on a colliding ticket.
+
+## Exit criteria
+
+The shared `moveTicketToClosed` helper re-asserts in-store confinement after
+symlink resolution and never relocates a ticket outside the store; destination
+collisions and a non-dir `closed/` surface as non-zero errors, not exit-0 wedges;
+dry-run previews collisions; `erg archive` keeps its current happy-path behavior;
+`make check` and `make verify` pass.
