@@ -24,6 +24,11 @@ func TestParseIDFromFilename(t *testing.T) {
 		// IDs outside the 4-digit range are ignored (stray files don't poison next-id).
 		{"10000-bad.erg", 0},
 		{"99999-overflow.erg", 0},
+		// Non-canonical numeric stems must not count (ticket 0250): a leading
+		// sign sneaks past strconv.Atoi, and 0000 is below the 0001 floor.
+		{"+0042-x.erg", 0},
+		{"-0042.erg", 0},
+		{"0000-zero.erg", 0},
 	}
 	for _, c := range cases {
 		got := parseIDFromFilename(c.name)

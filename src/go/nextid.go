@@ -28,8 +28,14 @@ func parseIDFromFilename(name string) int {
 	if idx := strings.Index(stem, "-"); idx > 0 {
 		stem = stem[:idx]
 	}
+	// Only a canonical all-digit stem in 0001-9999 counts. allDigits rejects a
+	// leading +/- that strconv.Atoi would otherwise accept (and the empty stem);
+	// n < 1 rules out 0000.
+	if !allDigits(stem) {
+		return 0
+	}
 	n, err := strconv.Atoi(stem)
-	if err != nil || n >= 10000 {
+	if err != nil || n < 1 || n >= 10000 {
 		return 0
 	}
 	return n
@@ -61,7 +67,7 @@ func maxIDInDir(dir string) int {
 // duplicates whichever branch HEAD points at). Returns nil on any git error.
 func knownBranches(ctx context.Context, dir string) []string {
 	cmd := exec.CommandContext(ctx, "git", "-C", dir, "for-each-ref",
-		"--format=%(refname:short)", "refs/heads", "refs/remotes")
+		"--format=%(refname:short) %(symref)", "refs/heads", "refs/remotes")
 	cmd.Stderr = io.Discard
 	out, err := cmd.Output()
 	if err != nil {
@@ -70,10 +76,18 @@ func knownBranches(ctx context.Context, dir string) []string {
 	var refs []string
 	for _, line := range strings.Split(string(out), "\n") {
 		line = strings.TrimSpace(line)
-		if line == "" || strings.HasSuffix(line, "/HEAD") {
+		if line == "" {
 			continue
 		}
-		refs = append(refs, line)
+		// A symref (e.g. origin/HEAD -> refs/remotes/origin/main) carries a
+		// non-empty %(symref) second field; skip it. A real branch -- including
+		// one legitimately named feature/HEAD -- has an empty symref and is
+		// kept (branch short names never contain a space).
+		fields := strings.Fields(line)
+		if len(fields) != 1 {
+			continue
+		}
+		refs = append(refs, fields[0])
 	}
 	return refs
 }
@@ -146,6 +160,13 @@ func nextID(dir string) (string, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		return formatNextID(maxID)
+	}
+	// Resolve symlinks so the boundary test matches `git --show-toplevel`,
+	// which returns a symlink-resolved path. Without this, a store reached
+	// through a symlinked path yields a "../" rel and silently skips the
+	// cross-worktree/branch scan -> ID reuse (ticket 0250).
+	if resolved, e := filepath.EvalSymlinks(absDir); e == nil {
+		absDir = resolved
 	}
 	rel, err := filepath.Rel(top, absDir)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {

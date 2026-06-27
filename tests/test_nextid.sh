@@ -167,6 +167,61 @@ if command -v git >/dev/null 2>&1; then
     else
         fail "cross-worktree: dir outside any git repo falls back to local scan (got: $out)"
     fi
+
+    # --- Branch whose name ends in /HEAD must still be scanned (ticket 0250) ---
+    # The knownBranches /HEAD suffix filter dropped real branches like
+    # feature/HEAD, hiding their IDs and risking reuse. Distinguish the
+    # origin/HEAD symref by %(symref), not by name suffix.
+    HWR="$TDIR/hwr"
+    mkdir -p "$HWR/repo"
+    git init -q -b main "$HWR/repo"
+    git -C "$HWR/repo" config user.email "test@example.com"
+    git -C "$HWR/repo" config user.name "Test"
+    git -C "$HWR/repo" config commit.gpgsign false
+    echo "init" > "$HWR/repo/README"
+    git -C "$HWR/repo" add README
+    git -C "$HWR/repo" commit -q -m "init"
+    git -C "$HWR/repo" checkout -q -b feature/HEAD
+    mkdir -p "$HWR/repo/tickets"
+    touch "$HWR/repo/tickets/0300-on-head-branch.erg"
+    git -C "$HWR/repo" add tickets/0300-on-head-branch.erg
+    git -C "$HWR/repo" commit -q -m "add 0300"
+    git -C "$HWR/repo" checkout -q main
+    rm -rf "$HWR/repo/tickets"; mkdir -p "$HWR/repo/tickets"
+    out=$("$ERG" next-id "$HWR/repo/tickets")
+    if [ "$out" = "0301" ]; then
+        pass "cross-worktree: counts a ticket on a feature/HEAD branch"
+    else
+        fail "cross-worktree: counts a ticket on a feature/HEAD branch (got: $out)"
+    fi
+
+    # --- Symlinked store path still runs the branch scan (ticket 0250) ---
+    # filepath.Abs left the symlink unresolved while git --show-toplevel
+    # resolves it, so the worktree-boundary check tripped and silently skipped
+    # the branch scan -> ID reuse. Resolve symlinks before the boundary test.
+    SWR="$TDIR/swr"
+    mkdir -p "$SWR/real"
+    git init -q -b main "$SWR/real"
+    git -C "$SWR/real" config user.email "test@example.com"
+    git -C "$SWR/real" config user.name "Test"
+    git -C "$SWR/real" config commit.gpgsign false
+    echo "init" > "$SWR/real/README"
+    git -C "$SWR/real" add README
+    git -C "$SWR/real" commit -q -m "init"
+    git -C "$SWR/real" checkout -q -b feat
+    mkdir -p "$SWR/real/tickets"
+    touch "$SWR/real/tickets/0400-on-branch.erg"
+    git -C "$SWR/real" add tickets/0400-on-branch.erg
+    git -C "$SWR/real" commit -q -m "add 0400"
+    git -C "$SWR/real" checkout -q main
+    rm -rf "$SWR/real/tickets"; mkdir -p "$SWR/real/tickets"
+    ln -s "$SWR/real" "$SWR/link"
+    out=$("$ERG" next-id "$SWR/link/tickets")
+    if [ "$out" = "0401" ]; then
+        pass "symlinked store path still scans branch tips (no ID reuse)"
+    else
+        fail "symlinked store path still scans branch tips (got: $out)"
+    fi
 fi
 
 # --- Range exhaustion: 9999 exists -> error, no 5-digit ID ---
