@@ -56,6 +56,13 @@ in one atomic pass (refs are greppable).
   tickets). Nothing is carried across the boundary, `next-id` stays `max+1`, and
   the space resets fully to 0001. Fits git-erg's drain-to-zero cadence — the
   natural rollover moment is "the queue is empty, close the chapter".
+  The gate is necessity, not caution: a mid-flight rollover under `max+1`
+  reclaims nothing. After sweeping closed/ away, `next-id` is still
+  `max(open) + 1`, and since open tickets are the recent (highest-numbered)
+  ones, that is ~the ceiling — so with any open ticket present the operation is
+  a no-op for the counter. Refusing is the honest behaviour; reclamation only
+  happens at an empty-queue rollover. (Only policy 2 makes a mid-flight rollover
+  meaningful.)
 - (2, reserve — only if a real need for rollover-with-open-tickets appears)
   Switch `next-id` to MIN-FREE within the current epoch, so a rollover with open
   tickets still in flight reclaims the freed low IDs without renumbering them,
