@@ -15,7 +15,7 @@ const helpClose = `## erg close ID|FILE REASON [DIR]
 
 Atomically close a ticket.
 
-Closing a ticket is a three-step operation:
+Closing a ticket is a four-step operation:
 
   1. Inserts a Closed: REASON header at the end of the preamble (before ` + "`--- log ---`" + `).
   2. Appends a timestamped log line: ` + "`TIMESTAMP AUTHOR closed \u2014 REASON`" + `.
@@ -25,12 +25,16 @@ Closing a ticket is a three-step operation:
      Already-closed tickets that reference the ID are not modified. If a ticket
      has multiple Blocked-by: ID lines, all are removed in one pass.
      Step 3 iterates all open tickets; it is idempotent but not atomic.
+  4. Moves the closed ticket into DIR/closed/, so closing files the ticket in
+     one step -- no separate ` + "`erg archive`" + ` -- and a closed ticket has a single
+     terminal location. A ticket that is already closed but still at top-level
+     (hand-closed, or a close interrupted before the move) is filed by re-running
+     close. The move is durable and confined to the store.
 
 ID may be a 4-digit ticket ID or a full filename (e.g. 0042-some-title.erg).
 REASON must be non-empty. The operation is idempotent (safe to call twice for
-the same ticket): closing an already-closed ticket prints 'CLOSED (already)' and
-exits 0. Step 3 (Blocked-by removal) is also idempotent; re-running close on
-an already-closed ticket does not re-scan dependents.
+the same ticket): once the ticket is filed under closed/, close prints
+'CLOSED (already)' and exits 0. Step 3 (Blocked-by removal) is also idempotent.
 `
 
 // cmdClose implements `erg close ID|FILE REASON [DIR]`. See helpClose for the user-facing summary.
@@ -86,8 +90,16 @@ func cmdClose(args []string) int {
 		}
 		ticketPath, err = resolveTicketByID(ticketDir, idOrFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "close: %v\n", err)
-			return 1
+			// Fall back to closed/: once a ticket is archived there, a
+			// top-level glob no longer finds it, so `erg close <ID>` on an
+			// already-closed ticket would wrongly report "not found" instead of
+			// the idempotent "CLOSED (already)". Only adopt an unambiguous match.
+			if alt, altErr := resolveTicketByID(filepath.Join(ticketDir, "closed"), idOrFile); altErr == nil {
+				ticketPath = alt
+			} else {
+				fmt.Fprintf(os.Stderr, "close: %v\n", err)
+				return 1
+			}
 		}
 	}
 
@@ -99,35 +111,57 @@ func cmdClose(args []string) int {
 
 	ticket, _ := parseErgBytes(data, ticketPath)
 
-	// Idempotent: already closed (Closed: header present or path test fires).
-	if ticket.IsClosed() {
-		fmt.Println("CLOSED (already)")
-		return 0
+	closedDir := filepath.Join(ticketDir, "closed")
+
+	// Idempotent end-state: the ticket is already filed under closed/.
+	// Compare resolved absolute dirs so the ID and FILE forms agree regardless
+	// of how the path was spelled.
+	if a, e1 := filepath.Abs(filepath.Dir(ticketPath)); e1 == nil {
+		if b, e2 := filepath.Abs(closedDir); e2 == nil && a == b {
+			fmt.Println("CLOSED (already)")
+			return 0
+		}
 	}
 
-	now := time.Now().UTC().Format("2006-01-02T15:04Z")
-	closedHeader := "Closed: " + reason
-	author := resolveAuthor()
-	logLine := fmt.Sprintf("%s %s closed \u2014 %s", now, author, reason)
+	// Not under closed/ yet. A genuinely OPEN ticket gets the Closed: header,
+	// the log line, and the dependent Blocked-by sweep. A ticket that is already
+	// closed (Closed: header OR path test) but sits outside closed/ -- hand-
+	// closed, a -closed.erg name, or a close that crashed before the move --
+	// skips straight to the move, so close self-repairs by filing it rather than
+	// re-writing a header or leaving a closed-but-unfiled ticket behind.
+	if !ticket.IsClosed() {
+		now := time.Now().UTC().Format("2006-01-02T15:04Z")
+		closedHeader := "Closed: " + reason
+		author := resolveAuthor()
+		logLine := fmt.Sprintf("%s %s closed \u2014 %s", now, author, reason)
 
-	content, err := insertClosedHeader(string(data), closedHeader)
-	if err != nil {
+		content, err := insertClosedHeader(string(data), closedHeader)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "close: %v\n", err)
+			return 1
+		}
+		content = appendLogLine(content, logLine)
+		content = string(collapseHeaderBlanks([]byte(content)))
+
+		if err := writeTicketAtomic(ticketDir, ticketPath, []byte(content)); err != nil {
+			fmt.Fprintf(os.Stderr, "close: cannot write %s: %v\n", ticketPath, err)
+			return 1
+		}
+
+		// Step 3: remove Blocked-by: <id> lines from dependent open tickets.
+		// Reuse the already-parsed ticket -- FilenameID only uses Path.
+		closedID := ticket.FilenameID()
+		if closedID != "" {
+			removeBlockedByRef(ticketDir, closedID, now, author)
+		}
+	}
+
+	// Step 4: move the closed ticket into closed/ -- one terminal state, no
+	// closed-but-unarchived limbo. The shared mover is durable and confined to
+	// the store.
+	if err := moveTicketToClosed(ticketDir, &ticket); err != nil {
 		fmt.Fprintf(os.Stderr, "close: %v\n", err)
 		return 1
-	}
-	content = appendLogLine(content, logLine)
-	content = string(collapseHeaderBlanks([]byte(content)))
-
-	if err := writeTicketAtomic(ticketDir, ticketPath, []byte(content)); err != nil {
-		fmt.Fprintf(os.Stderr, "close: cannot write %s: %v\n", ticketPath, err)
-		return 1
-	}
-
-	// Step 3: remove Blocked-by: <id> lines from dependent open tickets.
-	// Reuse the already-parsed ticket -- FilenameID only uses Path.
-	closedID := ticket.FilenameID()
-	if closedID != "" {
-		removeBlockedByRef(ticketDir, closedID, now, author)
 	}
 
 	fmt.Println("CLOSED")

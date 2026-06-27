@@ -1,11 +1,67 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+// errMoveCollision is returned by moveTicketToClosed when the destination
+// under closed/ already exists. It is a distinct type so callers can choose a
+// policy: archive skips (preserving its historical behaviour), close errors.
+type errMoveCollision struct{ Dst string }
+
+func (e *errMoveCollision) Error() string {
+	return fmt.Sprintf("destination already exists: %s", e.Dst)
+}
+
+// syncDir best-effort fsyncs a directory so a rename into/out of it is durable
+// across a crash (mirrors the parent-dir sync in atomicWriteFile). A platform
+// or filesystem that cannot sync a directory must not fail the operation.
+func syncDir(dir string) {
+	if d, err := os.Open(dir); err == nil {
+		_ = d.Sync()
+		_ = d.Close()
+	}
+}
+
+// moveTicketToClosed moves ticket t into ticketDir/closed/, durably and
+// confined to the store. It is the single move primitive shared by `archive`
+// and `close`:
+//
+//   - Refuses a symlinked closed/ -- os.Rename would follow the symlinked
+//     parent component and relocate the ticket OUTSIDE the store (silent data
+//     loss); withinStore is re-asserted on the destination as a second rail.
+//   - A pre-existing destination is an errMoveCollision, never a silent skip.
+//   - fsyncs both parent directories so the rename survives a crash.
+func moveTicketToClosed(ticketDir string, t *Erg) error {
+	closedDir := filepath.Join(ticketDir, "closed")
+	// Refuse a symlinked closed/: os.Rename follows the symlinked parent and
+	// would move the ticket out of the store, which `erg check` then cannot see.
+	if fi, err := os.Lstat(closedDir); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("refusing to move into %s: closed/ is a symlink (would escape the store)", closedDir)
+	}
+	if err := os.MkdirAll(closedDir, 0755); err != nil {
+		return fmt.Errorf("cannot create %s: %w", closedDir, err)
+	}
+	dst := filepath.Join(closedDir, t.Filename())
+	if ok, err := withinStore(ticketDir, dst); err != nil {
+		return err
+	} else if !ok {
+		return fmt.Errorf("refusing to move %s: destination resolves outside the store", t.Filename())
+	}
+	if _, err := os.Stat(dst); err == nil {
+		return &errMoveCollision{Dst: dst}
+	}
+	if err := os.Rename(t.Path, dst); err != nil {
+		return fmt.Errorf("cannot move %s: %w", t.Filename(), err)
+	}
+	syncDir(filepath.Dir(t.Path))
+	syncDir(closedDir)
+	return nil
+}
 
 // summaryArchive is the one-liner printed by printUsage via the commands registry.
 const summaryArchive = "Move closed tickets to tickets/closed/"
@@ -114,8 +170,6 @@ func cmdArchive(args []string) int {
 		}
 	}
 
-	closedDir := filepath.Join(ticketDir, "closed")
-
 	for _, t := range targets {
 		// Skip tickets without a non-empty Closed: header.
 		// We use header-only check (not t.IsClosed()) to avoid re-processing
@@ -136,29 +190,27 @@ func cmdArchive(args []string) int {
 			continue
 		}
 
-		// Dry-run: report what would be archived without touching the disk.
+		// Dry-run: report what would be archived without touching the disk,
+		// including a destination-collision preview so -n matches the real run.
 		if dryRun {
-			fmt.Printf("WOULD ARCHIVE %s\n", t.Filename())
+			if _, err := os.Stat(filepath.Join(ticketDir, "closed", t.Filename())); err == nil {
+				fmt.Printf("WOULD SKIP %s (destination exists)\n", t.Filename())
+			} else {
+				fmt.Printf("WOULD ARCHIVE %s\n", t.Filename())
+			}
 			continue
 		}
 
-		// Ensure destination directory exists.
-		if err := os.MkdirAll(closedDir, 0755); err != nil {
-			fmt.Fprintf(os.Stderr, "archive: cannot create %s: %v\n", closedDir, err)
-			exitCode = 1
-			continue
-		}
-
-		dst := filepath.Join(closedDir, t.Filename())
-
-		// Check for collision.
-		if _, err := os.Stat(dst); err == nil {
-			fmt.Fprintf(os.Stderr, "archive: destination already exists, skipping: %s\n", dst)
-			continue
-		}
-
-		if err := os.Rename(t.Path, dst); err != nil {
-			fmt.Fprintf(os.Stderr, "archive: cannot move %s: %v\n", t.Filename(), err)
+		if err := moveTicketToClosed(ticketDir, &t); err != nil {
+			// Preserve archive's historical skip-on-collision behaviour; any
+			// other move failure (symlinked/non-dir closed/, rename error) is
+			// a hard error.
+			var col *errMoveCollision
+			if errors.As(err, &col) {
+				fmt.Fprintf(os.Stderr, "archive: destination already exists, skipping: %s\n", col.Dst)
+				continue
+			}
+			fmt.Fprintf(os.Stderr, "archive: %v\n", err)
 			exitCode = 1
 			continue
 		}

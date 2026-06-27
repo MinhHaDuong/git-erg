@@ -228,7 +228,7 @@ Prints 'CREATED NNNN-slug.erg' on success. Exits non-zero on exhaustion or I/O e
 
 Atomically close a ticket.
 
-Closing a ticket is a three-step operation:
+Closing a ticket is a four-step operation:
 
   1. Inserts a Closed: REASON header at the end of the preamble (before `--- log ---`).
   2. Appends a timestamped log line: `TIMESTAMP AUTHOR closed — REASON`.
@@ -238,12 +238,16 @@ Closing a ticket is a three-step operation:
      Already-closed tickets that reference the ID are not modified. If a ticket
      has multiple Blocked-by: ID lines, all are removed in one pass.
      Step 3 iterates all open tickets; it is idempotent but not atomic.
+  4. Moves the closed ticket into DIR/closed/, so closing files the ticket in
+     one step -- no separate `erg archive` -- and a closed ticket has a single
+     terminal location. A ticket that is already closed but still at top-level
+     (hand-closed, or a close interrupted before the move) is filed by re-running
+     close. The move is durable and confined to the store.
 
 ID may be a 4-digit ticket ID or a full filename (e.g. 0042-some-title.erg).
 REASON must be non-empty. The operation is idempotent (safe to call twice for
-the same ticket): closing an already-closed ticket prints 'CLOSED (already)' and
-exits 0. Step 3 (Blocked-by removal) is also idempotent; re-running close on
-an already-closed ticket does not re-scan dependents.
+the same ticket): once the ticket is filed under closed/, close prints
+'CLOSED (already)' and exits 0. Step 3 (Blocked-by removal) is also idempotent.
 
 ## erg log ID LINE [DIR]
 

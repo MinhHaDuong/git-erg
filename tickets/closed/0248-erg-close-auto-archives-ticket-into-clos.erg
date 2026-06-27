@@ -2,12 +2,14 @@
 Title: erg close auto-archives ticket into closed/ directory
 Created: 2026-06-23
 Author: HDMX-coding-agent
+Closed: implemented: shared move helper, move-aware close, symlink/collision hardening, ID-resolution fallback (PR)
 
 --- log ---
 2026-06-23T09:23Z HDMX-coding-agent created
 2026-06-23T09:40Z HDMX-coding-agent note phase 1 of the deferred close/archive redesign (STATE "Premature" section); phase 2 = epoch rollover, stays deferred
 2026-06-27T17:30Z Claude note hardening from red-team panel appended (see "Review hardening"); phase-2 epoch rollover dropped after review — rationale moved to pep-erg-v1.md (ID-space exhaustion)
 
+2026-06-27T19:12Z Claude closed — implemented: shared move helper, move-aware close, symlink/collision hardening, ID-resolution fallback (PR)
 --- body ---
 ## Context
 

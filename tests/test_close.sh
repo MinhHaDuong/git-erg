@@ -28,10 +28,12 @@ Author: claude
 Test body.
 EOF
 
+# close now files the ticket under closed/ in one step.
+CLOSED9001="$FIXTURES/closed/9001-closable.erg"
 OUT=$(ERG_AUTHOR=testuser $ERG close 9001 "done with this" "$FIXTURES")
 if [ "$OUT" = "CLOSED" ]; then
-    if grep -q "^Closed: done with this$" "$FIXTURES/9001-closable.erg"; then
-        if grep -q "testuser closed — done with this" "$FIXTURES/9001-closable.erg"; then
+    if grep -q "^Closed: done with this$" "$CLOSED9001"; then
+        if grep -q "testuser closed — done with this" "$CLOSED9001"; then
             pass "close open ticket by ID"
         else
             fail "close open ticket by ID (missing log line)"
@@ -44,13 +46,15 @@ else
 fi
 
 # --- erg close must not introduce a Status: line ---
-if grep -q "^Status:" "$FIXTURES/9001-closable.erg"; then
+if grep -q "^Status:" "$CLOSED9001"; then
     fail "erg close did not introduce Status: line"
 else
     pass "erg close did not introduce Status: line"
 fi
 
-# --- Close already-closed ticket (idempotent) ---
+# --- A header-closed but still top-level ticket is self-repaired (filed) ---
+# close moves any closed-but-unfiled ticket into closed/ (one terminal state),
+# and only reports "CLOSED (already)" once the ticket is filed there.
 cat > "$FIXTURES/9002-already-closed.erg" <<'EOF'
 %erg 0.1
 Title: Already closed
@@ -67,10 +71,34 @@ Test body.
 EOF
 
 OUT=$($ERG close 9002 "closing again" "$FIXTURES")
-if [ "$OUT" = "CLOSED (already)" ]; then
-    pass "already-closed ticket returns CLOSED (already)"
+if [ "$OUT" = "CLOSED" ] && [ -f "$FIXTURES/closed/9002-already-closed.erg" ] && [ ! -f "$FIXTURES/9002-already-closed.erg" ]; then
+    pass "header-closed top-level ticket is filed into closed/ (self-repair)"
 else
-    fail "already-closed ticket returns CLOSED (already) (output: $OUT)"
+    fail "header-closed top-level self-repair (output: $OUT)"
+fi
+
+# --- A ticket already filed under closed/ is an idempotent no-op ---
+mkdir -p "$FIXTURES/closed"
+cat > "$FIXTURES/closed/9052-filed.erg" <<'EOF'
+%erg 0.1
+Title: Already filed
+Created: 2026-01-01
+Author: claude
+Closed: done
+
+--- log ---
+2026-01-01T10:00Z claude created
+2026-01-02T10:00Z claude closed — done
+
+--- body ---
+Test body.
+EOF
+
+OUT=$($ERG close 9052 "again" "$FIXTURES")
+if [ "$OUT" = "CLOSED (already)" ]; then
+    pass "ticket already under closed/ returns CLOSED (already)"
+else
+    fail "ticket already under closed/ returns CLOSED (already) (output: $OUT)"
 fi
 
 # --- Close-by-path ticket lacking a Closed: header gets one ---
@@ -89,7 +117,7 @@ EOF
 
 OUT=$($ERG close "$FIXTURES/9003-by-path.erg" "switching approach")
 if [ "$OUT" = "CLOSED" ]; then
-    if grep -q "^Closed: switching approach$" "$FIXTURES/9003-by-path.erg"; then
+    if grep -q "^Closed: switching approach$" "$FIXTURES/closed/9003-by-path.erg"; then
         pass "close by file path"
     else
         fail "close by file path (no Closed: header)"
@@ -133,7 +161,7 @@ EOF
 
 OUT=$($ERG close 9004 "header only" "$FIXTURES")
 if [ "$OUT" = "CLOSED" ]; then
-    if head -n 8 "$FIXTURES/9004-body-mention.erg" | grep -q "^Closed: header only$"; then
+    if head -n 8 "$FIXTURES/closed/9004-body-mention.erg" | grep -q "^Closed: header only$"; then
         pass "close adds Closed: header in preamble"
     else
         fail "close did not put Closed: in preamble"
@@ -160,7 +188,9 @@ else
     pass "empty reason rejected"
 fi
 
-# --- File path ending with "-closed.erg" treated as already closed ---
+# --- A path-closed (-closed.erg) ticket still at top-level is filed, not re-closed ---
+# IsClosed() is true via the path test, so close adds no second header; it just
+# files the ticket under closed/.
 cat > "$FIXTURES/9006-suffix-closed.erg" <<'EOF'
 %erg 0.1
 Title: Path-closed ticket
@@ -173,10 +203,10 @@ Author: claude
 --- body ---
 EOF
 OUT=$($ERG close "$FIXTURES/9006-suffix-closed.erg" "another close" 2>/dev/null || true)
-if [ "$OUT" = "CLOSED (already)" ]; then
-    pass "path-closed ticket recognized as already-closed"
+if [ "$OUT" = "CLOSED" ] && [ -f "$FIXTURES/closed/9006-suffix-closed.erg" ] && ! grep -q "^Closed:" "$FIXTURES/closed/9006-suffix-closed.erg"; then
+    pass "path-closed (-closed suffix) ticket is filed without a redundant header"
 else
-    fail "path-closed ticket recognized (rc=$rc, output: $OUT)"
+    fail "path-closed ticket filed (output: $OUT)"
 fi
 
 # --- "disclosed" path component must NOT trigger closed ---
@@ -414,7 +444,7 @@ Author: haduong
 --- body ---
 EOF
 OUT=$(ERG_AUTHOR=testuser $ERG close 9100 "override check" "$FIXTURES")
-if [ "$OUT" = "CLOSED" ] && grep -q "testuser closed — override check" "$FIXTURES/9100-author-override.erg"; then
+if [ "$OUT" = "CLOSED" ] && grep -q "testuser closed — override check" "$FIXTURES/closed/9100-author-override.erg"; then
     pass "ERG_AUTHOR: close log line uses override"
 else
     fail "ERG_AUTHOR: close log line uses override (output: $OUT)"

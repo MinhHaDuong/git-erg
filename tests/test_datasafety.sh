@@ -60,16 +60,19 @@ WS="$FIXTURES/atomic"
 mkdir -p "$WS"
 write_open "$WS/0001-atom.erg" "Atom"
 for cmd in log label close; do
+    # close files the ticket under closed/ in one step, so the post-mutation
+    # file lands there; log/label rewrite in place.
+    fpath="$WS/0001-atom.erg"
     case "$cmd" in
     log) write_open "$WS/0001-atom.erg" "Atom"; before=$(inode_of "$WS/0001-atom.erg")
          $ERG log 0001 "claude note touched" "$WS" >/dev/null 2>&1 ;;
     label) write_open "$WS/0001-atom.erg" "Atom"; before=$(inode_of "$WS/0001-atom.erg")
          $ERG label 0001 needs-human "$WS" >/dev/null 2>&1 ;;
     close) write_open "$WS/0001-atom.erg" "Atom"; before=$(inode_of "$WS/0001-atom.erg")
-         $ERG close 0001 "done" "$WS" >/dev/null 2>&1 ;;
+         $ERG close 0001 "done" "$WS" >/dev/null 2>&1; fpath="$WS/closed/0001-atom.erg" ;;
     esac
-    after=$(inode_of "$WS/0001-atom.erg")
-    if [ "$before" != "$after" ] && $ERG validate "$WS/0001-atom.erg" >/dev/null 2>&1; then
+    after=$(inode_of "$fpath")
+    if [ "$before" != "$after" ] && $ERG validate "$fpath" >/dev/null 2>&1; then
         pass "atomic: erg $cmd replaces via rename (inode $before → $after) leaving a valid file"
     else
         fail "atomic: erg $cmd should rename, not truncate-in-place (before=$before after=$after)"
@@ -146,7 +149,7 @@ EOF
 }
 write_rt2; extract_body "$WS/0002-rt.erg" "$WS/.b_want"
 $ERG close 0002 "done" "$WS" >/dev/null 2>&1
-extract_body "$WS/0002-rt.erg" "$WS/.b_after"
+extract_body "$WS/closed/0002-rt.erg" "$WS/.b_after"
 if cmp -s "$WS/.b_want" "$WS/.b_after"; then
     pass "lossless: body preserved verbatim across erg close"
 else
