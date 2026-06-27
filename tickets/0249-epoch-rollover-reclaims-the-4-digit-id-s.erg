@@ -1,0 +1,142 @@
+%erg 0.1
+Title: epoch rollover reclaims the 4-digit ID space
+Created: 2026-06-27
+Author: Claude
+Blocked-by: 0248
+Label: deferred
+
+--- log ---
+2026-06-27T17:10Z Claude created
+2026-06-27T17:13Z Claude note deferred (Label) — design captured; phase 2 of 0248, blocked until phase 1 lands. Promote only when a real store nears the 9999 wall (AGENTS.md "verified empirical need" bar).
+
+--- body ---
+## Context
+
+Phase 2 of the close/archive redesign (phase 1 = ticket 0248). The 4-digit ID
+range (0001-9999, `src/go/nextid.go`) is a hard cap: `parseIDFromFilename`
+ignores IDs >= 10000 and `errRangeExhausted` fails closed at 9999. For a
+single-store, single-user backlog this is far outside the design envelope
+(git-erg is at ~250 over its whole life, ~40x margin), so the cap is best read
+as a "split the store" tripwire, not a routine limit. This ticket adds an
+OPTIONAL reclamation path for a store that genuinely accumulates more than 9999
+tickets over its lifetime: freeze closed generations into epochs so the live
+0001-9999 space recycles.
+
+**Durable identity is the load-bearing constraint.** A LIVE ticket's ID never
+changes — renumbering would break branch refs, `Blocked-by:`, and `git blame`,
+the property that justifies numeric IDs over content hashes. Reclamation is
+achieved by freezing CLOSED generations only, never by renumbering open work.
+
+## Model
+
+Three tiers, by path:
+
+- `tickets/*.erg` — open, current epoch. ID space active.
+- `tickets/closed/*.erg` — closed, current epoch. IDs still reserved (next-id scans).
+- `tickets/closed/epoch-N/*.erg` — frozen generation. IDs released (next-id skips).
+
+`erg rollover` (NEW verb, additive — `archive` is left untouched) sweeps
+`closed/*.erg` into `closed/epoch-<N>/`, where N = max existing epoch + 1. After
+a rollover the top-level `closed/` is empty again and the live 0001-9999 space
+is free to recycle.
+
+**Epoch directory naming: growing width, not fixed.** `epoch-1` ... `epoch-9`,
+then re-pad to `epoch-01` ... `epoch-10` at ten, `epoch-001` at one hundred, and
+so on. This makes the epoch counter itself UNBOUNDED — an odometer that grows a
+digit rather than a fixed-width counter with its own ceiling — while a plain
+`ls | sort` stays correct across the boundary. The re-pad is astronomically rare
+(reaching `epoch-10` needs ~90k tickets of history) and touches ONLY the frozen
+layer, so live-ticket identity is never affected. It runs as a mechanical
+`erg migrate`-style sweep that renames the dirs AND rewrites epoch-qualified refs
+in one atomic pass (refs are greppable).
+
+**Reclamation policy (next-id):**
+
+- (1, recommended — ship this first) Gate `rollover` on an EMPTY queue (0 open
+  tickets). Nothing is carried across the boundary, `next-id` stays `max+1`, and
+  the space resets fully to 0001. Fits git-erg's drain-to-zero cadence — the
+  natural rollover moment is "the queue is empty, close the chapter".
+  The gate is necessity, not caution: a mid-flight rollover under `max+1`
+  reclaims nothing. After sweeping closed/ away, `next-id` is still
+  `max(open) + 1`, and since open tickets are the recent (highest-numbered)
+  ones, that is ~the ceiling — so with any open ticket present the operation is
+  a no-op for the counter. Refusing is the honest behaviour; reclamation only
+  happens at an empty-queue rollover. (Only policy 2 makes a mid-flight rollover
+  meaningful.)
+- (2, reserve — only if a real need for rollover-with-open-tickets appears)
+  Switch `next-id` to MIN-FREE within the current epoch, so a rollover with open
+  tickets still in flight reclaims the freed low IDs without renumbering them,
+  at the cost of strict chronological-by-ID order. Do not build until needed.
+
+## Relevant files
+
+- `src/go/nextid.go` — `maxIDInDir` uses a recursive `filepath.WalkDir`, so
+  everything under `closed/` counts as reserved today. Phase 2 narrows the walk
+  to SKIP `closed/epoch-*/` (frozen) while still scanning loose `closed/*.erg`
+  (current epoch). `parseIDFromFilename` / `errRangeExhausted` stay as-is — the
+  range is still 0001-9999 PER EPOCH.
+- `src/go/archive.go` — reuse the shared move primitive 0248 factors out
+  (`moveTicketToClosed` or equivalent: MkdirAll + collision-check + Rename) for
+  the rollover sweep. `archive` itself is not modified.
+- NEW `src/go/rollover.go` — `cmdRollover`: empty-queue gate (policy 1); compute
+  next epoch N (max epoch dir + 1, growing width); on crossing a power of ten,
+  re-pad existing epoch dirs migrate-style and rewrite epoch-qualified refs;
+  `MkdirAll closed/epoch-<N>/`; move every `closed/*.erg` in via the shared helper.
+- `src/go/erg.go` — `pathIsClosed` already matches a `closed` segment at ANY
+  depth, so `closed/epoch-N/` reads closed for free. Leave untouched; keep the
+  read criterion disjunctive (Closed: header OR path).
+- ref resolution — a `local-ref` NNNN resolves to `tickets/0042.erg` today. An
+  epoch-qualified ref to a frozen ticket (`closed/epoch-1/0042`) needs a NEW
+  resolution rule: today's `path-ref` grammar resolves `module/NNNN` to
+  `module/tickets/NNNN.erg` from the repo root, so it would miss the archive
+  subdir. Spec the qualified-frozen-ref form and wire its resolution where
+  `Blocked-by:` / `Superseded-by:` are resolved.
+- `tickets/erg` — rebuild the bootstrap binary (`make update-bootstrap-binary`,
+  verify with `make verify`).
+- `erg spec` §4 (ID assignment / range) and §5 — document epochs, the
+  growing-width naming, and the `rollover` verb.
+- `src/go/helptext.go` / commands registry — register `rollover`.
+
+## Actions
+
+1. Add `erg rollover` (`rollover.go`), reusing 0248's shared move helper.
+   Empty-queue gate (policy 1). Next epoch = max(existing epoch dirs) + 1; on a
+   power-of-ten crossing, re-pad existing dirs and rewrite epoch-qualified refs.
+2. Narrow `nextid.go`'s walk to skip `closed/epoch-*/`; keep loose `closed/*.erg`
+   counted as reserved.
+3. Spec the epoch-qualified frozen-ref form + resolution rule; implement
+   resolution alongside the existing local-/path-/forge-ref resolvers.
+4. Register the verb + help text; update spec §4/§5.
+5. Rebuild bootstrap binary; `make verify`; `make check`.
+
+## Test
+
+- `erg rollover` on an empty queue moves all `closed/*.erg` into
+  `closed/epoch-1/`, leaves `tickets/` untouched, and `next-id` afterwards
+  returns 0001 (space reclaimed).
+- `next-id` skips `closed/epoch-*/` but still counts loose `closed/*.erg` as
+  reserved.
+- Growing width: crossing `epoch-9` -> `epoch-10` re-pads `epoch-1..9` to
+  `epoch-01..09` AND rewrites an epoch-qualified `Blocked-by:` accordingly.
+- Live tickets are never renumbered by a rollover (assert open-ticket IDs and
+  filenames unchanged).
+- `archive` and the pre-push nag hook behave exactly as before (additive check).
+
+## Invariants
+
+- Live ticket IDs never change. Rollover touches only the frozen (closed) layer.
+- `archive` semantics and the `erg install --push-hook` nag are unchanged.
+- Per-epoch ID range stays 0001-9999 (`parseIDFromFilename` / `errRangeExhausted`
+  untouched).
+- `pathIsClosed` untouched — epoch dirs read closed for free; criterion stays
+  disjunctive.
+- Re-pad is the ONLY operation that renames frozen tickets; it runs migrate-style
+  (dirs + refs in one atomic pass) and only at power-of-ten epoch-count boundaries.
+
+## Exit criteria
+
+`erg rollover` freezes the current closed generation into `closed/epoch-<N>/`
+(growing-width naming), reclaiming the live 0001-9999 space; `archive` and the
+hook unchanged; `next-id` skips frozen epochs; live tickets never renumbered;
+epoch-qualified frozen refs are speced and resolvable; spec §4/§5 + help updated;
+bootstrap rebuilt; `make check` and `make verify` pass.

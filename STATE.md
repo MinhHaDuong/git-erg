@@ -28,8 +28,6 @@ Premature, unproven, or waiting on evidence. Do not promote without AGENTS.md ba
 - feat: erg new with body on the line.
 - audit: usage in idh.
 - feat: AI script to realign docs and code (partial: 0232)
-- feat: Epoch rollover for the ID space — under tickets/closed/, one subdir per epoch (e.g. closed/2026/), a frozen namespace next-id does not scan. Keeps 4-digit width and citable IDs while preserving durable identity (old refs stay unambiguous by qualifying with the epoch, closed/2026/0042; resolving that to tickets/closed/<epoch>/NNNN.erg needs a new rule — today's path-ref grammar resolves module/NNNN to module/tickets/NNNN.erg from the repo root, so it would miss the archive subdir). Turns the 9999 "ever-created" ceiling into a "live tickets" ceiling. No empirical pressure yet (store at ~250/9999).
-- feat: Resolve `erg close` vs `erg archive` (couples to the epoch idea above). close always git-mv's the ticket into tickets/closed/ (header + move in one commit) — one terminal state, killing the closed-but-unarchived limbo and its pre-push nag hook, and making the open list a flat tickets/*.erg. archive is repurposed to the epoch rollover: sweep closed/*.erg → closed/<epoch>/. Breaking: redefines archive's shipped semantics and drops the closed-but-unarchived hook (close.go, archive.go, install.go, spec §5, ~5 test files). next-id then scans closed/ top-level (current gen, IDs still reserved) but skips closed/<epoch>/ (frozen). Read criterion stays disjunctive (closed = Closed: header OR path), so hand-edits still win.
 
 ## Status
 <!-- generated 2026-06-18T10:11Z -->
