@@ -54,8 +54,8 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
       open) -- these read as a status assertion about the ticket rather than
       the thing being changed. Enforced on open tickets; closed tickets are
       grandfathered (existing closed history is never flagged).
-  15. Superseded-by values parse as local-ref (NNNN), path-ref (module/NNNN),
-      or forge-ref (host/owner/repo#N) -- same grammar as Blocked-by. Local
+  15. Superseded-by values parse as local-ref (NNNN) or forge-ref
+      (host/owner/repo#N) -- same grammar as Blocked-by. Local
       refs must point to existing ticket IDs. Self-reference is an error.
       Repeatable (one-to-many supersession). Carried by the CLOSED ticket,
       pointing at the ticket(s) that replace it; it is durable lineage and is
@@ -83,7 +83,8 @@ under DIR recursively and verifies invariants that require a global view:
   - All per-ticket format rules (delegates to validateCorpus, which folds in parser-emitted errors).
 
   - Folder/header closure: open ticket in closed/ or closed ticket not in
-    closed/ (the "close-without-archive" escape -- run 'erg archive').
+    closed/ (a hand-edited Closed: header that was not filed -- erg close now
+    files in one step; run 'erg close ID' or 'erg archive').
 
 Additionally emits warnings (non-fatal) for:
 

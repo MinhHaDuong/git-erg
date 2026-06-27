@@ -84,12 +84,14 @@ git-erg local tickets: see tickets/AGENTS.md
 
 ## 3. Pre-push warning
 
-`erg install --hooks` (step 1) also installs a pre-push hook that WARNS when
-tickets are closed but not yet archived (it prints the exact `erg archive` +
-commit + push recipe). It mutates nothing and never blocks the push: a
+`erg install --hooks` (step 1) also installs a pre-push hook that WARNS when a
+ticket is closed but not yet filed under `closed/` (it prints the exact `erg
+archive` + commit + push recipe). Since `erg close` now files the ticket into
+`closed/` in one step, this normally only catches a ticket closed by a
+hand-edited `Closed:` header. It mutates nothing and never blocks the push: a
 pre-push hook cannot get a file move into the push it gates, and a mutating
-hook would leave a dirty tree. Archiving stays a deliberate step (`erg
-archive`, or automatic at merge).
+hook would leave a dirty tree. Filing a hand-closed ticket stays a deliberate
+step (`erg archive`, or automatic at merge).
 
 To install only the pre-push hook without the pre-commit hook, use
 `erg install --push-hook`.
