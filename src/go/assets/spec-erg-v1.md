@@ -153,6 +153,8 @@ A ticket is **closed** if at least one of these holds:
 
 Otherwise the ticket is **not-closed** (open).
 
+`erg close` applies **both** signals in one step: it writes the `Closed:` header and files the ticket under `closed/`, so a tool-closed ticket carries the header *and* the path test at once and needs no separate `erg archive`. `erg archive` remains the path-only sweep for tickets closed by a hand-edited `Closed:` header that still sit at top-level.
+
 `erg check` emits a corpus hygiene **warning** (non-fatal) when a ticket's folder placement and `Closed:` header disagree. This mismatch does not make the ticket invalid -- the disjunctive criterion above is authoritative for the closed/not-closed decision.
 
 There is no `pending` or `claimed` label by design, external state must not be encoded in ticket description.

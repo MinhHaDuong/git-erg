@@ -140,8 +140,8 @@ if [ "$rc" -ne 0 ] && echo "$out" | grep -q "no ticket found"; then
 else
     fail "id-inject: close should refuse embedded-separator ID (rc=$rc, got: $out)"
 fi
-# Negative control: a normal NNNN-slug.erg ID is accepted (close mutates it).
-if $ERG close 0042 reason "$WS" >/dev/null 2>&1 && grep -q '^Closed:' "$WS/0042-real.erg"; then
+# Negative control: a normal NNNN-slug.erg ID is accepted (close mutates+files it).
+if $ERG close 0042 reason "$WS" >/dev/null 2>&1 && grep -q '^Closed:' "$WS/closed/0042-real.erg"; then
     pass "id-inject neg ctrl: normal '0042-real.erg' ID is accepted"
 else
     fail "id-inject neg ctrl: normal '0042-real.erg' ID should be accepted"
@@ -161,7 +161,9 @@ cp "$WS/external.erg" "$WS/.ext-snapshot"
 ln -s "$WS/external.erg" "$WS/store/9002-symlink.erg"
 
 $ERG close 9002 done "$WS/store" >/dev/null 2>&1 || true
-if [ ! -L "$WS/store/9002-symlink.erg" ] && grep -q '^Closed:' "$WS/store/9002-symlink.erg" 2>/dev/null; then
+# close de-symlinks via the atomic header write, then files the regular file
+# under closed/ -- the external target is never followed.
+if [ ! -L "$WS/store/closed/9002-symlink.erg" ] && grep -q '^Closed:' "$WS/store/closed/9002-symlink.erg" 2>/dev/null; then
     pass "symlink: close replaces the in-store link with an in-store regular file"
 else
     fail "symlink: close should turn the link into an in-store regular file with Closed:"
@@ -185,7 +187,7 @@ fi
 
 # Negative control: a real in-store file (not a symlink) closes normally.
 write_open "$WS/store/9003-real.erg" "Real"
-if $ERG close 9003 done "$WS/store" >/dev/null 2>&1 && grep -q '^Closed:' "$WS/store/9003-real.erg"; then
+if $ERG close 9003 done "$WS/store" >/dev/null 2>&1 && grep -q '^Closed:' "$WS/store/closed/9003-real.erg"; then
     pass "symlink neg ctrl: close on a real in-store file succeeds"
 else
     fail "symlink neg ctrl: close on a real in-store file should succeed"
@@ -379,7 +381,7 @@ else
     fail "glob: close '*' should refuse as ambiguous (rc=$rc, got: $out)"
 fi
 write_open "$WS/single/9001-only.erg" "Only"
-if $ERG close 9001 reason "$WS/single" >/dev/null 2>&1 && grep -q '^Closed:' "$WS/single/9001-only.erg"; then
+if $ERG close 9001 reason "$WS/single" >/dev/null 2>&1 && grep -q '^Closed:' "$WS/single/closed/9001-only.erg"; then
     pass "glob neg ctrl: single ticket closes normally"
 else
     fail "glob neg ctrl: single ticket should close normally"

@@ -31,25 +31,30 @@ else
     fail "log: line appended"
 fi
 
-# 3. Close it
+# 3. Close it -- close now files the ticket under closed/ in one step.
 $ERG close "$ID" "pipeline complete" "$TDIR" > /dev/null
-if grep -q "^Closed: pipeline complete" "$TDIR/$FILE"; then
+if grep -q "^Closed: pipeline complete" "$TDIR/closed/$FILE"; then
     pass "close: Closed header written"
 else
     fail "close: Closed header written"
 fi
+if [ -f "$TDIR/closed/$FILE" ] && [ ! -f "$TDIR/$FILE" ]; then
+    pass "close: file filed under closed/"
+else
+    fail "close: file filed under closed/"
+fi
 
-# 4. Archive it
+# 4. Archive is now a no-op (close already filed it); the ticket stays put.
 $ERG archive "$TDIR" > /dev/null
 if [ -f "$TDIR/closed/$FILE" ]; then
-    pass "archive: file moved to closed/"
+    pass "archive: closed ticket remains under closed/"
 else
-    fail "archive: file moved to closed/"
+    fail "archive: closed ticket remains under closed/"
 fi
 if [ ! -f "$TDIR/$FILE" ]; then
-    pass "archive: file removed from top-level"
+    pass "archive: nothing left at top-level"
 else
-    fail "archive: file removed from top-level"
+    fail "archive: nothing left at top-level"
 fi
 
 # 5. erg check passes on the result
