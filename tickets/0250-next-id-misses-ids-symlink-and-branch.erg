@@ -1,0 +1,60 @@
+%erg 0.1
+Title: next-id misses IDs (symlink store path, /HEAD branch filter) -> duplicate IDs
+Created: 2026-06-27
+Author: Claude
+
+--- log ---
+2026-06-27T18:06Z Claude created
+2026-06-27T18:06Z Claude note from red-team bug hunt; independent of 0248 (nextid.go untouched by phase 1)
+
+--- body ---
+## Context
+
+Bug hunt on `next-id` / cross-worktree ID reservation (nextid.go). Two reproduced
+defects silently disable the very machinery that prevents ID reuse, producing
+genuine duplicate IDs via `erg new`.
+
+## Findings (reproduced against scratch stores + git worktree in /tmp)
+
+- **[major] Symlinked store path silently skips the cross-worktree/branch scans.**
+  nextid.go:142-153. `worktreeTopFor` uses `git rev-parse --show-toplevel`, which
+  returns the SYMLINK-RESOLVED real path, but `filepath.Abs(dir)` (line 146)
+  leaves the symlink unresolved. `filepath.Rel(top, absDir)` (line 150) then yields
+  a `../...` path, tripping the boundary guard at 151, so pass 2 (sibling
+  worktrees) and pass 3 (branch tips) are skipped with NO warning -> stale-low
+  next-id and real ID reuse. Not exotic: `/tmp` is a symlink on macOS; symlinked
+  home/checkout dirs are common. Repro: `ln -s realrepo symrepo; erg new "x"
+  symrepo/tickets` allocated 0002 while 0002 was already committed on `feature`.
+  Fix: `absDir, _ = filepath.EvalSymlinks(absDir)` (or EvalSymlinks both `top` and
+  `absDir`) before the Rel computation. Verified the fix restores passes 2/3.
+
+- **[major] `knownBranches` drops any real branch whose name ends in `/HEAD`.**
+  nextid.go:73. The filter `strings.HasSuffix(line, "/HEAD")` is meant to skip
+  only the `origin/HEAD` remote symref but also matches legitimate branches like
+  `feature/HEAD`; IDs committed only there become invisible to pass 3 -> reuse.
+  Repro: branch `feature/HEAD` carrying `0050-h.erg`; `erg next-id` from `main`
+  returned 0002 instead of 0051. Fix: add `%(symref)` to the `git for-each-ref`
+  `--format` and skip lines whose symref is non-empty (real branches have empty
+  symref; `origin/HEAD` resolves to `refs/remotes/origin/main`). Verified.
+
+- **[minor] `parseIDFromFilename` accepts `+`/negative-prefixed stems.**
+  nextid.go:31. `strconv.Atoi` parses `+0042-x.erg` to 42 and `-0042.erg` to -42
+  (for `-0042.erg`, `Index("-")==0` so the leading-dash split does not fire).
+  Neither can RAISE maxID (negative is below real IDs; `+0042` equals canonical),
+  so impact is low, but malformed/adversarial filenames are silently treated as
+  valid IDs. Fix: after Atoi also reject `n < 1` (and optionally require an
+  all-digit stem) so only 0001-9999 count.
+
+## Test
+
+- A store reached through a symlinked path still runs passes 2/3: an ID committed
+  on a sibling worktree / branch is NOT re-allocated by `erg new` / `erg next-id`.
+- A `feature/HEAD` branch carrying a high ID is counted; `next-id` returns max+1.
+- `+0042`/`-0042` filenames do not count toward maxID.
+
+## Exit criteria
+
+`next-id` resolves the store path's symlinks before the worktree-boundary Rel
+check, so the cross-worktree/branch scan runs on symlinked stores; the `/HEAD`
+symref is distinguished by `%(symref)`, not by name suffix; `parseIDFromFilename`
+counts only canonical 0001-9999 stems; `make check` and `make verify` pass.

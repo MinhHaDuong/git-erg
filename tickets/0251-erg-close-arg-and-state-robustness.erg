@@ -1,0 +1,76 @@
+%erg 0.1
+Title: erg close arg-parsing and state robustness (--help-as-REASON, dashed reason, lost reason)
+Created: 2026-06-27
+Author: Claude
+
+--- log ---
+2026-06-27T18:07Z Claude created
+2026-06-27T18:07Z Claude note from red-team bug hunt on the close path; independent of 0248 but the lost-reason case overlaps 0248's idempotency rework
+
+--- body ---
+## Context
+
+Bug hunt on the `erg close` command path (close.go + the global flag scan in
+main.go). Three majors let a close silently no-op or lose data while exiting 0,
+plus two minor robustness gaps.
+
+## Findings (reproduced against a scratch store in /tmp)
+
+- **[major] `--help`/`-h` anywhere in the args no-ops the command with exit 0.**
+  main.go:231-246. The global scan loops over ALL `rest` args and prints help +
+  `os.Exit(0)` on the first `--help`/`-h`, before `cmdClose` runs. A script doing
+  `erg close "$ID" "$REASON"` with a user-supplied REASON of `--help`/`-h` prints
+  help, exits 0, and does NOT close (grep -c Closed: -> 0). Repro: `erg close 0001
+  --help $DIR`. Fix: stop the global help scan at the first non-flag positional
+  (treat `--help` only when it precedes the subcommand's positionals), or have
+  close consume REASON positionally first.
+
+- **[major] A REASON beginning with `-` is unconditionally rejected; no `--`
+  end-of-options.** close.go:39-45. The arg loop rejects any token starting with
+  `-` as an unknown flag, so `erg close 0001 "-- superseded by 0050"` or
+  `"-1 priority"` is impossible (exit 1, ticket untouched). There is no `--`
+  separator. Fix: support a `--` end-of-options marker, or only treat tokens
+  before the first two positionals as flags.
+
+- **[major] close drops the reason for a path-closed-but-header-open ticket,
+  exit 0.** close.go:103. `IsClosed()` is true if the PATH contains a `closed`
+  segment even with no `Closed:` header. A ticket sitting in `closed/` with no
+  header hits the `CLOSED (already)` branch: no header, no log line, no Blocked-by
+  sweep, yet exit 0 -- the supplied REASON is silently lost. Repro: open ticket at
+  `$DIR/closed/0007-x.erg` (no header) -> `erg close .../0007-x.erg "reason"`
+  prints `CLOSED (already)`, exit 0, grep -c Closed: -> 0. Fix: gate the
+  idempotency branch on `ticket.Closed != ""` (header present), not `IsClosed()`,
+  so a path-closed-but-unheadered ticket still gets its header + log written.
+
+- **[minor] close mangles line-ending style on CRLF/BOM tickets.** close.go:113-119.
+  `insertClosedHeader`/`appendLogLine` operate on the raw `string(data)` (BOM +
+  CRLF intact) and insert with bare `\n`, so the new lines land as LF inside an
+  otherwise-CRLF file (BOM preserved). No data loss (check warns), but mixed EOLs.
+  Fix: normalize on the bytes close rewrites, or insert using the detected EOL.
+
+- **[minor] Blocked-by sweep is not re-run on a re-close, so a partial sweep
+  failure is permanent.** close.go:103 + 157-185. `clearBlockedByRefs` writes each
+  dependent independently; a per-file failure only warns and close still exits 0.
+  Re-running `erg close <ID>` returns at the `CLOSED (already)` branch before the
+  sweep, so a dangling ref cannot be repaired by re-close. Help text documents
+  this ("does not re-scan dependents") -> intended-but-fragile. Fix: on the
+  already-closed path still run the (idempotent) sweep, or make a sweep write
+  failure non-zero exit.
+
+## Test
+
+- `erg close <ID> --help` / a REASON of `--help` does NOT exit 0 without closing
+  (it either closes with that literal reason or errors clearly).
+- A REASON starting with `-` (after `--`, or as the documented positional) closes
+  the ticket with that literal reason.
+- close on a header-less ticket under `closed/` writes the `Closed:` header + log
+  with the supplied reason (reason not lost).
+- close preserves a CRLF/BOM ticket's EOL style on the inserted lines.
+
+## Exit criteria
+
+`erg close` cannot silently no-op or drop the reason while exiting 0: `--help` no
+longer pre-empts a close, reasons starting with `-` are expressible (via `--` or
+positional handling), a header-less path-closed ticket still gets its header/log,
+inserted lines match the file's EOL, and the dependent sweep is repairable;
+`make check` and `make verify` pass.
