@@ -27,7 +27,7 @@ func folderClosure(tickets []Erg) []string {
 		}
 		if !inClosedDir && hasClosed {
 			errs = append(errs, fmt.Sprintf(
-				"%s: closed ticket not in closed/ directory -- run 'erg archive'", t.Filename()))
+				"%s: closed ticket not in closed/ directory -- run 'erg close ID' or 'erg archive' to file it", t.Filename()))
 		}
 	}
 	return errs
@@ -191,7 +191,8 @@ under DIR recursively and verifies invariants that require a global view:
   - All per-ticket format rules (delegates to validateCorpus, which folds in parser-emitted errors).
 
   - Folder/header closure: open ticket in closed/ or closed ticket not in
-    closed/ (the "close-without-archive" escape -- run 'erg archive').
+    closed/ (a hand-edited Closed: header that was not filed -- erg close now
+    files in one step; run 'erg close ID' or 'erg archive').
 
 Additionally emits warnings (non-fatal) for:
 
