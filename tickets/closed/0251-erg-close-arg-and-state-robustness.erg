@@ -2,11 +2,13 @@
 Title: erg close arg-parsing and state robustness (--help-as-REASON, dashed reason, lost reason)
 Created: 2026-06-27
 Author: Claude
+Closed: fixed 3 majors: --help/-h no longer pre-empts a close (main.go scan stops at first positional/--); REASON via -- end-of-options; header-less path-closed tickets record the reason (gate on Closed== rather than IsClosed). Minors resolved as non-defects: sweep-failure-exit is intended (test-asserted close-succeeds), CRLF EOL is spec-tolerated (never autofixed; check warns). PR
 
 --- log ---
 2026-06-27T18:07Z Claude created
 2026-06-27T18:07Z Claude note from red-team bug hunt on the close path; independent of 0248 but the lost-reason case overlaps 0248's idempotency rework
 
+2026-06-27T21:16Z Claude closed — fixed 3 majors: --help/-h no longer pre-empts a close (main.go scan stops at first positional/--); REASON via -- end-of-options; header-less path-closed tickets record the reason (gate on Closed== rather than IsClosed). Minors resolved as non-defects: sweep-failure-exit is intended (test-asserted close-succeeds), CRLF EOL is spec-tolerated (never autofixed; check warns). PR
 --- body ---
 ## Context
 

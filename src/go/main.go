@@ -229,6 +229,12 @@ func main() {
 	}
 
 	for _, arg := range rest {
+		// Stop at the first positional or an explicit "--" end-of-options: a
+		// subcommand REASON/argument of "--help" must reach the subcommand
+		// rather than be swallowed as a global help request (ticket 0251).
+		if arg == "--" || !strings.HasPrefix(arg, "-") {
+			break
+		}
 		if arg == "--help" || arg == "-h" {
 			found := false
 			for _, c := range commands {

@@ -203,10 +203,10 @@ Author: claude
 --- body ---
 EOF
 OUT=$($ERG close "$FIXTURES/9006-suffix-closed.erg" "another close" 2>/dev/null || true)
-if [ "$OUT" = "CLOSED" ] && [ -f "$FIXTURES/closed/9006-suffix-closed.erg" ] && ! grep -q "^Closed:" "$FIXTURES/closed/9006-suffix-closed.erg"; then
-    pass "path-closed (-closed suffix) ticket is filed without a redundant header"
+if [ "$OUT" = "CLOSED" ] && [ -f "$FIXTURES/closed/9006-suffix-closed.erg" ] && grep -q "^Closed: another close$" "$FIXTURES/closed/9006-suffix-closed.erg"; then
+    pass "path-closed (-closed suffix) ticket is filed and records the reason"
 else
-    fail "path-closed ticket filed (output: $OUT)"
+    fail "path-closed ticket filed with reason (output: $OUT)"
 fi
 
 # --- "disclosed" path component must NOT trigger closed ---
@@ -521,6 +521,74 @@ rm -rf "$STORE" "$OTHER"
     else
         fail "unknown flag not rejected (rc=$rc, got: $out)"
     fi
+
+# --- 0251: --help/-h as REASON no longer silently no-ops the close ---
+# Previously the global flag scan saw --help anywhere and printed help + exit 0,
+# so a REASON of --help "succeeded" without closing. Now --help triggers help
+# only before the positionals; a literal --help reason is expressible via `--`.
+cat > "$FIXTURES/9201-help-reason.erg" <<'EOF'
+%erg 0.1
+Title: Help reason
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+out=$($ERG close 9201 --help "$FIXTURES" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && ! echo "$out" | grep -q "Inserts a Closed: REASON header"; then
+    pass "0251: '--help' as REASON does not silently no-op (errors, not help/exit-0)"
+else
+    fail "0251: '--help' as REASON should not print help/exit 0 (rc=$rc, out=$out)"
+fi
+out=$($ERG close 9201 -- --help "$FIXTURES")
+if [ "$out" = "CLOSED" ] && grep -q "^Closed: --help$" "$FIXTURES/closed/9201-help-reason.erg"; then
+    pass "0251: a literal '--help' REASON is expressible via --"
+else
+    fail "0251: '--' should make '--help' a literal reason (out=$out)"
+fi
+
+# --- 0251: a REASON starting with '-' is expressible via -- ---
+cat > "$FIXTURES/9202-dash-reason.erg" <<'EOF'
+%erg 0.1
+Title: Dash reason
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+out=$($ERG close 9202 -- "-- superseded by 0050" "$FIXTURES")
+if [ "$out" = "CLOSED" ] && grep -q "^Closed: -- superseded by 0050$" "$FIXTURES/closed/9202-dash-reason.erg"; then
+    pass "0251: a REASON starting with '-' is expressible via --"
+else
+    fail "0251: '--' should allow a dash-leading reason (out=$out)"
+fi
+
+# --- 0251: a header-less ticket already under closed/ records the reason ---
+# Previously this hit "CLOSED (already)" and silently dropped the reason.
+mkdir -p "$FIXTURES/closed"
+cat > "$FIXTURES/closed/9203-filed-noheader.erg" <<'EOF'
+%erg 0.1
+Title: Filed without a header
+Created: 2026-01-01
+Author: claude
+
+--- log ---
+2026-01-01T10:00Z claude created
+
+--- body ---
+EOF
+out=$($ERG close 9203 "late reason" "$FIXTURES")
+if [ "$out" = "CLOSED" ] && grep -q "^Closed: late reason$" "$FIXTURES/closed/9203-filed-noheader.erg"; then
+    pass "0251: header-less ticket under closed/ records its reason (not dropped)"
+else
+    fail "0251: reason dropped for header-less closed/ ticket (out=$out)"
+fi
 
 
 echo "close: $PASS passed, $FAIL failed"
