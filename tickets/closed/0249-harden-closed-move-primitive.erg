@@ -2,11 +2,13 @@
 Title: harden the closed/ move primitive (symlink escape, collision wedge)
 Created: 2026-06-27
 Author: Claude
+Closed: fixed the destination-collision wedge: archive now exits non-zero on an ID conflict (was a silent exit-0 leaving a check-failing top-level ticket). The other findings landed in 0248: symlink-escape (helper refuses symlinked closed/ + re-asserts withinStore), dry-run collision preview, and closed/-as-file now errors. PR
 
 --- log ---
 2026-06-27T18:05Z Claude created
 2026-06-27T18:05Z Claude note from red-team bug hunt on 0248's surface; couples to 0248 (which extracts this mover into a shared moveTicketToClosed helper and routes erg close through it)
 
+2026-06-27T21:21Z Claude closed — fixed the destination-collision wedge: archive now exits non-zero on an ID conflict (was a silent exit-0 leaving a check-failing top-level ticket). The other findings landed in 0248: symlink-escape (helper refuses symlinked closed/ + re-asserts withinStore), dry-run collision preview, and closed/-as-file now errors. PR
 --- body ---
 ## Context
 

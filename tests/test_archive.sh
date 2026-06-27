@@ -171,7 +171,10 @@ fi
 # There is no meaningful test to write here: the absence of a collision error
 # would be vacuous (the file is simply never visited by the scanner).
 
-# --- Destination collision: skip with error message (idempotent) ---
+# --- Destination collision: error (exit 1), source left in place (ticket 0249) ---
+# A different ticket already occupies the closed/ basename -- a real ID conflict.
+# Skipping with exit 0 left the closed source at top-level, which erg check then
+# hard-fails on forever (a silent, scripted-caller-invisible wedge). Surface it.
 write_closed "$FIXTURES/7020-collision.erg" "Collision Ticket"
 mkdir -p "$FIXTURES/closed"
 write_closed "$FIXTURES/closed/7020-collision.erg" "Already There"
@@ -186,7 +189,7 @@ if [ -f "$FIXTURES/7020-collision.erg" ]; then
 else
     fail "collision: source not removed on collision"
 fi
-if [ "$RC" -eq 0 ]; then pass "collision: archive exits 0 (skip is not fatal)"; else fail "collision: archive should exit 0 (rc=$RC)"; fi
+if [ "$RC" -ne 0 ]; then pass "collision: archive exits non-zero (conflict is fatal, not a silent wedge)"; else fail "collision: archive should exit non-zero on conflict (rc=$RC)"; fi
 
 # --- Non-existent ID: warning printed, exit 1 (audit fix-now: ID-mode failures must set exit code) ---
 OUT6=$($ERG archive 9999 "$FIXTURES" 2>&1) && rc=0 || rc=$?
