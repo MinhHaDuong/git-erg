@@ -6,6 +6,7 @@ Author: HDMX-coding-agent
 --- log ---
 2026-06-23T09:23Z HDMX-coding-agent created
 2026-06-23T09:40Z HDMX-coding-agent note phase 1 of the deferred close/archive redesign (STATE "Premature" section); phase 2 = epoch rollover, stays deferred
+2026-06-27T17:30Z Claude note hardening from red-team panel appended (see "Review hardening"); phase-2 epoch rollover dropped after review — rationale moved to pep-erg-v1.md (ID-space exhaustion)
 
 --- body ---
 ## Context
@@ -68,6 +69,11 @@ Net effect of phase 1: `close` becomes one-step; nothing's semantics change;
 
 ## Forward-compatibility with phase 2 (epoch rollover)
 
+_Note (2026-06-27): phase 2 (epoch rollover) was dropped after review — ID-space
+scaling now goes via the path-ref multi-store split (rationale in
+pep-erg-v1.md). The four constraints below still stand on their own merit: they
+keep phase 1 minimal and non-breaking, independent of any successor._
+
 Phase 1 must not paint phase 2 into a corner. The four load-bearing constraints:
 
 - **Move to `closed/` TOP-LEVEL only**, never a dated subdir. Phase-2 `next-id`
@@ -120,5 +126,33 @@ moved by `erg close` (prints `CLOSED (already)`, stays put for `archive`).
 `erg close` relocates the closed ticket into `tickets/closed/` in addition to
 its existing header + log + Blocked-by-strip steps; `archive` and the nag hook
 unchanged; the move primitive is shared (not inlined) so phase 2 can reuse it;
-`nextid.go` and `pathIsClosed` untouched; help text + spec §5 updated; bootstrap
+`nextid.go` and `pathIsClosed` untouched; help text + spec updated; bootstrap
 binary rebuilt; `make check` and `make verify` pass.
+
+## Review hardening (red-team panel, 2026-06-27)
+
+Findings to address during implementation:
+
+- **Route the move through a durability-preserving helper, not a bare
+  `os.Rename`.** `cmdArchive`'s mover does not fsync; `close` already does a
+  fsync'd atomic header write, then this non-durable rename. A crash after the
+  rename returns but before the `closed/` directory entry is flushed can lose the
+  ticket — a never-lose-data violation. `moveTicketToClosed` must fsync both the
+  source and destination parent dirs (mirror `atomicWriteFile`).
+- **Make the idempotency branch and ID-resolution move-aware.** A crash mid-
+  sequence (header -> Blocked-by sweep -> move) strands a closed ticket at
+  top-level, which `erg check` flags as a hard error; re-running `erg close <ID>`
+  does NOT repair it — the `CLOSED (already)` branch returns before the move, and
+  `resolveTicketByID` globs `DIR/<ID>-*.erg` non-recursively so the ID form
+  cannot even find a moved file. Fix: if a ticket is closed-but-top-level, fall
+  through to the move; and have ID resolution fall back to `closed/` so
+  `erg close <ID>` stays idempotent (and findable) after archiving.
+- **Helper takes two inputs.** Source is `t.Path`; destination base is
+  `ticketDir` (dest = `filepath.Join(ticketDir, "closed", t.Filename())`), since
+  for the FILE form `t.Path` need not be a child of `ticketDir`. The collision
+  guard stays a non-atomic `os.Stat`-then-`Rename` (parity with archive); leave
+  the open-only `blockedBy` guard at archive's call site (close pre-clears open
+  dependents in step 3, so its move is never blocked).
+- **Spec citation fix.** This ticket says "spec §5"; the spec has no numbered
+  sections — the relevant header is `### Closed / not-closed criterion` (and
+  `### ID assignment`). Cite the named `###` headers when updating the spec.

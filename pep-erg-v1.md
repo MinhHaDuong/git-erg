@@ -101,6 +101,37 @@ git's own optimistic concurrency model.
 - Hash-based IDs: explored early, abandoned because
   hashes are opaque and don't sort chronologically.
 
+**ID-space exhaustion (the 9999 ceiling).** Four zero-padded digits cap a store
+at 9999 IDs, and `next-id` fails closed there rather than widening to five
+digits. The bound is not a defect to engineer around — it is the price of
+dumb-tool sortability: `ls | sort` orders tickets correctly only because the
+width is fixed, so "fixed-width padded" and "unbounded" cannot both hold. For
+the design envelope — a single store, single user, offline — 9999 is far out of
+reach (git-erg sits at ~250 over its whole life), so the cap is best read as a
+"split the store" tripwire, not a routine limit.
+
+If a store ever genuinely nears the wall, the answer is the already-specified
+path-ref multi-store split (`module/NNNN`): a second `tickets/` directory
+namespaced by path. The unbounded backing is then the filesystem itself —
+arbitrary directory names, not a new counter — and it needs zero new code.
+
+**Alternatives considered (and rejected):**
+- Epoch rollover — freeze closed generations into `closed/epoch-N/` to recycle
+  the live 0001-9999 space. Rejected: it adds a stateful directory tier, a new
+  verb, a migration, and a new ref-resolution rule to defend against an event of
+  effectively zero probability — pushing against *small* and the empirical-need
+  bar. A panel review also found blocking correctness gaps (next-id reclamation
+  incomplete across the git-tree scan and the duplicate-ID check; a non-atomic
+  re-pad sweep; epoch-qualified frozen refs unexpressible in the ref grammar).
+  Nesting a bounded epoch counter under a bounded ID counter does not lift the
+  bound; partitioning by path does.
+- Variable-width IDs (`1, 2, ... 10000`): truly unbounded, but forfeits
+  `ls | sort` lexical ordering — the property the padding exists to provide.
+
+**The one durable invariant from that exploration:** never renumber a live
+ticket. Renumbering would break branch refs, `Blocked-by:`, and `git blame` —
+the very durability that justifies numeric IDs over content hashes.
+
 ### 4. ID in filename, not header
 
 **Choice:** The ticket ID is derived from the filename prefix, not from
