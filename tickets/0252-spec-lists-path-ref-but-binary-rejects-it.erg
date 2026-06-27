@@ -1,0 +1,75 @@
+%erg 0.1
+Title: spec normative grammar lists path-ref but the binary rejects it
+Created: 2026-06-27
+Author: Claude
+Label: needs-human
+
+--- log ---
+2026-06-27T20:05Z Claude created
+2026-06-27T20:05Z Claude note found during the post-0248 doc verification; spec-vs-binary conflict, needs a maintainer arbitration call (which way to resolve)
+
+--- body ---
+## Context
+
+The spec (`erg spec`, section "### Blocked-by references") defines `path-ref`
+(`module/NNNN`, e.g. `auth/0012`) as a valid reference form for `Blocked-by`
+and `Superseded-by`, with a resolution table (`auth/0012` ->
+`auth/tickets/0012.erg`) and the rule that an unresolved path-ref is "treated as
+blocking". It already notes: "Resolution and cycle detection for path-refs are
+deferred to a follow-up implementation ticket."
+
+But the reference binary does **not** parse path-ref at all. `parseRef`
+(`src/go/ref.go`) implements only `RefLocal` (4-digit) and `RefForge`
+(`host/owner/repo#N`). So a spec-conforming file is **rejected** by `erg
+validate`:
+
+    $ printf '...\nBlocked-by: auth/0012\n...' > t.erg && erg validate t.erg
+    ERG VALIDATION FAILED (1 error):
+      t.erg:5: malformed ref "auth/0012": not a 4-digit local ID or host/owner/repo#N
+
+(Reproduced 2026-06-27.)
+
+## The conflict
+
+This violates the spec's own authority rule: "This spec is normative for files:
+a hand-edited file that satisfies it is valid regardless of binary version." A
+file using the spec's documented `path-ref` grammar is spec-valid yet the binary
+refuses it. Per the spec's three scopes, this is either:
+
+- **Spec errata** (align the spec to the binary): path-ref is not part of the
+  v1 *format* yet -- only its eventual resolution was deferred, but the spec
+  over-promised by listing it as a currently-valid ref form. Fix: mark path-ref
+  "reserved / not yet a v1 ref form" in the grammar, so the normative format
+  matches what validates.
+- **Binary bug** (the *agnostic* invariant says a spec-valid file must
+  validate): add a `RefPath` kind to `parseRef` so the documented grammar
+  parses (resolution can stay deferred -- unresolved => blocking, as the spec
+  already says).
+
+The PEP arbitrates intent when the two scopes conflict; hence `needs-human`.
+
+## Recommendation
+
+Lean to **spec errata** (cheapest, lowest risk): path-ref *resolution* was
+already deferred, so the inconsistency is that the grammar advertises a form the
+binary can neither parse nor resolve. Marking it reserved keeps "strict on
+write" honest and avoids blessing an unimplemented format. If cross-module
+dependencies become a verified need, promote path-ref as a real format+resolver
+in one ticket (parse + resolve + cycle detection together).
+
+## Relevant files
+
+- `src/go/ref.go` -- `parseRef` (RefLocal / RefForge only; the rejection
+  message "not a 4-digit local ID or host/owner/repo#N").
+- `src/go/assets/spec-erg-v1.md` -- "### Blocked-by references" grammar block
+  and resolution table; the `Superseded-by` section reuses the same grammar; the
+  existing "Resolution ... deferred" note.
+- `docs/erg-manual.md` regenerates from `--help`; the spec is delivered via
+  `erg spec`. Rebuild the bootstrap binary if the embedded spec changes.
+
+## Exit criteria
+
+The spec's normative ref grammar and the binary's `parseRef` agree: a file is
+spec-valid for `Blocked-by`/`Superseded-by` iff `erg validate` accepts it.
+Either path-ref is marked reserved (errata) or it parses (binary fix); `erg
+check`/`validate` and the spec no longer contradict each other.
