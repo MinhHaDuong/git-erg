@@ -2,11 +2,13 @@
 Title: next-id misses IDs (symlink store path, /HEAD branch filter) -> duplicate IDs
 Created: 2026-06-27
 Author: Claude
+Closed: fixed: parseIDFromFilename rejects non-canonical stems (allDigits + n<1); knownBranches uses %(symref) not /HEAD suffix; nextID resolves symlinks before the worktree-boundary check (PR)
 
 --- log ---
 2026-06-27T18:06Z Claude created
 2026-06-27T18:06Z Claude note from red-team bug hunt; independent of 0248 (nextid.go untouched by phase 1)
 
+2026-06-27T21:05Z Claude closed — fixed: parseIDFromFilename rejects non-canonical stems (allDigits + n<1); knownBranches uses %(symref) not /HEAD suffix; nextID resolves symlinks before the worktree-boundary check (PR)
 --- body ---
 ## Context
 
