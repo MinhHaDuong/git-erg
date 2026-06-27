@@ -32,17 +32,31 @@ Closing a ticket is a four-step operation:
      close. The move is durable and confined to the store.
 
 ID may be a 4-digit ticket ID or a full filename (e.g. 0042-some-title.erg).
-REASON must be non-empty. The operation is idempotent (safe to call twice for
-the same ticket): once the ticket is filed under closed/, close prints
-'CLOSED (already)' and exits 0. Step 3 (Blocked-by removal) is also idempotent.
+REASON must be non-empty. A REASON that begins with '-' (or is literally
+'--help') must follow a '--' end-of-options marker, e.g.
+` + "`erg close 0042 -- \"-- superseded by 0050\"`" + `.
+
+The operation is idempotent (safe to call twice): once the ticket is filed
+under closed/ AND carries the Closed: header, close prints 'CLOSED (already)'
+and exits 0. A ticket that is closed by path but still missing the header gets
+the header (and REASON) written, so a supplied reason is never silently
+dropped. Step 3 (Blocked-by removal) is also idempotent.
 `
 
 // cmdClose implements `erg close ID|FILE REASON [DIR]`. See helpClose for the user-facing summary.
 func cmdClose(args []string) int {
 	var positional []string
+	endOpts := false
 	for _, a := range args {
-		if strings.HasPrefix(a, "-") {
-			fmt.Fprintf(os.Stderr, "close: unknown flag %q\nUsage: erg close ID|FILE REASON [DIR]\n", a)
+		// "--" ends option parsing: everything after it is positional, so a
+		// REASON beginning with "-" (e.g. "-- superseded by 0050") or equal to
+		// "--help" is expressible (ticket 0251).
+		if !endOpts && a == "--" {
+			endOpts = true
+			continue
+		}
+		if !endOpts && strings.HasPrefix(a, "-") {
+			fmt.Fprintf(os.Stderr, "close: unknown flag %q\nUsage: erg close ID|FILE REASON [DIR] (use -- before a REASON starting with -)\n", a)
 			return 1
 		}
 		positional = append(positional, a)
@@ -113,23 +127,30 @@ func cmdClose(args []string) int {
 
 	closedDir := filepath.Join(ticketDir, "closed")
 
-	// Idempotent end-state: the ticket is already filed under closed/.
-	// Compare resolved absolute dirs so the ID and FILE forms agree regardless
-	// of how the path was spelled.
+	// Is the ticket already filed under closed/? Compare resolved absolute dirs
+	// so the ID and FILE forms agree regardless of how the path was spelled.
+	alreadyFiled := false
 	if a, e1 := filepath.Abs(filepath.Dir(ticketPath)); e1 == nil {
 		if b, e2 := filepath.Abs(closedDir); e2 == nil && a == b {
-			fmt.Println("CLOSED (already)")
-			return 0
+			alreadyFiled = true
 		}
 	}
 
-	// Not under closed/ yet. A genuinely OPEN ticket gets the Closed: header,
-	// the log line, and the dependent Blocked-by sweep. A ticket that is already
-	// closed (Closed: header OR path test) but sits outside closed/ -- hand-
-	// closed, a -closed.erg name, or a close that crashed before the move --
-	// skips straight to the move, so close self-repairs by filing it rather than
-	// re-writing a header or leaving a closed-but-unfiled ticket behind.
-	if !ticket.IsClosed() {
+	// Fully done: filed under closed/ AND carries the Closed: header, so the
+	// reason is already on record -- nothing to do. (A ticket filed by path but
+	// still missing the header falls through to the header write below.)
+	if alreadyFiled && ticket.Closed != "" {
+		fmt.Println("CLOSED (already)")
+		return 0
+	}
+
+	// Write the Closed: header + log line + dependent Blocked-by sweep whenever
+	// the header is missing: a genuinely open ticket, or a path-closed ticket (a
+	// closed/ dir or -closed.erg name) that never recorded a reason. Gating on
+	// the header -- not IsClosed() -- means a user-supplied REASON is never
+	// silently dropped (ticket 0251). A ticket that already carries the header
+	// is just filed below (self-repair), with no redundant second header.
+	if ticket.Closed == "" {
 		now := time.Now().UTC().Format("2006-01-02T15:04Z")
 		closedHeader := "Closed: " + reason
 		author := resolveAuthor()
@@ -156,12 +177,14 @@ func cmdClose(args []string) int {
 		}
 	}
 
-	// Step 4: move the closed ticket into closed/ -- one terminal state, no
-	// closed-but-unarchived limbo. The shared mover is durable and confined to
-	// the store.
-	if err := moveTicketToClosed(ticketDir, &ticket); err != nil {
-		fmt.Fprintf(os.Stderr, "close: %v\n", err)
-		return 1
+	// Step 4: file the closed ticket under closed/ when it is not already there
+	// -- one terminal state, no closed-but-unarchived limbo. The shared mover is
+	// durable and confined to the store.
+	if !alreadyFiled {
+		if err := moveTicketToClosed(ticketDir, &ticket); err != nil {
+			fmt.Fprintf(os.Stderr, "close: %v\n", err)
+			return 1
+		}
 	}
 
 	fmt.Println("CLOSED")

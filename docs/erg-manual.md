@@ -246,9 +246,15 @@ Closing a ticket is a four-step operation:
      close. The move is durable and confined to the store.
 
 ID may be a 4-digit ticket ID or a full filename (e.g. 0042-some-title.erg).
-REASON must be non-empty. The operation is idempotent (safe to call twice for
-the same ticket): once the ticket is filed under closed/, close prints
-'CLOSED (already)' and exits 0. Step 3 (Blocked-by removal) is also idempotent.
+REASON must be non-empty. A REASON that begins with '-' (or is literally
+'--help') must follow a '--' end-of-options marker, e.g.
+`erg close 0042 -- "-- superseded by 0050"`.
+
+The operation is idempotent (safe to call twice): once the ticket is filed
+under closed/ AND carries the Closed: header, close prints 'CLOSED (already)'
+and exits 0. A ticket that is closed by path but still missing the header gets
+the header (and REASON) written, so a supplied reason is never silently
+dropped. Step 3 (Blocked-by removal) is also idempotent.
 
 ## erg log ID LINE [DIR]
 
