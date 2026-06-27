@@ -28,7 +28,6 @@ Premature, unproven, or waiting on evidence. Do not promote without AGENTS.md ba
 - feat: erg new with body on the line.
 - audit: usage in idh.
 - feat: AI script to realign docs and code (partial: 0232)
-- feat: Epoch rollover (`erg rollover`) to reclaim the 0001-9999 ID space — freeze generations under closed/epoch-NNNN/, open tickets never renumbered. Phase 2 of the 0248 close/archive work.
 
 ## Status
 <!-- generated 2026-06-18T10:11Z -->
