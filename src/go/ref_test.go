@@ -8,11 +8,8 @@ import (
 func TestParseRef(t *testing.T) {
 	type want struct {
 		kind   RefKind
-		id     string // RefLocal only
-		host   string // RefForge only
-		owner  string
-		repo   string
-		number string
+		id     string // RefLocal and RefPath
+		module string // RefPath only
 	}
 	cases := []struct {
 		input       string
@@ -20,45 +17,36 @@ func TestParseRef(t *testing.T) {
 		errContains string // non-empty: err.Error() must contain this substring
 		want        want
 	}{
-		// Empty ref
-		{"", true, "", want{}},
+		// Empty ref.
+		{"", true, "empty", want{}},
 
-		// Valid local refs (exactly 4 ASCII digits)
+		// Local: exactly 4 ASCII digits -> current store.
 		{"0042", false, "", want{kind: RefLocal, id: "0042"}},
 		{"0001", false, "", want{kind: RefLocal, id: "0001"}},
 		{"9999", false, "", want{kind: RefLocal, id: "9999"}},
 
-		// Not 4 digits
-		{"123", true, "", want{}},
-		{"12345", true, "", want{}},
-		{"abcd", true, "", want{}},
+		// Path-ref: a relative path ending in /NNNN -> sibling module.
+		{"auth/0012", false, "", want{kind: RefPath, module: "auth", id: "0012"}},
+		{"libs/auth/0042", false, "", want{kind: RefPath, module: "libs/auth", id: "0042"}},
 
-		// Deprecated gh: scheme -- must name the precise failure mode.
-		// Distinguishing mutation: removing the gh: branch causes the
-		// case-variant guard to fire, producing a "case-sensitive" message
-		// instead of the correct "deprecated" message.
-		{"gh:owner/repo#1", true, "deprecated", want{}},
+		// Absolute URI (scheme present) -> opaque, RefURI.
+		{"https://github.com/o/r/raw/main/tickets/0042-x.erg", false, "", want{kind: RefURI}},
+		{"file:/abs/path/0042.erg", false, "", want{kind: RefURI}},
+		{"gh:owner/repo#1", false, "", want{kind: RefURI}}, // a scheme now, no longer a special error
 
-		// Deprecated gh# scheme -- same contract.
-		{"gh#42", true, "deprecated", want{}},
+		// Legacy forge spelling is now just an unresolvable relative handle, not
+		// an error: a path with a fragment, not ending in /NNNN.
+		{"github.com/owner/repo#123", false, "", want{kind: RefURI}},
 
-		// Case-variant old schemes -- must produce a "case-sensitive" message,
-		// not the deprecated-scheme message.
-		{"GH#42", true, "case-sensitive", want{}},
-		{"Gh:x/y#1", true, "case-sensitive", want{}},
+		// Relative refs that name no local ticket are valid-but-unresolved
+		// handles (optimistic policy warns on them; they are not errors).
+		{"123", false, "", want{kind: RefURI}},
+		{"abcd", false, "", want{kind: RefURI}},
+		{"auth/12345", false, "", want{kind: RefURI}}, // 5 digits -> not /NNNN
 
-		// Valid forge refs
-		{"github.com/owner/repo#123", false, "", want{kind: RefForge, host: "github.com", owner: "owner", repo: "repo", number: "123"}},
-		{"gitlab.com/org/project#7", false, "", want{kind: RefForge, host: "gitlab.com", owner: "org", repo: "project", number: "7"}},
-
-		// Invalid forge refs
-		{"github.com/owner/repo#0", true, "", want{}},       // leading zero
-		{"github.com/owner/repo#", true, "", want{}},        // empty number
-		{"github.com//repo#1", true, "", want{}},            // empty owner
-		{"only-one-slash/here#1", true, "", want{}},         // not 3-part path
-		{"host:port/owner/repo#1", true, "", want{}},        // host contains colon
-		{"github.com/owner/repo/extra#1", true, "", want{}}, // 4-part path must be rejected (#5)
-		{"github.com/owner/repo/a/b#1", true, "", want{}},   // 5-part path must be rejected (#5)
+		// Only a malformed URI-reference is an error: a space or control char.
+		{"0042 extra", true, "space or control", want{}},
+		{"a\tb", true, "space or control", want{}},
 	}
 
 	for _, tc := range cases {
@@ -83,24 +71,13 @@ func TestParseRef(t *testing.T) {
 			if got.Kind != tc.want.kind {
 				t.Errorf("Kind = %d, want %d", got.Kind, tc.want.kind)
 			}
-			if tc.want.kind == RefLocal {
+			if tc.want.kind == RefLocal || tc.want.kind == RefPath {
 				if got.ID != tc.want.id {
 					t.Errorf("ID = %q, want %q", got.ID, tc.want.id)
 				}
 			}
-			if tc.want.kind == RefForge {
-				if got.Host != tc.want.host {
-					t.Errorf("Host = %q, want %q", got.Host, tc.want.host)
-				}
-				if got.Owner != tc.want.owner {
-					t.Errorf("Owner = %q, want %q", got.Owner, tc.want.owner)
-				}
-				if got.Repo != tc.want.repo {
-					t.Errorf("Repo = %q, want %q", got.Repo, tc.want.repo)
-				}
-				if got.Number != tc.want.number {
-					t.Errorf("Number = %q, want %q", got.Number, tc.want.number)
-				}
+			if tc.want.kind == RefPath && got.Module != tc.want.module {
+				t.Errorf("Module = %q, want %q", got.Module, tc.want.module)
 			}
 		})
 	}

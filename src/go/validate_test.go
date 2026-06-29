@@ -197,11 +197,10 @@ func TestValidateErg(t *testing.T) {
 			wantErrors: false,
 		},
 		{
-			name:       "invalid Blocked-by ref (deprecated gh: scheme)",
+			name:       "Blocked-by absolute URI (scheme) is valid (unresolved handle)",
 			filename:   "0001-test.erg",
 			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: gh:foo/bar#1\n\n--- log ---\n--- body ---\n",
-			wantErrors: true,
-			wantSubstr: "deprecated",
+			wantErrors: false,
 		},
 		{
 			name:       "missing required Created header",
@@ -218,11 +217,11 @@ func TestValidateErg(t *testing.T) {
 			wantSubstr: "Author",
 		},
 		{
-			name:       "invalid Blocked-by ref (deprecated bare gh# scheme)",
+			name:       "malformed Blocked-by ref (contains a space) is rejected",
 			filename:   "0001-test.erg",
-			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: gh#42\n\n--- log ---\n--- body ---\n",
+			content:    "%erg 0.1\nTitle: X\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: 0042 nope\n\n--- log ---\n--- body ---\n",
 			wantErrors: true,
-			wantSubstr: "deprecated",
+			wantSubstr: "space or control",
 		},
 		{
 			name:       "Closed header with non-empty value accepted",
@@ -420,7 +419,7 @@ func TestValidateErg_GoldenInvalid(t *testing.T) {
 		"0001-bad-label.erg":         "unknown Label value",
 		"0001-bad-superseded-by.erg": "references unknown ticket ID",
 		"0001-empty-closed.erg":      "non-empty",
-		"0001-bad-forge-host.erg":    "malformed ref",
+		"0001-bad-ref.erg":           "malformed ref",
 		"0001-bad-log-timestamp.erg": "log line",
 		"0001-bad-log-verb.erg":      "log line",
 		"0001-bad-status.erg":        "Status",
@@ -464,7 +463,7 @@ func TestValidateErg_GoldenInvalid(t *testing.T) {
 // testdata/invalid/*.erg references it -- either the key (lowercased) appears
 // in the fixture's filename (e.g. "0001-bad-label.erg" for Label) or the
 // fixture content carries a literal "Key:" header line (e.g.
-// "0001-bad-forge-host.erg" carries a "Blocked-by:" line). The exemptions set
+// "0001-bad-ref.erg" carries a "Blocked-by:" line). The exemptions set
 // names keys deliberately left without a fixture; it is empty by design --
 // every header key should have a negative test. Extracted as a helper so the
 // meta-test's negative control can drive it with a doctored key set.

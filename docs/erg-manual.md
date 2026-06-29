@@ -39,8 +39,9 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
   6. Closed: header has a non-empty value and does not appear in the log or body sections.
   7. Created is a valid ISO date (YYYY-MM-DD).
   8. Filename matches NNNN-slug.erg (4-digit ID, lowercase ASCII kebab slug).
-  9. Blocked-by values parse as local-ref (NNNN, exactly 4 digits) or
-     forge-ref (host/owner/repo#N, e.g. github.com/acme/myrepo#42).
+  9. Blocked-by values parse as a URI-reference (RFC 3986): a local NNNN, a
+     relative path-ref (auth/0042), or an absolute URI (https://...). Only a
+     malformed URI-reference (a space or control character) is rejected.
   10. Local Blocked-by refs point to existing ticket IDs in the same directory.
   11. Log lines match structural format: timestamp (YYYY-MM-DDThh:mmZ)
       followed by at least two whitespace-separated tokens. By convention
@@ -54,8 +55,8 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
       open) -- these read as a status assertion about the ticket rather than
       the thing being changed. Enforced on open tickets; closed tickets are
       grandfathered (existing closed history is never flagged).
-  15. Superseded-by values parse as local-ref (NNNN) or forge-ref
-      (host/owner/repo#N) -- same grammar as Blocked-by. Local
+  15. Superseded-by values parse as a URI-reference -- same grammar as
+      Blocked-by. Local
       refs must point to existing ticket IDs. Self-reference is an error.
       Repeatable (one-to-many supersession). Carried by the CLOSED ticket,
       pointing at the ticket(s) that replace it; it is durable lineage and is
@@ -116,8 +117,9 @@ vocabulary, three computed pseudo-labels are accepted:
 
   - closed   -- the ticket is closed (Closed: header or closed/ path).
   - open     -- the ticket is not closed.
-  - blocked  -- the ticket has an unsatisfied blocker (a forge ref, or a
-               Blocked-by pointing at an open local ticket).
+  - blocked  -- the ticket has a Blocked-by that resolves to an open ticket
+               (a local NNNN, or an open sibling path-ref); an unresolved
+               reference only warns, it does not block.
 
 Open is the default: with no open/closed term and without --all, only open
 tickets are shown. --all drops that default so closed tickets appear too
@@ -148,9 +150,10 @@ List tickets ready for work -- a saved filter over 'erg list'.
 A ticket is ready when all of the following hold:
 
   - Open (not closed).
-  - Not blocked: no Blocked-by pointing at an open local ticket, and no
-    forge-ref Blocked-by (forge refs are offline-unknown, treated as
-    blocking).
+  - Not blocked: no Blocked-by that resolves to an open ticket (a local NNNN,
+    or a relative path-ref to an open sibling). An unresolved reference -- an
+    absolute URI, or a path not present in this checkout -- is optimistic: it
+    warns, it does not block.
   - Carries none of the skip labels (default: needs-human, deferred;
     configurable via tickets/.ergrc [labels]).
 

@@ -125,7 +125,7 @@ func cmdRm(args []string) int {
 	targetID := target.FilenameID()
 
 	// Scan the whole corpus (open AND closed) for dependents: tickets with a
-	// local Blocked-by ref resolving to the target ID. Forge refs never point
+	// local Blocked-by ref resolving to the target ID. Non-local refs never point
 	// at local tickets, so only RefLocal matches.
 	all, _ := loadErgs(ticketDir)
 	cleanTarget := filepath.Clean(ticketPath)

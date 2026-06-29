@@ -276,18 +276,25 @@ cat > "$WS/0002-bad.erg" <<'EOF'
 Title: Bad ref
 Created: 2026-01-01
 Author: claude
-Blocked-by: ../../../../etc/passwd
+Blocked-by: ../../../../etc/0042
 
 --- log ---
 2026-01-01T10:00Z claude created
 
 --- body ---
 EOF
-out=$($ERG validate "$WS/0002-bad.erg" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "malformed ref"; then
-    pass "ref-inject: validate rejects traversal payload in Blocked-by (malformed ref)"
+# A traversal path-ref is a well-formed URI-reference, so validate accepts it.
+# The security property is that resolution never escapes the repo: it stays
+# unresolved (optimistic -> non-blocking), never reading outside the store.
+if $ERG validate "$WS/0002-bad.erg" >/dev/null 2>&1; then
+    pass "ref-inject: traversal path-ref is a valid handle (not a parse error)"
 else
-    fail "ref-inject: validate should reject traversal Blocked-by (rc=$rc, got: $out)"
+    fail "ref-inject: traversal path-ref should validate as a URI-reference"
+fi
+if $ERG ready "$WS" 2>/dev/null | grep -q "0002"; then
+    pass "ref-inject: traversal path-ref does not block (resolution stays in-repo)"
+else
+    fail "ref-inject: traversal path-ref should not block 0002 ($($ERG ready "$WS" 2>&1))"
 fi
 # Negative control: a legitimate local ref to an existing ticket validates.
 cat > "$WS/0003-good.erg" <<'EOF'

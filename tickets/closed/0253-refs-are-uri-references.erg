@@ -2,11 +2,13 @@
 Title: refs are URI-references (one standard handle, capability resolution)
 Created: 2026-06-27
 Author: Claude
+Closed: implemented: refs are URI-references (parseRef hand-rolled, no net/url for the offline contract); RefLocal/RefPath/RefURI; optimistic resolution (block only on resolved-open, unresolved warns non-blocking); path-ref resolved at repo root with a traversal guard; spec + help + manual updated
 
 --- log ---
 2026-06-27T22:00Z Claude created
 2026-06-27T22:00Z Claude note design settled with the maintainer (supersedes 0252's path-ref question). Spec-first: this ticket is the normative design; implementation follows.
 
+2026-06-29T12:04Z Claude closed — implemented: refs are URI-references (parseRef hand-rolled, no net/url for the offline contract); RefLocal/RefPath/RefURI; optimistic resolution (block only on resolved-open, unresolved warns non-blocking); path-ref resolved at repo root with a traversal guard; spec + help + manual updated
 --- body ---
 ## Context
 

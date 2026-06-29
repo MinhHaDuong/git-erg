@@ -70,7 +70,7 @@ format literals.
 | `Created` | yes | no | date | `YYYY-MM-DD` |
 | `Author` | yes | no | line | Agent or human identifier (non-empty) |
 | `Closed` | no | no | line | Closure reason (PR ref, supersession note, etc.); non-empty |
-| `Blocked-by` | no | yes | ref | Local `NNNN`, path-ref `module/NNNN`, or forge ref `host/owner/repo#N` (see grammar) |
+| `Blocked-by` | no | yes | ref | A URI-reference (RFC 3986): `NNNN`, a relative `module/NNNN`, or an absolute URI (see grammar) |
 | `Superseded-by` | no | yes | ref | Same grammar as `Blocked-by`; carried by the CLOSED ticket, pointing at its replacement(s) |
 | `Label` | no | yes | enum | Configurable via `.ergrc [labels]`; defaults: `needs-human`, `deferred` |
 
@@ -90,41 +90,53 @@ No other headers are valid in v1. No `X-` extensions.
 Forbidden in the log and body sections (header-key match at line start; substrings in prose are fine).
 Example: `Closed: completed in PR #5`
 
-**`Blocked-by` references** take one of three forms:
+**A `Blocked-by` reference is a URI-reference (RFC 3986).** There is no
+erg-specific reference grammar: the value is parsed as a URI-reference and
+resolved by capability.
 
 ```
-ref            := local-ref | path-ref | forge-ref
-local-ref      := [0-9]{4}
-path-ref       := path-component ("/" path-component)* "/" [0-9]{4}
+ref            := relative-ref | absolute-uri        (RFC 3986 section 4.1)
+relative-ref   := local-id | path-ref | <any other RFC 3986 relative-ref>
+local-id       := [0-9]{4}
+path-ref       := (path-component "/")+ [0-9]{4}
 path-component := [A-Za-z0-9_.-]+
-forge-ref      := host "/" owner "/" repo "#" number
-host           := [A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?
-owner          := [A-Za-z0-9_.-]+
-repo           := [A-Za-z0-9_.-]+
-number         := [1-9][0-9]*
+absolute-uri   := scheme ":" <opaque>                (scheme per RFC 3986 section 3.1)
 ```
 
-| Form | Example | Resolution |
-|------|---------|------------|
-| `local-ref` | `Blocked-by: 0042` | `tickets/0042.erg` in the same store |
-| `path-ref` | `Blocked-by: auth/0012` | `auth/tickets/0012.erg` from repo root |
-| `path-ref` | `Blocked-by: libs/auth/0042` | `libs/auth/tickets/0042.erg` from repo root |
-| `forge-ref` | `Blocked-by: github.com/foo/bar#1` | Issue N on a remote code forge |
+| Form | Example | Resolves to |
+|------|---------|-------------|
+| local-id (relative) | `Blocked-by: 0042` | `tickets/0042.erg` in the current store |
+| path-ref (relative) | `Blocked-by: auth/0012` | `auth/tickets/0012.erg` from the repo root |
+| path-ref (relative) | `Blocked-by: libs/auth/0042` | `libs/auth/tickets/0042.erg` from the repo root |
+| absolute URI | `Blocked-by: https://host/owner/repo/.../tickets/0042-x.erg` | the scheme's resolver, if any |
 
-The `path-component` grammar `[A-Za-z0-9_.-]+` also matches four-digit strings; disambiguation
-relies on position: a `path-ref` must end with a `"/"` followed by exactly four digits, while a
-`forge-ref` ends with `"#"` followed by a positive integer. The two forms are unambiguous.
+A scheme-less value is a **relative reference**, resolved against an erg base --
+the current store for `local-id`, the repo root for `path-ref` -- so it travels
+with the clone. A value with a scheme is an **absolute URI**, opaque to erg core
+and handed to a resolver for that scheme. Only standard schemes are used:
+`https:` for a remote/forge ticket; `file:` only for an absolute machine path
+(discouraged for committed tickets -- a `file:` URI is absolute and does not
+travel with the repo, so a portable local reference uses the scheme-less
+relative form).
 
-Local refs (`0042`) point to tickets in `tickets/`. Path-refs (`module/0042`) name a ticket in
-another module's `tickets/` directory relative to the repo root. Forge refs (`github.com/owner/repo#N`)
-name issues on any code forge. `erg` never makes network calls; unknown forge refs are blocking by
-default. One `Blocked-by:` line per dependency; remove the line once the dependency is resolved.
+**Resolution is a capability**, with three uniform states: *resolved-open*,
+*resolved-closed*, or *unresolved* (no resolver on this machine -- a relative
+path not present in this checkout, or an absolute URI offline / with no plugin).
 
-**Resolution and cycle detection** for path-refs are deferred to a follow-up implementation ticket.
-Tools that cannot resolve a path-ref treat it as blocking (same behaviour as offline forge refs).
+**Policy is optimistic.** A dependent is blocked only by a reference that
+resolves to an *open* ticket. An **unresolved** reference is a non-fatal
+**warning**, not a block: `erg list` / `erg ready` still show the dependent as
+ready and annotate the unresolved dependency, and `erg check` warns. (A
+*malformed* URI-reference -- e.g. containing spaces or control characters -- is a
+validation error.) `erg` never makes network calls; the core resolves only the
+relative references it can read in the current checkout.
+
+`erg close NNNN` auto-removes `Blocked-by: NNNN` lines from open dependents in
+the same store; references to other stores or to absolute URIs are removed by
+hand. One `Blocked-by:` line per dependency.
 
 **`Superseded-by` references** record supersession lineage and use the same
-reference grammar as `Blocked-by` (local-ref, path-ref, forge-ref). The header
+URI-reference grammar as `Blocked-by`. The header
 is carried by the **CLOSED (old) ticket** and points at the ticket(s) that
 replace it -- there is no header on the new ticket. It is repeatable: one ticket
 may be superseded by several (`Superseded-by: 0199` and `Superseded-by: 0200`

@@ -1,8 +1,8 @@
 %erg 0.1
-Title: Bad Forge Host
+Title: Malformed ref
 Created: 2024-01-01
 Author: test
-Blocked-by: g_h.com/a/b#1
+Blocked-by: 0042 bogus
 
 --- log ---
 --- body ---
