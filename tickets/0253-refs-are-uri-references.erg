@@ -1,0 +1,131 @@
+%erg 0.1
+Title: refs are URI-references (one standard handle, capability resolution)
+Created: 2026-06-27
+Author: Claude
+
+--- log ---
+2026-06-27T22:00Z Claude created
+2026-06-27T22:00Z Claude note design settled with the maintainer (supersedes 0252's path-ref question). Spec-first: this ticket is the normative design; implementation follows.
+
+--- body ---
+## Context
+
+erg has three ad-hoc reference forms for `Blocked-by`/`Superseded-by`,
+disambiguated by their *shape* (local `NNNN`; path-ref `module/NNNN` ending in
+four digits; forge-ref `host/owner/repo#N` ending in `#N`) -- and the binary
+never even implemented path-ref (0252). The shape-based disambiguation is the
+smell. Replace all of it with one standard, clear handle.
+
+Supersedes 0252 (path-ref is no longer a special form -- it is just a URI).
+
+## Design (settled with the maintainer)
+
+**A reference value is a URI-reference (RFC 3986).** No erg-invented grammar.
+
+### Relative reference (no scheme) -> local / in-repo, portable
+
+Resolved against an erg base; travels with the clone:
+
+- `NNNN` (exactly four digits) -> `tickets/NNNN.erg` in the current store.
+- a relative path ending in `/NNNN` -> resolved against the repo root, e.g.
+  `auth/0042` -> `auth/tickets/0042.erg` (a sibling module). [decision (b)]
+
+A scheme-less value is therefore EITHER `NNNN` OR a relative `.../NNNN` path.
+A relative value that is neither (a typo like `foo/bar`) parses as a handle but
+never resolves -> warn (see policy), it is not a hard validation error.
+
+### Absolute URI (has a scheme) -> resolved by that scheme, if available
+
+Standard schemes only -- nothing invented:
+
+- `https:` (and friends) for a remote/forge ticket or issue, e.g. the ticket's
+  own URL `https://github.com/owner/repo/.../tickets/0042-x.erg`.
+- `file:` ONLY for a genuine absolute machine path. Discouraged for committed
+  tickets: a `file:` URI is absolute (RFC 8089), so it bakes in the checkout
+  location and does not travel with the repo. Portable local refs use the
+  scheme-less relative form above, not `file:`.
+
+### Resolution is a capability -- three uniform states
+
+- **resolved-open** / **resolved-closed** -- a resolver for the scheme exists on
+  this machine AND found the target.
+- **unresolved** -- no resolver (a relative path not present in this checkout; an
+  `https:` target offline or with no plugin).
+
+### Policy: OPTIMISTIC (settled)
+
+Block a dependent ONLY on a reference erg can prove is **open** (a resolved-open
+local/relative target). An **unresolved** reference -> **warn, non-blocking**:
+
+- `list`/`ready` still show the dependent as ready, but annotate the unresolved
+  dependency on its line (so the warn is visible, not just an exit code).
+- `check` emits a non-fatal warning for an unresolved reference.
+
+This generalizes -- and reverses -- the current "offline forge-ref is treated as
+blocking". Rationale: it matches erg's optimistic-concurrency ethos (PEP: "follow
+git's optimistic model"), keeps `ready` usable in a disconnected environment
+(otherwise every cross-repo dependency would empty the ready queue), and a stale
+or mistyped handle no longer hides a ticket "forever". Trade accepted: a
+cross-repo `Blocked-by` is an *annotated warning*, not a hard gate -- adequate
+for a single-user, advisory tool. A configurable block/warn policy was
+considered and rejected as machinery (one uniform policy is clearer).
+
+### No resolver registry / plugin framework now (YAGNI)
+
+Core resolves the relative forms offline. Anything with a scheme it cannot
+handle is unresolved -> warn. A future OPTIONAL helper (erg-github-style, already
+a separate committed script) may resolve `https:` forge URLs when the network /
+plugin is present. Not built here.
+
+## Validation (parseRef / erg validate)
+
+Accept: `NNNN`; a relative `.../NNNN` path; any syntactically valid absolute
+URI-reference (opaque to erg). Reject only a malformed URI-reference (spaces,
+control chars). A well-formed but unresolvable reference is VALID -- the
+*agnostic* invariant requires a hand-written cross-repo dependency to validate.
+
+## Migration
+
+- `NNNN` -- unchanged.
+- `module/NNNN` (path-ref) -- already unimplemented; becomes a relative reference
+  (same spelling, now actually parsed and resolved against the repo root).
+- `host/owner/repo#N` (forge-ref) -- dropped from the normative grammar; express
+  a remote dependency as its URL (`https:`...). No real ticket uses the legacy
+  form today (store scanned 2026-06-27: only a doc example), so there is no data
+  to migrate; optionally keep a back-compat parse for one release.
+- `close`'s auto-sweep of `Blocked-by: NNNN` from open dependents stays for LOCAL
+  refs only; absolute/cross-repo references are never swept (manual removal),
+  consistent with their unresolved-here nature.
+
+## Relevant files
+
+- `src/go/ref.go` -- `parseRef` and the `Ref` kinds: replace the three shape-keyed
+  kinds with relative-local (`NNNN`), relative-path (`.../NNNN`), and
+  absolute-URI (opaque, scheme present). `MatchesLocalID` stays for the local case.
+- `src/go/refs.go` -- resolution + the optimistic blocking decision (block only on
+  resolved-open; unresolved -> warn).
+- `src/go/ready.go` / `list.go` / `check.go` -- annotate unresolved references on
+  output; `check` warns (non-fatal).
+- `src/go/assets/spec-erg-v1.md` -- rewrite "### Blocked-by references": "a
+  reference is a URI-reference (RFC 3986)", the relative-base rules, the
+  optimistic resolution policy; delete the path-ref/forge-ref tables and the
+  positional-disambiguation paragraph; update the `Superseded-by` section (same
+  grammar). Rebuild the bootstrap binary.
+- Tests: `ref_test.go`, `test_ready.sh`, `test_check.sh`, `test_validate.sh`.
+
+## Plan (spec first, then code)
+
+1. Rewrite the spec ref section to the URI-reference model (this design).
+2. `parseRef`: relative-local / relative-path / absolute-URI; validate accordingly.
+3. Resolution + optimistic policy in refs.go; annotate in ready/list/check.
+4. Tests (red-first) for each form and the warn-non-blocking policy.
+5. Rebuild bootstrap; `make check` + `make verify`.
+
+## Exit criteria
+
+A `Blocked-by`/`Superseded-by` value is exactly a URI-reference; `NNNN` and a
+relative `.../NNNN` resolve locally and block only when proven open; any
+unresolved reference warns and does not block, annotated on `list`/`ready`; the
+spec defines references as URI-references with the optimistic policy and no
+longer lists path-ref/forge-ref as bespoke forms; 0252 is superseded;
+`make check` and `make verify` pass.

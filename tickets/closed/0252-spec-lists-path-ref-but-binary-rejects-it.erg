@@ -3,11 +3,14 @@ Title: spec normative grammar lists path-ref but the binary rejects it
 Created: 2026-06-27
 Author: Claude
 Label: needs-human
+Superseded-by: 0253
+Closed: superseded by 0253: refs become URI-references (one standard handle + optimistic capability resolution); the path-ref-vs-binary conflict dissolves
 
 --- log ---
 2026-06-27T20:05Z Claude created
 2026-06-27T20:05Z Claude note found during the post-0248 doc verification; spec-vs-binary conflict, needs a maintainer arbitration call (which way to resolve)
 
+2026-06-29T11:36Z Claude closed — superseded by 0253: refs become URI-references (one standard handle + optimistic capability resolution); the path-ref-vs-binary conflict dissolves
 --- body ---
 ## Context
 
