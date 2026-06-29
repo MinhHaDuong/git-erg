@@ -191,20 +191,21 @@ else
     fail "list not LABEL: drops labeled tickets (output: $output)"
 fi
 
-# --- blocked pseudo-label: local open blocker and forge ref both count ---
+# --- blocked pseudo-label: only a local OPEN blocker counts; an unresolved
+# --- URI ref is optimistic, so 0005 is NOT blocked (ticket 0253) ---
 output=$($ERG list blocked "$FIXTURES/store")
-if echo "$output" | grep -qE '^  0002' && echo "$output" | grep -qE '^  0005' && ! echo "$output" | grep -qE '^  0001'; then
-    pass "list blocked: local + forge blockers included, unblocked excluded"
+if echo "$output" | grep -qE '^  0002' && ! echo "$output" | grep -qE '^  0005' && ! echo "$output" | grep -qE '^  0001'; then
+    pass "list blocked: only the local open blocker counts (unresolved URI ref does not)"
 else
-    fail "list blocked: local + forge blockers included, unblocked excluded (output: $output)"
+    fail "list blocked: only local open blocker counts (output: $output)"
 fi
 
-# --- not blocked: drops blocked tickets ---
+# --- not blocked: drops the local-blocked ticket, keeps the unresolved one ---
 output=$($ERG list not blocked "$FIXTURES/store")
-if echo "$output" | grep -qE '^  0001' && ! echo "$output" | grep -qE '^  0002' && ! echo "$output" | grep -qE '^  0005'; then
-    pass "list not blocked: drops blocked tickets"
+if echo "$output" | grep -qE '^  0001' && echo "$output" | grep -qE '^  0005' && ! echo "$output" | grep -qE '^  0002'; then
+    pass "list not blocked: drops the local-blocked ticket, keeps the optimistic one"
 else
-    fail "list not blocked: drops blocked tickets (output: $output)"
+    fail "list not blocked: drops the local-blocked ticket (output: $output)"
 fi
 
 # --- closed pseudo-label overrides the implicit open default ---
@@ -238,22 +239,22 @@ else
     pass "list: dangling 'not' errors"
 fi
 
-# --- JSON respects filters ---
+# --- JSON respects filters: only the local-blocked 0002 is "blocked" now ---
 output=$($ERG list --json blocked "$FIXTURES/store")
 if echo "$output" | jq -e 'all(.[]; .blocked_by | length > 0)' >/dev/null 2>&1 \
-    && echo "$output" | jq -e 'any(.[]; .id == "0005")' >/dev/null 2>&1; then
-    pass "list --json blocked: every entry has a blocker"
+    && echo "$output" | jq -e 'any(.[]; .id == "0002")' >/dev/null 2>&1 \
+    && echo "$output" | jq -e 'all(.[]; .id != "0005")' >/dev/null 2>&1; then
+    pass "list --json blocked: only the local-blocked ticket, every entry has a blocker"
 else
-    fail "list --json blocked: every entry has a blocker (output: $output)"
+    fail "list --json blocked: only local-blocked entries (output: $output)"
 fi
 
-# --- JSON forge blocker has kind="forge" and the literal ref ---
-if echo "$output" | jq -e '
-    [.[] | select(.id == "0005")] | .[0].blocked_by[0]
-    | .kind == "forge" and .ref == "github.com/anthropics/claude-code#1234"' >/dev/null 2>&1; then
-    pass "list --json: forge blocker shape (kind, ref)"
+# --- An unresolved URI ref is optimistic: 0005 has no blocker entry (0253) ---
+allout=$($ERG list --json "$FIXTURES/store")
+if echo "$allout" | jq -e '[.[] | select(.id == "0005")] | .[0].blocked_by | length == 0' >/dev/null 2>&1; then
+    pass "list --json: unresolved URI ref yields no blocker entry"
 else
-    fail "list --json: forge blocker shape (output: $output)"
+    fail "list --json: 0005 should have no blocker (output: $allout)"
 fi
 
 # --- JSON schema type pinning (ticket 0171) ---

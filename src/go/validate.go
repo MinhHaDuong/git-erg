@@ -8,8 +8,8 @@ import (
 )
 
 // detectCycles reports any dependency cycles among the tickets' Blocked-by
-// edges. Only RefLocal edges participate; forge refs are terminal from
-// this repo's view and cannot form local cycles.
+// edges. Only RefLocal edges participate; non-local refs (path-refs and
+// absolute URIs) are terminal from this store's view and cannot form local cycles.
 func detectCycles(tickets []Erg) []string {
 	var errors []string
 
@@ -223,8 +223,9 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
   6. Closed: header has a non-empty value and does not appear in the log or body sections.
   7. Created is a valid ISO date (YYYY-MM-DD).
   8. Filename matches NNNN-slug.erg (4-digit ID, lowercase ASCII kebab slug).
-  9. Blocked-by values parse as local-ref (NNNN, exactly 4 digits) or
-     forge-ref (host/owner/repo#N, e.g. github.com/acme/myrepo#42).
+  9. Blocked-by values parse as a URI-reference (RFC 3986): a local NNNN, a
+     relative path-ref (auth/0042), or an absolute URI (https://...). Only a
+     malformed URI-reference (a space or control character) is rejected.
   10. Local Blocked-by refs point to existing ticket IDs in the same directory.
   11. Log lines match structural format: timestamp (YYYY-MM-DDThh:mmZ)
       followed by at least two whitespace-separated tokens. By convention
@@ -238,8 +239,8 @@ Each FILE must be a .erg ticket. For every file the validator enforces:
       open) -- these read as a status assertion about the ticket rather than
       the thing being changed. Enforced on open tickets; closed tickets are
       grandfathered (existing closed history is never flagged).
-  15. Superseded-by values parse as local-ref (NNNN) or forge-ref
-      (host/owner/repo#N) -- same grammar as Blocked-by. Local
+  15. Superseded-by values parse as a URI-reference -- same grammar as
+      Blocked-by. Local
       refs must point to existing ticket IDs. Self-reference is an error.
       Repeatable (one-to-many supersession). Carried by the CLOSED ticket,
       pointing at the ticket(s) that replace it; it is durable lineage and is

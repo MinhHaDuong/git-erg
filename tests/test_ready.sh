@@ -246,10 +246,10 @@ fi
 # entries never appear here.
 
 rm -f "$FIXTURES/ready/"*.erg
-# --- Forge-ref blocker is blocking ---
-cat > "$FIXTURES/ready/0030-forge-blocked.erg" <<'EOF'
+# --- Unresolved absolute-URI ref is optimistic: warns, does NOT block (0253) ---
+cat > "$FIXTURES/ready/0030-uri-ref.erg" <<'EOF'
 %erg 0.1
-Title: Blocked by forge
+Title: Depends on an unresolved URI
 Created: 2026-01-01
 Author: a
 Blocked-by: github.com/anthropics/claude-code#1234
@@ -259,11 +259,11 @@ Blocked-by: github.com/anthropics/claude-code#1234
 
 --- body ---
 EOF
-output=$($ERG ready "$FIXTURES/ready")
+output=$($ERG ready "$FIXTURES/ready" 2>/dev/null)
 if echo "$output" | grep -q "0030"; then
-    fail "forge-ref blocker excluded from ready"
+    pass "unresolved URI ref does not block (optimistic): 0030 is ready"
 else
-    pass "forge-ref blocker excluded from ready"
+    fail "unresolved URI ref should not block 0030 (output: $output)"
 fi
 
 # --- Empty dir handled ---

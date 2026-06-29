@@ -154,10 +154,10 @@ func TestLoadListEntries(t *testing.T) {
 		t.Error("0002 should be closed")
 	}
 
-	// 0003: forge blocker -> blocked, one forge entry.
+	// 0003: an absolute/forge URI is unresolved -> optimistic warn, NOT blocked.
 	g := byID["0003"]
-	if !g.blocked || len(g.blockedBy) != 1 || g.blockedBy[0].kind != "forge" {
-		t.Errorf("0003: blocked=%v blockedBy=%+v, want blocked with one forge entry", g.blocked, g.blockedBy)
+	if g.blocked || len(g.blockedBy) != 0 {
+		t.Errorf("0003: blocked=%v blockedBy=%+v, want not blocked (unresolved URI ref only warns)", g.blocked, g.blockedBy)
 	}
 
 	// 0004: open local 0001 blocks; closed local 0002 is satisfied (dropped).
@@ -166,11 +166,12 @@ func TestLoadListEntries(t *testing.T) {
 		t.Errorf("0004: blocked=%v blockedBy=%+v, want one local blocker 0001", d.blocked, d.blockedBy)
 	}
 
-	// 0005: unknown local ref -> not blocking, one warning emitted.
+	// 0005: unknown local ref -> not blocking, warns.
 	if byID["0005"].blocked {
 		t.Error("0005 should not be blocked by an unknown local ref")
 	}
-	if len(warnings) != 1 {
-		t.Fatalf("got %d warnings, want 1: %v", len(warnings), warnings)
+	// Two unresolved refs warn: 0003's URI handle and 0005's unknown local 9999.
+	if len(warnings) != 2 {
+		t.Fatalf("got %d warnings, want 2: %v", len(warnings), warnings)
 	}
 }

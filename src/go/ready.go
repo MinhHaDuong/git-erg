@@ -17,9 +17,10 @@ List tickets ready for work -- a saved filter over 'erg list'.
 A ticket is ready when all of the following hold:
 
   - Open (not closed).
-  - Not blocked: no Blocked-by pointing at an open local ticket, and no
-    forge-ref Blocked-by (forge refs are offline-unknown, treated as
-    blocking).
+  - Not blocked: no Blocked-by that resolves to an open ticket (a local NNNN,
+    or a relative path-ref to an open sibling). An unresolved reference -- an
+    absolute URI, or a path not present in this checkout -- is optimistic: it
+    warns, it does not block.
   - Carries none of the skip labels (default: needs-human, deferred;
     configurable via tickets/.ergrc [labels]).
 

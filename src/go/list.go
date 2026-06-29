@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
 
-// blockedByEntry describes one unsatisfied blocker of a ticket: a forge ref
-// (offline-unknown, always blocking) or an open local ticket.
+// blockedByEntry describes one unsatisfied blocker of a ticket: an open local
+// ticket (kind "local") or a relative path-ref that resolves to an open ticket
+// in a sibling store (kind "path"). Unresolved references never become a
+// blocker -- the policy is optimistic; they surface as warnings instead.
 type blockedByEntry struct {
 	kind string
 	id   string
@@ -90,21 +93,34 @@ func loadListEntries(dir string) ([]listEntry, []string) {
 		t := &tickets[i]
 		var blockedBy []blockedByEntry
 		for _, ref := range t.BlockedBys {
-			if ref.Kind == RefInvalid {
+			// Optimistic resolution: a dependent is blocked only by a reference
+			// that resolves to an OPEN ticket. An unresolved reference is a
+			// non-fatal warning, never a blocker (ticket 0253).
+			switch ref.Kind {
+			case RefInvalid:
 				continue // malformed refs are validator territory
-			}
-			if ref.IsForge() {
-				// Forge refs are offline-unknown -> always blocking.
-				blockedBy = append(blockedBy, blockedByEntry{kind: "forge", ref: ref.Raw})
-				continue
-			}
-			if !knownID[ref.ID] {
+			case RefLocal:
+				if !knownID[ref.ID] {
+					warnings = append(warnings, fmt.Sprintf(
+						"%s: Blocked-by '%s' unresolved (treating as satisfied)", t.Filename(), ref.Raw))
+					continue
+				}
+				if !closedByID[ref.ID] {
+					blockedBy = append(blockedBy, blockedByEntry{kind: "local", id: ref.ID})
+				}
+			case RefPath:
+				switch resolvePathRef(dir, ref) {
+				case refOpen:
+					blockedBy = append(blockedBy, blockedByEntry{kind: "path", ref: ref.Raw})
+				case refClosed:
+					// satisfied
+				default:
+					warnings = append(warnings, fmt.Sprintf(
+						"%s: Blocked-by '%s' unresolved (treating as satisfied)", t.Filename(), ref.Raw))
+				}
+			default: // RefURI -- absolute URI or other unresolvable handle
 				warnings = append(warnings, fmt.Sprintf(
-					"%s: Blocked-by '%s' not found (treating as satisfied)", t.Filename(), ref.ID))
-				continue
-			}
-			if !closedByID[ref.ID] {
-				blockedBy = append(blockedBy, blockedByEntry{kind: "local", id: ref.ID})
+					"%s: Blocked-by '%s' unresolved (treating as satisfied)", t.Filename(), ref.Raw))
 			}
 		}
 		entries = append(entries, listEntry{
@@ -152,8 +168,9 @@ vocabulary, three computed pseudo-labels are accepted:
 
   - closed   -- the ticket is closed (Closed: header or closed/ path).
   - open     -- the ticket is not closed.
-  - blocked  -- the ticket has an unsatisfied blocker (a forge ref, or a
-               Blocked-by pointing at an open local ticket).
+  - blocked  -- the ticket has a Blocked-by that resolves to an open ticket
+               (a local NNNN, or an open sibling path-ref); an unresolved
+               reference only warns, it does not block.
 
 Open is the default: with no open/closed term and without --all, only open
 tickets are shown. --all drops that default so closed tickets appear too
@@ -291,12 +308,56 @@ func referencesOpenClosed(positive, negative []string) bool {
 }
 
 // blockedByLabel renders a blocker for human-readable output: the ticket ID for
-// local refs, the raw ref string for forge refs.
+// a local ref, the raw reference string for a path-ref.
 func blockedByLabel(b blockedByEntry) string {
-	if b.kind == "forge" {
-		return b.ref
+	if b.kind == "local" {
+		return b.id
 	}
-	return b.id
+	return b.ref
+}
+
+// refStatus is the outcome of resolving a reference: a blocker only when it
+// resolves to an open ticket.
+type refStatus int
+
+const (
+	refUnresolved refStatus = iota
+	refOpen
+	refClosed
+)
+
+// resolvePathRef resolves a relative path-ref (auth/0042) against the repo
+// root: <repo-root>/<module>/tickets/<id>-*.erg. Returns refUnresolved when the
+// store is not in a git repo, the sibling module is not present in this
+// checkout, or the file cannot be read -- the optimistic policy then treats the
+// reference as satisfied (a warning, not a block). No network.
+func resolvePathRef(dir string, ref Ref) refStatus {
+	top := worktreeTopFor(dir)
+	if top == "" {
+		return refUnresolved
+	}
+	base := filepath.Join(top, filepath.FromSlash(ref.Module), "tickets")
+	// Never resolve outside the repo: a module like "../../etc" is unresolved,
+	// not a window to glob the filesystem.
+	if ok, err := withinStore(top, base); err != nil || !ok {
+		return refUnresolved
+	}
+	matches, _ := filepath.Glob(filepath.Join(base, ref.ID+"-*.erg"))
+	if len(matches) == 0 {
+		matches, _ = filepath.Glob(filepath.Join(base, ref.ID+".erg"))
+	}
+	if len(matches) == 0 {
+		return refUnresolved
+	}
+	data, err := os.ReadFile(matches[0])
+	if err != nil {
+		return refUnresolved
+	}
+	t, _ := parseErgBytes(data, matches[0])
+	if t.IsClosed() {
+		return refClosed
+	}
+	return refOpen
 }
 
 func printListText(heading string, entries []listEntry) {

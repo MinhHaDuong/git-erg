@@ -38,27 +38,25 @@ type Erg struct {
 	Body     string   // multiline
 }
 
-// RefKind discriminates the two Blocked-by reference forms defined in
-// tickets/spec-erg-v1.md.
+// RefKind discriminates the parsed forms of a Blocked-by/Superseded-by value,
+// which is a URI-reference (RFC 3986) -- see tickets/spec-erg-v1.md.
 type RefKind int
 
 const (
 	RefInvalid RefKind = iota
-	RefLocal           // 0042 -- local ticket ID
-	RefForge           // host/owner/repo#N -- forge issue
+	RefLocal           // 0042 -- a ticket in the current store
+	RefPath            // auth/0042 -- relative path, resolved at the repo root
+	RefURI             // absolute URI (scheme present) or any other unresolvable handle
 )
 
-// Ref is a parsed Blocked-by value. Downstream code (validator, ready)
-// must read these fields rather than re-parse Raw -- a single parser is
-// the source of truth.
+// Ref is a parsed Blocked-by/Superseded-by value. Downstream code (validator,
+// list/ready) must read these fields rather than re-parse Raw -- a single
+// parser is the source of truth.
 type Ref struct {
 	Raw    string // original text as written in the .erg file
 	Kind   RefKind
-	ID     string // 4-digit ticket ID (RefLocal only)
-	Host   string // hostname (RefForge only)
-	Owner  string // owner/org (RefForge only)
-	Repo   string // repo name (RefForge only)
-	Number string // issue number (RefForge only)
+	ID     string // 4-digit ticket ID (RefLocal and RefPath)
+	Module string // path before the ID (RefPath only): "auth", "libs/auth"
 }
 
 // v1HeaderKeys is the closed set of header keys recognised by parseErg.
@@ -117,22 +115,3 @@ var logEntryPrefixRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}`)
 //
 //	log-date-only := 4DIGIT "-" 2DIGIT "-" 2DIGIT SP
 var logDateOnlyRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2} `)
-
-// hostRE matches the host component of a forge ref.
-// Colons and underscores are excluded; must start and end with an
-// alphanumeric character.
-//
-// ABNF production:
-//
-//	host := ALNUM *( ALNUM / "." / "-" ) ALNUM / ALNUM
-//	ALNUM := ALPHA / DIGIT
-var hostRE = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$`)
-
-// identRE matches the owner/org or repository name component of a forge ref.
-// Both use the same character set: alphanumeric, underscore, dot, dash.
-//
-// ABNF productions:
-//
-//	owner := 1*( ALNUM / "_" / "." / "-" )
-//	repo  := 1*( ALNUM / "_" / "." / "-" )
-var identRE = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)

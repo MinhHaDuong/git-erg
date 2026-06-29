@@ -5,11 +5,6 @@ import (
 	"strings"
 )
 
-// IsForge reports whether the ref targets a forge issue (offline-unknown).
-func (r Ref) IsForge() bool {
-	return r.Kind == RefForge
-}
-
 // MatchesLocalID reports whether r is a local Blocked-by reference to the
 // given 4-digit ticket ID. This is the single predicate shared by dependency
 // detection (cmdRm's dependent scan, clearBlockedByRefs) and edge removal
@@ -20,58 +15,84 @@ func (r Ref) MatchesLocalID(id string) bool {
 	return r.Kind == RefLocal && r.ID == id
 }
 
-// parseRef parses a Blocked-by value into a Ref, or returns a precise
-// error naming the failure mode. Stays purely syntactic -- no network,
-// no ticket-existence check.
+// parseRef parses a Blocked-by/Superseded-by value, which is a URI-reference
+// (RFC 3986). Purely syntactic -- no network, no ticket-existence check. Only a
+// malformed URI-reference (a space or control character) is an error; a
+// well-formed but unresolvable handle is valid (the agnostic invariant).
 func parseRef(raw string) (Ref, error) {
 	if raw == "" {
 		return Ref{Raw: raw}, fmt.Errorf("empty ref")
 	}
-	// Local: exactly 4 ASCII digits.
+	// Local: exactly 4 ASCII digits -> a ticket in the current store.
 	if len(raw) == 4 && allDigits(raw) {
 		return Ref{Raw: raw, Kind: RefLocal, ID: raw}, nil
 	}
-
-	// Reject old gh: and gh# forms.
-	if strings.HasPrefix(raw, "gh:") {
-		return Ref{Raw: raw}, fmt.Errorf(
-			"forge ref %q uses deprecated 'gh:' scheme; use 'host/owner/repo#N' instead", raw)
+	// Otherwise it must be a well-formed URI-reference. A raw space or control
+	// character is the one malformed case.
+	for i := 0; i < len(raw); i++ {
+		if raw[i] == ' ' || raw[i] < 0x20 || raw[i] == 0x7f {
+			return Ref{Raw: raw}, fmt.Errorf(
+				"malformed ref %q: not a URI-reference (contains a space or control character)", raw)
+		}
 	}
-	if strings.HasPrefix(raw, "gh#") {
-		return Ref{Raw: raw}, fmt.Errorf(
-			"forge ref %q uses deprecated 'gh#' scheme; same-repo refs are not supported", raw)
+	if hasScheme(raw) {
+		// Absolute URI -- opaque to the core; a scheme resolver handles it (or
+		// it stays unresolved). https://.../tickets/0042-x.erg, file:/abs/path, ...
+		return Ref{Raw: raw, Kind: RefURI}, nil
 	}
-
-	// Catch case-variant old schemes before forge parsing.
-	lower := strings.ToLower(raw)
-	if strings.HasPrefix(lower, "gh#") || strings.HasPrefix(lower, "gh:") {
-		return Ref{Raw: raw}, fmt.Errorf(
-			"forge ref %q: scheme is case-sensitive (use lowercase 'gh' if intentional, or 'host/owner/repo#N')", raw)
+	// Relative reference. A path (no query/fragment) ending in /NNNN names a
+	// sibling ticket resolved at the repo root; anything else is a well-formed
+	// handle the core cannot resolve locally (-> unresolved).
+	if !strings.ContainsAny(raw, "?#") {
+		if mod, id, ok := splitPathRef(raw); ok {
+			return Ref{Raw: raw, Kind: RefPath, Module: mod, ID: id}, nil
+		}
 	}
+	return Ref{Raw: raw, Kind: RefURI}, nil
+}
 
-	// Forge: host "/" owner "/" repo "#" number.
-	// Parse host, owner, repo from the part before the # sign.
-	hashIdx := strings.LastIndexByte(raw, '#')
-	if hashIdx > 0 {
-		hostOwnerRepo := raw[:hashIdx]
-		num := raw[hashIdx+1:]
-
-		// Split host / owner / repo.
-		parts := strings.Split(hostOwnerRepo, "/")
-		if len(parts) == 3 {
-			host, owner, repo := parts[0], parts[1], parts[2]
-			if hostRE.MatchString(host) && identRE.MatchString(owner) && identRE.MatchString(repo) {
-				// Validate the number format.
-				if err := validateIssueNumber(num); err != nil {
-					return Ref{Raw: raw}, fmt.Errorf("malformed ref %q: %v", raw, err)
-				}
-				return Ref{Raw: raw, Kind: RefForge, Host: host, Owner: owner, Repo: repo, Number: num}, nil
+// hasScheme reports whether raw begins with an RFC 3986 scheme (ALPHA *(ALPHA /
+// DIGIT / "+" / "-" / ".") ":") -- i.e. it is an absolute URI rather than a
+// relative reference. Hand-rolled to keep the binary free of any net/* import
+// (the offline invariant); does not pull in net/url.
+func hasScheme(raw string) bool {
+	for i := 0; i < len(raw); i++ {
+		c := raw[i]
+		switch {
+		case c == ':':
+			return i > 0 // a non-empty run of scheme chars preceded the colon
+		case c == '/' || c == '?' || c == '#':
+			return false // a relative-ref component began before any colon
+		case i == 0:
+			if !isAlpha(c) {
+				return false
+			}
+		default:
+			if !isAlpha(c) && !(c >= '0' && c <= '9') && c != '+' && c != '-' && c != '.' {
+				return false
 			}
 		}
 	}
+	return false
+}
 
-	return Ref{Raw: raw}, fmt.Errorf(
-		"malformed ref %q: not a 4-digit local ID or host/owner/repo#N", raw)
+func isAlpha(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
+// splitPathRef splits a relative path such as "auth/0042" or "libs/auth/0042"
+// into the module dir ("auth", "libs/auth") and the 4-digit ID, requiring at
+// least one non-empty path component before a trailing "/NNNN".
+func splitPathRef(p string) (module, id string, ok bool) {
+	i := strings.LastIndexByte(p, '/')
+	if i <= 0 { // no slash, or a leading slash (no module component)
+		return "", "", false
+	}
+	module, id = p[:i], p[i+1:]
+	if module != "" && len(id) == 4 && allDigits(id) {
+		return module, id, true
+	}
+	return "", "", false
 }
 
 func allDigits(s string) bool {
@@ -84,19 +105,4 @@ func allDigits(s string) bool {
 		}
 	}
 	return true
-}
-
-// validateIssueNumber enforces the [1-9][0-9]* rule from tickets/spec-erg-v1.md
-// (positive integer, no leading zero).
-func validateIssueNumber(num string) error {
-	if num == "" {
-		return fmt.Errorf("missing issue number")
-	}
-	if !allDigits(num) {
-		return fmt.Errorf("issue number %q is not a positive integer", num)
-	}
-	if num[0] == '0' {
-		return fmt.Errorf("issue number %q has a leading zero", num)
-	}
-	return nil
 }

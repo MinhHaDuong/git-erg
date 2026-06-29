@@ -133,200 +133,45 @@ else
     fail "blocked-by sibling in same dir accepted"
 fi
 
-# --- Forge-agnostic host/owner/repo#N reference passes ---
-cat > "$FIXTURES/0016-forge-ref.erg" <<'EOF'
+# --- URI-reference Blocked-by forms accepted (ticket 0253) ---
+# A relative path-ref (module/NNNN), an absolute URI (https:/gh:), and a legacy
+# host/owner/repo#N (now just an unresolvable relative handle) are all valid
+# URI-references and validate fine.
+cat > "$FIXTURES/0016-uri-refs.erg" <<'EOF'
 %erg 0.1
-Title: Forge-agnostic ref
+Title: URI-reference Blocked-by forms
 Created: 2026-01-01
 Author: a
-Blocked-by: github.com/anthropics/claude-code#1234
+Blocked-by: auth/0012
+Blocked-by: https://github.com/anthropics/claude-code/issues/1234
+Blocked-by: gh:owner/repo#1
+Blocked-by: github.com/foo/bar#42
 
 --- log ---
 --- body ---
 EOF
-if $ERG validate "$FIXTURES/0016-forge-ref.erg" >/dev/null 2>&1; then
-    pass "host/owner/repo#N reference accepted"
+if $ERG validate "$FIXTURES/0016-uri-refs.erg" >/dev/null 2>&1; then
+    pass "URI-reference Blocked-by forms accepted (path, absolute, legacy)"
 else
-    fail "host/owner/repo#N reference accepted"
+    fail "URI-reference Blocked-by forms accepted ($($ERG validate "$FIXTURES/0016-uri-refs.erg" 2>&1))"
 fi
 
-# --- GitLab forge ref passes ---
-cat > "$FIXTURES/0017-gitlab-ref.erg" <<'EOF'
+# --- Malformed ref (contains a space) rejected ---
+cat > "$FIXTURES/0017-bad-ref.erg" <<'EOF'
 %erg 0.1
-Title: GitLab ref
+Title: Malformed ref
 Created: 2026-01-01
 Author: a
-Blocked-by: gitlab.com/someorg/somerepo#42
+Blocked-by: 0042 nope
 
 --- log ---
 --- body ---
 EOF
-if $ERG validate "$FIXTURES/0017-gitlab-ref.erg" >/dev/null 2>&1; then
-    pass "gitlab.com ref accepted"
-else
-    fail "gitlab.com ref accepted"
-fi
-
-# --- gh: with no owner/repo#N rejected ---
-cat > "$FIXTURES/0018-gh-bare-colon.erg" <<'EOF'
-%erg 0.1
-Title: Bare gh: colon
-Created: 2026-01-01
-Author: a
-Blocked-by: gh:
-
---- log ---
---- body ---
-EOF
-out=$($ERG validate "$FIXTURES/0018-gh-bare-colon.erg" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "deprecated"; then
-    pass "gh: without owner/repo#N rejected"
-else
-    fail "gh: without owner/repo#N rejected (rc=$rc, got: $out)"
-fi
-
-# --- gh:owner/repo without #number rejected ---
-cat > "$FIXTURES/0019-gh-no-number.erg" <<'EOF'
-%erg 0.1
-Title: gh: missing number
-Created: 2026-01-01
-Author: a
-Blocked-by: gh:anthropics/claude-code
-
---- log ---
---- body ---
-EOF
-out=$($ERG validate "$FIXTURES/0019-gh-no-number.erg" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "deprecated"; then
-    pass "gh:owner/repo without #N rejected"
-else
-    fail "gh:owner/repo without #N rejected (rc=$rc, got: $out)"
-fi
-
-# --- Malformed forge ref (missing host/owner/repo) rejected ---
-cat > "$FIXTURES/0020-bad-forge.erg" <<'EOF'
-%erg 0.1
-Title: Bad forge
-Created: 2026-01-01
-Author: a
-Blocked-by: host/repo#1
-
---- log ---
---- body ---
-EOF
-out=$($ERG validate "$FIXTURES/0020-bad-forge.erg" 2>&1) && rc=0 || rc=$?
+out=$($ERG validate "$FIXTURES/0017-bad-ref.erg" 2>&1) && rc=0 || rc=$?
 if [ "$rc" -ne 0 ] && echo "$out" | grep -q "malformed ref"; then
-    pass "forge ref missing owner rejected"
+    pass "malformed ref (space) rejected"
 else
-    fail "forge ref missing owner rejected (rc=$rc, got: $out)"
-fi
-
-# --- Forge ref with zero issue number rejected ---
-cat > "$FIXTURES/0021-forge-zero-num.erg" <<'EOF'
-%erg 0.1
-Title: Forge zero number
-Created: 2026-01-01
-Author: a
-Blocked-by: github.com/foo/bar#0
-
---- log ---
---- body ---
-EOF
-out=$($ERG validate "$FIXTURES/0021-forge-zero-num.erg" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "leading zero"; then
-    pass "forge ref with zero issue number rejected"
-else
-    fail "forge ref with zero issue number rejected (rc=$rc, got: $out)"
-fi
-
-# --- gh: with invalid owner (leading dash) rejected (deprecated) ---
-cat > "$FIXTURES/0022-gh-bad-owner.erg" <<'EOF'
-%erg 0.1
-Title: Bad owner
-Created: 2026-01-01
-Author: a
-Blocked-by: gh:-bad/repo#1
-
---- log ---
---- body ---
-EOF
-out=$($ERG validate "$FIXTURES/0022-gh-bad-owner.erg" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "deprecated"; then
-    pass "gh: with invalid owner rejected (deprecated)"
-else
-    fail "gh: with invalid owner rejected (deprecated) (rc=$rc, got: $out)"
-fi
-
-# --- gh: with invalid repo (..) rejected (deprecated) ---
-cat > "$FIXTURES/0023-gh-bad-repo.erg" <<'EOF'
-%erg 0.1
-Title: Bad repo
-Created: 2026-01-01
-Author: a
-Blocked-by: gh:owner/foo..bar#1
-
---- log ---
---- body ---
-EOF
-out=$($ERG validate "$FIXTURES/0023-gh-bad-repo.erg" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "deprecated"; then
-    pass "gh: with invalid repo rejected (deprecated)"
-else
-    fail "gh: with invalid repo rejected (deprecated) (rc=$rc, got: $out)"
-fi
-
-# --- Mixed-case scheme (GH#) rejected (case-sensitive) ---
-cat > "$FIXTURES/0024-gh-case.erg" <<'EOF'
-%erg 0.1
-Title: Wrong case
-Created: 2026-01-01
-Author: a
-Blocked-by: GH#42
-
---- log ---
---- body ---
-EOF
-out=$($ERG validate "$FIXTURES/0024-gh-case.erg" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "case-sensitive"; then
-    pass "GH# (wrong case) rejected"
-else
-    fail "GH# (wrong case) rejected (rc=$rc, got: $out)"
-fi
-
-# --- Mixed-case gh: variant with extra path rejected (case-sensitive) ---
-cat > "$FIXTURES/0025-gh-case-colon-extra.erg" <<'EOF'
-%erg 0.1
-Title: Wrong case with colon
-Created: 2026-01-01
-Author: a
-Blocked-by: GH:owner/repo/extra#1
-
---- log ---
---- body ---
-EOF
-out=$($ERG validate "$FIXTURES/0025-gh-case-colon-extra.erg" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "case-sensitive"; then
-    pass "GH:owner/repo/extra#1 rejected (case-sensitive)"
-else
-    fail "GH:owner/repo/extra#1 rejected (rc=$rc, got: $out)"
-fi
-
-# --- Leading-zero issue number in forge ref rejected ---
-cat > "$FIXTURES/0026-forge-zero.erg" <<'EOF'
-%erg 0.1
-Title: Leading-zero number
-Created: 2026-01-01
-Author: a
-Blocked-by: github.com/foo/bar#042
-
---- log ---
---- body ---
-EOF
-out=$($ERG validate "$FIXTURES/0026-forge-zero.erg" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -q "leading zero"; then
-    pass "forge ref with leading zero rejected"
-else
-    fail "forge ref with leading zero rejected (rc=$rc, got: $out)"
+    fail "malformed ref (space) rejected (rc=$rc, got: $out)"
 fi
 
 # --- Label: valid value accepted ---
