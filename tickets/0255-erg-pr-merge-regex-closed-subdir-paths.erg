@@ -1,0 +1,35 @@
+%erg 0.1
+Title: erg-pr-merge regex misses tickets/closed/NNNN paths
+Created: 2026-07-02
+Author: MinhHaDuong
+
+--- log ---
+2026-07-02T07:47Z MinhHaDuong created
+
+2026-07-02T07:48Z migrated from GitHub issue #145
+--- body ---
+Migrated from GitHub issue MinhHaDuong/git-erg#145 (opened 2026-05-23).
+
+## Problem
+
+The ticket-ID extraction regex in `erg-pr-merge` (line ~73):
+
+```bash
+TICKET_ID=$(echo "$BODY" | grep -oiP '^\*{0,2}ticket:?\*{0,2}:?\s*tickets/\K\d+' | head -1 || true)
+```
+
+matches `tickets/NNNN` but silently yields empty string for `tickets/closed/NNNN`. When `erg close` archives the ticket before the merge (moving it to `tickets/closed/`), the PR body's `**Ticket:** tickets/closed/NNNN-name.erg` line does not match, so the auto-close step is skipped without error.
+
+## Workaround
+
+Don't pre-close the ticket; let `erg-pr-merge` close it atomically. If ticket is already closed (e.g. closed via another path), skip `erg-pr-merge` and use `gh api repos/{owner}/{repo}/pulls/{pr}/merge` directly.
+
+## Reproduction
+
+Observed during aedist-technical-report PR #442/#443 (ticket 0237 pre-closed via `erg close`, then moved to `tickets/closed/`; PR body referenced `tickets/closed/0237-...`).
+
+## Exit criteria
+
+- [ ] Regex tolerates an optional `closed/` segment, e.g.:
+      `grep -oiP '^\*{0,2}ticket:?\*{0,2}:?\s*tickets/(?:closed/)?\K\d+'`
+- [ ] PR bodies referencing `tickets/closed/NNNN-...` still resolve the ticket ID

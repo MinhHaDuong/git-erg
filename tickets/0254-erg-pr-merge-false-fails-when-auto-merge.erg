@@ -1,0 +1,50 @@
+%erg 0.1
+Title: erg-pr-merge false-fails when auto-merge lands instantly and branch auto-deletes
+Created: 2026-07-02
+Author: MinhHaDuong
+
+--- log ---
+2026-07-02T07:47Z MinhHaDuong created
+
+2026-07-02T07:48Z migrated from GitHub issue #296
+--- body ---
+Migrated from GitHub issue MinhHaDuong/git-erg#296 (opened 2026-06-08).
+
+## Observation
+
+On a repo with `deleteBranchOnMerge: true` and auto-merge enabled, `erg-pr-merge` exits non-zero with `CI checks never registered after 3 attempts (no checks reported)` even though the PR **merged successfully**.
+
+Reproduced 4x on 2026-06-06 (MinhHaDuong/padme PRs #10, #11 -- both merged, both reported failure). PRs #12, #13 same flow but the script happened to report success; the difference appears to be timing of GitHub's mergeability recompute.
+
+## Sequence
+
+1. Script pushes the close-ticket commit.
+2. Queues auto-merge; GitHub merges **instantly** (no required checks on this repo).
+3. GitHub auto-deletes the head branch.
+4. Script's `failed to delete remote branch: HTTP 404: Reference does not exist` -- already gone.
+5. Script falls back to watch-then-merge, polls the now-deleted branch for checks, finds none, aborts non-zero.
+
+Excerpt (#10):
+```
+failed to delete remote branch t0016: HTTP 404: Reference does not exist
+Auto-merge unavailable -- falling back to watch-then-merge...
+no checks reported on the 't0016' branch
+...
+erg-pr-merge: CI checks never registered after 3 attempts -- aborting merge
+```
+
+## Cause (not yet isolated -- candidate)
+
+The fallback treats "auto-merge queue returned non-success" as "auto-merge unavailable" without first checking whether the PR is **already MERGED**. A 404 on branch-delete is a strong signal the merge already landed.
+
+## Impact
+
+Cosmetic-but-corrosive: a green merge reports red, so a caller (or autonomous raid/beat loop) may retry, escalate, or mark the ticket failed when it actually succeeded. On this repo the close-commit is already pushed before the false failure, so no data loss -- but the exit code lies.
+
+Surfaced from: MinhHaDuong/padme session 2026-06-06.
+
+## Exit criteria
+
+- [ ] Before falling back to watch-then-merge (and before the 3-attempt CI-registration loop), query `gh pr view --json state,mergedAt`; if `state == MERGED`, exit 0
+- [ ] Only fall back to polling if the PR is genuinely still OPEN
+- [ ] A 404 on branch-delete after queuing auto-merge no longer produces a non-zero exit when the PR is merged
