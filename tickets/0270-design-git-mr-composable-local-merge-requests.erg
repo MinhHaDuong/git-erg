@@ -7,6 +7,8 @@ Label: needs-human
 --- log ---
 2026-08-17T19:52Z Claude created
 2026-08-17T19:53Z Claude note design session with the maintainer (2026-08-17). Spec-first: this ticket records the settled vision and the composed-vs-integrated arbitration; the open decisions below await the maintainer.
+2026-08-17T19:58Z Claude note implementation scheme consigned after maintainer pointer (PEP for the why, manual generated from --help --all, CLI-served spec and docs, embedded agentic guide with self-coherence guard; seven invariants; earning-a-feature evidence base named)
+2026-08-17T19:59Z Claude note maintainer arbitrated decision (c): one codebase, two specs. Shared machinery, autonomous contracts; verdict and open-decision list updated
 
 --- body ---
 ## Context
@@ -22,6 +24,9 @@ reason for being ("disconnected environments") to the whole cycle.
 Maintainer decision (2026-08-17): the MR system is **orthogonal and
 composable** to git-erg, not fused into it. This ticket records the design
 vision, the comparison that grounded the decision, and what remains open.
+Should the design outgrow a ticket body, the house form is a design
+charter in docs/ (cf. `docs/erg-imagine-charter.md`); this ticket remains
+the tracking record either way.
 
 ## The vision
 
@@ -118,10 +123,20 @@ Seam-risk mitigation, expressible without knowing erg: `mr merge` refuses if
 **Verdict: composed on (a) and (b)** -- two specs, two stores, opaque refs,
 exec hook. That is where conceptual orthogonality, separate adoption, and
 the right to churn live; the MR side is the experimental half of the system,
-so maturity decoupling matters most exactly there. **(c) is free and
-reversible**: one codebase can emit two binaries sharing the parser module
-(busybox pattern) without touching the contracts -- neither spec cites the
-other, users install one without the other.
+so maturity decoupling matters most exactly there.
+
+**(c) settled by the maintainer (2026-08-17): one codebase, two specs.**
+git-mr lives in this repository, sharing the parser, atomic-write and
+validator machinery as internal modules; the grammar-drift risk in the
+table above dies with the shared parser. The two specs stay autonomous --
+`erg spec` and `mr spec`, each normative for its own files, neither
+citing the other -- so the contracts remain orthogonal while the sharing
+stays invisible to users. Traded away: release-level decoupling (one
+release cycle ships both tools). Kept: format-level decoupling (`%erg`
+and `%mr` version independently). Distribution note: an identical
+busybox-style binary committed at `tickets/erg` and `mrs/git-mr` costs
+one git blob (content-addressed), two checkout paths; argv[0] picks the
+personality.
 
 ## The composition seam -- three layers, zero imports
 
@@ -146,6 +161,47 @@ other, users install one without the other.
    Happy coincidence: `erg close` edits the ticket file without committing
    or staging -- awkward in direct use, exactly the shape a composable hook
    wants. erg is already hook-shaped.
+
+## Implementation scheme (inherited)
+
+git-mr replicates erg's four documentation layers (maintainer pointer,
+2026-08-17). Each layer carries its own anti-drift mechanism and its own
+offline guarantee; with one codebase the machinery is shared, the
+artifacts stay per-tool:
+
+1. **PEP for the why** -- `pep-mr-v1.md` beside `pep-erg-v1.md`, written
+   before code, one numbered design choice per section (Choice /
+   Rationale / Alternatives considered). This ticket's body is its seed.
+   The three-scope authority model comes with it: the spec is normative
+   for files, the binary for the spec's text, the PEP arbitrates intent.
+2. **Manual generated from source** -- `make docs` gains a second line:
+   `mr --help --all > docs/mr-manual.md`. The manual cannot drift from
+   the binary because it is the binary's own help output.
+3. **Commands discoverable by CLI** -- `mr --help --all`,
+   `mr COMMAND --help`, `mr spec` (the `%mr` spec embedded and served on
+   demand), `mr integration` (the composition seam -- hooks, opaque
+   `Closes:` refs -- served on demand). A disconnected agent needs no doc
+   site: the binary carries its documentation.
+4. **Agentic guide** -- `mrs/AGENTS.md` embedded as an asset, deployed by
+   `mr init`, covered by the same self-coherence guard (CI fails when
+   the deployed copy drifts from the embedded source).
+
+The seven invariants transfer intact: never lose data (a review thread
+is data); agnostic (a hand edit always wins); offline (mr shells out to
+git and carries no network code); standalone static binary committed in
+`mrs/`; stateless (DAG-as-state IS this invariant -- erg removed
+pending/claimed in 0143/0144, and `%mr` refuses a Status field for the
+same reason); fast (invoked, never resident); small (the committed
+binary travels with every clone, and the infrastructure-class security
+bar that comes with an embarked binary applies from day one:
+reproducible offline builds, signed tags).
+
+The repo's feature policy applies too: a feature is pulled by verified
+empirical need, never pushed from a wishlist. The MR system's evidence
+base is the maintainer's harness failure log -- the erg-pr-merge bounce
+recovery recipes, the cross-PR collision scans and their blind-scan
+trap, the forge-parsing traps: measured pain, not symmetry. Phase 1
+stays the smallest correct system that closes the recorded pain.
 
 ## Hard points, honestly
 
@@ -181,10 +237,11 @@ without erg**, proving the orthogonality is not decorative.
 
 ## Open decisions (maintainer arbitration)
 
-- [ ] (c) implementation: one codebase emitting two binaries, or two repos.
-      Reversible either way.
+- [x] (c) implementation -- settled 2026-08-17: one codebase, two specs
+      (see verdict above).
 - [ ] Extract the three-section grammar as a one-page mini-spec cited by
-      both specs, or keep imitation for now.
+      both specs -- downgraded: the shared parser removes the drift risk;
+      still useful for third-party implementers.
 - [ ] Log home: separate `.log` file with merge=union (recommended) vs log
       inside the `.mr` file.
 - [ ] Archive numbering at merge time: yes or no.
