@@ -9,6 +9,7 @@ Label: needs-human
 2026-08-17T19:53Z Claude note design session with the maintainer (2026-08-17). Spec-first: this ticket records the settled vision and the composed-vs-integrated arbitration; the open decisions below await the maintainer.
 2026-08-17T19:58Z Claude note implementation scheme consigned after maintainer pointer (PEP for the why, manual generated from --help --all, CLI-served spec and docs, embedded agentic guide with self-coherence guard; seven invariants; earning-a-feature evidence base named)
 2026-08-17T19:59Z Claude note maintainer arbitrated decision (c): one codebase, two specs. Shared machinery, autonomous contracts; verdict and open-decision list updated
+2026-08-17T20:11Z Claude note decorrelated review round (PR #326, FIX-FIRST): log-home contradiction resolved as open with the sketch annotated; 0282 spelled as forge ref git-erg#282; comparison table marked pre-decision with the rows (c) voids; working names flagged pending arbitration and invocation unified to git mr; erg close recorded as four-step and not atomic, staging clause tightened to add -A
 
 --- body ---
 ## Context
@@ -49,7 +50,7 @@ File format `%mr 0.1`, same three-section grammar as `%erg 0.1`:
     Target: main
     Created: 2026-08-17
     Author: minh
-    Closes: tickets/0042
+    Closes: 0042
 
     --- log ---
     2026-08-17T09:12Z minh opened
@@ -58,6 +59,11 @@ File format `%mr 0.1`, same three-section grammar as `%erg 0.1`:
 
     --- body ---
     ## What, why
+
+(The log is shown inline for legibility; whether it lives in the `.mr`
+file or in a sibling `.log` is arbitrated in the open decisions below.
+`git-mr`, `mrs/`, `.mrrc` are working names throughout, pending the same
+list.)
 
 Settled design choices:
 
@@ -71,27 +77,33 @@ Settled design choices:
   ticketless MRs become second-class).
 - **Multi-writer log.** An append-only log at the end of one file conflicts
   on every double append (two reviewers, one CI). Git already has the needed
-  CRDT: a separate `mrs/<branch>.log` with `merge=union` in .gitattributes;
-  entries reordered by timestamp at display time. Headers+body stay in the
-  `.mr` file, single-writer in practice.
+  CRDT: `merge=union` in .gitattributes. Recommended home: a separate
+  `mrs/<branch>.log`, entries reordered by timestamp at display time,
+  headers+body staying in the `.mr` file, single-writer in practice. The
+  conflict analysis and the union-merge mechanism are the settled part;
+  the home itself is an open decision below.
 - **Identity: no number at open time.** An MR is identified by
   (Source, Target); the branch namespace is already unique, so the whole
-  optimistic-allocation pathology (0282's collision class) has no object
+  optimistic-allocation pathology (git-erg#282's collision class) has no object
   here. A citable archive number, if wanted, is allocated **at merge time**,
   where it is safe by construction: merges to main are serialized by main
   itself, the one naturally linear queue in the system.
 - **Review entries are typed and sha-pinned**: `note`, `verdict
   APPROVED|REROLL|ESCALATE sha=`, `ci pass|fail sha=`, comment anchors
   `path:line@sha`. A verdict on a stale head becomes mechanically
-  detectable: `mr merge` refuses if the last verdict is not on HEAD. Review
+  detectable: `git mr merge` refuses if the last verdict is not on HEAD. Review
   enters the project's long-term memory instead of dying with the forge PR.
-- **Atomic merge**: `mr merge` verifies verdict@HEAD and ci@HEAD, runs the
-  hooks, stages what they changed into the merge commit itself, merges
-  --no-ff. All or nothing; a retry is idempotent by nature. The
-  erg-pr-merge bounce pathology (ticket closed locally but never pushed,
-  detached cherry-pick recovery recipes) exists because ticket-closing and
-  merging live in two systems that can succeed separately; one commit
-  dissolves it.
+- **Atomic merge**: `git mr merge` verifies verdict@HEAD and ci@HEAD, runs
+  the hooks, stages everything they changed into the merge commit itself,
+  merges --no-ff. The staging is recursive on the store (`add -A`, never
+  `add -u`): a hook may rename files and edit files it was never named
+  (see the erg close shape below), and a rename staged apart from its
+  edit silently carries the pre-edit blob. Atomicity is the commit's: if
+  a hook dies midway, the worktree holds its partial work and nothing is
+  committed. The erg-pr-merge bounce pathology (ticket closed locally but
+  never pushed, detached cherry-pick recovery recipes) exists because
+  ticket-closing and merging live in two systems that can succeed
+  separately; one commit dissolves it.
 
 ## Composed, not integrated -- the comparison
 
@@ -117,8 +129,8 @@ Most "integrated" advantages live in (c); most "composed" advantages live in
 | Agent mental model (bootstrap, doc, store discovery) | wins, slightly | two binaries, two docs |
 | Scope-creep temptation ("the forge in one binary", Fossil trajectory) | structural | wins |
 
-Seam-risk mitigation, expressible without knowing erg: `mr merge` refuses if
-`Closes:` is non-empty and no on-merge hook is configured.
+Seam-risk mitigation, expressible without knowing erg: `git mr merge` refuses
+if `Closes:` is non-empty and no on-merge hook is configured.
 
 **Verdict: composed on (a) and (b)** -- two specs, two stores, opaque refs,
 exec hook. That is where conceptual orthogonality, separate adoption, and
@@ -127,11 +139,15 @@ so maturity decoupling matters most exactly there.
 
 **(c) settled by the maintainer (2026-08-17): one codebase, two specs.**
 git-mr lives in this repository, sharing the parser, atomic-write and
-validator machinery as internal modules; the grammar-drift risk in the
-table above dies with the shared parser. The two specs stay autonomous --
-`erg spec` and `mr spec`, each normative for its own files, neither
+validator machinery as internal modules. The two specs stay autonomous --
+`erg spec` and `git mr spec`, each normative for its own files, neither
 citing the other -- so the contracts remain orthogonal while the sharing
-stays invisible to users. Traded away: release-level decoupling (one
+stays invisible to users. The table above is the pre-decision record;
+under this settlement the grammar-drift row dies (one parser), the
+initial-cost row is void (machinery shared), the failure-isolation row
+flips to the shared blast radius the integrated column named, and the
+agent-mental-model row reduces to "two docs" (one busybox blob at two
+paths, not two binaries). Traded away: release-level decoupling (one
 release cycle ships both tools). Kept: format-level decoupling (`%erg`
 and `%mr` version independently). Distribution note: an identical
 busybox-style binary committed at `tickets/erg` and `mrs/git-mr` costs
@@ -146,9 +162,9 @@ personality.
    only. At two instances the three-section grammar becomes extractable as a
    one-page mini-spec both specs *cite* (the RFC 822 move) -- when needed,
    not before.
-2. **References**, opaque strings. `mr` gets repeatable `Closes:` / `Ref:`
-   headers whose value grammar is "non-empty line"; `tickets/0042` is an
-   opaque token that `mr` never resolves. Precedent inside erg itself:
+2. **References**, opaque strings. git-mr gets repeatable `Closes:` /
+   `Ref:` headers whose value grammar is "non-empty line"; `0042` is an
+   opaque token that git-mr never resolves. Precedent inside erg itself:
    references are URI-references resolved optimistically (0253), and
    `Closed: merged as MR 151` is already free text on the erg side. The
    cross-pointers ride in fields each tool already treats as opaque -- the
@@ -158,9 +174,14 @@ personality.
        [hooks]
        pre-merge = erg close {closes} "merged as MR {n}"
 
-   Happy coincidence: `erg close` edits the ticket file without committing
-   or staging -- awkward in direct use, exactly the shape a composable hook
-   wants. erg is already hook-shaped.
+   erg is already hook-shaped, with one precision to respect: `erg close`
+   is a four-step operation, idempotent but not atomic -- it edits the
+   named ticket, strips `Blocked-by:` references from the other open
+   tickets, and moves the file into `tickets/closed/` -- and it neither
+   commits nor stages any of it (no git calls in close.go). No git side
+   effects to fight is exactly what a composable hook wants, but the
+   caller must stage the whole store recursively (`add -A`): a rename
+   staged apart from its edit silently carries the pre-edit blob.
 
 ## Implementation scheme (inherited)
 
@@ -175,26 +196,28 @@ artifacts stay per-tool:
    The three-scope authority model comes with it: the spec is normative
    for files, the binary for the spec's text, the PEP arbitrates intent.
 2. **Manual generated from source** -- `make docs` gains a second line:
-   `mr --help --all > docs/mr-manual.md`. The manual cannot drift from
-   the binary because it is the binary's own help output.
-3. **Commands discoverable by CLI** -- `mr --help --all`,
-   `mr COMMAND --help`, `mr spec` (the `%mr` spec embedded and served on
-   demand), `mr integration` (the composition seam -- hooks, opaque
-   `Closes:` refs -- served on demand). A disconnected agent needs no doc
-   site: the binary carries its documentation.
+   `git mr --help --all > docs/mr-manual.md`. The manual cannot drift
+   from the binary because it is the binary's own help output.
+3. **Commands discoverable by CLI** -- `git mr --help --all`,
+   `git mr COMMAND --help`, `git mr spec` (the `%mr` spec embedded and
+   served on demand), `git mr integration` (the composition seam --
+   hooks, opaque `Closes:` refs -- served on demand). A disconnected
+   agent needs no doc site: the binary carries its documentation.
 4. **Agentic guide** -- `mrs/AGENTS.md` embedded as an asset, deployed by
-   `mr init`, covered by the same self-coherence guard (CI fails when
-   the deployed copy drifts from the embedded source).
+   `git mr init`, covered by the same self-coherence guard (CI fails
+   when the deployed copy drifts from the embedded source).
 
 The seven invariants transfer intact: never lose data (a review thread
-is data); agnostic (a hand edit always wins); offline (mr shells out to
-git and carries no network code); standalone static binary committed in
-`mrs/`; stateless (DAG-as-state IS this invariant -- erg removed
-pending/claimed in 0143/0144, and `%mr` refuses a Status field for the
-same reason); fast (invoked, never resident); small (the committed
-binary travels with every clone, and the infrastructure-class security
-bar that comes with an embarked binary applies from day one:
-reproducible offline builds, signed tags).
+is data); agnostic (a hand edit always wins); offline (git-mr shells
+out to git and carries no network code); standalone (one static binary
+plus POSIX, zero third-party dependencies); stateless (DAG-as-state IS
+this invariant -- erg removed pending/claimed in 0143/0144, and `%mr`
+refuses a Status field for the same reason); fast (invoked, never
+resident); small (the committed binary travels with every clone, so the
+size ratchet covers the blob shipped in `mrs/`). Separately, the
+infrastructure-class security posture (docs/audit-infrastructure-class.md)
+comes with any embarked binary from day one: reproducible offline
+builds, signed tags.
 
 The repo's feature policy applies too: a feature is pulled by verified
 empirical need, never pushed from a wishlist. The MR system's evidence
@@ -203,7 +226,7 @@ recovery recipes, the cross-PR collision scans and their blind-scan
 trap, the forge-parsing traps: measured pain, not symmetry. Phase 1
 stays the smallest correct system that closes the recorded pain.
 
-## Hard points, honestly
+## Hard points
 
 - **"Main is read-only"**: today the forge holds the gate (real ACL).
   Sovereign version: a pre-receive hook on one's own bare remote refuses any
@@ -228,8 +251,8 @@ over machinery, state read from the DAG -- is empty for MRs.
 
 1. `git-mr` alone: format + `open/show/list/check`; the forge stays the
    authority; the `.mr` file generates the PR body (outbound bridge).
-2. Authority flips: local verdicts and `mr merge`, the `erg close` hook
-   wired, the forge mirrors.
+2. Authority flips: local verdicts and `git mr merge`, the `erg close`
+   hook wired, the forge mirrors.
 3. Sovereign remote: pre-receive gate + CI runner.
 
 The pilot gains a test fusion could not offer: mount git-mr **on a repo
