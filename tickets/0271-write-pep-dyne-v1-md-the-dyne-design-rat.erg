@@ -1,0 +1,51 @@
+%erg 0.1
+Title: Write pep-dyne-v1.md, the dyne design rationale
+Created: 2026-08-26
+Author: Claude
+
+--- log ---
+2026-08-26T10:37Z Claude created
+
+--- body ---
+## Context
+
+Ticket 0270 settled the dyne design end-to-end (vision, composed-vs-
+integrated arbitration, log home, no numbering, name). Phase 1 of the
+migration path starts here. The PEP is documentation layer 1: written
+before code, one numbered design choice per section (Choice / Rationale
+/ Alternatives considered), and the arbiter of intent under the
+three-scope authority model (spec normative for files, binary normative
+for the spec's text, PEP arbitrates intent).
+
+## Task
+
+Write `pep-dyne-v1.md` beside `pep-erg-v1.md`, seeded from 0270's body.
+Every settled choice gets its numbered section with the alternatives
+that lost:
+
+- state is the DAG (`git merge-base --is-ancestor` is the status field;
+  no Status header, not even the file path carries state)
+- one object = one plain-text file on the source branch
+  (`merges/<branch>.dyne`); merging into main IS the archival act
+  (rejected: dedicated refs, shared registry branch, MR-ticket fusion)
+- erg's exact three-section grammar; log = one-liners, body = the
+  discussion whose opening post is the description (comment #0)
+- multi-writer merges via `merge=union` on `merges/*.dyne`; prose
+  append-only by convention; `dyne check` fences the residual hazard
+  (rejected: sibling `.log` file, custom merge driver)
+- no archive numbering: the merge commit SHA is the permanent name;
+  hooks receive `{sha}` (rejected: merge-time serial, safe but unneeded)
+- composed on spec and behavior, one codebase two specs (the 0270
+  comparison table is the pre-decision record to preserve)
+- the composition seam: grammar by convention, references opaque,
+  behavior via exec hooks (`.dynerc`)
+- the name: dyne, the CGS unit of force -- erg = dyne x cm; standalone
+  binary mirroring erg (rejected: git-mr/git mr, bid, darn)
+- the seven invariants and the infrastructure-class security posture
+  carried over from erg
+
+## Exit criteria
+
+- [ ] pep-dyne-v1.md merged, covering every settled choice of 0270 with
+      its rationale and rejected alternatives
+- [ ] the three-scope authority model stated in the PEP itself

@@ -1,0 +1,35 @@
+%erg 0.1
+Title: Implement dyne init, embedded docs, and the self-coherence guard
+Created: 2026-08-26
+Author: Claude
+Blocked-by: 0273
+
+--- log ---
+2026-08-26T10:37Z Claude created
+
+--- body ---
+## Context
+
+dyne replicates erg's four documentation layers with shared machinery
+and per-tool artifacts (0270, implementation scheme). This ticket wires
+layers 2-4 around the 0273 binary.
+
+## Scope
+
+- `dyne init`: unpack into `merges/` -- `AGENTS.md` (embedded asset),
+  `.gitattributes` with `merge=union` on `merges/*.dyne`, a `.dynerc`
+  skeleton (`[hooks]`); the init-unpack ASCII guard applies to every
+  unpacked asset (0245 precedent)
+- `dyne spec` and `dyne integration` served from embedded assets: the
+  %dyne 0.1 spec (0272) and the composition-seam guide (hooks, opaque
+  `Closes:` refs, the `add -A` staging clause)
+- `make docs` gains `dyne --help --all > docs/dyne-manual.md`; the
+  manual cannot drift because it is the binary's own help output
+- self-coherence guard: CI fails when the deployed `merges/AGENTS.md`
+  drifts from the embedded source, mirroring erg's guard; fold a
+  `dyne check merges/` gate into `make test` (0246 precedent)
+
+## Exit criteria
+
+- [ ] `dyne init` on a fresh repo yields a working store, offline
+- [ ] guards live in `make test`, not only CI
