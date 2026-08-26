@@ -1,0 +1,46 @@
+%erg 0.1
+Title: Implement the dyne binary skeleton and core commands
+Created: 2026-08-26
+Author: Claude
+Blocked-by: 0272
+
+--- log ---
+2026-08-26T10:37Z Claude created
+
+--- body ---
+## Context
+
+Phase 1 of 0270's migration path: `dyne` alone -- format plus
+`open/show/list/check`; the forge stays the authority. One codebase,
+two specs: dyne shares erg's parser, atomic-write and validator
+machinery as internal modules; argv[0] picks the personality of one
+busybox-style blob.
+
+## Scope
+
+- argv[0] dispatch in the shared binary; identical blob committed at
+  `tickets/erg` and `merges/dyne` (one content-addressed blob, two
+  checkout paths); the size ratchet covers it
+- `dyne open`: create `merges/<branch>.dyne` for the current branch
+  (Source = branch, Target defaulting to main), refuse an existing one
+- `dyne show`: render the file, log entries reordered by timestamp
+- `dyne list`: an MR is open iff Source is not an ancestor of Target
+  (`git merge-base --is-ancestor`); enumeration is as fresh as the
+  last fetch -- document, per 0270's hard points
+- `dyne check`: corpus checks over `merges/` -- duplicate headers are
+  a hard error (the union-merge fence), malformed files, magic/version
+- invariants hold: offline (shells out to git, no network code),
+  standalone (static binary, POSIX, zero third-party deps), stateless,
+  fast, small; infrastructure-class posture from day one (reproducible
+  offline build, signed tags)
+
+## Testing
+
+House policy: Go unit tests own pure-function correctness (parsing,
+DAG-state predicate); shell integration tests own CLI black-box
+behavior.
+
+## Exit criteria
+
+- [ ] dogfood: this repo carries `merges/` with the committed dyne blob
+- [ ] the four commands behave per the %dyne 0.1 spec; make test green

@@ -2,6 +2,7 @@
 Title: Design dyne, a composable local merge-request sibling
 Created: 2026-08-17
 Author: Claude
+Closed: design settled and phase-1 filed as 0271-0275
 
 --- log ---
 2026-08-17T19:52Z Claude created
@@ -13,6 +14,7 @@ Author: Claude
 2026-08-26T10:19Z Claude unlabel needs-human
 2026-08-26T10:33Z Claude note naming session (2026-08-26, later): git-mr working name retired -- the tool is dyne, the CGS unit of force (erg = dyne x cm: an MR is a force applied to main; when main moves, the work is done). Standalone binary like erg (myrepos dodge moot), extension .dyne, magic %dyne 0.1, config .dynerc, store stays merges/, blob at merges/dyne. Runners-up bid and darn recorded; title and body renamed throughout
 
+2026-08-26T10:38Z Claude closed — design settled and phase-1 filed as 0271-0275
 --- body ---
 ## Context
 
@@ -316,5 +318,6 @@ All settled (2026-08-17 and 2026-08-26 sessions):
 ## Exit criteria
 
 - [x] Maintainer arbitrates the open decisions above (done 2026-08-26)
-- [ ] Phase-1 implementation tickets filed in the chosen home, or the vision
-      explicitly parked with a note here
+- [x] Phase-1 implementation tickets filed: 0271 (PEP) -> 0272 (spec) ->
+      0273 (binary + open/show/list/check) -> 0274 (init, embedded docs,
+      guards) and 0275 (outbound PR-body bridge), chained by Blocked-by

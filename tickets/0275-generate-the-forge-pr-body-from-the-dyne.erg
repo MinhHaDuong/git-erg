@@ -1,0 +1,34 @@
+%erg 0.1
+Title: Generate the forge PR body from the .dyne file
+Created: 2026-08-26
+Author: Claude
+Blocked-by: 0273
+
+--- log ---
+2026-08-26T10:37Z Claude created
+
+--- body ---
+## Context
+
+Phase 1 keeps the forge as the authority; the outbound bridge makes the
+`.dyne` file the single source for the PR description. This closes part
+of the recorded pain (the forge-parsing traps in the maintainer's
+harness failure log): the PR body becomes generated output, never
+hand-parsed truth.
+
+## Scope
+
+- a command that renders PR title and body from `merges/<branch>.dyne`:
+  Title header as the PR title, the discussion's opening post as the
+  body, `Closes:` values passed through as text
+- offline invariant intact: dyne prints, carrying no network code; the
+  caller pipes the output to the forge tooling of the day
+- exact command shape (a `show` flag vs a dedicated verb) is decided in
+  implementation and recorded here
+
+## Exit criteria
+
+- [ ] PRs for dyne-carrying branches are opened with generated bodies
+      (dogfooded on this repo)
+- [ ] round-trip honesty: nothing in the PR body exists only on the
+      forge

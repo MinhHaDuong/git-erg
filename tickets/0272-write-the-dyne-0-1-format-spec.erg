@@ -1,0 +1,46 @@
+%erg 0.1
+Title: Write the %dyne 0.1 format spec
+Created: 2026-08-26
+Author: Claude
+Blocked-by: 0271
+
+--- log ---
+2026-08-26T10:37Z Claude created
+
+--- body ---
+## Context
+
+Layer of the three-scope authority model: this spec is normative for
+`.dyne` files -- a hand-edited file that satisfies it is valid
+regardless of binary version. Autonomous from `erg spec`: same
+three-section grammar by imitation, not by citation (the shared
+mini-spec is deferred per 0270). Blocked by the PEP (0271), which
+arbitrates intent.
+
+## Scope
+
+Mirror the `%erg 0.1` spec's structure, for MRs:
+
+- extension `.dyne`, location `merges/`, UTF-8, LF; magic line
+  `%dyne 0.1`, MAJOR.MINOR versioning
+- three sections: headers, `--- log ---`, `--- body ---`
+- closed header set v1: `Title`, `Source`, `Target`, `Created`,
+  `Author` required; `Closes` and `Ref` optional, repeatable, values
+  opaque non-empty lines that dyne never resolves (the composition
+  seam); no Status header ever -- state is the DAG
+- log entry grammar: `TIMESTAMP author TYPE ...`, one line per entry;
+  types `opened`, `note`, `verdict APPROVED|REROLL|ESCALATE sha=`,
+  `ci pass|fail sha=`, comment anchors `path:line@sha`
+- body = the discussion: opening post is the author's description,
+  later comments are timestamp-attributed prose blocks, append-only by
+  convention
+- document the merge regime: `merge=union` on `merges/*.dyne` via
+  .gitattributes (deployed by `dyne init`, 0274), entries reordered by
+  timestamp at display time, duplicate headers a hard `check` error
+
+## Exit criteria
+
+- [ ] spec document merged (embedded serving via `dyne spec` lands with
+      0273/0274)
+- [ ] every constraint above is a testable statement, in the spec's
+      validate-rules style
