@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-08-26T10:45Z — Design of the local merge-request sibling is complete and closed. Maintainer arbitrated 0270's four open decisions (#328): log inline in one erg-shaped file (log = one-liners, body = prose discussion, opening post = description, `merge=union` on the store); no archive numbering — the merge SHA is the MR's name; grammar mini-spec deferred; and the tool is **dyne** (CGS force: erg = dyne × cm — an MR is a force applied to main, work done when main moves), standalone binary, `.dyne` files, `.dynerc`, store `merges/`. 0270 closed with phase 1 filed: 0271 (PEP) → 0272 (%dyne spec) → 0273 (binary + open/show/list/check) → 0274 (init, embedded docs, guards), 0275 (outbound PR-body bridge). Queue: 0271 ready, rest chained by Blocked-by._
+_Last updated: 2026-08-26T10:50Z — Design of the local merge-request sibling is complete and closed; all of it merged (#327–#329). Maintainer arbitrated 0270's four open decisions (#328): log inline in one erg-shaped file (log = one-liners, body = prose discussion, opening post = description, `merge=union` on the store); no archive numbering — the merge SHA is the MR's name; grammar mini-spec deferred; and the tool is **dyne** (CGS force: erg = dyne × cm — an MR is a force applied to main, work done when main moves), standalone binary, `.dyne` files, `.dynerc`, store `merges/`. 0270 closed with phase 1 filed: 0271 (PEP) → 0272 (%dyne spec) → 0273 (binary + open/show/list/check) → 0274 (init, embedded docs, guards), 0275 (outbound PR-body bridge, #329). Queue: 0271 ready, rest chained by Blocked-by._
 
 ## North star:
 
@@ -31,11 +31,11 @@ Premature, unproven, or waiting on evidence. Do not promote without AGENTS.md ba
 - feat: AI script to realign docs and code (partial: 0232)
 
 ## Status
-<!-- generated 2026-08-26T10:45Z -->
+<!-- generated 2026-08-26T10:50Z -->
 
 **Recent commits:**
+  fc4a654 Merge pull request #329 from MinhHaDuong/claude/repo-orientation-uzwkkt
+  c041d4b tickets(0271-0275): file dyne phase 1; close 0270
   c6fcef5 Merge pull request #328 from MinhHaDuong/claude/repo-orientation-uzwkkt
   c795131 ticket(0270): name the MR tool dyne
   4279566 ticket(0270): maintainer arbitrates the four open decisions
-  7cc538d Merge pull request #327 from MinhHaDuong/claude/repo-orientation-uzwkkt
-  6990111 docs(state): refresh after 0248-0253 raid and 0270 design round
