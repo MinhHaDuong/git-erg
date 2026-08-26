@@ -2,7 +2,6 @@
 Title: Design git-mr, a composable local merge-request sibling
 Created: 2026-08-17
 Author: Claude
-Label: needs-human
 
 --- log ---
 2026-08-17T19:52Z Claude created
@@ -10,6 +9,8 @@ Label: needs-human
 2026-08-17T19:58Z Claude note implementation scheme consigned after maintainer pointer (PEP for the why, manual generated from --help --all, CLI-served spec and docs, embedded agentic guide with self-coherence guard; seven invariants; earning-a-feature evidence base named)
 2026-08-17T19:59Z Claude note maintainer arbitrated decision (c): one codebase, two specs. Shared machinery, autonomous contracts; verdict and open-decision list updated
 2026-08-17T20:11Z Claude note decorrelated review round (PR #326, FIX-FIRST): log-home contradiction resolved as open with the sketch annotated; 0282 spelled as forge ref git-erg#282; comparison table marked pre-decision with the rows (c) voids; working names flagged pending arbitration and invocation unified to git mr; erg close recorded as four-step and not atomic, staging clause tightened to add -A
+2026-08-26T10:19Z Claude note maintainer arbitrated the four remaining decisions (session 2026-08-26): grammar mini-spec deferred until a third-party implementer; log home inline -- one file, erg-shaped, log as one-liners, body as prose discussion (opening post = description), merge=union on merges/*.mr with check guarding duplicate headers; no archive numbering -- the merge SHA is the name, hooks get {sha}; git mr and .mrrc confirmed, store renamed mrs/ to merges/. Body updated throughout; needs-human lifted
+2026-08-26T10:19Z Claude unlabel needs-human
 
 --- body ---
 ## Context
@@ -60,14 +61,16 @@ File format `%mr 0.1`, same three-section grammar as `%erg 0.1`:
     --- body ---
     ## What, why
 
-(The log is shown inline for legibility; whether it lives in the `.mr`
-file or in a sibling `.log` is arbitrated in the open decisions below.
-`git-mr`, `mrs/`, `.mrrc` are working names throughout, pending the same
-list.)
+(Settled 2026-08-26: the log lives inline, exactly as shown -- one file
+per MR, same shape as a ticket. The log is one-liners; the body is the
+discussion: prose, whose opening post is the author's description --
+comment #0, as on a forge -- with later comments appended as
+timestamp-attributed blocks. Names settled the same day: binary `git-mr`
+invoked as `git mr`, config `.mrrc`, store `merges/`.)
 
 Settled design choices:
 
-- **Home: on the source branch** (`mrs/<branch>.mr`). Opening an MR =
+- **Home: on the source branch** (`merges/<branch>.mr`). Opening an MR =
   committing the file to the branch. Merging integrates the file into main:
   arrival in main's history IS the archival act -- like erg's move to
   closed/, but free and atomic. Rejected: dedicated refs a la
@@ -75,19 +78,33 @@ Settled design choices:
   refuses); a shared registry branch (permanent conflicts under parallel
   sessions); fusing MR and ticket into one object (couples two lifecycles;
   ticketless MRs become second-class).
-- **Multi-writer log.** An append-only log at the end of one file conflicts
-  on every double append (two reviewers, one CI). Git already has the needed
-  CRDT: `merge=union` in .gitattributes. Recommended home: a separate
-  `mrs/<branch>.log`, entries reordered by timestamp at display time,
-  headers+body staying in the `.mr` file, single-writer in practice. The
-  conflict analysis and the union-merge mechanism are the settled part;
-  the home itself is an open decision below.
+- **Multi-writer file, union merge** (home settled 2026-08-26). Reviewers
+  and CI append from different clones; a plain append-only file conflicts
+  on every double append. Git already has the needed CRDT: `merge=union`
+  on `merges/*.mr` in .gitattributes, from day one. Log and discussion
+  are different things and each is union-safe by its own form: log
+  entries are independent one-liners (reordered by timestamp at display
+  time); discussion comments are contiguous prose blocks under a
+  timestamp-attributed heading, appended, never rewritten (a review
+  thread is append-only by nature), so a concurrent double append keeps
+  both blocks and the headings recover the order. The residual union
+  hazard -- two clones editing the same header or the same existing
+  prose line merge silently, both lines kept -- is fenced by rarity
+  (writers other than the author only append) and by `git mr check`
+  hard-failing duplicate headers. Rejected: a sibling `.log` file (a
+  second home for what the format already houses, and a dent in
+  one-object-one-file); scoping union away by custom merge driver (clean
+  merges must not depend on the tool being installed).
 - **Identity: no number at open time.** An MR is identified by
   (Source, Target); the branch namespace is already unique, so the whole
   optimistic-allocation pathology (git-erg#282's collision class) has no object
-  here. A citable archive number, if wanted, is allocated **at merge time**,
-  where it is safe by construction: merges to main are serialized by main
-  itself, the one naturally linear queue in the system.
+  here. And none at merge time either (settled 2026-08-26): **the merge
+  commit SHA is the MR's permanent name**. No counter, no allocator, no
+  register-like artifact -- the register is git, all the way down. House
+  citation style: `merged as <short-sha>`; the hook contract passes
+  `{sha}`, not a serial. (Merge-time allocation would have been safe by
+  construction -- merges to main are serialized by main itself -- but
+  safe is not needed.)
 - **Review entries are typed and sha-pinned**: `note`, `verdict
   APPROVED|REROLL|ESCALATE sha=`, `ci pass|fail sha=`, comment anchors
   `path:line@sha`. A verdict on a stale head becomes mechanically
@@ -150,7 +167,7 @@ agent-mental-model row reduces to "two docs" (one busybox blob at two
 paths, not two binaries). Traded away: release-level decoupling (one
 release cycle ships both tools). Kept: format-level decoupling (`%erg`
 and `%mr` version independently). Distribution note: an identical
-busybox-style binary committed at `tickets/erg` and `mrs/git-mr` costs
+busybox-style binary committed at `tickets/erg` and `merges/git-mr` costs
 one git blob (content-addressed), two checkout paths; argv[0] picks the
 personality.
 
@@ -161,18 +178,22 @@ personality.
    tool embarks its own parser; each spec is normative for its own files
    only. At two instances the three-section grammar becomes extractable as a
    one-page mini-spec both specs *cite* (the RFC 822 move) -- when needed,
-   not before.
+   not before. Arbitrated 2026-08-26: deferred until a third-party
+   implementer exists; the shared parser is the anti-drift mechanism
+   meanwhile.
 2. **References**, opaque strings. git-mr gets repeatable `Closes:` /
    `Ref:` headers whose value grammar is "non-empty line"; `0042` is an
    opaque token that git-mr never resolves. Precedent inside erg itself:
    references are URI-references resolved optimistically (0253), and
-   `Closed: merged as MR 151` is already free text on the erg side. The
+   `Closed: merged as MR 151` is already free text on the erg side (the
+   style becomes `merged as <short-sha>` under the no-numbering
+   settlement; the opacity precedent stands either way). The
    cross-pointers ride in fields each tool already treats as opaque -- the
    sign the cut is right.
 3. **Behavior**, hooks: exec, not import. `.mrrc`:
 
        [hooks]
-       pre-merge = erg close {closes} "merged as MR {n}"
+       pre-merge = erg close {closes} "merged as {sha}"
 
    erg is already hook-shaped, with one precision to respect: `erg close`
    is a four-step operation, idempotent but not atomic -- it edits the
@@ -203,7 +224,7 @@ artifacts stay per-tool:
    served on demand), `git mr integration` (the composition seam --
    hooks, opaque `Closes:` refs -- served on demand). A disconnected
    agent needs no doc site: the binary carries its documentation.
-4. **Agentic guide** -- `mrs/AGENTS.md` embedded as an asset, deployed by
+4. **Agentic guide** -- `merges/AGENTS.md` embedded as an asset, deployed by
    `git mr init`, covered by the same self-coherence guard (CI fails
    when the deployed copy drifts from the embedded source).
 
@@ -214,7 +235,7 @@ plus POSIX, zero third-party dependencies); stateless (DAG-as-state IS
 this invariant -- erg removed pending/claimed in 0143/0144, and `%mr`
 refuses a Status field for the same reason); fast (invoked, never
 resident); small (the committed binary travels with every clone, so the
-size ratchet covers the blob shipped in `mrs/`). Separately, the
+size ratchet covers the blob shipped in `merges/`). Separately, the
 infrastructure-class security posture (docs/audit-infrastructure-class.md)
 comes with any embarked binary from day one: reproducible offline
 builds, signed tags.
@@ -260,19 +281,28 @@ without erg**, proving the orthogonality is not decorative.
 
 ## Open decisions (maintainer arbitration)
 
+All settled (2026-08-17 and 2026-08-26 sessions):
+
 - [x] (c) implementation -- settled 2026-08-17: one codebase, two specs
       (see verdict above).
-- [ ] Extract the three-section grammar as a one-page mini-spec cited by
-      both specs -- downgraded: the shared parser removes the drift risk;
-      still useful for third-party implementers.
-- [ ] Log home: separate `.log` file with merge=union (recommended) vs log
-      inside the `.mr` file.
-- [ ] Archive numbering at merge time: yes or no.
-- [ ] Name and invocation: `git-mr` on PATH invoked as `git mr` (dodges the
-      `mr`/myrepos collision); store `mrs/`; config `.mrrc`.
+- [x] Grammar mini-spec -- settled 2026-08-26: deferred until a
+      third-party implementer exists (verified-empirical-need bar); the
+      shared parser removes the drift risk meanwhile.
+- [x] Log home -- settled 2026-08-26: inside the `.mr` file. One file per
+      MR, erg's exact three-section shape; log = one-liners, body = the
+      discussion (prose; opening post is the description);
+      `merge=union` on `merges/*.mr` from day one; `check` hard-fails
+      duplicate headers; prose is append-only by convention.
+- [x] Archive numbering -- settled 2026-08-26: no. The merge commit SHA
+      is the MR's permanent name; hooks receive `{sha}`; citation style
+      `merged as <short-sha>`.
+- [x] Name and invocation -- settled 2026-08-26: binary `git-mr` on PATH
+      invoked as `git mr` (dodges the `mr`/myrepos collision); config
+      `.mrrc`; store renamed to `merges/` (unambiguous where `mrs/`
+      read as the honorific).
 
 ## Exit criteria
 
-- [ ] Maintainer arbitrates the open decisions above (or amends the design)
+- [x] Maintainer arbitrates the open decisions above (done 2026-08-26)
 - [ ] Phase-1 implementation tickets filed in the chosen home, or the vision
       explicitly parked with a note here
