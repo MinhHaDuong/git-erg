@@ -1,0 +1,189 @@
+%erg 0.1
+Title: erg log does not validate the actor slot
+Created: 2026-09-03
+Author: claude
+
+--- log ---
+2026-09-03T04:49Z claude created
+
+2026-09-03T04:51Z claude note reproduced on HEAD, bootstrap, and 5158508; five live instances already in tickets/closed/
+--- body ---
+## Context
+
+`erg log ID LINE [DIR]` enforces that LINE carries at least two
+whitespace-separated tokens, and nothing more. The *positions* of those
+tokens are unchecked, so a LINE whose first token is a verb produces a
+log entry with no actor at all. `erg check` and `erg validate` both
+return PASS on it, because rule 11's `logLineRE` is
+`timestamp \S+ \S+` -- a shape, not a role.
+
+`erg log --help` concedes this in as many words: "By convention the
+first token is an actor (who) and the second is a verb (what), but
+those names are not machine-checked."
+
+This is documented behaviour, not a crash. It is filed because the
+consequence is a hazard the store's own conventions do not survive:
+`tickets/AGENTS.md` states the log grammar as
+`YYYY-MM-DDThh:mmZ author verb detail`, and every consumer that reads
+field 2 as the author gets a verb instead. An actor-less entry is
+indistinguishable from a well-formed one to every gate this project
+has -- the "all-clear indistinguishable from I could not look" shape.
+
+**It has already happened here, five times, and every gate passed.**
+Grepping this repo's own store for a log line whose actor slot holds a
+known verb:
+
+```
+tickets/closed/0210-...erg:10:2026-06-02T22:44Z bump verify-reroll -- round 1: ...
+tickets/closed/0205-...erg:10:2026-06-02T17:43Z bump verify-reroll -- round 1: ...
+tickets/closed/0200-...erg:11:2026-05-30T20:15Z bump verify-reroll — round 1: ...
+tickets/closed/0200-...erg:12:2026-05-30T20:18Z bump verify-gate — round 2: APPROVED ...
+tickets/closed/0083-...erg:11:2026-05-06T12:01Z implementation complete — committed 1f68c4a ...
+```
+
+`erg check tickets/` on that store: `ERG CHECK: PASS (260 tickets)`.
+
+The motivating incident is a sixth, in a sibling repo: an agent lane
+wrote a log line that lost its actor and diagnosed the cause as "the
+positional form silently drops the author". That diagnosis is wrong --
+the positional forms fail loudly (see B below). The real mechanism is a
+LINE whose first token is a verb.
+
+## Reproduction
+
+Script: build `src/go` and run against a scratch store holding one
+ticket. Verified 2026-09-03 on three binaries -- HEAD source
+(`src/go` at 20bf1aa), the committed bootstrap `tickets/erg`
+(rev 089cd31), and an older 5158508 build. Identical on all three.
+Transcript below is the HEAD build.
+
+```
+--- A: --author flag ---
+$ erg log 0001 --author tester note "flagged entry" tickets/
+log: unknown flag "--author"
+Usage: erg log ID LINE [DIR]
+exit=1
+
+--- B: single-token LINE (arity rule IS enforced) ---
+$ erg log 0001 "loner" tickets/
+log: "loner" is not a valid log entry -- LINE must be 'actor verb
+[detail]' (at least two words)
+exit=1
+
+--- C: LINE whose FIRST token is a known verb (actor slot lost) ---
+$ erg log 0001 "note REROLL blockers reproduced" tickets/
+LOGGED
+exit=0
+
+--- D: control, well-formed LINE ---
+$ erg log 0001 "tester note a proper entry" tickets/
+LOGGED
+exit=0
+
+--- resulting log section ---
+  --- log ---
+2026-09-03T04:00Z tester created
+
+2026-09-03T04:49Z note REROLL blockers reproduced
+2026-09-03T04:49Z tester note a proper entry
+  --- body ---
+
+--- gates ---
+$ erg check tickets/        -> ERG CHECK: PASS (1 tickets)        exit=0
+$ erg validate tickets/...  -> ERG VALIDATION: PASS (1 file)      exit=0
+```
+
+C and D are indistinguishable to both gates. That is the defect.
+
+## Relevant files
+
+- `src/go/log.go` -- `cmdLog`; the arity check at the `logLineRE`
+  call is the only content validation LINE receives
+- `src/go/ergspecv1.go` -- `logLineRE`, rule 11's source of truth:
+  `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z\s+\S+\s+\S+`
+- `src/go/identity.go` -- `resolveAuthor()`: ERG_AUTHOR -> git
+  config user.name -> $USER -> "unknown", already sanitised against
+  newline injection, already unit-tested
+- `src/go/new.go:147`, `close.go:156`, `label.go:105,188`,
+  `rm.go:168` -- every other log-writing verb calls `resolveAuthor()`
+
+The asymmetry in that last line is the finding worth weighing: **`log`
+is the only verb that writes a log entry and does not resolve the
+author.** Every other one supplies the actor itself and puts it in the
+actor slot by construction, where they cannot get it wrong. `log`
+alone makes the caller type the actor into free text, and then does
+not check what was typed.
+
+## Two candidate directions
+
+The maintainer decides. Neither is pre-implemented here.
+
+**(1) Validate the actor position.** Reject, or warn, when the first
+token of LINE is one of the verbs the store already uses (`created`,
+`note`, `closed`, `status`, `resolved`, `open`, ...). Cheap, local to
+`cmdLog`, catches the incident and every one of the five above.
+
+Against it: it needs a verb list, which is state the tool does not
+have and which the Stateless invariant makes awkward to acquire -- the
+verbs are a convention of the *store*, not of the format, and rule 11
+deliberately does not name them. It false-positives on an actor
+legitimately named like a verb (a bot called `bump` is exactly how
+four of the five entries above arose, and under this rule they would
+be *correct* usage newly refused). And a warning that does not fail
+is a gate whose all-clear looks the same as its silence -- the shape
+this ticket is about.
+
+**(2) Supply the actor rather than police it.** Give `log` the same
+`resolveAuthor()` treatment every sibling verb already has: prepend
+the resolved author to LINE, so LINE becomes `VERB [detail]` and the
+caller cannot omit what it never had to type. An `--author` flag
+(and/or the already-supported `ERG_AUTHOR`) covers the override the
+missing flag in A was reaching for -- and `erg new` already carries
+exactly that flag (`new TITLE [DIR] [--author NAME]`), so the spelling
+is settled precedent rather than a new interface.
+
+Against it: it changes `log`'s contract, so existing callers passing
+`"actor verb detail"` would double the actor unless the change is
+gated -- by a flag, by detecting an already-present actor (which
+needs the same verb list as (1), and so inherits its weakness), or by
+a version bump. That compatibility question is the real cost and is
+the maintainer's call.
+
+**Recommendation: (2).** It removes the failure mode at the source
+instead of detecting it afterwards; it reuses machinery that exists,
+is tested, and is already the answer in five other commands, so it
+adds consistency rather than abstraction; and it needs no verb list,
+so it does not smuggle store-level convention into a format-level
+tool. (1) is the fallback if the compatibility break is judged too
+expensive, and the two compose: (2) for new callers, (1) as a
+transitional warning.
+
+Both are subordinate to the prior question the maintainer owns:
+whether this is worth fixing at all, or whether rule 11's silence on
+roles is the correct arbitration and `tickets/AGENTS.md` should stop
+claiming a grammar the tool does not enforce. Documenting the
+limitation louder is a legitimate outcome of this ticket. Closing it
+YAGNI is another.
+
+## The test that must be seen red
+
+Whichever direction is chosen, **a fix must be demonstrated to reject
+a real actor-less line.** A validator nobody has watched fail has not
+been shown to work. Concretely: the new test must be run against the
+*unfixed* tree first and observed to fail there, with the transcript
+recorded, before it is run against the fixed tree. The five entries
+in `tickets/closed/` above are ready-made positive fixtures; C in the
+reproduction is a synthetic one.
+
+## Exit criteria
+
+- [ ] The direction is chosen and the reasoning recorded, including
+      the option of declining
+- [ ] If a fix lands: a test asserting an actor-less line is refused,
+      shown red against the unfixed tree with the transcript recorded
+      in this ticket's log or the PR
+- [ ] If a fix lands: `erg log --help` and `docs/erg-manual.md` no
+      longer say the actor is unchecked, or say precisely how it now is
+- [ ] If a fix lands: `tickets/AGENTS.md`'s stated log grammar and the
+      tool's enforcement agree
+- [ ] `make check` passes
