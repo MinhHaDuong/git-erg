@@ -2,12 +2,14 @@
 Title: erg log does not validate the actor slot
 Created: 2026-09-03
 Author: claude
+Closed: Direction (2) implemented and merged in PR #334: the actor is supplied by erg, not policed. Four review-found regressions fixed in the same PR.
 
 --- log ---
 2026-09-03T04:49Z claude created
 
 2026-09-03T04:51Z claude note reproduced on HEAD, bootstrap, and 5158508; five live instances already in tickets/closed/
 2026-09-10T09:12Z HDMX-coding-agent note direction (2) implemented; actor supplied not policed, red step recorded in the body
+2026-09-10T09:42Z HDMX-coding-agent closed — Direction (2) implemented and merged in PR #334: the actor is supplied by erg, not policed. Four review-found regressions fixed in the same PR.
 --- body ---
 ## Context
 
