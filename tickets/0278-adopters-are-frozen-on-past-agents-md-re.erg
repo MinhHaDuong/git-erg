@@ -1,0 +1,115 @@
+%erg 0.1
+Title: Adopters are frozen on past AGENTS.md releases
+Created: 2026-09-10
+Author: HDMX-coding-agent
+
+--- log ---
+2026-09-10T06:56Z HDMX-coding-agent created
+
+--- body ---
+## Context
+
+A sweep of every adopter repo on this machine (2026-09-10, 11 repos carrying
+`tickets/AGENTS.md`) was run to look for local drift. It found almost none. What
+it found instead is the reverse defect:
+
+| bytes | sha256 (12) | shipped as | repos |
+|-------|-------------|------------|-------|
+| 2 141 | `beda994b2c37` | current (`ed818f7`, 2026-06-18) | DOIfetch, git-erg, search-works-for-zotero, archiveCIRED, polycentric_activity, zoteus-fts5 |
+| 1 862 | `07c11767031b` | `0b9d206`, 2026-06-02 | CNRS/html, aedist, climate-finance-het, padme |
+| 1 388 | `34c903e32f10` | `3f73299`, 2026-05-12 | chemin-de-voix |
+| 8 005 | (local) | — | ImperialDragonHarness (see 0277) |
+
+Both off-baseline hashes are **byte-for-byte past releases**, verified against
+`git log -- src/go/assets/AGENTS.md`. Not one of those five repos has edited the
+file. They are simply frozen — four on a June release, one on a May release —
+and have been for three to four months.
+
+They are frozen because `extraHistoricalHashes` in `src/go/manifest.go` is
+empty. Its own comment records this as deliberate ("BOOTSTRAP / DORMANCY NOTE:
+this is intentionally empty today"), and the reasoning holds for the *running*
+binary, where `installAssets` checks `onDisk == embedded` first. But the
+consequence for an adopter that skipped a release is the branch the comment
+describes as the safe degradation: "an unrecognized old asset degrades safely to
+preserve (exit 2)". Safe, and permanent. The mechanism built to recognize a
+pristine prior release has never been given a single hash to recognize, so it
+recognizes nothing, and every adopter that misses one release is frozen for
+good.
+
+What those five repos are missing is not cosmetic. The 2026-06-18 revision is
+where the optimistic-ID collision material landed — allocation is optimistic,
+renumber clear of the frontier, scan open PRs with `gh pr view` and never
+`gh pr list --json files`, re-run `erg check` against `origin/main` after a merge.
+climate-finance-het is on the June-02 copy: the repo whose own incidents produced
+those rules (two collisions in one afternoon, `origin/main` left red twice) does
+not have them in the file that is supposed to carry them.
+
+## Relevant files
+
+- `src/go/manifest.go` — `extraHistoricalHashes` (empty), `knownAssetHashes`,
+  `isCleanUpgrade`; the whole decision lives here
+- `src/go/bootstrap_assets.go` — the embedded current asset
+- `src/go/assets/AGENTS.md` — current baseline, 2 141 bytes
+- `src/go/install.go`, `init` — the paths that would perform the upgrade
+
+## Actions
+
+1. Populate `extraHistoricalHashes` with the SHA-256 of every genuinely shipped
+   `AGENTS.md`. They are enumerable from git history; the twelve distinct ones
+   to date, newest first:
+   `beda994b2c3752df` (2141, current), `4bf97d1785195bfa` (2142),
+   `07c11767031b6cef` (1862), `bdfa1740069b581b` (1651),
+   `aab6666f09bf75ee` (1680), `e1ad52332c6f1fd0` (1395),
+   `f68f9135c750b078` (1393), `cba6d04be2b74664` (1388),
+   `34c903e32f102ff6` (1388), `de5f5d28ecee0441` (1395),
+   `86d04bbbd8ba3609` (1393), `d86030a10eedc76a` (1383).
+   Record full hashes, not these prefixes. The table's own warning governs:
+   only genuinely shipped content, since a false entry is the one way it can
+   destroy a real local edit.
+2. Derive the table from history rather than transcribing it by hand — a
+   generated list, or a test that regenerates it from
+   `git log -- src/go/assets/*` and fails on divergence. A hand-maintained list
+   is how the next release goes unrecorded.
+3. Apply the same treatment to the other embedded assets (`.ergrc`,
+   `spec-erg-v1.md`, `integration.md`): the defect is in the shared machinery,
+   so it is not specific to `AGENTS.md`.
+4. Upgrade the five repos once the table can recognize them.
+
+## Test
+
+Red step: a fixture repo whose `tickets/AGENTS.md` is the 1 862-byte June-02
+release, asserting that `erg init` (or `install`) upgrades it to current and
+exits 0. Against today's code that fixture must exit 2 and preserve — run it and
+watch it fail before the fix, or the test proves nothing.
+
+Second arm, and the one that must not regress: a fixture carrying a genuine
+local edit (the harness's 8 005-byte copy is a real specimen) must still be
+preserved, exit 2.
+
+## Verification
+
+- [ ] fixture at the June-02 hash upgrades to current, exit 0
+- [ ] fixture at the May-12 hash upgrades to current, exit 0
+- [ ] fixture with a genuine local edit is preserved, exit 2, message unchanged
+- [ ] the table-vs-history test fails when a shipped revision is missing from the table
+- [ ] the four `07c11767031b` repos and chemin-de-voix report current after a real upgrade run
+
+## Invariants
+
+- A real local edit is never clobbered. This is the one failure mode the table
+  can introduce, and it is why every added hash must come from history.
+- `erg init` on a pristine current asset stays a no-op.
+- Exit codes unchanged for every case that is already correct today.
+
+## Exit criteria
+
+- `extraHistoricalHashes` recognizes every shipped revision of every embedded
+  asset, and a test keeps it that way as releases are cut
+- The five frozen adopter repos are upgraded to the current asset
+- The dormancy note in `manifest.go` is rewritten to say what the table is for
+  now that it is load-bearing, and what adding to it costs
+
+## Related
+
+- 0277 — residency budget for the same file; the sweep in this ticket is the
+  evidence that its defect has exactly one instance, while this one has five.
