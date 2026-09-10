@@ -1,0 +1,140 @@
+%erg 0.1
+Title: Forbid local edits to the shipped tickets/AGENTS.md
+Created: 2026-09-10
+Author: HDMX-coding-agent
+Blocked-by: 0278
+
+--- log ---
+2026-09-10T06:53Z HDMX-coding-agent created
+
+2026-09-10T06:57Z HDMX-coding-agent note reframed after the 11-repo sweep: one editing instance, not widespread drift; author directs a ban, escape hatch is the on-demand channel; 0278 is a prerequisite
+2026-09-10T08:43Z HDMX-coding-agent note corrected the sweep's arithmetic after re-measuring with erg init --dry-run: four of the five 'frozen' repos upgrade via the stamp path and have been refreshed; one stampless repo remains. The ban's substance and the Blocked-by are unchanged.
+--- body ---
+## Context
+
+git-erg installs `tickets/AGENTS.md` into every adopter repo — 2 141 bytes as
+shipped (`src/go/assets/AGENTS.md`, embedded and mapped by
+`src/go/bootstrap_assets.go`). Adopters then wire it into the agent's *resident*
+context: the harness convention is a bare `@tickets/AGENTS.md` line in the
+project `CLAUDE.md`, and `erg install --inject-agents` writes a pointer into the
+root `AGENTS.md`. Every byte of that file is re-read at the start of every
+session, in every session of every adopter repo. Nothing budgets it: the asset
+machinery is hash-based and asks one question — pristine or locally edited
+(`manifest.go`, `isCleanUpgrade`) — and size is never consulted.
+
+The 11-repo sweep of 2026-09-10 (tabulated in 0278) settles the scale of the
+problem, and it is smaller than it looked: **exactly one repo has ever edited
+this file.** ImperialDragonHarness stands at 8 005 bytes, 3.7x baseline, roughly
+2 000 tokens paid at every session start. Every other adopter is byte-for-byte
+a shipped release — six current, four merely behind (since refreshed), one stampless.
+
+So this is not a widespread drift to be policed. It is one repo's accretion, and
+the interesting fact about it is *what* accreted: optimistic-ID collision
+recovery, the per-PR `gh pr view` scan, the cross-PR CI gate, artifacts versus
+decision records. Almost none of that is harness-specific. It is generic git-erg
+lore that had nowhere else to live, so it went into the only file the agent was
+guaranteed to read.
+
+## The decision (author, 2026-09-10)
+
+Local editing of the shipped `tickets/AGENTS.md` is to be **forbidden**, not
+merely budgeted. That is enforceable precisely because the sweep shows a single
+instance — but a ban with no escape hatch would destroy the one repo's content,
+which is real and worth keeping. The ban therefore comes with somewhere for the
+content to go, and the choice of destination is the whole design:
+
+- **Not** upstreamed into `assets/AGENTS.md`. Folding 5 900 bytes into the
+  shipped asset makes every adopter pay ~1 500 resident tokens for war stories
+  most of them will never hit. That trades one repo's cost for eleven.
+- **Into the on-demand channel git-erg already has.** `erg spec` and
+  `erg integration` are commands that print documentation when an agent asks
+  for it. Long-form collision recovery belongs there, named by a one-line
+  pointer from the shipped `AGENTS.md`. Pointer resident, payload on demand —
+  the same split the harness applied to its own rules tree on 2026-09-09,
+  measured at 31 000 -> 11 300 resident tokens.
+- **Adopter-specific lore** (a repo's own CI job names, its local conventions)
+  goes in an adopter-owned file the shipped asset points at, never in the
+  shipped asset itself.
+
+With the escape hatch in place the ban is cheap to enforce: an unrecognized hash
+becomes a hard error rather than a preserved local edit. Note the coupling — a
+hard error on an unrecognized hash is only safe once 0278 has populated
+`extraHistoricalHashes`, or the one stampless repo fails instead of upgrading.
+**0278 lands first.**
+
+## Relevant files
+
+- `src/go/assets/AGENTS.md` — the shipped baseline, 2 141 bytes; must stay lean
+- `src/go/bootstrap_assets.go` — embeds it; maps `tickets/AGENTS.md` -> `assets/AGENTS.md`
+- `src/go/manifest.go` — `isCleanUpgrade`: where pristine-vs-edited is decided
+  today, and where the ban's verdict changes
+- `src/go/install.go` — `--inject-agents`, the flag that makes the file resident
+- `src/go/spec.go`, `src/go/integration.go` (or their equivalents) — the
+  on-demand channel the displaced content moves into
+- `/home/haduong/.claude/tickets/AGENTS.md` — the single specimen; its excess
+  content is the migration's input
+
+## Actions
+
+1. Land 0278 first. The ban cannot be enforced while an adopter carries
+   an unrecognizable-but-legitimate copy.
+2. Partition the harness's 8 005-byte copy: what is generic git-erg lore (most
+   of it), what is adopter-specific (CI job names, local paths), what is already
+   in the shipped baseline.
+3. Move the generic long-form material into the `erg integration` / `erg spec`
+   output, and leave a one-line pointer in the shipped `AGENTS.md` naming the
+   command that prints it. Keep the shipped file's resident cost within its
+   current order of magnitude — a lean file is the point, not a side effect.
+4. Give adopter-specific lore a declared home the shipped asset points at, so
+   the ban never forces a repo to discard local knowledge.
+5. Make an unrecognized hash a hard error on `erg check`, with a message that
+   names the escape hatch rather than only refusing.
+6. Return the harness copy to pristine and verify the lore is still reachable
+   from a cold session — the migration is only done when an agent that needs the
+   collision recipe can still find it.
+
+## Test
+
+Red step: a fixture repo whose `tickets/AGENTS.md` carries a local edit,
+asserting `erg check` fails and names the escape hatch. Against today's code it
+passes silently, so watch it fail before the fix.
+
+The positive control matters as much: a fixture at a recognized shipped hash
+must stay silent. A check whose all-clear cannot be told from "I could not look"
+is not a check — so demonstrate the failing arm firing before trusting the
+passing arm's silence.
+
+Migration test: the collision-recovery material is reachable from `erg integration`
+(or `erg spec`) output after the move, asserted on content, not on exit code.
+
+## Verification
+
+- [ ] `erg check` fails on a locally-edited `tickets/AGENTS.md`, message names where the content should go
+- [ ] `erg check` stays silent on every hash recognized after 0278
+- [ ] the shipped `assets/AGENTS.md` has not grown by more than a pointer
+- [ ] `erg integration` output contains the optimistic-ID collision recipe
+- [ ] the ImperialDragonHarness copy is byte-identical to the shipped asset, and its lore is reachable from the on-demand channel
+- [ ] a cold agent session in an adopter repo can still reach the collision recipe
+
+## Invariants
+
+- No adopter loses content. Every byte removed from a local `AGENTS.md` is
+  reachable from a command before the removal lands.
+- The shipped asset stays lean: this ticket must not become the vehicle that
+  makes eleven repos pay the harness's accumulated cost.
+- `erg check`'s exit code is unchanged for a pristine corpus.
+- 0278 lands first; enforcing before it would fail a legitimate repo.
+
+## Exit criteria
+
+- A locally-edited shipped `AGENTS.md` is refused by `erg check`, with the
+  escape hatch named in the message
+- The generic collision lore lives in the on-demand channel, pointed at from the
+  shipped asset by one line
+- Adopter-specific lore has a declared, documented home outside the shipped asset
+- The one specimen (ImperialDragonHarness) is back to pristine with nothing lost
+- The design decision above is recorded here, so the next agent does not retake it
+
+## Related
+
+- 0278 — the historical-hash table; a hard prerequisite, not a sibling.
