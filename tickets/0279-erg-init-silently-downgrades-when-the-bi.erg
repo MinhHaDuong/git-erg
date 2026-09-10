@@ -1,0 +1,136 @@
+%erg 0.1
+Title: erg init silently downgrades an asset when the running binary predates the stamp
+Created: 2026-09-10
+Author: HDMX-coding-agent
+
+--- log ---
+2026-09-10T09:40Z HDMX-coding-agent created
+
+--- body ---
+## Context
+
+`isCleanUpgrade` (`src/go/manifest.go`) decides overwrite-vs-preserve by asking
+whether the on-disk asset matches the `.erg-assets` stamp. It never asks in
+which *direction* the two binaries differ. So the "clean upgrade" branch fires
+identically for an upgrade and for a rollback, and a binary older than the one
+that wrote the stamp will happily overwrite a newer asset with its own older
+embedded copy.
+
+Reproduced on a fixture (2026-09-10), using aedist's committed binary
+(`8331a94`, 2026-06-05) against the current one (`089cd31`, 2026-06-29):
+
+```
+1. state before                    AGENTS.md=1862  stamp=07c11767031b
+2. refresh with the current binary AGENTS.md=2141  stamp=beda994b2c37
+3. later, the repo's own binary:
+     WARN AGENTS.md: embedded version differs from the .erg-assets stamp
+          (binary upgraded since last init) -- run 'erg init' to refresh
+     init: refreshed tickets/AGENTS.md
+                                   AGENTS.md=1862  stamp=07c11767031b
+```
+
+Three separate defects compound at step 3:
+
+1. **The warning asserts a direction it never checks.** `assetDriftSignal`
+   reads "binary upgraded since last init". Here the binary is three months
+   *older* than the stamp. `assetDriftWarnings` compares hashes for inequality
+   and infers an ordering from nothing.
+2. **The advice the warning gives is what performs the damage.** It says to run
+   `erg init`; doing so reverts the asset.
+3. **The revert reports itself as a refresh.** `init: refreshed
+   tickets/AGENTS.md`, exit 0. Nothing in the output distinguishes a three-month
+   rollback of a git-tracked file from a legitimate upgrade.
+
+This is not hypothetical housekeeping. It is the failure mode an agent walks
+into whenever it helps across repos: the obvious gesture — run the newest erg
+you have against a stale adopter — leaves that repo primed to revert itself at
+the next `erg init`, guided by a warning that will be printed at every session.
+The trap is what makes `erg update && erg init` mandatory as a pair rather than
+merely canonical, and nothing in the code enforces the pairing today.
+
+## Relevant files
+
+- `src/go/manifest.go` — `isCleanUpgrade` (the direction-blind decision),
+  `assetDriftWarnings` and `assetDriftSignal` (the inverted message),
+  `writeManifest` around line 57 where `buildDate` is already recorded
+- `src/go/init.go` — `installAssets`, which acts on the verdict and prints
+  `refreshed`
+- `src/go/version.go` — `buildDate`, `vcsRevision`, both set via `-ldflags`
+- `src/go/update.go` — the post-update hint that emits the same signal
+
+## The material for the fix already exists
+
+The stamp records `rev:` and `date:` (written from `buildDate`), and the
+running binary knows its own `buildDate`. Both sides of the comparison are
+therefore already on disk and in the binary; no new provenance needs
+inventing. A stamp older than the running binary is an upgrade; a stamp newer
+is a rollback, and a rollback must not be silently applied.
+
+Note the one case that must keep working: a stamp with no date, or an
+unparseable one, from an older erg. Absent provenance is not evidence of a
+rollback, so it must degrade to today's behaviour, not to a refusal.
+
+## Actions
+
+1. Give `isCleanUpgrade` the stamp's date (or revision) and the running
+   binary's `buildDate`. When the stamp is strictly newer, do not treat the
+   match as a clean upgrade: preserve, and say why.
+2. Fix `assetDriftSignal` to state the direction it has actually established —
+   "binary upgraded since last init" only when that is true, and a distinct
+   message naming the rollback when the binary is the older one.
+3. Make the rollback message name the remedy (`erg update` first), since the
+   user in this state is one command away from being correct.
+4. Make `installAssets` print `downgraded` rather than `refreshed` if a
+   deliberate rollback is ever performed (`--force`), so the log never claims a
+   refresh it did not do.
+5. Missing or unparseable stamp date: fall through to current behaviour.
+
+## Test
+
+Red step: a fixture whose `.erg-assets` stamp carries a date newer than the
+running binary's `buildDate`, with the on-disk asset matching that stamp.
+Assert `erg init` preserves and exits 2. Against today's code it overwrites and
+exits 0 — run it and watch it fail before the fix, or it proves nothing.
+
+The positive control is the arm that must not regress: a stamp *older* than the
+running binary, on-disk asset matching it, must still upgrade cleanly and exit
+0. That is the ordinary path and it is the one a direction check is most likely
+to break.
+
+Third arm: a stamp with no `date:` field must behave exactly as today.
+
+Fourth arm, on the message rather than the exit code: assert the warning text
+for a rollback does not contain "upgraded". Defect 1 above is invisible to any
+assertion that only reads exit codes.
+
+## Verification
+
+- [ ] fixture with a newer stamp: asset preserved, exit 2, message names `erg update`
+- [ ] fixture with an older stamp: asset upgraded, exit 0 (no regression)
+- [ ] fixture with a dateless stamp: behaviour byte-identical to today
+- [ ] the drift warning never claims "upgraded" when the binary is the older side
+- [ ] the fixture reproduction in Context, replayed end to end, no longer reverts
+
+## Invariants
+
+- A genuine upgrade must still be silent and automatic. This ticket must not
+  turn the ordinary `erg update && erg init` path into a prompt.
+- A real local edit is still preserved, unchanged, by every path.
+- No new provenance is written into `.erg-assets`; the fix uses fields the
+  stamp already carries.
+- Stores written by an erg predating the `date:` field keep working.
+
+## Exit criteria
+
+- A binary older than the stamp cannot overwrite the asset without `--force`
+- No message asserts an ordering the code has not established
+- The fixture in Context replays clean
+- `erg update && erg init` is enforced as a pair by the code, not only
+  documented as canonical in `erg init --help`
+
+## Related
+
+- 0277, 0278 — same investigation (the 11-repo asset sweep of 2026-09-10). This
+  defect is distinct from both: 0278 is about a table that is empty, this is
+  about a comparison that is direction-blind. Neither 0277 nor 0278 describes
+  it, and it fires on repos that both of them consider healthy.
