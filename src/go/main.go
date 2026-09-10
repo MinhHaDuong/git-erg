@@ -10,7 +10,7 @@
 //	erg next-id  [dir]
 //	erg new      TITLE [DIR]
 //	erg close    ID|FILE REASON [DIR]
-//	erg log      ID LINE [DIR]
+//	erg log      ID LINE [DIR] [--author NAME]
 //	erg label    ID LABELNAME [DIR]
 //	erg unlabel  ID LABELNAME [DIR]
 //	erg archive  [id...] [dir] [-n|--dry-run]

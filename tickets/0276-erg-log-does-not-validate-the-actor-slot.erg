@@ -7,6 +7,7 @@ Author: claude
 2026-09-03T04:49Z claude created
 
 2026-09-03T04:51Z claude note reproduced on HEAD, bootstrap, and 5158508; five live instances already in tickets/closed/
+2026-09-10T09:12Z HDMX-coding-agent note direction (2) implemented; actor supplied not policed, red step recorded in the body
 --- body ---
 ## Context
 
@@ -175,15 +176,87 @@ recorded, before it is run against the fixed tree. The five entries
 in `tickets/closed/` above are ready-made positive fixtures; C in the
 reproduction is a synthetic one.
 
+## Resolution (2026-09-10)
+
+**Direction (2) retained**, as recommended: the actor is supplied, not
+policed. `cmdLog` now resolves the author the way every sibling verb
+already does and prepends it, so LINE carries `VERB [detail]`. An
+`--author NAME` flag covers the override, spelled as `erg new` spells it.
+
+Direction (1) was rejected on the ticket's own evidence, and the corpus
+confirms it. A census of the actor slot across every real log section on
+main -- 770 entries -- found five off-pattern values: `bump` (4) and
+`implementation` (1). Under (1)'s verb list the four `bump` lines would
+be **newly refused while being correct**: `bump` is a bot's name, not a
+verb. A rule whose first act is to reject four legitimate entries is the
+wrong rule.
+
+A note on that number, because the first attempt at it was wrong. Grepping
+whole ticket files reported six, including a `note ...` line "in 0276".
+That line is an *example quoted in 0276's body* -- the ticket illustrates
+the defect it describes -- not a log entry. Ticket bodies also quote
+`--- log ---` and `--- body ---` separators, so any census must bound
+itself to the text between the FIRST pair. Restricted properly, five.
+
+**Why no read-side validation was added.** The format is positionally
+ambiguous: `<ts> A B ...` parses whether A is an actor or a verb, so
+`logLineRE` (`ergspecv1.go:99`, timestamp plus two tokens) passes both
+readings and no regex over shape can separate them. Validating after the
+fact therefore requires a verb vocabulary, which is store convention
+rather than format, and rule 11 deliberately does not name one. Supplying
+the actor needs no vocabulary at all.
+
+**The five historical entries are left as they are.** Only one is
+genuinely actor-less, and repairing it means inventing an author nobody
+recorded; the other four turn on whether `bump` was the actor or the
+verb, which is undecidable from the text. Rewriting a log entry would
+also break the append-only rule the format rests on. For the record:
+
+- `0083` -- `2026-05-06T12:01Z implementation complete -- committed 1f68c4a on main`
+  (actor genuinely missing)
+- `0200` (two), `0205`, `0210` -- the four `bump verify-*` entries
+  (actor plausibly `bump`, a bot)
+
+All five are in closed tickets. The fix stops new ones; nothing in this
+change rewrites history.
+
+**The red step, run before the fix, as this ticket requires:**
+
+```
+--- FAIL: TestCmdLog_SuppliesActor (0.00s)
+    log_test.go:78: actor slot is "note", want "testuser" -- full line:
+                    "2026-09-10T09:08Z note corrected the sweep"
+    log_test.go:81: verb slot is "corrected", want "note" -- full line:
+                    "2026-09-10T09:08Z note corrected the sweep"
+--- FAIL: TestCmdLog_AuthorFlagOverrides (0.00s)
+    log: unknown flag "--author"
+--- FAIL: TestCmdLog_SingleTokenLineIsEnough (0.00s)
+    log: "reopened" is not a valid log entry -- LINE must be 'actor verb [detail]'
+```
+
+Two arms of the same file passed before and after -- `EmptyLineRefused`
+and `WrittenLineValidates` -- so the suite carries its own regression
+guard against a fix that trades one failure for another.
+
+**Compatibility.** This changes `log`'s contract: a caller passing
+`"actor verb detail"` now doubles the actor. The break is announced in
+`erg log --help` and `docs/erg-manual.md` rather than gated, because
+every gating option the ticket lists needs the verb vocabulary that
+direction (1) was rejected for. In-repo callers were swept:
+`tests/test_log.sh` was the only one, and it is updated.
+
 ## Exit criteria
 
-- [ ] The direction is chosen and the reasoning recorded, including
-      the option of declining
-- [ ] If a fix lands: a test asserting an actor-less line is refused,
+- [x] The direction is chosen and the reasoning recorded, including
+      the option of declining -- (2), see Resolution
+- [x] If a fix lands: a test asserting an actor-less line is refused,
       shown red against the unfixed tree with the transcript recorded
-      in this ticket's log or the PR
-- [ ] If a fix lands: `erg log --help` and `docs/erg-manual.md` no
+      in this ticket's log or the PR -- `src/go/log_test.go`, transcript
+      in Resolution
+- [x] If a fix lands: `erg log --help` and `docs/erg-manual.md` no
       longer say the actor is unchecked, or say precisely how it now is
-- [ ] If a fix lands: `tickets/AGENTS.md`'s stated log grammar and the
-      tool's enforcement agree
-- [ ] `make check` passes
+- [x] If a fix lands: `tickets/AGENTS.md`'s stated log grammar and the
+      tool's enforcement agree -- the asset states
+      `YYYY-MM-DDTHH:MMZ author verb detail` (line 37) and that is now
+      exactly what the tool writes; the asset needed no change
+- [x] `make check` passes
