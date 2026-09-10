@@ -9,6 +9,7 @@ Blocked-by: 0278
 
 2026-09-10T06:57Z HDMX-coding-agent note reframed after the 11-repo sweep: one editing instance, not widespread drift; author directs a ban, escape hatch is the on-demand channel; 0278 is a prerequisite
 2026-09-10T08:43Z HDMX-coding-agent note corrected the sweep's arithmetic after re-measuring with erg init --dry-run: four of the five 'frozen' repos upgrade via the stamp path and have been refreshed; one stampless repo remains. The ban's substance and the Blocked-by are unchanged.
+2026-09-10T13:05Z claude note four observations from the harness side, reached independently before this ticket was found (harness 0906): the erg-github sentence is a mood error not a fiction, the shipped asset carries a rule the harness fork lost, a downstream rules file cites AGENTS.md and breaks when content moves, and the displaced material measures 1730 bytes as rules once narrative is stripped
 --- body ---
 ## Context
 
@@ -135,6 +136,53 @@ Migration test: the collision-recovery material is reachable from `erg integrati
 - The one specimen (ImperialDragonHarness) is back to pristine with nothing lost
 - The design decision above is recorded here, so the next agent does not retake it
 
+## Observations from the harness side (2026-09-10)
+
+Reached independently, from the specimen repo, before this ticket was found.
+They do not change the decision above; three of them are work the migration
+must do anyway, and the fourth prices it.
+
+**1. The `erg-github` sentence is a mood error, not a fiction.** The shipped
+asset states in the indicative that `tickets/erg-github` "adds a `verify` check
+that fails a PR referencing a still-open ticket". The helper is real — a
+5 471-byte POSIX script with `install` and `verify` verbs — and does exactly
+that. It is installed in **zero** repos: the script exists only in this repo's
+own `tickets/`, and `erg-verify.yml` is in no workflows directory anywhere,
+including this one. So every adopter reads that a required pre-merge check
+exists when none does. The harness deleted the sentence in its fork under the
+label "erg-github fiction", which is imprecise in the other direction. The
+repair is the mood — describe an optional facility as optional, naming
+`erg-github install` — not deletion.
+
+**2. The shipped asset carries a rule the harness fork lost.** The anti-suffix
+bullet ("Ticket IDs are atomic 4-digit numbers -- never suffix them (`0134a`,
+`0134b`)") is in the asset and in every adopter, and absent from the harness
+copy, which overwrote that bullet with its optimistic-ID material. Returning
+the specimen to pristine therefore *restores* a rule as well as removing
+excess; the migration is not purely subtractive on that side.
+
+**3. A downstream rules file cites this asset by name.** The harness's
+`rules/coding-bash.md` points at `tickets/AGENTS.md` as the file stating the
+general form of "a check whose all-clear is indistinguishable from 'I could
+not look'". Whatever destination the displaced content gets, that citation has
+to be repointed in the same change, or the ban lands a dangling reference in
+a resident rule body.
+
+**4. Priced, the displaced material is smaller than the ban assumes.** The
+design note above weighs folding "5 900 bytes" into the shipped asset. That is
+the raw delta, and it is mostly dated incident narrative. Rewritten as rules,
+with every postmortem removed and the anti-suffix bullet restored, a merged
+candidate measures **3 873 bytes total** against the shipped 2 141 — an
+increase of 1 730 bytes, roughly 430 resident tokens per adopter, not 1 500.
+Whether that is worth paying is the author's call and the design note may still
+prefer the on-demand channel; the point is only that the trade is priced
+differently once the war stories are gone. The candidate was drafted for the
+measurement and is reproducible from the specimen's history.
+
 ## Related
 
 - 0278 — the historical-hash table; a hard prerequisite, not a sibling.
+- ImperialDragonHarness 0906 — the harness half: returning the specimen to
+  pristine, relocating its forge-specific practice into that repo's own rules
+  tree, and gating the result by checksum against this asset rather than by a
+  size budget. Blocked on this ticket, and on the arbitration in observation 4.
