@@ -1,115 +1,150 @@
 %erg 0.1
-Title: Adopters are frozen on past AGENTS.md releases
+Title: Harden the asset machinery against silently losing a tracked file
 Created: 2026-09-10
 Author: HDMX-coding-agent
 
 --- log ---
 2026-09-10T06:56Z HDMX-coding-agent created
 
+2026-09-10T08:43Z HDMX-coding-agent note rewritten after measuring the sweep instead of inferring it. The original framing -- "five adopters are frozen" -- was wrong twice: four of the five upgrade cleanly via the stamp path and have now been refreshed, and the content they were said to be missing was never in the shipped asset. Scope corrected, and the ticket re-aimed at the defect class the author names: a tracked file must never vanish or revert without saying so.
+
 --- body ---
 ## Context
 
-A sweep of every adopter repo on this machine (2026-09-10, 11 repos carrying
-`tickets/AGENTS.md`) was run to look for local drift. It found almost none. What
-it found instead is the reverse defect:
+An 11-repo sweep (2026-09-10) was read as evidence that five adopters were
+frozen on old releases. Re-measured with `erg init --dry-run` rather than
+inferred from hashes, that claim does not hold:
 
-| bytes | sha256 (12) | shipped as | repos |
-|-------|-------------|------------|-------|
-| 2 141 | `beda994b2c37` | current (`ed818f7`, 2026-06-18) | DOIfetch, git-erg, search-works-for-zotero, archiveCIRED, polycentric_activity, zoteus-fts5 |
-| 1 862 | `07c11767031b` | `0b9d206`, 2026-06-02 | CNRS/html, aedist, climate-finance-het, padme |
-| 1 388 | `34c903e32f10` | `3f73299`, 2026-05-12 | chemin-de-voix |
-| 8 005 | (local) | — | ImperialDragonHarness (see 0277) |
+| verdict | repos |
+|---------|-------|
+| `unchanged` | archiveCIRED, zoteus-fts5, polycentric_activity, search-works-for-zotero, DOIfetch, git-erg |
+| `would refresh` | padme, climate-finance-het, aedist, CNRS/html |
+| `would preserve` | chemin-de-voix (no stamp) |
+| `would preserve` | ImperialDragonHarness (genuine local edit, see 0277) |
 
-Both off-baseline hashes are **byte-for-byte past releases**, verified against
-`git log -- src/go/assets/AGENTS.md`. Not one of those five repos has edited the
-file. They are simply frozen — four on a June release, one on a May release —
-and have been for three to four months.
+The four `would refresh` repos were never frozen: `isCleanUpgrade` consults the
+`.erg-assets` stamp *before* the historical-hash table, their stamp matched
+their disk byte for byte, and `erg check` had been telling them to run
+`erg init` since June. They have since been refreshed (aedist
+MinhHaDuong/aedist-technical-report#1171, padme MinhHaDuong/padme#87, CNRS/html
+on branch `chore/erg-refresh`). One repo, chemin-de-voix, has no stamp at all.
 
-They are frozen because `extraHistoricalHashes` in `src/go/manifest.go` is
-empty. Its own comment records this as deliberate ("BOOTSTRAP / DORMANCY NOTE:
-this is intentionally empty today"), and the reasoning holds for the *running*
-binary, where `installAssets` checks `onDisk == embedded` first. But the
-consequence for an adopter that skipped a release is the branch the comment
-describes as the safe degradation: "an unrecognized old asset degrades safely to
-preserve (exit 2)". Safe, and permanent. The mechanism built to recognize a
-pristine prior release has never been given a single hash to recognize, so it
-recognizes nothing, and every adopter that misses one release is frozen for
-good.
+The other half of the original claim was also wrong: the 2026-06-18 revision
+those repos were said to be missing does not contain the optimistic-ID
+collision doctrine. Measured on the shipped asset — `gh pr view`: 0,
+`optimistic`: 0, `clear of the frontier`: 0, `cross-pr`: 0. The whole delta is
+one line, and it advises renumbering to the next free ID, which downstream
+experience has since overturned. Staleness cost nothing here; the shipped
+content is the real problem, and that is 0277's subject.
 
-What those five repos are missing is not cosmetic. The 2026-06-18 revision is
-where the optimistic-ID collision material landed — allocation is optimistic,
-renumber clear of the frontier, scan open PRs with `gh pr view` and never
-`gh pr list --json files`, re-run `erg check` against `origin/main` after a merge.
-climate-finance-het is on the June-02 copy: the repo whose own incidents produced
-those rules (two collisions in one afternoon, `origin/main` left red twice) does
-not have them in the file that is supposed to carry them.
+## What survives, and why it is the point
+
+Strip the false urgency and a real defect class remains, which is what this
+ticket is now for: **the asset machinery has several paths that can overwrite
+or strand a tracked file, and not one of them is proved by a test.** A file
+that evaporates quietly is the failure we cannot afford, whatever the release
+history around it.
+
+The known paths, with their evidence level stated honestly:
+
+- **A. Stranded, and silent on every channel.** With no `.erg-assets` stamp,
+  `isCleanUpgrade` falls back to `extraHistoricalHashes`, which is empty, so no
+  prior release is recognized and the file can never be upgraded. The same
+  absence silences the two channels that would report it: `assetDriftWarnings`
+  returns nil early when the manifest is missing, and `erg update`'s post-swap
+  hint is gated on `os.Stat(manifestName)`. Three silences, one cause.
+  *Demonstrated* — chemin-de-voix, `would preserve` with no warning anywhere.
+- **B. Silent revert.** `isCleanUpgrade` never checks which side is older, so a
+  binary predating the stamp overwrites the newer asset and prints `refreshed`.
+  *Demonstrated on a fixture.* Filed separately as 0279; listed here because it
+  belongs to the same class.
+- **C. The fix's own hazard.** A wrong entry in `extraHistoricalHashes` makes a
+  genuine local edit look like a pristine old release, and it is destroyed with
+  no warning. *Structural, not demonstrated* — and it is the reason this ticket
+  must not be closed by hand-typing hashes.
+- **D. `erg migrate` bypasses the 3-state check.** `migrate.go:261` calls
+  `installAssets(root, migrateAssetPaths, false, false)` — `refuseDiverged` is
+  false, so a divergent `AGENTS.md` is overwritten unconditionally.
+  *Read in the code, NOT demonstrated*: a fixture with a local edit survived
+  `erg migrate` because the run reported `already clean` and never reached the
+  asset step. Whether the path fires on a store that genuinely needs migrating
+  is open, and settling it is the first action below.
 
 ## Relevant files
 
-- `src/go/manifest.go` — `extraHistoricalHashes` (empty), `knownAssetHashes`,
-  `isCleanUpgrade`; the whole decision lives here
-- `src/go/bootstrap_assets.go` — the embedded current asset
-- `src/go/assets/AGENTS.md` — current baseline, 2 141 bytes
-- `src/go/install.go`, `init` — the paths that would perform the upgrade
+- `src/go/manifest.go` — `extraHistoricalHashes`, `isCleanUpgrade`,
+  `assetDriftWarnings`, `assetDriftSignal`
+- `src/go/init.go` — `installAssets`, `initAssetPaths`, `migrateAssetPaths`
+- `src/go/migrate.go` — line 261, the `refuseDiverged=false` call
+- `src/go/update.go` — the manifest-gated post-swap hint
+- `src/go/assets/AGENTS.md`, `src/go/bootstrap_assets.go`
 
 ## Actions
 
-1. Populate `extraHistoricalHashes` with the SHA-256 of every genuinely shipped
-   `AGENTS.md`. They are enumerable from git history; the twelve distinct ones
-   to date, newest first:
-   `beda994b2c3752df` (2141, current), `4bf97d1785195bfa` (2142),
-   `07c11767031b6cef` (1862), `bdfa1740069b581b` (1651),
-   `aab6666f09bf75ee` (1680), `e1ad52332c6f1fd0` (1395),
-   `f68f9135c750b078` (1393), `cba6d04be2b74664` (1388),
-   `34c903e32f102ff6` (1388), `de5f5d28ecee0441` (1395),
-   `86d04bbbd8ba3609` (1393), `d86030a10eedc76a` (1383).
-   Record full hashes, not these prefixes. The table's own warning governs:
-   only genuinely shipped content, since a false entry is the one way it can
-   destroy a real local edit.
-2. Derive the table from history rather than transcribing it by hand — a
-   generated list, or a test that regenerates it from
-   `git log -- src/go/assets/*` and fails on divergence. A hand-maintained list
-   is how the next release goes unrecorded.
-3. Apply the same treatment to the other embedded assets (`.ergrc`,
-   `spec-erg-v1.md`, `integration.md`): the defect is in the shared machinery,
-   so it is not specific to `AGENTS.md`.
-4. Upgrade the five repos once the table can recognize them.
+1. Settle path D first, because it is the only one whose behaviour is unknown:
+   build a store that genuinely needs migrating, give it a locally-edited
+   `AGENTS.md`, run `erg migrate`, and record what happens. If it overwrites,
+   that is the most dangerous path in the set and it leads the fix.
+2. Populate `extraHistoricalHashes` from git history **mechanically** — a
+   generated list, or a test that regenerates it from `git log -- src/go/assets/*`
+   and fails on divergence. Never hand-transcribed: path C is exactly what a
+   typo produces, and a typo there is unrecoverable.
+3. Apply it to every embedded asset (`.ergrc`, `spec-erg-v1.md`,
+   `integration.md`), not just `AGENTS.md` — the machinery is shared.
+4. Make the absence of a stamp visible instead of silent: `erg check` should
+   say that a store has no provenance manifest and cannot be upgraded, rather
+   than returning nil and passing.
+5. Rewrite the dormancy note in `manifest.go` to say what the table is for once
+   it is load-bearing, and what a wrong entry costs.
 
 ## Test
 
-Red step: a fixture repo whose `tickets/AGENTS.md` is the 1 862-byte June-02
-release, asserting that `erg init` (or `install`) upgrades it to current and
-exits 0. Against today's code that fixture must exit 2 and preserve — run it and
-watch it fail before the fix, or the test proves nothing.
+Red step, and it is the invariant that matters: a fixture carrying a genuine
+local edit must be preserved by **every** path — `init`, `migrate`, and an
+`init` run by a binary older than the stamp. One test per path, not one test
+for the machinery. Today at least one of those three fails (B, demonstrated);
+D is unknown, which is itself the finding.
 
-Second arm, and the one that must not regress: a fixture carrying a genuine
-local edit (the harness's 8 005-byte copy is a real specimen) must still be
-preserved, exit 2.
+Positive control before trusting any silence: a fixture at a known shipped hash
+with no stamp must currently fail to upgrade. If it upgrades, the test is not
+exercising the fallback and proves nothing about the table.
+
+Third arm: a fixture with no stamp must produce a *visible* message, asserted
+on content. Path A's defining property is silence, so an exit-code assertion
+cannot see it.
 
 ## Verification
 
-- [ ] fixture at the June-02 hash upgrades to current, exit 0
-- [ ] fixture at the May-12 hash upgrades to current, exit 0
-- [ ] fixture with a genuine local edit is preserved, exit 2, message unchanged
-- [ ] the table-vs-history test fails when a shipped revision is missing from the table
-- [ ] the four `07c11767031b` repos and chemin-de-voix report current after a real upgrade run
+- [ ] path D settled and recorded, with the transcript in this ticket
+- [ ] a local edit survives `init`, `migrate`, and an older-binary `init`
+- [ ] a stampless store at a shipped hash upgrades, and says so
+- [ ] a stampless store reports its condition instead of passing silently
+- [ ] the table is generated from history, and a test fails when a shipped
+      revision is missing from it
+- [ ] chemin-de-voix upgrades cleanly once the table recognizes it
 
 ## Invariants
 
-- A real local edit is never clobbered. This is the one failure mode the table
-  can introduce, and it is why every added hash must come from history.
-- `erg init` on a pristine current asset stays a no-op.
-- Exit codes unchanged for every case that is already correct today.
+- **No tracked file is ever overwritten or reverted without saying so.** This
+  is the whole ticket; every other line serves it.
+- A genuine local edit is never clobbered by any path, including `--force`
+  paths that must at least announce what they replaced.
+- `erg init` on a pristine current asset stays a silent no-op.
+- Stores written before the `date:` field keep working; absent provenance
+  degrades to today's behaviour, never to a refusal.
 
 ## Exit criteria
 
-- `extraHistoricalHashes` recognizes every shipped revision of every embedded
-  asset, and a test keeps it that way as releases are cut
-- The five frozen adopter repos are upgraded to the current asset
-- The dormancy note in `manifest.go` is rewritten to say what the table is for
-  now that it is load-bearing, and what adding to it costs
+- Every path that can overwrite an embedded asset is covered by a test that
+  fails against today's code
+- `extraHistoricalHashes` is generated from history, not maintained by hand
+- A store with no manifest is told so, on a channel a human or agent will see
+- The dormancy note reflects the table's real role
 
 ## Related
 
-- 0277 — residency budget for the same file; the sweep in this ticket is the
-  evidence that its defect has exactly one instance, while this one has five.
+- 0277 — the shipped asset's *content*, which the sweep shows is the live
+  problem where staleness was not. Its `Blocked-by: 0278` still holds: making
+  an unrecognized hash a hard error before the table exists would fail
+  chemin-de-voix.
+- 0279 — path B, split out because it is self-contained and fixable now.

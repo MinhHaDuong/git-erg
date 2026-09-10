@@ -8,6 +8,7 @@ Blocked-by: 0278
 2026-09-10T06:53Z HDMX-coding-agent created
 
 2026-09-10T06:57Z note reframed after the 11-repo sweep: one editing instance, not widespread drift; author directs a ban, escape hatch is the on-demand channel; 0278 is a prerequisite
+2026-09-10T08:43Z HDMX-coding-agent note corrected the sweep's arithmetic after re-measuring with erg init --dry-run: four of the five 'frozen' repos upgrade via the stamp path and have been refreshed; one stampless repo remains. The ban's substance and the Blocked-by are unchanged.
 --- body ---
 ## Context
 
@@ -25,7 +26,7 @@ The 11-repo sweep of 2026-09-10 (tabulated in 0278) settles the scale of the
 problem, and it is smaller than it looked: **exactly one repo has ever edited
 this file.** ImperialDragonHarness stands at 8 005 bytes, 3.7x baseline, roughly
 2 000 tokens paid at every session start. Every other adopter is byte-for-byte
-a shipped release — six current, five frozen on an older one.
+a shipped release — six current, four merely behind (since refreshed), one stampless.
 
 So this is not a widespread drift to be policed. It is one repo's accretion, and
 the interesting fact about it is *what* accreted: optimistic-ID collision
@@ -58,7 +59,7 @@ content to go, and the choice of destination is the whole design:
 With the escape hatch in place the ban is cheap to enforce: an unrecognized hash
 becomes a hard error rather than a preserved local edit. Note the coupling — a
 hard error on an unrecognized hash is only safe once 0278 has populated
-`extraHistoricalHashes`, or the five frozen repos all fail instead of upgrading.
+`extraHistoricalHashes`, or the one stampless repo fails instead of upgrading.
 **0278 lands first.**
 
 ## Relevant files
@@ -75,8 +76,8 @@ hard error on an unrecognized hash is only safe once 0278 has populated
 
 ## Actions
 
-1. Land 0278 first. The ban cannot be enforced while five adopters carry
-   unrecognizable-but-legitimate copies.
+1. Land 0278 first. The ban cannot be enforced while an adopter carries
+   an unrecognizable-but-legitimate copy.
 2. Partition the harness's 8 005-byte copy: what is generic git-erg lore (most
    of it), what is adopter-specific (CI job names, local paths), what is already
    in the shipped baseline.
@@ -122,7 +123,7 @@ Migration test: the collision-recovery material is reachable from `erg integrati
 - The shipped asset stays lean: this ticket must not become the vehicle that
   makes eleven repos pay the harness's accumulated cost.
 - `erg check`'s exit code is unchanged for a pristine corpus.
-- 0278 lands first; enforcing before it would fail five legitimate repos.
+- 0278 lands first; enforcing before it would fail a legitimate repo.
 
 ## Exit criteria
 
