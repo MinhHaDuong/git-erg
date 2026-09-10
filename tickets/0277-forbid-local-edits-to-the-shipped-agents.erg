@@ -7,7 +7,7 @@ Blocked-by: 0278
 --- log ---
 2026-09-10T06:53Z HDMX-coding-agent created
 
-2026-09-10T06:57Z note reframed after the 11-repo sweep: one editing instance, not widespread drift; author directs a ban, escape hatch is the on-demand channel; 0278 is a prerequisite
+2026-09-10T06:57Z HDMX-coding-agent note reframed after the 11-repo sweep: one editing instance, not widespread drift; author directs a ban, escape hatch is the on-demand channel; 0278 is a prerequisite
 2026-09-10T08:43Z HDMX-coding-agent note corrected the sweep's arithmetic after re-measuring with erg init --dry-run: four of the five 'frozen' repos upgrade via the stamp path and have been refreshed; one stampless repo remains. The ban's substance and the Blocked-by are unchanged.
 --- body ---
 ## Context
