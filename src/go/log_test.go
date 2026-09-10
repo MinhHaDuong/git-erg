@@ -130,6 +130,79 @@ func TestCmdLog_EmptyLineRefused(t *testing.T) {
 	}
 }
 
+// TestCmdLog_WhitespaceAuthorRefused is the regression guard for the defect
+// review found in the first cut of this fix. `sanitizeAuthor` strips only \n
+// and \r, so "   " survived it non-empty, never fell back to resolveAuthor(),
+// and was written verbatim -- producing `<ts>     note something`, whose actor
+// slot holds a verb. erg validate passed it, because logLineRE's `\s+\S+\s+\S+`
+// backtracks across the run of spaces and still finds two tokens. The fix's own
+// flag reintroduced the defect the fix exists to close.
+func TestCmdLog_WhitespaceAuthorRefused(t *testing.T) {
+	for _, v := range []string{"   ", "\t", " \t "} {
+		dir := t.TempDir()
+		writeTestTicket(t, dir, "7105-loggable.erg", logTicket)
+		pinAuthor(t, "fallbackauthor")
+
+		if rc := cmdLog([]string{"7105", "note something happened", dir, "--author", v}); rc == 0 {
+			t.Errorf("cmdLog accepted --author %q, want refusal", v)
+			line := lastLogLine(t, dir, "7105-loggable.erg")
+			if f := strings.Fields(line); len(f) > 1 && f[1] != "fallbackauthor" {
+				t.Errorf("  and it wrote %q -- actor slot is %q", line, f[1])
+			}
+		}
+	}
+}
+
+// TestCmdLog_EmptyAuthorFlagRefused: `--author=` states an intent (use THIS
+// author) that cannot be honoured. Falling back silently hands the caller a
+// different author than the one requested, with no diagnostic -- so refuse,
+// as new.go does.
+func TestCmdLog_EmptyAuthorFlagRefused(t *testing.T) {
+	dir := t.TempDir()
+	writeTestTicket(t, dir, "7106-loggable.erg", logTicket)
+	pinAuthor(t, "fallbackauthor")
+
+	if rc := cmdLog([]string{"7106", "note x", dir, "--author="}); rc == 0 {
+		t.Error("cmdLog accepted --author= (explicit empty), want refusal")
+	}
+}
+
+// TestCmdLog_MultiWordAuthorCollapsed: the actor slot is positional, so an
+// author containing a space pushes the verb over by one and every reader
+// mis-parses the entry. `git config user.name` is commonly "First Last", so
+// this is the default configuration on many machines, not an edge case.
+func TestCmdLog_MultiWordAuthorCollapsed(t *testing.T) {
+	dir := t.TempDir()
+	writeTestTicket(t, dir, "7107-loggable.erg", logTicket)
+	pinAuthor(t, "Minh Ha Duong")
+
+	if rc := cmdLog([]string{"7107", "note the slot survives", dir}); rc != 0 {
+		t.Fatalf("cmdLog returned %d, want 0", rc)
+	}
+	fields := strings.Fields(lastLogLine(t, dir, "7107-loggable.erg"))
+	if fields[1] != "Minh-Ha-Duong" {
+		t.Errorf("actor slot is %q, want %q", fields[1], "Minh-Ha-Duong")
+	}
+	if fields[2] != "note" {
+		t.Errorf("verb slot is %q, want %q -- a multi-word author shifted the line", fields[2], "note")
+	}
+}
+
+// TestCmdLog_MultiWordAuthorFlagCollapsed: same for the explicit flag.
+func TestCmdLog_MultiWordAuthorFlagCollapsed(t *testing.T) {
+	dir := t.TempDir()
+	writeTestTicket(t, dir, "7108-loggable.erg", logTicket)
+	pinAuthor(t, "testuser")
+
+	if rc := cmdLog([]string{"7108", "note x", dir, "--author", "John Doe"}); rc != 0 {
+		t.Fatalf("cmdLog returned %d, want 0", rc)
+	}
+	fields := strings.Fields(lastLogLine(t, dir, "7108-loggable.erg"))
+	if fields[1] != "John-Doe" || fields[2] != "note" {
+		t.Errorf("got actor %q verb %q, want %q %q", fields[1], fields[2], "John-Doe", "note")
+	}
+}
+
 // TestCmdLog_WrittenLineValidates guards the invariant the code comments claim:
 // a state-altering command must never write a line the validator rejects.
 func TestCmdLog_WrittenLineValidates(t *testing.T) {

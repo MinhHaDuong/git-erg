@@ -48,6 +48,7 @@ Prints "LOGGED" on success. Exits non-zero if the ticket is not found or has no
 func cmdLog(args []string) int {
 	var positional []string
 	var authorFlag string
+	var authorSet bool
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -58,8 +59,10 @@ func cmdLog(args []string) int {
 			}
 			i++
 			authorFlag = args[i]
+			authorSet = true
 		case strings.HasPrefix(a, "--author="):
 			authorFlag = strings.TrimPrefix(a, "--author=")
+			authorSet = true
 		case strings.HasPrefix(a, "-"):
 			fmt.Fprintf(os.Stderr, "log: unknown flag %q\nUsage: erg log ID LINE [DIR] [--author NAME]\n", a)
 			return 1
@@ -111,9 +114,26 @@ func cmdLog(args []string) int {
 	// cannot tell `<ts> actor verb` from `<ts> verb detail` and passes both.
 	// Supplying it removes the failure mode at its source, and reuses the
 	// resolution every sibling verb already shares.
-	author := sanitizeAuthor(authorFlag)
-	if author == "" {
-		author = resolveAuthor()
+	// The actor slot is one whitespace-delimited token, so the author is reduced
+	// to one before it is written. Skipping that check is how the first cut of
+	// this fix reintroduced the very defect it closes: `--author "   "` is
+	// non-empty after newline-stripping, so it was used verbatim and produced
+	// `<ts>     note something` -- a verb in the actor slot, and erg validate
+	// says PASS because logLineRE backtracks over the run of spaces.
+	var author string
+	if authorSet {
+		// An explicitly-supplied value that reduces to nothing is a caller
+		// error, not an invitation to guess. new.go refuses it the same way.
+		author = actorToken(authorFlag)
+		if author == "" {
+			fmt.Fprintln(os.Stderr, "log: --author value cannot be empty or whitespace-only")
+			return 1
+		}
+	} else {
+		author = actorToken(resolveAuthor())
+		if author == "" {
+			author = "unknown"
+		}
 	}
 
 	now := time.Now().UTC().Format("2006-01-02T15:04Z")

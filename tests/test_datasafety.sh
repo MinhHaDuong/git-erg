@@ -65,7 +65,7 @@ for cmd in log label close; do
     fpath="$WS/0001-atom.erg"
     case "$cmd" in
     log) write_open "$WS/0001-atom.erg" "Atom"; before=$(inode_of "$WS/0001-atom.erg")
-         $ERG log 0001 "claude note touched" "$WS" >/dev/null 2>&1 ;;
+         $ERG log 0001 "note touched" "$WS" >/dev/null 2>&1 ;;
     label) write_open "$WS/0001-atom.erg" "Atom"; before=$(inode_of "$WS/0001-atom.erg")
          $ERG label 0001 needs-human "$WS" >/dev/null 2>&1 ;;
     close) write_open "$WS/0001-atom.erg" "Atom"; before=$(inode_of "$WS/0001-atom.erg")
@@ -111,7 +111,7 @@ EOF
 extract_body() { awk '/^--- body ---$/{f=1;next} f' "$1" > "$2"; }
 extract_body "$WS/0001-rt.erg" "$WS/.body_before"
 logcount_before=$(awk '/^--- log ---$/{f=1;next} /^--- body ---$/{f=0} f && NF' "$WS/0001-rt.erg" | wc -l)
-$ERG log 0001 "claude note round-trip check" "$WS" >/dev/null 2>&1
+$ERG log 0001 "note round-trip check" "$WS" >/dev/null 2>&1
 extract_body "$WS/0001-rt.erg" "$WS/.body_after"
 logcount_after=$(awk '/^--- log ---$/{f=1;next} /^--- body ---$/{f=0} f && NF' "$WS/0001-rt.erg" | wc -l)
 if cmp -s "$WS/.body_before" "$WS/.body_after"; then
