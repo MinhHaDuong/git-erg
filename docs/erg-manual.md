@@ -259,23 +259,35 @@ and exits 0. A ticket that is closed by path but still missing the header gets
 the header (and REASON) written, so a supplied reason is never silently
 dropped. Step 3 (Blocked-by removal) is also idempotent.
 
-## erg log ID LINE [DIR]
+## erg log ID LINE [DIR] [--author NAME]
 
 Append a timestamped entry to a ticket's log section.
 
 Resolves the ticket by 4-digit ID in DIR (default: auto-discovered tickets/), then
-prepends the current UTC timestamp (YYYY-MM-DDThh:mmZ) to LINE and inserts the
-resulting line at the end of the log section, just before the `--- body ---` separator.
+prepends the current UTC timestamp (YYYY-MM-DDThh:mmZ) AND the resolved author to
+LINE, and inserts the resulting line at the end of the log section, just before
+the `--- body ---` separator.
 
 The resulting log entry format is:
 
-  `YYYY-MM-DDThh:mmZ LINE`
+  `YYYY-MM-DDThh:mmZ AUTHOR LINE`
 
-LINE must be non-empty. It must contain at least two whitespace-separated tokens
-(e.g. "claude note retried with narrower scope"). The timestamp is prepended
-automatically; erg validate (rule 11) enforces the structural format -- timestamp
-followed by at least two tokens. By convention the first token is an actor
-(who) and the second is a verb (what), but those names are not machine-checked.
+So LINE supplies `VERB [detail]` -- NOT the author. A bare verb is a
+complete entry ("reopened"); LINE must simply be non-empty.
+
+The author is resolved exactly as `erg new` resolves it: --author NAME wins,
+else $ERG_AUTHOR, else git config user.name, else $USER, else "unknown".
+
+CONTRACT CHANGE (ticket 0276). Before this release LINE carried the actor too,
+and nothing checked that it did: `erg log ID "note fixed it"` wrote
+`<ts> note fixed it`, putting a verb in the actor slot. That could not be
+validated after the fact -- the format is positionally ambiguous, so
+`<ts> A B ...` parses whether A is an actor or a verb, and erg validate
+(rule 11) passed such lines. The actor is now supplied rather than policed, which
+removes the failure mode at its source and needs no verb vocabulary.
+
+Callers written against the old contract must drop the actor from LINE, or pass
+it as --author. Passing it in LINE now doubles it.
 
 Prints "LOGGED" on success. Exits non-zero if the ticket is not found or has no
 `--- body ---` separator (which would indicate a malformed file).

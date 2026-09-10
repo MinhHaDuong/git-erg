@@ -3,6 +3,10 @@
 set -eu
 
 ERG="${ERG_BIN:-build/erg}"
+# The actor is supplied by erg, not by LINE (ticket 0276). Pin it so the
+# assertions below can name it.
+ERG_AUTHOR=tester
+export ERG_AUTHOR
 FIXTURES=$(mktemp -d)
 PASS=0
 FAIL=0
@@ -28,9 +32,9 @@ Author: claude
 Test body.
 EOF
 
-OUT=$($ERG log 0042 "claude bump test — smoke" "$FIXTURES")
+OUT=$($ERG log 0042 "bump test — smoke" "$FIXTURES")
 if [ "$OUT" = "LOGGED" ]; then
-    if grep -q "claude bump test — smoke" "$FIXTURES/0042-smoke.erg"; then
+    if grep -q "tester bump test — smoke" "$FIXTURES/0042-smoke.erg"; then
         pass "log appends line and prints LOGGED"
     else
         fail "log appends line and prints LOGGED (line not found in file)"
@@ -40,7 +44,7 @@ else
 fi
 
 # --- Logged line appears in log section (before --- body ---) ---
-log_line_no=$(grep -n "claude bump test" "$FIXTURES/0042-smoke.erg" | cut -d: -f1)
+log_line_no=$(grep -n "tester bump test" "$FIXTURES/0042-smoke.erg" | cut -d: -f1)
 body_line_no=$(grep -n "^--- body ---$" "$FIXTURES/0042-smoke.erg" | cut -d: -f1)
 if [ -n "$log_line_no" ] && [ -n "$body_line_no" ] && [ "$log_line_no" -lt "$body_line_no" ]; then
     pass "log line appears before --- body ---"
@@ -49,15 +53,15 @@ else
 fi
 
 # --- Timestamp is prepended automatically ---
-if grep -qE "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z claude bump test" "$FIXTURES/0042-smoke.erg"; then
+if grep -qE "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z tester bump test" "$FIXTURES/0042-smoke.erg"; then
     pass "log line has ISO8601 UTC timestamp prefix"
 else
     fail "log line has ISO8601 UTC timestamp prefix"
 fi
 
 # --- UTC timestamp format survives TZ env override ---
-TZ=America/Los_Angeles $ERG log 0042 "claude note tz-check" "$FIXTURES" > /dev/null
-if grep -qE "T[0-9][0-9]:[0-9][0-9]Z claude note tz-check" "$FIXTURES/0042-smoke.erg"; then
+TZ=America/Los_Angeles $ERG log 0042 "note tz-check" "$FIXTURES" > /dev/null
+if grep -qE "T[0-9][0-9]:[0-9][0-9]Z tester note tz-check" "$FIXTURES/0042-smoke.erg"; then
     pass "UTC timestamp format survives TZ=America/Los_Angeles override"
 else
     fail "UTC timestamp format survives TZ=America/Los_Angeles override (expected HH:MMZ, got local offset)"
@@ -71,9 +75,9 @@ else
 fi
 
 # --- Two calls produce two entries (append-only) ---
-$ERG log 0042 "claude bump test — second" "$FIXTURES" > /dev/null
+$ERG log 0042 "bump test — second" "$FIXTURES" > /dev/null
 # || true: grep -c exits 1 when count is 0; the assertion below catches that case.
-count=$(grep -c "claude bump test" "$FIXTURES/0042-smoke.erg" || true)
+count=$(grep -c "tester bump test" "$FIXTURES/0042-smoke.erg" || true)
 if [ "$count" -eq 2 ]; then
     pass "log is append-only (two calls produce two entries)"
 else
@@ -167,18 +171,43 @@ else
     fail "missing body separator: exits non-zero with error (rc=$rc, got: $err)"
 fi
 
-# --- Rule 11: a single-word LINE is rejected (would write an invalid log line) ---
-err=$($ERG log 0042 "garbage" "$FIXTURES" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$err" | grep -q "valid log entry"; then
-    pass "rule 11: single-word LINE rejected"
+# --- Ticket 0276: the actor slot holds the AUTHOR, not the first word of LINE ---
+# This is the assertion rule 11 structurally cannot make. logLineRE asks only
+# for two tokens after the timestamp, so `<ts> note corrected` satisfies it
+# while putting a verb where the actor belongs. Only a positional check sees it.
+$ERG log 0042 "note corrected the sweep" "$FIXTURES" > /dev/null
+actor=$(grep "note corrected the sweep" "$FIXTURES/0042-smoke.erg" | awk '{print $2}')
+verb=$(grep "note corrected the sweep" "$FIXTURES/0042-smoke.erg" | awk '{print $3}')
+if [ "$actor" = "tester" ] && [ "$verb" = "note" ]; then
+    pass "ticket 0276: author occupies the actor slot, LINE's first word is the verb"
 else
-    fail "rule 11: single-word LINE rejected (rc=$rc, got: $err)"
+    fail "ticket 0276: actor slot is '$actor' and verb slot is '$verb', want 'tester' and 'note'"
 fi
-# And nothing was written — the target file still validates and gained no line.
-if $ERG validate "$FIXTURES/0042-smoke.erg" >/dev/null 2>&1 && ! grep -qw "garbage" "$FIXTURES/0042-smoke.erg"; then
-    pass "rule 11: target unchanged after rejected log (no bad line written)"
+
+# --- A bare verb is now a complete entry: the actor is supplied, not typed ---
+if $ERG log 0042 "reopened" "$FIXTURES" >/dev/null 2>&1; then
+    if grep -qE "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z tester reopened$" "$FIXTURES/0042-smoke.erg"; then
+        pass "single-word LINE accepted and written as 'AUTHOR VERB'"
+    else
+        fail "single-word LINE accepted but not written as 'AUTHOR VERB'"
+    fi
 else
-    fail "rule 11: target unchanged after rejected log"
+    fail "single-word LINE rejected -- LINE now carries VERB [detail] only"
+fi
+
+# --- --author overrides the resolved author (spelled as erg new spells it) ---
+$ERG log 0042 "bump from-a-bot" "$FIXTURES" --author robot > /dev/null
+if grep -qE "Z robot bump from-a-bot$" "$FIXTURES/0042-smoke.erg"; then
+    pass "--author overrides the resolved author"
+else
+    fail "--author overrides the resolved author"
+fi
+
+# --- Everything written still validates ---
+if $ERG validate "$FIXTURES/0042-smoke.erg" >/dev/null 2>&1; then
+    pass "every line erg log wrote passes erg validate"
+else
+    fail "erg log wrote a line its own validator rejects"
 fi
 
 # unknown flag rejection (ticket 0178)

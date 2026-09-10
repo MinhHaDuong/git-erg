@@ -10,23 +10,35 @@ import (
 // summaryLog is the one-liner printed by printUsage via the commands registry.
 const summaryLog = "Append a timestamped log entry to a ticket"
 
-const helpLog = `## erg log ID LINE [DIR]
+const helpLog = `## erg log ID LINE [DIR] [--author NAME]
 
 Append a timestamped entry to a ticket's log section.
 
 Resolves the ticket by 4-digit ID in DIR (default: auto-discovered tickets/), then
-prepends the current UTC timestamp (YYYY-MM-DDThh:mmZ) to LINE and inserts the
-resulting line at the end of the log section, just before the ` + "`--- body ---`" + ` separator.
+prepends the current UTC timestamp (YYYY-MM-DDThh:mmZ) AND the resolved author to
+LINE, and inserts the resulting line at the end of the log section, just before
+the ` + "`--- body ---`" + ` separator.
 
 The resulting log entry format is:
 
-  ` + "`YYYY-MM-DDThh:mmZ LINE`" + `
+  ` + "`YYYY-MM-DDThh:mmZ AUTHOR LINE`" + `
 
-LINE must be non-empty. It must contain at least two whitespace-separated tokens
-(e.g. "claude note retried with narrower scope"). The timestamp is prepended
-automatically; erg validate (rule 11) enforces the structural format -- timestamp
-followed by at least two tokens. By convention the first token is an actor
-(who) and the second is a verb (what), but those names are not machine-checked.
+So LINE supplies ` + "`VERB [detail]`" + ` -- NOT the author. A bare verb is a
+complete entry ("reopened"); LINE must simply be non-empty.
+
+The author is resolved exactly as ` + "`erg new`" + ` resolves it: --author NAME wins,
+else $ERG_AUTHOR, else git config user.name, else $USER, else "unknown".
+
+CONTRACT CHANGE (ticket 0276). Before this release LINE carried the actor too,
+and nothing checked that it did: ` + "`erg log ID \"note fixed it\"`" + ` wrote
+` + "`<ts> note fixed it`" + `, putting a verb in the actor slot. That could not be
+validated after the fact -- the format is positionally ambiguous, so
+` + "`<ts> A B ...`" + ` parses whether A is an actor or a verb, and erg validate
+(rule 11) passed such lines. The actor is now supplied rather than policed, which
+removes the failure mode at its source and needs no verb vocabulary.
+
+Callers written against the old contract must drop the actor from LINE, or pass
+it as --author. Passing it in LINE now doubles it.
 
 Prints "LOGGED" on success. Exits non-zero if the ticket is not found or has no
 ` + "`--- body ---`" + ` separator (which would indicate a malformed file).
@@ -35,15 +47,31 @@ Prints "LOGGED" on success. Exits non-zero if the ticket is not found or has no
 // cmdLog implements `erg log ID LINE [DIR]`. See helpLog for the user-facing summary.
 func cmdLog(args []string) int {
 	var positional []string
-	for _, a := range args {
-		if strings.HasPrefix(a, "-") {
-			fmt.Fprintf(os.Stderr, "log: unknown flag %q\nUsage: erg log ID LINE [DIR]\n", a)
+	var authorFlag string
+	var authorSet bool
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--author":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "log: --author requires a value")
+				return 1
+			}
+			i++
+			authorFlag = args[i]
+			authorSet = true
+		case strings.HasPrefix(a, "--author="):
+			authorFlag = strings.TrimPrefix(a, "--author=")
+			authorSet = true
+		case strings.HasPrefix(a, "-"):
+			fmt.Fprintf(os.Stderr, "log: unknown flag %q\nUsage: erg log ID LINE [DIR] [--author NAME]\n", a)
 			return 1
+		default:
+			positional = append(positional, a)
 		}
-		positional = append(positional, a)
 	}
 	if len(positional) < 2 {
-		fmt.Fprintln(os.Stderr, "Usage: erg log ID LINE [DIR]")
+		fmt.Fprintln(os.Stderr, "Usage: erg log ID LINE [DIR] [--author NAME]")
 		return 1
 	}
 
@@ -81,15 +109,42 @@ func cmdLog(args []string) int {
 		return 1
 	}
 
+	// The actor is supplied, not policed (ticket 0276). Policing it after the
+	// fact is impossible: the format is positionally ambiguous, so logLineRE
+	// cannot tell `<ts> actor verb` from `<ts> verb detail` and passes both.
+	// Supplying it removes the failure mode at its source, and reuses the
+	// resolution every sibling verb already shares.
+	// The actor slot is one whitespace-delimited token, so the author is reduced
+	// to one before it is written. Skipping that check is how the first cut of
+	// this fix reintroduced the very defect it closes: `--author "   "` is
+	// non-empty after newline-stripping, so it was used verbatim and produced
+	// `<ts>     note something` -- a verb in the actor slot, and erg validate
+	// says PASS because logLineRE backtracks over the run of spaces.
+	var author string
+	if authorSet {
+		// An explicitly-supplied value that reduces to nothing is a caller
+		// error, not an invitation to guess. new.go refuses it the same way.
+		author = actorToken(authorFlag)
+		if author == "" {
+			fmt.Fprintln(os.Stderr, "log: --author value cannot be empty or whitespace-only")
+			return 1
+		}
+	} else {
+		author = actorToken(resolveAuthor())
+		if author == "" {
+			author = "unknown"
+		}
+	}
+
 	now := time.Now().UTC().Format("2006-01-02T15:04Z")
-	logLine := now + " " + line
+	logLine := now + " " + author + " " + line
 
 	// A state-altering command must never write a line the validator rejects.
-	// The timestamp is ours; reuse logLineRE (rule 11's source of truth) to
-	// confirm LINE supplies at least an actor and a verb before we commit it.
+	// Timestamp and actor are ours; this confirms LINE supplied a verb.
 	if !logLineRE.MatchString(logLine) {
 		fmt.Fprintf(os.Stderr,
-			"log: %q is not a valid log entry -- LINE must be 'actor verb [detail]' (at least two words)\n", line)
+			"log: %q is not a valid log entry -- LINE must be 'verb [detail]', at least one word "+
+				"(the author is supplied automatically; pass --author NAME to override)\n", line)
 		return 1
 	}
 
