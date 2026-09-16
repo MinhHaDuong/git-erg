@@ -70,14 +70,21 @@ cmd_verify() {
 			could_not_verify "no PR for the current branch (gh unauthenticated?)"
 	fi
 
-	# Extract every Ticket: reference, matching the same id-set as
-	# skills/merge/erg-pr-merge: line-anchored, case-insensitive, 0-2 asterisks,
-	# optional colons. Tolerates an optional tickets/closed/ prefix, so a PR
-	# whose ticket was archived before the merge still resolves (ticket 0255).
+	# Extract every Ticket: reference: line-anchored, case-insensitive, 0-2
+	# asterisks, optional colons. Tolerates an optional tickets/closed/ prefix,
+	# so a PR whose ticket was archived before the merge still resolves
+	# (ticket 0255). Other merge-and-close tooling accepts a similar id-set, but
+	# no parity is asserted here -- nothing compares them, so this comment
+	# describes only what this script accepts.
 	# Portable (grep -iE + BRE sed; never GNU-only grep -oP).
+	# The trailing filter keeps $ids a set of bare ids or empty, never a
+	# pass-through line: grep is case-insensitive and the BRE sed is not, so a
+	# mis-capitalized tickets/Closed/NNNN matches the filter while the
+	# substitution does not fire (ticket 0255 review).
 	ids=$(printf '%s\n' "$body" |
 		grep -iE '^[*]{0,2}ticket:?[*]{0,2}:? *tickets/(closed/)?[0-9]{4}' 2>/dev/null |
-		sed 's/.*tickets\/\(closed\/\)\{0,1\}\([0-9][0-9][0-9][0-9]\).*/\2/' || true)
+		sed 's/.*tickets\/\(closed\/\)\{0,1\}\([0-9][0-9][0-9][0-9]\).*/\2/' |
+		grep -xE '[0-9]{4}' || true)
 
 	if [ -z "$ids" ]; then
 		# Escape hatch: an unlinked / emergency merge. Loud and distinct from a

@@ -61,7 +61,7 @@ if code_only "$SCRIPT" | grep -qE "$gnuregex"; then
 else
     pass "erg-github regexes are POSIX (no grep -P, \\K, or GNU BRE shorthands)"
 fi
-# Positive control: the ratchet above must actually fire. A null result from a
+# Negative control: the ratchet above must actually fire. A null result from a
 # detector that cannot see is indistinguishable from a clean file.
 ctl="$TDIR/gnuregex-ctl"
 {
@@ -70,9 +70,9 @@ ctl="$TDIR/gnuregex-ctl"
 } > "$ctl"
 nctl=$(code_only "$ctl" | grep -cE "$gnuregex" || true)
 if [ "$nctl" -eq 2 ]; then
-    pass "POSIX regex ratchet (pos control): flags both grep -oP/\\K and sed \\?"
+    pass "POSIX regex ratchet (neg control): flags both grep -oP/\\K and sed \\?"
 else
-    fail "POSIX regex ratchet (pos control): flagged $nctl of 2 planted violations"
+    fail "POSIX regex ratchet (neg control): flagged $nctl of 2 planted violations"
 fi
 
 # shebang is /bin/sh
@@ -157,6 +157,17 @@ if [ "$rc" -eq 0 ] && echo "$out" | grep -qi "escape hatch"; then
     pass "verify: tickets/bogus/NNNN does not spuriously resolve (falls to escape hatch)"
 else
     fail "verify: tickets/bogus/NNNN should fall to escape hatch, not resolve as a ticket ref (rc=$rc, out: $out)"
+fi
+
+# --- verify: $ids is always a set of bare ids, never a pass-through line.
+# grep is case-insensitive but the BRE sed is not, so tickets/Closed/NNNN
+# clears the filter while the substitution does not fire; without the trailing
+# id-shape filter the whole PR-body line reached ticket_is_closed (0255 review). ---
+out=$(run_verify x "**Ticket:** tickets/Closed/0044-x.erg" "" 7) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] && ! echo "$out" | grep -q 'Ticket:'; then
+    pass "verify: a mis-capitalized tickets/Closed/NNNN never leaks the body line into \$ids"
+else
+    fail "verify: tickets/Closed/NNNN leaked a non-id into \$ids (rc=$rc, out: $out)"
 fi
 
 # --- verify: open ticket -> FAIL (exit 1) ---
