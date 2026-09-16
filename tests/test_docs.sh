@@ -52,6 +52,17 @@ else
     fail "make docs: docs/erg-manual.md is stale -- run 'make docs' and commit"
 fi
 
+# Every corpus-integrity violation folderClosure() can emit must be documented
+# in the spec it cites. check.go's basename-only error names the spec section
+# "Closed / not-closed criterion" as its own authority, so a user who follows
+# that citation must find their case enumerated there (drift guard for 0256;
+# the same class as 0096/0102/0127/0228 spec-alignment defects).
+if grep -q 'basename alone' src/go/assets/spec-erg-v1.md; then
+    pass "spec documents the basename-only closure violation erg check emits"
+else
+    fail "check.go emits a folderClosure violation the spec does not document"
+fi
+
 # README must not show `erg validate <ID>` — validate takes file paths, not IDs
 # (regression guard for 0161; the broken example was `tickets/erg validate 01`).
 if grep -Eq 'erg validate [0-9]+( |$)' README.md; then

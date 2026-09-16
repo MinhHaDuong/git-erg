@@ -13,7 +13,9 @@ import (
 // folderClosure detects tickets whose open/closed state conflicts with
 // their directory placement. Both directions are corpus integrity violations:
 // a closed ticket outside closed/ is the "close-without-archive" escape
-// (ticket 0241); an open ticket inside closed/ hides active work.
+// (ticket 0241); an open ticket inside closed/ hides active work; a
+// basename that reads as closed while the header says open silently removes
+// the ticket from every listing (ticket 0256).
 func folderClosure(tickets []Erg) []string {
 	var errs []string
 	for i := range tickets {
@@ -28,6 +30,18 @@ func folderClosure(tickets []Erg) []string {
 		if !inClosedDir && hasClosed {
 			errs = append(errs, fmt.Sprintf(
 				"%s: closed ticket not in closed/ directory -- run 'erg close ID' or 'erg archive' to file it", t.Filename()))
+		}
+
+		// Basename-only closure: same placement/header disagreement as above,
+		// reached through the filename instead of the directory (ticket 0256;
+		// spec-erg-v1.md "Closed / not-closed criterion", case 3). !inClosedDir
+		// keeps this off tickets already reported by the first branch, so one
+		// defect yields one message.
+		basenameClosed := !inClosedDir && pathIsClosed(t.Path)
+		if basenameClosed && !hasClosed {
+			errs = append(errs, fmt.Sprintf(
+				"%s: filename reads as closed but there is no Closed: header -- rename the file or run 'erg close ID'",
+				t.Filename()))
 		}
 	}
 	return errs
@@ -192,7 +206,9 @@ under DIR recursively and verifies invariants that require a global view:
 
   - Folder/header closure: open ticket in closed/ or closed ticket not in
     closed/ (a hand-edited Closed: header that was not filed -- erg close now
-    files in one step; run 'erg close ID' or 'erg archive').
+    files in one step; run 'erg close ID' or 'erg archive'). Also a ticket
+    outside closed/ whose *filename* reads as closed (NNNN-...-closed.erg)
+    but carries no Closed: header -- rename it or add the header.
 
 Additionally emits warnings (non-fatal) for:
 

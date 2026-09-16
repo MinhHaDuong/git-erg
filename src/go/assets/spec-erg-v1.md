@@ -167,7 +167,15 @@ Otherwise the ticket is **not-closed** (open).
 
 `erg close` applies **both** signals in one step: it writes the `Closed:` header and files the ticket under `closed/`, so a tool-closed ticket carries the header *and* the path test at once and needs no separate `erg archive`. `erg archive` remains the path-only sweep for tickets closed by a hand-edited `Closed:` header that still sit at top-level.
 
-`erg check` reports a corpus integrity **error** (exit 1) when a ticket's folder placement and `Closed:` header disagree -- a closed ticket outside `closed/`, or an open (header-less) ticket inside it, is a hard violation (ticket 0241). The disjunctive criterion above still governs the closed/not-closed *decision*; the error is a separate hygiene rule requiring placement and header to agree (which `erg close` satisfies automatically by filing on close).
+`erg check` reports a corpus integrity **error** (exit 1) when a ticket's path and `Closed:` header disagree. Three cases are hard violations:
+
+1. A closed ticket (header present) outside `closed/` (ticket 0241).
+2. An open (header-less) ticket inside `closed/` (ticket 0241).
+3. A ticket outside `closed/` whose **basename alone** satisfies the path test -- e.g. `0001-foo-closed.erg` -- but which carries no `Closed:` header (ticket 0256). Such a file reads as closed to every consumer while claiming to be open, so it silently disappears from `erg list` and `erg ready`. Remedy: rename the file if the ticket is open, or `erg close` it.
+
+Case 3 is scoped by placement, not by the basename: a ticket *under* `closed/` satisfies the path test through its directory, so an archived file whose basename also ends in `-closed` is never flagged.
+
+The disjunctive criterion above still governs the closed/not-closed *decision*; the error is a separate hygiene rule requiring path and header to agree (which `erg close` satisfies automatically by filing on close).
 
 There is no `pending` or `claimed` label by design, external state must not be encoded in ticket description.
 
@@ -183,6 +191,7 @@ Filename pattern: `{ID}-{slug}.erg`
 - ID: zero-padded sequential number, 4 digits (`0001`, `0002`, ...)
 - Slug: lowercase kebab-case, ASCII only (`[a-z0-9-]`)
 - Slug is truncated to 40 characters by `erg new`; trailing hyphens are stripped after truncation.
+- The resulting filename never satisfies the path test above: truncation can land the cut on a `-closed` segment, so `erg new` drops trailing segments until the candidate basename is not closed-reading (ticket 0256).
 
 **Worktree boundary.** When the store is auto-discovered (no explicit DIR),
 erg refuses to use a store that lies in a different git worktree than the

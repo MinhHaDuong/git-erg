@@ -23,12 +23,83 @@ func TestSlugify(t *testing.T) {
 		{strings.Repeat("a", 41), strings.Repeat("a", 40)},
 		{"", "untitled"},
 		{"!@#$%^&*()", "untitled"},
+		// Historical live case (ticket 0256): the 40-char truncation of this
+		// title lands exactly on "-closed", which pathIsClosed reads as a
+		// closed ticket. The offending trailing segment must be dropped.
+		{"erg-pr-merge regex misses tickets/closed/NNNN paths",
+			"erg-pr-merge-regex-misses-tickets"},
+		// stripClosedSuffix loops, and nothing else in this suite exercises
+		// more than one iteration. These pin the multi-strip behaviour so a
+		// refactor cannot change how much of a title is discarded without
+		// saying so. Three strips:
+		{"triage closed closed closed", "triage"},
+		// Two strips, and a stopping-condition control: the loop must halt on
+		// "-enclosed" rather than treat it as another closed segment, which is
+		// only true because it tests whole path components (pathIsClosed) and
+		// not a substring.
+		{"disclosed enclosed closed closed", "disclosed-enclosed"},
 	}
 	for _, c := range cases {
 		got := slugify(c.in)
 		if got != c.want {
 			t.Errorf("slugify(%q) = %q, want %q", c.in, got, c.want)
 		}
+	}
+}
+
+// TestSlugifyNeverProducesClosedBasename pins the semantic property behind
+// ticket 0256: no title may make erg new emit a filename that pathIsClosed
+// reads as closed. Asserting through pathIsClosed itself -- rather than a
+// literal strings.HasSuffix check -- keeps the test honest if the predicate's
+// rule set ever changes.
+func TestSlugifyNeverProducesClosedBasename(t *testing.T) {
+	cases := []struct{ name, title string }{
+		{
+			"historical 0255 case",
+			"erg-pr-merge regex misses tickets/closed/NNNN paths",
+		},
+		{
+			// Anti-cheat control: this slug is 39 characters long after
+			// truncation, so an implementation that merely truncates to 39
+			// instead of guarding still keeps the whole "-closed" suffix and
+			// still fails here.
+			"exact 39-char boundary after truncation",
+			strings.Repeat("x", 32) + "-closed-extra-words-here-padding-more",
+		},
+		{
+			// Distinct path from the two cases above: this slug is 36
+			// characters, so no truncation happens at all. The guard must
+			// fire on a title that simply ends in "closed", not only on one
+			// the 40-char cut mangled into it.
+			"short title ending in closed, untruncated",
+			"archive the ticket once it is closed",
+		},
+		{
+			"title that is only the word closed",
+			"closed",
+		},
+		{
+			// Needs two strips. Without it the invariant is only ever tested
+			// on titles one strip fixes, so capping the loop at a single
+			// iteration -- a plausible refactor, and the remedy suggested in
+			// review -- leaves this test green while re-opening the very bug
+			// the ticket fixes (the slug would stay "disclosed-enclosed-closed").
+			"title needing more than one strip",
+			"disclosed enclosed closed closed",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			slug := slugify(c.title)
+			basename := "0000-" + slug + ".erg"
+			if pathIsClosed(basename) {
+				t.Errorf("slugify(%q) = %q -> %q, which pathIsClosed reports as closed",
+					c.title, slug, basename)
+			}
+			if slug == "" {
+				t.Errorf("slugify(%q) returned an empty slug", c.title)
+			}
+		})
 	}
 }
 

@@ -14,7 +14,8 @@ var (
 )
 
 // slugify converts a title to a lowercase ASCII kebab-case slug, truncated to
-// 40 characters.
+// 40 characters, never yielding a slug that would make the generated filename
+// read as a closed ticket (ticket 0256).
 func slugify(title string) string {
 	s := strings.ToLower(title)
 	s = nonAlphaNum.ReplaceAllString(s, "-")
@@ -23,8 +24,32 @@ func slugify(title string) string {
 		s = s[:40]
 		s = strings.TrimRight(s, "-")
 	}
+	s = stripClosedSuffix(s)
 	if s == "" {
 		s = "untitled"
+	}
+	return s
+}
+
+// stripClosedSuffix repeatedly drops the trailing hyphen-segment of s as long
+// as a generated "NNNN-"+s basename would trip pathIsClosed's path component
+// test (spec-erg-v1.md "Closed / not-closed criterion"). Truncating the slug
+// to 40 characters can land the cut squarely on a "-closed" segment, which
+// makes the whole toolchain treat a brand-new ticket as already closed --
+// observed live on ticket 0255, which vanished from erg list and erg ready
+// the moment it was created.
+//
+// Only the trailing "-closed" branch is reachable from a generated slug: the
+// numeric ID prefix forecloses the equality and "closed-"/"closed." prefix
+// branches. The loop calls the real predicate rather than hardcoding that
+// suffix, so it stays correct if pathIsClosed's rule set ever changes.
+func stripClosedSuffix(s string) string {
+	for s != "" && pathIsClosed("0000-"+s+".erg") {
+		idx := strings.LastIndex(s, "-")
+		if idx < 0 {
+			return ""
+		}
+		s = strings.TrimRight(s[:idx], "-")
 	}
 	return s
 }

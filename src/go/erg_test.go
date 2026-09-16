@@ -880,6 +880,108 @@ func TestFolderClosure(t *testing.T) {
 			t.Errorf("expected no warnings, got: %v", warnings)
 		}
 	})
+
+	// Ticket 0256: a top-level basename that trips pathIsClosed on its own
+	// disagrees with an absent Closed: header exactly the way the
+	// placement/header checks above forbid -- same hard violation, error level.
+	t.Run("basename-only closed ticket without header errors", func(t *testing.T) {
+		dir := t.TempDir()
+		writeErg(t, dir, "0001-work-closed.erg",
+			"%erg 0.1\nTitle: Work\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		tickets, _ := loadErgs(dir)
+		errs := folderClosure(tickets)
+		if len(errs) == 0 {
+			t.Fatal("expected an error for a basename-only closed ticket with no Closed: header, got none")
+		}
+		found := false
+		for _, e := range errs {
+			if strings.Contains(e, "filename reads as closed") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected an error about a filename reading as closed, got: %v", errs)
+		}
+	})
+
+	t.Run("basename-only closed ticket WITH header does not double-report", func(t *testing.T) {
+		dir := t.TempDir()
+		writeErg(t, dir, "0001-work-closed.erg",
+			"%erg 0.1\nTitle: Work\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n")
+		tickets, _ := loadErgs(dir)
+		errs := folderClosure(tickets)
+		if len(errs) != 1 {
+			t.Fatalf("expected exactly one error, got %d: %v", len(errs), errs)
+		}
+		if !strings.Contains(errs[0], "closed ticket not in closed/ directory") {
+			t.Errorf("expected the existing placement error, got: %v", errs)
+		}
+	})
+
+	// Negative control: proves the basename check reuses pathIsClosed's
+	// component rule rather than a substring match. A naive
+	// strings.Contains(name, "closed") reimplementation passes the positive
+	// case above and is caught only here (spec-erg-v1.md: "Rules out
+	// `disclosed`, `enclosed`").
+	t.Run("disclosed/enclosed basenames do not trigger the pattern check", func(t *testing.T) {
+		dir := t.TempDir()
+		writeErg(t, dir, "0001-not-disclosed.erg",
+			"%erg 0.1\nTitle: Not disclosed\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		writeErg(t, dir, "0002-fully-enclosed.erg",
+			"%erg 0.1\nTitle: Fully enclosed\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		tickets, _ := loadErgs(dir)
+		errs := folderClosure(tickets)
+		if len(errs) != 0 {
+			t.Errorf("expected no errors for disclosed/enclosed basenames, got: %v", errs)
+		}
+	})
+
+	// Corpus-safety control (ticket 0256): the one archived ticket whose
+	// basename ends in "-closed" is legitimate because it lives under
+	// closed/. Note what actually protects it -- the Closed: header, via
+	// !hasClosed, not the !inClosedDir guard. A well-formed archive always
+	// carries the header, so this subtest survives removal of that guard;
+	// the subtest below is the one that pins it.
+	t.Run("closed-dir ticket with a -closed basename stays clean", func(t *testing.T) {
+		dir := t.TempDir()
+		closedDir := filepath.Join(dir, "closed")
+		if err := os.MkdirAll(closedDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		writeErg(t, closedDir, "0109-migrate-merge-archive-into-closed.erg",
+			"%erg 0.1\nTitle: Migrate merge archive into closed\nCreated: 2024-01-01\nAuthor: test\nClosed: done\n\n--- log ---\n--- body ---\n")
+		tickets, _ := loadErgs(dir)
+		errs := folderClosure(tickets)
+		if len(errs) != 0 {
+			t.Errorf("expected no errors for an archived -closed basename, got: %v", errs)
+		}
+	})
+
+	// This is the control that pins the !inClosedDir guard (ticket 0256).
+	// An open, header-less ticket misfiled into closed/ with a -closed
+	// basename is the only state where the guard changes the output: without
+	// it, the ticket draws both the placement error and the basename error,
+	// whose remedies contradict each other ("move it out or remove the
+	// Closed: header" vs "rename the file or erg close it"). One defect must
+	// produce one actionable message.
+	t.Run("open ticket misfiled into closed/ with a -closed basename reports once", func(t *testing.T) {
+		dir := t.TempDir()
+		closedDir := filepath.Join(dir, "closed")
+		if err := os.MkdirAll(closedDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		writeErg(t, closedDir, "0001-work-closed.erg",
+			"%erg 0.1\nTitle: Work\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		tickets, _ := loadErgs(dir)
+		errs := folderClosure(tickets)
+		if len(errs) != 1 {
+			t.Fatalf("expected exactly one violation, got %d: %v", len(errs), errs)
+		}
+		if !strings.Contains(errs[0], "open ticket in closed/ directory") {
+			t.Errorf("expected the placement error, got: %v", errs)
+		}
+	})
 }
 
 // TestStrayGoSource exercises strayGoSource (check.go:68).
