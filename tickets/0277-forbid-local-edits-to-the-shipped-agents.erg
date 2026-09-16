@@ -11,6 +11,7 @@ Author: HDMX-coding-agent
 2026-09-10T13:05Z claude note four observations from the harness side, reached independently before this ticket was found (harness 0906): the erg-github sentence is a mood error not a fiction, the shipped asset carries a rule the harness fork lost, a downstream rules file cites AGENTS.md and breaks when content moves, and the displaced material measures 1730 bytes as rules once narrative is stripped
 2026-09-16T08:55Z MinhHaDuong note Blocked-by 0278 removed. The table prerequisite rested on chemin-de-voix being stampless; measured directly, it is not and has not been since June. Replaced with a re-survey at enforcement time, which is what the coupling's own 'or' clause always allowed.
 2026-09-16T09:58Z claude note Imagine pass: the premise stands independent of 0281 (wontfix) -- this ticket already dropped its Blocked-by and rewrote Action 1 to a re-survey, so nothing here waits on the hash table. Action 5 (hard-error an unrecognized hash on erg check) is not structurally blocked on 0283 either -- 0283 only touches the stampless/drift read path (assetDriftWarnings) and explicitly changes no overwrite/preserve decision -- but sequencing after 0283 is still the right call: without its stampless signal, a hard error cannot tell "never ran erg init" from "confirmed local edit", so a legitimate unstamped adopter would be told to migrate content it never wrote. Recommend landing 0283 first in the wave plan and having Action 5 reuse its assetStamplessSignal/assetDriftSignal plumbing rather than growing a second detection path in erg check -- 0283's own Actions already warn against patching channels separately, and that is the concrete overlap risk here, not a redesign. Actions 1-4 and 6 (content partition, pointer, adopter-home, pristine restore) are pure asset-content migration, not machinery, and stay clear of 0283/0278's scope; no antipattern found there. Shared files: manifest.go (isCleanUpgrade write-path here vs assetDriftWarnings read-path in 0283/0278/0279 -- same file, different functions, sequence rather than parallel-edit) and src/go/assets/AGENTS.md plus bootstrap_assets.go (also touched read-only by 0282's vendoring fix). No file overlap with 0282 beyond the shared asset family.
+2026-09-16T16:50Z claude note Converted to a tracker, author-arbitrated during the raid. The Blind-Spot pass found this ticket unclosable by construction: Action 6 and two of its exit criteria require state in ImperialDragonHarness, which no git-erg PR can produce, while that repo's own 0906 is recorded as blocked on this one -- a deadlock neither ticket could see alone. Decomposed into 0288 (Actions 2-4, the content migration, unblocked) and 0289 (Action 5 plus the enforcement-time re-survey, Blocked-by 0288 and sequenced after 0283). The harness-side bullets moved to 0906 rather than kept as criteria this repo cannot meet. Two sign-off units, a cross-repo action and a dependency chain stated only in prose: four of the monster-ticket checklist's marks on one ticket.
 --- body ---
 ## Context
 
@@ -147,15 +148,36 @@ Migration test: the collision-recovery material is reachable from `erg integrati
 - Enforcing without a fresh adopter survey could fail a legitimate repo;
   the survey, not the table, is the safeguard.
 
+## Children
+
+This ticket is a tracker. Its Actions/Test/Verification below are superseded by
+the children's and are kept for the record, not for direct execution.
+
+1. **0288** — Actions 2-4, the content migration into the on-demand channel.
+   No dependency on anything; lands first.
+2. **0289** — Action 5, the hard error, plus Action 1's re-survey at enforcement
+   time. `Blocked-by: 0288` (the message must name a destination that exists)
+   and sequenced after 0283 (which supplies the signal that keeps "stampless"
+   distinguishable from "edited").
+3. Action 6 and the two harness-side verification bullets are **not** children
+   of this ticket. They are actions in another repository and belong to
+   ImperialDragonHarness 0906, where they are actually closable.
+
 ## Exit criteria
 
-- A locally-edited shipped `AGENTS.md` is refused by `erg check`, with the
-  escape hatch named in the message
-- The generic collision lore lives in the on-demand channel, pointed at from the
-  shipped asset by one line
-- Adopter-specific lore has a declared, documented home outside the shipped asset
-- The one specimen (ImperialDragonHarness) is back to pristine with nothing lost
+- 0288 and 0289 are both closed
 - The design decision above is recorded here, so the next agent does not retake it
+- The integration check is run and recorded in this ticket's log: in a repo that
+  has only run `erg init`, the lore is reachable AND the ban fires — the two
+  halves compose, rather than each passing its own child's tests alone
+
+Deliberately **not** an exit criterion of this ticket, though it was one before
+the split: "the ImperialDragonHarness copy is byte-identical to the shipped
+asset" and "a cold agent session in an adopter repo can still reach the
+collision recipe". Both describe state in another repository that no git-erg PR
+can produce. They moved to 0906. Leaving them here made this ticket
+unclosable by construction — the defect the raid's monster-ticket checklist
+caught on 2026-09-16.
 
 ## Observations from the harness side (2026-09-10)
 
