@@ -144,7 +144,10 @@ committing it -- especially if you have customised it:
 ```bash
 # erg version prints the revision this binary was built from; pulling the
 # helper from that same revision is what makes the note go quiet.
-REV=$(tickets/erg version | awk '/revision:/{print $2}')
+# ERG_VERSION_NO_DISCOVER=1 keeps the output to THIS binary: discovery mode
+# also lists every other erg it finds, each with its own "revision:" line, so
+# without it REV becomes a list of revisions and the URL below is malformed.
+REV=$(ERG_VERSION_NO_DISCOVER=1 tickets/erg version | awk '/revision:/{print $2; exit}')
 curl -fsSL "https://github.com/MinhHaDuong/git-erg/raw/$REV/tickets/erg-github" \
   -o tickets/erg-github && chmod +x tickets/erg-github
 ```
