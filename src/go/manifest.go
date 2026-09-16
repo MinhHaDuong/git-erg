@@ -200,7 +200,10 @@ func buildManifest(carry map[string]string) (string, error) {
 	var entries []entry
 	for _, rel := range initAssetPaths {
 		name := strings.TrimPrefix(rel, "tickets/")
-		if prev, preserved := carry[name]; preserved {
+		// "carried", not "preserved": carry now also holds assets that were
+		// never preserved in the skip-and-log sense, only out of the run's
+		// scope entirely (ticket 0296).
+		if prev, carried := carry[name]; carried {
 			// A stamp that is not a hash is not evidence, and carrying it
 			// forward would preserve it past every future run. Dropping it
 			// restores the self-healing the pre-0292 restamp gave for free.

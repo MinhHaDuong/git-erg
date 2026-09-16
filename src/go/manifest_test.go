@@ -1601,4 +1601,40 @@ func TestInstallAssetsDoesNotStampOutsideItsScope(t *testing.T) {
 			t.Errorf("the rollback report did not survive the layout sweep: %q", warnings)
 		}
 	})
+
+	t.Run("a future date with nothing on disk behind it is healed, not frozen", func(t *testing.T) {
+		// The negative side of the gate, and the reason it asks about bytes
+		// rather than about the date alone (PR #363, round 1). Here the header
+		// claims a newer binary but NO asset carries what it records: .ergrc
+		// has no entry at all and a local edit on disk. That is a corrupt or
+		// hand-edited stamp, not a rollback, and freezing the manifest on it
+		// would make the corruption permanent. `erg init` must heal it exactly
+		// as it did before ticket 0296 -- this is the plain init path, which
+		// 0296 is not about and must not disturb.
+		setBuildDate(t, "2026-01-01T00:00:00Z")
+		manifest := "# erg provenance manifest -- do not edit\nrev: bogus\n" +
+			"date: 2099-01-01T00:00:00Z\nassets:\n" +
+			"  AGENTS.md sha256:" + sha256hex([]byte(embeddedAgents)) + "\n"
+		root := stampFixture(t, manifest, edited)
+
+		stderr := captureStderr(t, func() {
+			if _, _, skipped, _, err := installAssets(root, initAssetPaths, true, false); err != nil {
+				t.Fatalf("installAssets: %v", err)
+			} else if skipped != 1 {
+				t.Fatalf("fixture did not reach the preserve leg: skipped=%d", skipped)
+			}
+		})
+		// Non-vacuity at the step: the preserve must be the unattributable one,
+		// not a rollback preserve. A fixture that took the rollback branch
+		// would suppress the rewrite for the reason under test.
+		if !strings.Contains(stderr, "no usable .erg-assets stamp") {
+			t.Fatalf("fixture preserved for the wrong reason: %q", stderr)
+		}
+		if got := readManifestDate(root); got != "2026-01-01T00:00:00Z" {
+			t.Errorf("a future date no asset stands behind was frozen instead of healed, got %q", got)
+		}
+		if got := readManifest(root)[".ergrc"]; got != "" {
+			t.Errorf("the preserved file was stamped after all: %q", got)
+		}
+	})
 }

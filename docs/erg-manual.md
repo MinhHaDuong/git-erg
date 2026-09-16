@@ -437,9 +437,13 @@ init' to refresh it with the dpkg 3-state rule, which preserves a file for
 either of two reasons: it has local edits, or it matches an .erg-assets stamp
 newer than this binary -- see 'erg init --help'). Because .ergrc is outside
 this command's reach, migrate never stamps it: whatever .erg-assets recorded
-for it is carried forward untouched, and where the stamp is newer than this
-binary the manifest is left exactly as it stands, so 'erg check' can still
-tell you the store is ahead of the binary that just swept it. It also
+for it is carried forward untouched. Where .ergrc still holds the exact bytes
+a NEWER binary's stamp records, the manifest is left entirely as it stands, so
+'erg check' can still tell you the store is ahead of the binary that just swept
+it. The price is that such a sweep records nothing about the AGENTS.md it did
+write, so erg check reports that file as ahead too when it is no longer: one
+header cannot date two assets separately, and the write was announced with an
+undo hint when it happened. Run 'erg update && erg init' to clear it. It also
 rewrites .git/hooks/pre-commit if it references
 the legacy tickets/tools/go/erg path or the legacy 'validate tickets/' CLI
 form. The hook rewrite is content-based and idempotent; hooks without legacy
