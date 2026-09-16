@@ -798,6 +798,30 @@ if [ "$rc" -eq 0 ] && echo "$out" | grep -q "differs from the .erg-assets stamp"
 else
     fail "drift: expected a non-fatal drift warning (rc=$rc, got: $out)"
 fi
+# NOTE the 'date: y' above: it is an UNPARSEABLE stamp, and the assertion just
+# made is that it still takes the upgrade-direction message. "y" sorts above
+# every digit, so a direction check that compared it lexically without a shape
+# guard would call this repo a rollback (ticket 0279).
+
+# --- asset drift DIRECTION (ticket 0279) ---
+# Same drift condition, opposite direction: a stamp this binary predates. The
+# warning must not claim an upgrade, and must name 'erg update' -- running
+# 'erg init' here would REVERT the deployed assets, not refresh them.
+ROLLDIR="$FIXTURES/rollback"
+mkdir -p "$ROLLDIR"
+cp "$DRIFTDIR/9001-x.erg" "$ROLLDIR/"
+printf '# erg provenance manifest -- do not edit\nrev: x\ndate: 2099-01-01T00:00:00Z\nassets:\n  .ergrc sha256:000000\n  AGENTS.md sha256:111111\n' > "$ROLLDIR/.erg-assets"
+rc=0; out=$($ERG check "$ROLLDIR" 2>&1) || rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -q "run 'erg update' first"; then
+    pass "drift: stamp newer than the binary names 'erg update'"
+else
+    fail "drift: expected the rollback remedy (rc=$rc, got: $out)"
+fi
+if echo "$out" | grep -q "upgraded"; then
+    fail "drift: the binary is the older side, yet the warning claims an upgrade (got: $out)"
+else
+    pass "drift: stamp newer than the binary never claims 'upgraded'"
+fi
 
 # No manifest -> no drift warning (derisque: no fallback without a stamp).
 NODRIFT="$FIXTURES/nodrift"

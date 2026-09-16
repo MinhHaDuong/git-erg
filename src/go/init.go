@@ -62,6 +62,14 @@ clean upgrade -- erg never touched it, so it is overwritten and a
 is a local edit: it is preserved and the command exits 2 (local edits are never
 overwritten without --force).
 
+The stamp also records which binary wrote it, and init compares that date with
+its own. If this binary is the OLDER one -- an erg from before the last init --
+then refreshing would revert the deployed assets, not upgrade them. Such a file
+is preserved too, and init says so and points at 'erg update' rather than
+claiming a local edit. A stamp with no date (written by an erg predating the
+field) carries no direction and is treated exactly as before. This is what makes
+'erg update && erg init' a pair the code enforces and not merely a convention.
+
 Flags:
 
   -n, --dry-run   Preview what init would create, refresh, skip, or leave
@@ -86,8 +94,9 @@ effect until erg init overwrites the file (clean upgrade) or the user opts in wi
 --force (local edit). erg update alone cannot un-shadow a frozen vocabulary.
 
 Exit codes: 0 success; 1 a hard error (bad flag, missing binary, write
-failure); 2 local edits were preserved and skipped (run with --force to
-overwrite). See "Exit codes" in erg --help --all.
+failure); 2 a file was preserved and skipped -- either it has local edits, or
+it is newer than this binary (run with --force to overwrite). See "Exit codes"
+in erg --help --all.
 `
 
 // installAssets unpacks the embedded bootstrap assets under root, returning
@@ -107,6 +116,13 @@ overwrite). See "Exit codes" in erg --help --all.
 // stderr and counted as skipped. When false (erg init --force, erg migrate),
 // differing files are overwritten unconditionally (refresh).
 //
+// A stamp match is only an upgrade when the stamp is the OLDER side. When the
+// running binary predates the stamp, overwriting would revert the deployed
+// asset, so it is preserved instead and counted as skipped (ticket 0279) --
+// and the provenance manifest is left as it was, since this run changed
+// nothing it would be describing. Under --force the revert is performed as
+// asked, but reported as "downgraded", never as "refreshed".
+//
 // When dryRun is true, no directory is created, no file is written, and the
 // orphan sweep is not performed; instead a preview line is printed for each
 // asset describing the action that would be taken. The returned counts are the
@@ -115,6 +131,15 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 	// The .erg-assets stamp from a previous init (nil if absent or malformed):
 	// name -> recorded SHA-256. Read once; the dpkg compare consults it per asset.
 	stamps := readManifest(root)
+	// Which binary is newer, this one or the one that last ran init here. A
+	// property of the manifest, so read once, not per asset. rollback is false
+	// whenever the provenance is missing or unparseable -- see isRollback
+	// (ticket 0279).
+	stampDate := manifestDate(root)
+	rollback := isRollback(stampDate, buildDate)
+	// Set when an asset was preserved BECAUSE of the rollback, which suppresses
+	// the provenance rewrite at the end of the run (see there).
+	rollbackPreserved := false
 	for _, rel := range paths {
 		content, ok := bootstrapAsset(rel)
 		if !ok {
@@ -143,21 +168,37 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 		//   unconditionally -- exempt from the dpkg prompt.
 		// - refuseDiverged (erg init default): dpkg 3-state compare. A clean
 		//   upgrade (on-disk == stamp, or a known shipped hash when no stamp)
-		//   is overwritten silently; a local edit is preserved (exit 2).
+		//   is overwritten silently; a local edit is preserved (exit 2). An
+		//   on-disk file matching a stamp NEWER than this binary is a rollback:
+		//   also preserved, for a different reason and with its own message.
 		preserve := false
+		// Distinguishes the two reasons to preserve: a local edit (on-disk
+		// matches nothing known) from a rollback (on-disk matches a stamp this
+		// binary predates). Both preserve; they do not say the same thing.
+		preserveRollback := false
 		if exists && refuseDiverged {
 			diskHash := sha256hex(existing)
-			if !isCleanUpgrade(diskHash, stamps[name], knownAssetHashes(rel)) {
+			if !isCleanUpgrade(diskHash, stamps[name], knownAssetHashes(rel), stampDate, buildDate) {
 				preserve = true
+				preserveRollback = rollback && stamps[name] != "" && diskHash == stamps[name]
 			}
 		}
 
 		if preserve {
 			skipped++
+			// Name the actual reason. "has local edits" is false for a rollback
+			// (nothing was edited here), and the remedy is a different command.
+			reason := "has local edits -- preserving (run with --force to overwrite)"
+			short := "local edits"
+			if preserveRollback {
+				rollbackPreserved = true
+				reason = "is newer than this binary -- preserving (run 'erg update' first, then 'erg init')"
+				short = "newer than this binary"
+			}
 			if dryRun {
-				fmt.Printf("  would preserve (local edits)  %s\n", rel)
+				fmt.Printf("  would preserve (%s)  %s\n", short, rel)
 			} else {
-				fmt.Fprintf(os.Stderr, "init: %s has local edits -- preserving (run with --force to overwrite)\n", rel)
+				fmt.Fprintf(os.Stderr, "init: %s %s\n", rel, reason)
 			}
 			continue
 		}
@@ -167,10 +208,17 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 		} else {
 			created++
 		}
+		// A --force overwrite while the stamp is newer is a deliberate
+		// downgrade. It is still performed -- --force means what it says -- but
+		// the log must not call a revert a refresh (ticket 0279, defect 3).
+		downgrade := exists && rollback
 		if dryRun {
 			verb := "would create "
 			if exists {
 				verb = "would refresh"
+			}
+			if downgrade {
+				verb = "would downgrade"
 			}
 			fmt.Printf("  %s  %s\n", verb, rel)
 			continue
@@ -182,14 +230,28 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 			return created, refreshed, skipped, unchanged, fmt.Errorf("cannot write %s: %w", rel, wErr)
 		}
 		// Loud output: name each overwrite and give a reversibility hint, so a
-		// refresh (even a safe clean upgrade) is never silent.
+		// refresh (even a safe clean upgrade) is never silent -- and so a
+		// revert is never narrated as a refresh.
 		if exists {
-			fmt.Fprintf(os.Stderr, "init: refreshed %s (git restore -- %s to undo)\n", rel, rel)
+			verb := "refreshed"
+			if downgrade {
+				verb = "downgraded"
+			}
+			fmt.Fprintf(os.Stderr, "init: %s %s (git restore -- %s to undo)\n", verb, rel, rel)
 		}
 	}
 	// Record provenance (ticket 0210): a deterministic manifest of the embedded
 	// asset hashes for this binary. Written by both erg init and erg migrate
 	// (the two callers of installAssets). Skipped in dry-run.
+	//
+	// Not written when an asset was preserved because this binary predates the
+	// stamp (ticket 0279): the run declined to touch the deployed assets, so
+	// stamping them with this older binary's rev/date would record a state that
+	// never happened -- and would destroy the very evidence that said so, making
+	// the next run misreport the same rollback as a local edit.
+	if rollbackPreserved {
+		return created, refreshed, skipped, unchanged, nil
+	}
 	if err := writeManifest(root, dryRun); err != nil {
 		return created, refreshed, skipped, unchanged, fmt.Errorf("cannot write provenance manifest: %w", err)
 	}

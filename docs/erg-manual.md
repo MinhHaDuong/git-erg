@@ -20,7 +20,8 @@ a different git worktree than the working directory. Pass DIR explicitly to over
 
 **Exit codes (shared by `check` and `init`).** `0` success;
 `1` a hard error (bad flag, unreadable directory, write failure, or a
-corpus violation); `2` local edits were preserved and skipped
+corpus violation); `2` a file was preserved and skipped, having either
+local edits or a stamp newer than the running binary
 (`init` only -- run with `--force` to overwrite). Any non-zero
 status is a failure for scripting purposes. The value `1` always means a
 hard failure -- it never doubles as "skipped".
@@ -457,6 +458,14 @@ clean upgrade -- erg never touched it, so it is overwritten and a
 is a local edit: it is preserved and the command exits 2 (local edits are never
 overwritten without --force).
 
+The stamp also records which binary wrote it, and init compares that date with
+its own. If this binary is the OLDER one -- an erg from before the last init --
+then refreshing would revert the deployed assets, not upgrade them. Such a file
+is preserved too, and init says so and points at 'erg update' rather than
+claiming a local edit. A stamp with no date (written by an erg predating the
+field) carries no direction and is treated exactly as before. This is what makes
+'erg update && erg init' a pair the code enforces and not merely a convention.
+
 Flags:
 
   -n, --dry-run   Preview what init would create, refresh, skip, or leave
@@ -481,8 +490,9 @@ effect until erg init overwrites the file (clean upgrade) or the user opts in wi
 --force (local edit). erg update alone cannot un-shadow a frozen vocabulary.
 
 Exit codes: 0 success; 1 a hard error (bad flag, missing binary, write
-failure); 2 local edits were preserved and skipped (run with --force to
-overwrite). See "Exit codes" in erg --help --all.
+failure); 2 a file was preserved and skipped -- either it has local edits, or
+it is newer than this binary (run with --force to overwrite). See "Exit codes"
+in erg --help --all.
 
 ## erg install [DIR] [--hooks] [--push-hook] [--inject-agents] [--create-agents-md]
 
