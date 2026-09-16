@@ -2,6 +2,7 @@
 Title: erg-github verify regex misses tickets/closed/NNNN paths
 Created: 2026-07-02
 Author: MinhHaDuong
+Closed: autoclosed — PR #339
 
 --- log ---
 2026-07-02T07:47Z MinhHaDuong created
@@ -13,6 +14,7 @@ Author: MinhHaDuong
 2026-09-16T09:14Z Claude note Review round 1 (PR #339) found a defect introduced by the fix: grep -i makes the new (closed/) group case-insensitive while the BRE sed is not, so tickets/Closed/NNNN cleared the filter without substituting and the whole body line passed through as $ids. Failed closed, but fixed by a trailing grep -xE '[0-9]{4}' id-shape filter, with a test.
 2026-09-16T09:20Z Claude note Plan Action 2 amended in place. Its deferral of the erg-pr-merge cross-reference cited 0282 as the anchor, but 0282 covers adopter-vendored copies of tickets/erg-github and never mentions erg-pr-merge -- the anchor did not exist. The comment is corrected in this PR; the Plan no longer forbids what its own diff does.
 2026-09-16T09:35Z Claude note Round 2 reverted the round-1 fix as worse than the defect. Dropping the unsubstituted line empties $ids, and an empty $ids IS the escape hatch, so TICKETS/0043 on an OPEN ticket returned PASS -- a silent bypass of the required gate, where main merely failed closed and garbled. Replaced by case-folding the body once (tr) and dropping grep -i, so the filter and the substitution cannot disagree about any literal, now or when one is added later. Tests now pin the branch taken (the "ticket NNNN is closed" message), not the exit code: escape-hatch PASS and real PASS are both exit 0, which is why the round-1 test could not see its own regression.
+2026-09-16T09:15Z MinhHaDuong closed — autoclosed — PR #339
 --- body ---
 Migrated from GitHub issue MinhHaDuong/git-erg#145 (opened 2026-05-23).
 
