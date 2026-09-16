@@ -140,7 +140,7 @@ Closed: done
 --- log ---
 --- body ---
 EOF
-cat > "$FIXTURES/cross/0002-refs-closed.erg" <<'EOF'
+cat > "$FIXTURES/cross/0002-refs-into-archive.erg" <<'EOF'
 %erg 0.1
 Title: Ref to closed subdir ticket
 Created: 2026-01-01
@@ -219,6 +219,59 @@ if [ $rc -eq 1 ]; then
     pass "closed-but-unarchived exits 1"
 else
     fail "closed-but-unarchived exits 1 (got rc=$rc)"
+fi
+
+# --- Folder closure: basename-only closed ticket at top level is an error (0256) ---
+# A slug truncation landing on "-closed" made ticket 0255 vanish from erg list
+# and erg ready with no warning. check must catch the hand-created case too.
+mkdir -p "$FIXTURES/closure3"
+cat > "$FIXTURES/closure3/0001-work-closed.erg" <<'EOF'
+%erg 0.1
+Title: Open work with a closed-looking name
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+rc=0; out=$($ERG check "$FIXTURES/closure3" 2>&1) || rc=$?
+if echo "$out" | grep -q "VIOLATION.*closed-ticket pattern"; then
+    pass "basename-only closed ticket is a violation"
+else
+    fail "basename-only closed ticket is a violation (got: $out)"
+fi
+if [ $rc -eq 1 ]; then
+    pass "basename-only closure violation exits 1 (error, not a warning)"
+else
+    fail "basename-only closure violation exits 1 (got rc=$rc)"
+fi
+
+# --- Negative control: disclosed/enclosed basenames are NOT closed (0256) ---
+# Guards against a strings.Contains(name, "closed") reimplementation, which
+# would pass the positive case above (spec: "Rules out disclosed, enclosed").
+mkdir -p "$FIXTURES/closure4"
+cat > "$FIXTURES/closure4/0001-not-disclosed.erg" <<'EOF'
+%erg 0.1
+Title: Not disclosed
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+cat > "$FIXTURES/closure4/0002-fully-enclosed.erg" <<'EOF'
+%erg 0.1
+Title: Fully enclosed
+Created: 2026-01-01
+Author: a
+
+--- log ---
+--- body ---
+EOF
+if $ERG check "$FIXTURES/closure4" >/dev/null 2>&1; then
+    pass "disclosed/enclosed basenames are not flagged as closed"
+else
+    fail "disclosed/enclosed basenames are not flagged as closed"
 fi
 
 # --- Nonexistent dir fails ---

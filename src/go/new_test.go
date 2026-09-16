@@ -23,12 +23,60 @@ func TestSlugify(t *testing.T) {
 		{strings.Repeat("a", 41), strings.Repeat("a", 40)},
 		{"", "untitled"},
 		{"!@#$%^&*()", "untitled"},
+		// Historical live case (ticket 0256): the 40-char truncation of this
+		// title lands exactly on "-closed", which pathIsClosed reads as a
+		// closed ticket. The offending trailing segment must be dropped.
+		{"erg-pr-merge regex misses tickets/closed/NNNN paths",
+			"erg-pr-merge-regex-misses-tickets"},
 	}
 	for _, c := range cases {
 		got := slugify(c.in)
 		if got != c.want {
 			t.Errorf("slugify(%q) = %q, want %q", c.in, got, c.want)
 		}
+	}
+}
+
+// TestSlugifyNeverProducesClosedBasename pins the semantic property behind
+// ticket 0256: no title may make erg new emit a filename that pathIsClosed
+// reads as closed. Asserting through pathIsClosed itself -- rather than a
+// literal strings.HasSuffix check -- keeps the test honest if the predicate's
+// rule set ever changes.
+func TestSlugifyNeverProducesClosedBasename(t *testing.T) {
+	cases := []struct{ name, title string }{
+		{
+			"historical 0255 case",
+			"erg-pr-merge regex misses tickets/closed/NNNN paths",
+		},
+		{
+			// Anti-cheat control: this slug is 39 characters long after
+			// truncation, so an implementation that merely truncates to 39
+			// instead of guarding still keeps the whole "-closed" suffix and
+			// still fails here.
+			"exact 39-char boundary after truncation",
+			strings.Repeat("x", 32) + "-closed-extra-words-here-padding-more",
+		},
+		{
+			"title ending in the word closed",
+			"rework the archive path when a ticket is closed",
+		},
+		{
+			"title that is only the word closed",
+			"closed",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			slug := slugify(c.title)
+			basename := "0000-" + slug + ".erg"
+			if pathIsClosed(basename) {
+				t.Errorf("slugify(%q) = %q -> %q, which pathIsClosed reports as closed",
+					c.title, slug, basename)
+			}
+			if slug == "" {
+				t.Errorf("slugify(%q) returned an empty slug", c.title)
+			}
+		})
 	}
 }
 

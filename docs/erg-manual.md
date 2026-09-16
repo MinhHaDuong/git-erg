@@ -85,7 +85,10 @@ under DIR recursively and verifies invariants that require a global view:
 
   - Folder/header closure: open ticket in closed/ or closed ticket not in
     closed/ (a hand-edited Closed: header that was not filed -- erg close now
-    files in one step; run 'erg close ID' or 'erg archive').
+    files in one step; run 'erg close ID' or 'erg archive'). Also a ticket
+    outside closed/ whose *filename* matches the closed-ticket pattern
+    (NNNN-...-closed.erg) but carries no Closed: header -- rename it or add
+    the header.
 
 Additionally emits warnings (non-fatal) for:
 

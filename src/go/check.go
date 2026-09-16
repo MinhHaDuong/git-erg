@@ -13,7 +13,9 @@ import (
 // folderClosure detects tickets whose open/closed state conflicts with
 // their directory placement. Both directions are corpus integrity violations:
 // a closed ticket outside closed/ is the "close-without-archive" escape
-// (ticket 0241); an open ticket inside closed/ hides active work.
+// (ticket 0241); an open ticket inside closed/ hides active work; a
+// basename that reads as closed while the header says open silently removes
+// the ticket from every listing (ticket 0256).
 func folderClosure(tickets []Erg) []string {
 	var errs []string
 	for i := range tickets {
@@ -28,6 +30,26 @@ func folderClosure(tickets []Erg) []string {
 		if !inClosedDir && hasClosed {
 			errs = append(errs, fmt.Sprintf(
 				"%s: closed ticket not in closed/ directory -- run 'erg close ID' or 'erg archive' to file it", t.Filename()))
+		}
+
+		// Basename-only closure (ticket 0256): a ticket whose basename alone
+		// trips pathIsClosed -- hand-crafted, externally renamed, or produced
+		// by slug truncation -- but carries no Closed: header disagrees
+		// exactly the way the placement/header check above forbids, so it is
+		// the same class of hard violation, at error level (spec-erg-v1.md
+		// "Closed / not-closed criterion").
+		//
+		// inClosedDir already covers every directory-closed ticket at any
+		// depth, since pathIsClosed walks all components of
+		// filepath.Dir(t.Path). The !inClosedDir guard is therefore what
+		// keeps this rule off the archive: an archived ticket that legitimately
+		// ends in "-closed" is excluded by construction, not by inspecting its
+		// basename differently.
+		basenameClosed := !inClosedDir && pathIsClosed(t.Path)
+		if basenameClosed && !hasClosed {
+			errs = append(errs, fmt.Sprintf(
+				"%s: filename matches the closed-ticket pattern (spec 'Closed / not-closed criterion') but has no Closed: header -- rename the file if the ticket is open, or run 'erg close ID REASON' to file it properly",
+				t.Filename()))
 		}
 	}
 	return errs
@@ -192,7 +214,10 @@ under DIR recursively and verifies invariants that require a global view:
 
   - Folder/header closure: open ticket in closed/ or closed ticket not in
     closed/ (a hand-edited Closed: header that was not filed -- erg close now
-    files in one step; run 'erg close ID' or 'erg archive').
+    files in one step; run 'erg close ID' or 'erg archive'). Also a ticket
+    outside closed/ whose *filename* matches the closed-ticket pattern
+    (NNNN-...-closed.erg) but carries no Closed: header -- rename it or add
+    the header.
 
 Additionally emits warnings (non-fatal) for:
 
