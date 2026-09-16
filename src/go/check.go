@@ -213,6 +213,11 @@ under DIR recursively and verifies invariants that require a global view:
 
   - No duplicate ticket IDs across the corpus.
   - All Blocked-by local refs point to tickets that exist in the corpus.
+  - tickets/AGENTS.md is not locally edited. erg ships and upgrades that file,
+    so a local edit is lost at the next init; put project-specific lore in
+    tickets/LOCAL.md instead, which erg never touches. Only a store whose
+    .erg-assets stamp records what init wrote can be checked this way -- an
+    unstamped store gets the "cannot tell" note instead, not this error.
   - All Superseded-by local refs point to tickets that exist in the corpus.
   - No dependency cycles among Blocked-by edges.
   - All per-ticket format rules (delegates to validateCorpus, which folds in parser-emitted errors).
@@ -310,6 +315,13 @@ func cmdCheck(args []string) int {
 	}
 
 	errors := validateCorpus(tickets, parseErrs, cfg)
+	// Appended here and not inside corpusWarnings: this is a violation, and
+	// corpusWarnings is chained by `erg init`, which must not fail on a
+	// read-only warning pass. Appended here and not inside validateCorpus
+	// either: that function is about the loaded tickets and takes no dir. The
+	// comparison itself stays in manifest.go beside the machinery it reuses --
+	// growing a second one here is what ticket 0289 names as the antipattern.
+	errors = append(errors, assetLocalEditViolations(dir)...)
 	warnings := corpusWarnings(tickets, dir)
 
 	hasErrors := len(errors) > 0
