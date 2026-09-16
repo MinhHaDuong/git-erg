@@ -1150,7 +1150,8 @@ func TestStorePath(t *testing.T) {
 		{
 			// Kept explicit because it is the price of the rule: a store
 			// addressed AT its archive has those tickets at its top level.
-			// Ticket 0294 owns the consequence.
+			// That case is a declared non-goal of ticket 0285, whose
+			// StorePath comment states both halves of what it costs.
 			name: "the root's own name is excluded, archive or not",
 			root: "/home/u/tickets/closed",
 			path: "/home/u/tickets/closed/0001-x.erg",
