@@ -2,10 +2,12 @@
 Title: the asset invariant suite cannot see a revert narrated as a refresh
 Created: 2026-09-16
 Author: claude
+Closed: merged via PR #358
 
 --- log ---
 2026-09-16T12:42Z claude created
 
+2026-09-16T12:58Z MinhHaDuong closed — merged via PR #358
 --- body ---
 
 ## Context

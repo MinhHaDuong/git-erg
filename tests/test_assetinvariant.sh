@@ -89,7 +89,7 @@
 #   3. Half (b) needed its own control -- non-vacuity is per case, and controls
 #      1 and 2 both exercise half (a). audit_file's unchanged-branch grep was
 #      pointed at a token the binary DOES print on every run; every
-#      "unchanged, and not claimed otherwise" assertion then present (twenty of
+#      "unchanged, and not claimed otherwise" assertion then present (seventeen of
 #      them, before the rollback arm) flipped to FAIL, across every state and
 #      every command. Both halves are wired to a reachable failure, not just the
 #      one the trap lives in.
