@@ -133,6 +133,18 @@ else
     fail "helpUpdate missing 'erg init' reference (ticket 0223 regression)"
 fi
 
+# README's re-vendor recipe must name the offline route (ticket 0292).
+# `erg init --show erg-github` exists partly to give that recipe a source that
+# needs neither the network nor a clone -- and init.go's own comment cites the
+# recipe as the reason. A code justification pointing at documentation that
+# never mentions it is the drift this check closes.
+if sed -n '/^## Forge layer/,/^## Install into a project/p' README.md |
+    grep -qF 'init --show erg-github'; then
+    pass "README: the re-vendor recipe names the offline source"
+else
+    fail "README: the re-vendor recipe offers only network/clone routes (ticket 0292)"
+fi
+
 # integration.md must contain the 'Keeping a store current' subsection.
 INTEG_SRC="${INTEG_SRC:-src/go/assets/integration.md}"
 if [ -f "$INTEG_SRC" ] && grep -qF 'Keeping a store current' "$INTEG_SRC"; then
