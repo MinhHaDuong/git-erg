@@ -1679,4 +1679,53 @@ func TestInstallAssetsDoesNotStampOutsideItsScope(t *testing.T) {
 			t.Errorf("the run could not look and did not say so: %q", stderr)
 		}
 	})
+
+	t.Run("an unreadable asset on a store with no recorded direction changes nothing", func(t *testing.T) {
+		// PR #363, round 3. The subtest above gave the evidence read a side
+		// effect, which made the loop's `if !rollback { continue }` guard
+		// load-bearing rather than a cost saving -- and nothing pinned it: the
+		// mutant deleting that line survived the whole suite. Without it, an
+		// unreadable out-of-scope asset raises rollbackEvidence on an ORDINARY
+		// run and suppresses a manifest refresh no rollback is involved in.
+		//
+		// Same fixture as above but for the header: a date this binary is
+		// NEWER than, so no direction is recorded and nothing on disk has
+		// anything to stand behind.
+		if os.Geteuid() == 0 {
+			t.Skip("running as root: mode 000 does not deny a read")
+		}
+		setBuildDate(t, "2026-01-01T00:00:00Z")
+		manifest := "# erg provenance manifest -- do not edit\nrev: old\n" +
+			"date: 2020-01-01T00:00:00Z\nassets:\n" +
+			"  .ergrc sha256:" + sha256hex([]byte(edited)) + "\n" +
+			"  AGENTS.md sha256:" + sha256hex([]byte(embeddedAgents)) + "\n"
+		root := stampFixture(t, manifest, edited)
+		ergrcPath := filepath.Join(root, "tickets", ".ergrc")
+		if err := os.Chmod(ergrcPath, 0000); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(ergrcPath, 0644) })
+		// Non-vacuity at the step: the fixture must really deny the read, or
+		// this passes without ever reaching the branch it is about.
+		if _, err := os.ReadFile(ergrcPath); err == nil {
+			t.Skip("filesystem does not enforce mode 000 for this user")
+		}
+
+		stderr := captureStderr(t, func() {
+			if _, _, _, _, err := installAssets(root, migrateAssetPaths, false, false); err != nil {
+				t.Fatalf("installAssets: %v", err)
+			}
+		})
+		if got := readManifestDate(root); got != "2026-01-01T00:00:00Z" {
+			t.Errorf("an unreadable file suppressed a refresh on a store with no direction to protect, got date %q", got)
+		}
+		// The carried entry comes from the PREVIOUS manifest, never from disk,
+		// so an unreadable file costs nothing here either.
+		if got, want := readManifest(root)[".ergrc"], sha256hex([]byte(edited)); got != want {
+			t.Errorf("the carried entry did not survive an unreadable file: got %q, want %q", got, want)
+		}
+		if strings.Contains(stderr, "cannot read tickets/.ergrc") {
+			t.Errorf("the run narrated a read it had no reason to attempt: %q", stderr)
+		}
+	})
 }

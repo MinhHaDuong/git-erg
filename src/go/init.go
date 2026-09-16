@@ -252,10 +252,19 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 		name := strings.TrimPrefix(rel, "tickets/")
 		unwritten[name] = stamps[name]
 		// The same question the loop below asks about a file it preserves,
-		// asked here about a file this run will not otherwise open. Only under
-		// a rollback does the answer change anything -- with no direction
-		// recorded there is nothing for this file to stand behind -- so the
-		// read happens only there, and costs nothing on every other run.
+		// asked here about a file this run will not otherwise open.
+		//
+		// THIS GUARD IS LOAD-BEARING, not a cost saving, and it stopped being
+		// one the moment the read below gained a side effect (PR #363, round
+		// 3: the mutant deleting this line survived a green suite). Only under
+		// a rollback is there a direction for a file to stand behind; without
+		// the guard, an unreadable out-of-scope asset would raise
+		// rollbackEvidence on an ORDINARY run and suppress a manifest refresh
+		// that has nothing to do with any rollback. That it also spares the
+		// read on every non-rollback run is a side benefit, and not the
+		// reason. TestInstallAssetsDoesNotStampOutsideItsScope's
+		// "an unreadable asset on a store with no recorded direction" subtest
+		// is what fails if this line goes.
 		if !rollback {
 			continue
 		}
