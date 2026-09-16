@@ -219,16 +219,29 @@ func cmdUpdate(args []string) int {
 		fmt.Println("  git commit -m 'chore: migrate to Closed: header'")
 	}
 
-	// Post-swap asset-drift hint (ticket 0212). This still-running process is the
-	// OLD binary, so it cannot read the NEW binary's embedded assets directly;
-	// instead it re-execs the freshly-swapped binary's own `erg check`, whose
-	// drift detection compares the .erg-assets stamp against the NEW embedded
-	// asset (charter 4c, re-exec approach). Only attempted when a manifest
-	// exists: without one there is nothing to compare and no hint is warranted.
-	if _, statErr := os.Stat(filepath.Join(ticketDir, manifestName)); statErr == nil {
+	// Post-swap asset-condition hint (tickets 0212, 0283). This still-running
+	// process is the OLD binary, so it cannot read the NEW binary's embedded
+	// assets directly; instead it re-execs the freshly-swapped binary's own
+	// `erg check`, whose asset detection compares against the NEW embedded asset
+	// (charter 4c, re-exec approach). Attempted whenever the ticket dir exists.
+	//
+	// It used to be gated on a manifest existing, on the premise that without
+	// one there was nothing to compare -- and that premise is exactly what kept
+	// a store with no provenance silent on every channel (ticket 0283). Without
+	// a manifest there IS something to compare: the on-disk bytes against the
+	// embedded copy. Do not re-derive the old gate from a stale comment; the
+	// decision of what is comparable belongs to assetDriftWarnings, and this
+	// site's job is only to relay what the new binary reports.
+	if info, statErr := os.Stat(ticketDir); statErr == nil && info.IsDir() {
 		out, _ := exec.Command(self, "check", ticketDir).CombinedOutput()
+		// Two conditions, two remedies: drift is "refresh what is stale",
+		// stampless is "record what is unrecorded". They are independent, so
+		// both may fire in one run (different assets).
 		if strings.Contains(string(out), assetDriftSignal) {
 			fmt.Println("erg: deployed assets are from an earlier rev -- run 'erg init' to refresh them.")
+		}
+		if strings.Contains(string(out), assetStamplessSignal) {
+			fmt.Println("erg: deployed assets carry no .erg-assets stamp -- run 'erg init' to establish provenance.")
 		}
 	}
 	return 0

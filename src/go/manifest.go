@@ -37,6 +37,22 @@ const assetDriftSignal = "differs from the .erg-assets stamp (binary upgraded si
 // means and to name its own remedy.
 const assetRollbackSignal = "is older than the .erg-assets stamp (this binary predates the last init) -- run 'erg update' first, then 'erg init'"
 
+// assetStamplessSignal is the third condition: the store has NO .erg-assets
+// manifest at all, yet an asset on disk differs from what this binary embeds
+// (ticket 0283). Without a stamp there is no recorded provenance, so the
+// difference is unattributable -- it may be a clean upgrade the store never
+// stamped, or a deliberate local edit -- and the only honest report is to say
+// so and name the command that finds out. Like assetDriftSignal it is a
+// cross-version contract: erg update greps the re-exec'd NEW binary's
+// `erg check` output for this literal (see update.go), so producer and consumer
+// share it and it may be extended at the END only, never rewritten.
+//
+// Note what it does NOT say: nothing here claims a direction or a version.
+// Establishing those would need a table of historically shipped hashes, which
+// is ticket 0281's territory and closed wontfix -- this branch compares only
+// against the single currently embedded copy.
+const assetStamplessSignal = "no .erg-assets stamp -- cannot tell whether this is a clean upgrade or a local edit; run 'erg init' to find out (existing edits are never overwritten without --force)"
+
 // sha256hex returns the hex-encoded SHA-256 of b.
 func sha256hex(b []byte) string {
 	sum := sha256.Sum256(b)
@@ -326,12 +342,19 @@ func isCleanUpgrade(diskHash, stampedHash string, known []string, stampDate, run
 // assetDriftWarnings reports assets whose .erg-assets stamp differs from the
 // current binary's embedded version -- i.e. the binary was upgraded since the
 // last init, so the deployed assets are behind and a re-init would refresh
-// them. It REQUIRES a manifest: without one (readManifest returns nil) the
-// comparison is impossible and we invent no fallback (charter 4c derisque), so
-// a hand-maintained store that never ran the asset-managed init is never
-// nagged. Comparing the stamp (not the on-disk bytes) means a deliberate local
+// them. Comparing the stamp (not the on-disk bytes) means a deliberate local
 // edit does not raise a drift warning; only a binary upgrade past the recorded
 // stamp does.
+//
+// With no manifest it hands off to stamplessWarnings instead of returning nil
+// (ticket 0283). "No stamp" used to be read as "nothing to compare", and that
+// reading is what left a store with no provenance silent on every channel:
+// there IS something to compare, the on-disk bytes against the embedded copy.
+// What the absence of a stamp really costs is the ability to say WHICH side
+// moved, so the stampless report claims no direction. The derisque property
+// survives unchanged, just gated on the right thing: a hand-maintained store
+// that never ran the asset-managed init is still never nagged, because the
+// gate is real divergence, not the absence of a manifest.
 //
 // The hash comparison establishes THAT the two differ, never which is newer, so
 // the message is chosen by the stamp's recorded date instead (ticket 0279): the
@@ -343,7 +366,7 @@ func assetDriftWarnings(dir string) []string {
 	// manifest file directly rather than via readManifest (which joins tickets/).
 	stamps := readManifestFile(filepath.Join(dir, manifestName))
 	if stamps == nil {
-		return nil
+		return stamplessWarnings(dir)
 	}
 	// Which side is newer. Read once: the date is a property of the manifest,
 	// not of any one asset in it.
@@ -368,4 +391,39 @@ func assetDriftWarnings(dir string) []string {
 		}
 	}
 	return warnings
+}
+
+// stamplessWarnings is assetDriftWarnings' no-manifest branch (ticket 0283).
+// For each managed asset it compares the bytes on disk against the bytes this
+// binary embeds -- the SAME bootstrapAsset lookup the stamped branch uses, and
+// deliberately only against the single CURRENTLY embedded copy. Matching a
+// table of historically shipped hashes would let such a store auto-upgrade;
+// that is ticket 0281, closed wontfix, and a future edit adding a multi-rev
+// lookup here is the one thing this function must not grow.
+//
+// Silent in both directions that carry no information: an asset that is absent
+// (the store never adopted erg's asset management) and an asset that matches
+// the embedded copy exactly (nothing to report). Only real, unattributable
+// divergence speaks, and it reports a condition rather than prescribing an
+// overwrite -- hence NOTE, not WARN. Nothing here changes what erg init does
+// about the file; this makes the condition visible, no more.
+func stamplessWarnings(dir string) []string {
+	var notes []string
+	for _, rel := range initAssetPaths {
+		name := strings.TrimPrefix(rel, "tickets/")
+		content, ok := bootstrapAsset(rel)
+		if !ok {
+			continue
+		}
+		onDisk, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			// Absent, or unreadable: either way there is nothing to compare.
+			continue
+		}
+		if sha256hex(onDisk) == sha256hex([]byte(content)) {
+			continue
+		}
+		notes = append(notes, fmt.Sprintf("NOTE %s: %s", name, assetStamplessSignal))
+	}
+	return notes
 }
