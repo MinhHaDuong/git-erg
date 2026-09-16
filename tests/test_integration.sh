@@ -3,6 +3,8 @@
 set -eu
 
 ERG="${ERG_BIN:-build/erg}"
+# Repo root (this script lives in tests/), for the embedded asset sources.
+ROOT=$(CDPATH= cd "$(dirname "$0")/.." && pwd)
 PASS=0
 FAIL=0
 
@@ -45,6 +47,111 @@ if echo "$help_out" | grep -q "^## erg integration"; then
     pass "integration help starts with '## erg integration'"
 else
     fail "integration help header (got: $(echo "$help_out" | head -1))"
+fi
+
+# --- ticket 0288: generic git-erg lore is served here, not resident ---
+#
+# The shipped tickets/AGENTS.md is resident context, re-read at every session
+# start in every adopter repo. Long-form conventions belong in this on-demand
+# channel instead. These assertions are on CONTENT, not exit code, and they run
+# against the command's real output (cmdIntegration + bootstrapAsset), not
+# against the asset file on disk.
+
+if echo "$out" | grep -q "ID allocation is optimistic"; then
+    pass "integration output carries the optimistic-ID allocation mechanism"
+else
+    fail "integration output missing the optimistic-ID allocation mechanism"
+fi
+
+if echo "$out" | grep -q "never to the next free ID"; then
+    pass "integration output carries the renumber-clear-of-the-frontier policy"
+else
+    fail "integration output missing the renumber-clear-of-the-frontier policy"
+fi
+
+if echo "$out" | grep -qF 'gh pr list --json files'; then
+    pass "integration output names the 'gh pr list --json files' trap"
+else
+    fail "integration output missing the 'gh pr list --json files' trap"
+fi
+
+if echo "$out" | grep -qF 'gh pr view' && echo "$out" | grep -qF '.files[].path'; then
+    pass "integration output carries the per-PR 'gh pr view' enumeration recipe"
+else
+    fail "integration output missing the per-PR 'gh pr view' enumeration recipe"
+fi
+
+if echo "$out" | grep -qF 'erg check' && echo "$out" | grep -qF 'origin/main'; then
+    pass "integration output carries the post-merge 'erg check origin/main' rule"
+else
+    fail "integration output missing the post-merge 'erg check origin/main' rule"
+fi
+
+if echo "$out" | grep -q "^## Handoff-document sections"; then
+    pass "integration output carries the handoff-document section template"
+else
+    fail "integration output missing the handoff-document section template"
+fi
+
+# --- the shipped resident asset stays lean (ticket 0288, Action 3) ---
+#
+# A concrete ceiling, not an order of magnitude: 2141 bytes before this ticket,
+# plus room for the pointer it adds. A later edit that creeps the resident file
+# back up fails here.
+
+AGENTS_CEILING=2400
+agents_bytes=$(wc -c < "$ROOT/src/go/assets/AGENTS.md" | tr -d ' ')
+if [ "$agents_bytes" -le "$AGENTS_CEILING" ]; then
+    pass "src/go/assets/AGENTS.md is $agents_bytes bytes (ceiling $AGENTS_CEILING)"
+else
+    fail "src/go/assets/AGENTS.md is $agents_bytes bytes, over the $AGENTS_CEILING-byte ceiling"
+fi
+
+# Negative control: prove the comparison above can fail. A ceiling check that
+# passes whatever the file holds is not a check.
+if [ "$((AGENTS_CEILING + 1))" -le "$AGENTS_CEILING" ]; then
+    fail "negative control: an over-ceiling size was NOT rejected"
+else
+    pass "negative control: an over-ceiling size is rejected"
+fi
+
+# --- bucket boundary: no adopter-specific lore in the shipped assets ---
+#
+# Without this, a wholesale copy of one adopter's edited AGENTS.md -- the exact
+# antipattern 0288 exists to avoid -- would satisfy every positive assertion
+# above. These names are one adopter's own CI wiring and incident history; they
+# have no place in an asset shipped to every repo.
+
+ADOPTER_STRINGS="climate-finance-het search-works-for-zotero scripts/check-cross-pr-ticket-collision.sh harness-extension-point erg-pr-merge"
+for f in "$ROOT/src/go/assets/integration.md" "$ROOT/src/go/assets/AGENTS.md"; do
+    leaked=""
+    for s in $ADOPTER_STRINGS; do
+        if grep -qF "$s" "$f"; then
+            leaked="$leaked $s"
+        fi
+    done
+    if [ -z "$leaked" ]; then
+        pass "$(basename "$f") carries no adopter-specific lore"
+    else
+        fail "$(basename "$f") leaks adopter-specific lore:$leaked"
+    fi
+done
+
+# Negative control: prove the scan above detects a leak.
+LEAKPROBE=$(mktemp)
+trap 'rm -f "$LEAKPROBE"' EXIT
+cp "$ROOT/src/go/assets/integration.md" "$LEAKPROBE"
+printf 'see scripts/check-cross-pr-ticket-collision.sh\n' >> "$LEAKPROBE"
+probe_leaked=""
+for s in $ADOPTER_STRINGS; do
+    if grep -qF "$s" "$LEAKPROBE"; then
+        probe_leaked="$probe_leaked $s"
+    fi
+done
+if [ -n "$probe_leaked" ]; then
+    pass "negative control: a planted adopter-specific string is detected"
+else
+    fail "negative control: a planted adopter-specific string was NOT detected"
 fi
 
 echo ""
