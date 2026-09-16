@@ -3,6 +3,7 @@ Title: Generate historical asset hashes from git history
 Created: 2026-09-16
 Author: MinhHaDuong
 Blocked-by: 0283
+Closed: wontfix: zero known beneficiaries -- chemin-de-voix measured 2026-09-16, already recognized via the stamp path; building the table would create path C rather than remove it
 
 --- log ---
 2026-09-16T07:12Z MinhHaDuong created
@@ -11,7 +12,9 @@ Blocked-by: 0283
 2026-09-16T07:26Z MinhHaDuong note blocker 0280 closed — Blocked-by removed.
 2026-09-16T07:45Z MinhHaDuong note Action 2 narrowed to two assets (.ergrc, AGENTS.md); the other two embedded files are orphanAssetPaths and never reach isCleanUpgrade. Priority note added: Action 3 (visibility) outranks Actions 1-2 (the table), since an unrecognized hash already degrades safely and path C is a hazard the table creates.
 2026-09-16T08:10Z MinhHaDuong note Visibility (Action 3) split out to 0283 on the Plan agent's recommendation; this ticket keeps the generated table only, and is Blocked-by 0283. The table is the optional, hazard-creating half -- see the open question added to the body.
+2026-09-16T08:55Z MinhHaDuong note Measured chemin-de-voix directly: it has carried a stamp since 2026-06-03 and both assets match it byte for byte, so it upgrades cleanly today without any table. 0278's sweep was wrong about it. The table has zero known beneficiaries; author decided wontfix.
 
+2026-09-16T07:58Z MinhHaDuong closed — wontfix: zero known beneficiaries -- chemin-de-voix measured 2026-09-16, already recognized via the stamp path; building the table would create path C rather than remove it
 --- body ---
 ## Scope (narrowed 2026-09-16)
 
@@ -33,6 +36,60 @@ this ticket wontfix with that reasoning recorded.
 
 If it is built, the generation test (Action 6 in the Plan) is what keeps
 path C survivable -- the table must never be hand-typed.
+
+## The table's sole justification was a false observation (2026-09-16)
+
+Measured directly, not inferred. `chemin-de-voix` -- the one repo 0278's
+sweep listed as `would preserve (no stamp)`, and the only named beneficiary
+of this table -- **has a provenance stamp, and has had one since
+2026-06-03**, three months before the sweep that reported it missing:
+
+```
+tickets/.erg-assets   mtime 2026-06-03 20:58   rev: 9c23c37
+  AGENTS.md  stamp 07c11767...   on disk 07c11767...   MATCH
+  .ergrc     stamp 6cbbb63e...   on disk 6cbbb63e...   MATCH
+```
+
+Both assets match their stamp byte for byte. That is the ordinary
+clean-upgrade state: `erg init` recognizes it today, through the stamp path,
+and `extraHistoricalHashes` is never consulted. This ticket's own exit
+criterion -- "chemin-de-voix upgrades cleanly once the table recognizes it"
+-- describes something that already happens without the table.
+
+So the table has **zero known beneficiaries**, not one. The 11-repo sweep
+found no other stampless adopter, and the four it listed as `would refresh`
+were upgrading cleanly via the stamp path anyway (0278's own first
+correction).
+
+This is the third factual error in 0278, after "five adopters are frozen"
+(corrected 2026-09-10) and "path D is the most dangerous path" (corrected
+2026-09-16, see 0280). All three share a shape: a state asserted from a
+hash table or a code reading, never measured against the actual repo.
+
+## Decision: wontfix (author, 2026-09-16)
+
+Not building the table. The reasoning, in order of weight:
+
+1. **No known beneficiary.** See above -- the one repo it was for is not in
+   the state it was said to be in.
+2. **The current behaviour is already safe.** An unrecognized hash degrades
+   to preserve + exit 2. Nothing is lost today; a file merely fails to
+   auto-update.
+3. **Building it introduces the only destructive path in this class.** A
+   wrong entry in the table makes a genuine local edit look like a pristine
+   old release, and it is overwritten with no warning and no backup. That
+   hazard exists only if the table exists. The generation test planned in
+   the `## Plan` section below would mitigate it well, but mitigating a
+   hazard you chose to create is worse than not creating it.
+4. **0283 delivers the part that mattered.** A store that cannot be
+   classified will now say so instead of staying silent. That was path A's
+   real defect; auto-upgrading such a store was only ever the convenience on
+   top.
+
+The `## Plan` below is left intact and is sound. If a real stampless
+adopter ever turns up, this ticket can be reopened and executed as written.
+Filing this as wontfix rather than deleting it keeps that plan available
+without keeping the work queued.
 
 ## Context
 

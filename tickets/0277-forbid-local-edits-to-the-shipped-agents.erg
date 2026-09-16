@@ -2,7 +2,6 @@
 Title: Forbid local edits to the shipped tickets/AGENTS.md
 Created: 2026-09-10
 Author: HDMX-coding-agent
-Blocked-by: 0278
 
 --- log ---
 2026-09-10T06:53Z HDMX-coding-agent created
@@ -10,6 +9,7 @@ Blocked-by: 0278
 2026-09-10T06:57Z HDMX-coding-agent note reframed after the 11-repo sweep: one editing instance, not widespread drift; author directs a ban, escape hatch is the on-demand channel; 0278 is a prerequisite
 2026-09-10T08:43Z HDMX-coding-agent note corrected the sweep's arithmetic after re-measuring with erg init --dry-run: four of the five 'frozen' repos upgrade via the stamp path and have been refreshed; one stampless repo remains. The ban's substance and the Blocked-by are unchanged.
 2026-09-10T13:05Z claude note four observations from the harness side, reached independently before this ticket was found (harness 0906): the erg-github sentence is a mood error not a fiction, the shipped asset carries a rule the harness fork lost, a downstream rules file cites AGENTS.md and breaks when content moves, and the displaced material measures 1730 bytes as rules once narrative is stripped
+2026-09-16T08:55Z MinhHaDuong note Blocked-by 0278 removed. The table prerequisite rested on chemin-de-voix being stampless; measured directly, it is not and has not been since June. Replaced with a re-survey at enforcement time, which is what the coupling's own 'or' clause always allowed.
 --- body ---
 ## Context
 
@@ -58,10 +58,23 @@ content to go, and the choice of destination is the whole design:
   shipped asset itself.
 
 With the escape hatch in place the ban is cheap to enforce: an unrecognized hash
-becomes a hard error rather than a preserved local edit. Note the coupling — a
-hard error on an unrecognized hash is only safe once 0278 has populated
-`extraHistoricalHashes`, or the one stampless repo fails instead of upgrading.
-**0278 lands first.**
+becomes a hard error rather than a preserved local edit.
+
+**The table prerequisite is removed (2026-09-16).** This ticket was coupled to
+0278's `extraHistoricalHashes` on the strength of one repo -- `chemin-de-voix`,
+reported by the 2026-09-10 sweep as stampless and therefore certain to fail a
+hard error. Measured directly on 2026-09-16, that is false: it has carried a
+stamp since 2026-06-03 and both its assets match it byte for byte, so it is
+recognized through the ordinary stamp path and the table is never consulted.
+0281 (the table) is closed wontfix; see it for the evidence.
+
+The coupling as originally written already named the alternative -- "or the one
+stampless repo fails instead of upgrading". There is no such repo. What
+survives is the weaker, honest form: **re-survey the known adopters
+immediately before enforcing**, and update any that is genuinely
+unrecognizable. None is known today, and the sweep covers 11 repos rather than
+a provably complete list, so the check is cheap insurance rather than a
+blocker.
 
 ## Relevant files
 
@@ -77,8 +90,13 @@ hard error on an unrecognized hash is only safe once 0278 has populated
 
 ## Actions
 
-1. Land 0278 first. The ban cannot be enforced while an adopter carries
-   an unrecognizable-but-legitimate copy.
+1. Re-survey the known adopters immediately before enforcing, and update any
+   that carries an unrecognizable-but-legitimate copy (`erg init` in that
+   repo). This replaces the former "land 0278 first": no adopter is known to
+   need it, and the one that was said to need it does not. A snapshot taken
+   weeks earlier is not evidence about the moment of enforcement -- the
+   2026-09-10 sweep was wrong about `chemin-de-voix` on the day it was
+   taken.
 2. Partition the harness's 8 005-byte copy: what is generic git-erg lore (most
    of it), what is adopter-specific (CI job names, local paths), what is already
    in the shipped baseline.
@@ -111,7 +129,8 @@ Migration test: the collision-recovery material is reachable from `erg integrati
 ## Verification
 
 - [ ] `erg check` fails on a locally-edited `tickets/AGENTS.md`, message names where the content should go
-- [ ] `erg check` stays silent on every hash recognized after 0278
+- [ ] `erg check` stays silent on every hash recognized through the stamp
+      path, verified by a re-survey taken at enforcement time
 - [ ] the shipped `assets/AGENTS.md` has not grown by more than a pointer
 - [ ] `erg integration` output contains the optimistic-ID collision recipe
 - [ ] the ImperialDragonHarness copy is byte-identical to the shipped asset, and its lore is reachable from the on-demand channel
@@ -124,7 +143,8 @@ Migration test: the collision-recovery material is reachable from `erg integrati
 - The shipped asset stays lean: this ticket must not become the vehicle that
   makes eleven repos pay the harness's accumulated cost.
 - `erg check`'s exit code is unchanged for a pristine corpus.
-- 0278 lands first; enforcing before it would fail a legitimate repo.
+- Enforcing without a fresh adopter survey could fail a legitimate repo;
+  the survey, not the table, is the safeguard.
 
 ## Exit criteria
 
@@ -181,7 +201,9 @@ measurement and is reproducible from the specimen's history.
 
 ## Related
 
-- 0278 — the historical-hash table; a hard prerequisite, not a sibling.
+- 0278 — the asset-machinery tracker. No longer a prerequisite: its
+  historical-hash child (0281) is closed wontfix, and the repo that
+  justified it was measured and found already recognized.
 - ImperialDragonHarness 0906 — the harness half: returning the specimen to
   pristine, relocating its forge-specific practice into that repo's own rules
   tree, and gating the result by checksum against this asset rather than by a
