@@ -1,0 +1,118 @@
+%erg 0.1
+Title: Move generic git-erg lore out of the shipped AGENTS.md into an on-demand channel
+Created: 2026-09-16
+Author: MinhHaDuong
+
+--- log ---
+2026-09-16T10:13Z MinhHaDuong created
+2026-09-16T16:45Z claude note Split from 0277 under the raid monster-ticket checklist, author-arbitrated. 0277 bundled three sign-off units and a cross-repo action: this child carries 0277's Actions 2-4 (the content migration), 0289 carries Action 5 (the hard error), and Actions 1/6 plus the harness-side verification stay with 0277's tracker and the harness's own ticket 0906, where they are actually closable. This child has no dependency on 0283 and can land first.
+2026-09-16T17:35Z claude note Plan pass and partition. Read the 8005-byte edited tickets/AGENTS.md (ImperialDragonHarness, read-only) against the 2141-byte shipped src/go/assets/AGENTS.md; every shipped line survives unchanged in the edited copy (intro, template, the four original Rules bullets, the artifacts-by-path bullet, the erg-github paragraph, the closing erg-spec line) -- bucket 3, already shipped, zero migration work needed there. Bucket 1, generic git-erg lore for `erg integration` (matches both items the exit criteria names): the "ID allocation is optimistic" + "renumber clear of the frontier, never to the next free ID" pair (mechanism and policy, stripped of the climate-finance-het/search-works-for-zotero incident dates), the "gh pr view, never gh pr list --json files" collision-scan recipe verbatim, "run erg check against origin/main after a ticket PR merges, not the branch" (the branch-local-check blind spot is a property of erg itself, not of one adopter), the "decision records vs. artifacts" distinction (stripped of the climate-finance-het ticket 0243 worked example), and the entire new "## Handoff-document sections" template (names no adopter). Bucket 2, adopter-specific, needs the declared home Action 4 asks for and must NOT go into erg integration: every named incident/date (climate-finance-het 2026-07-22/07-27, search-works-for-zotero 2026-09-01, ticket 0243, ticket 0321, voice-alignment-vision.md), and the concrete CI wiring -- scripts/check-cross-pr-ticket-collision.sh, the cross-pr-ticket-collision and validate-tickets job names, the erg-pr-merge script and its **Ticket:** line convention, and the "# harness-extension-point" marker -- confirmed by grep that none of these names appear anywhere in the git-erg source tree, so they are ImperialDragonHarness's own CI implementation, not git-erg's. Antipattern note: the exit criteria's own content assertions are non-tautological (they exercise cmdIntegration+bootstrapAsset end to end, not a restatement of the embedded string), but the shipped-asset size guard needs an explicit byte ceiling rather than "order of magnitude" -- tightened in the Test section below.
+
+--- body ---
+## Context
+
+`tickets/AGENTS.md` is a git-erg asset installed into every adopter repo and
+wired into the agent's *resident* context — a bare `@tickets/AGENTS.md` line in
+the project `CLAUDE.md`, or the pointer `erg install --inject-agents` writes.
+Every byte is re-read at the start of every session, in every adopter repo.
+Nothing budgets it: the asset machinery asks one question — pristine or locally
+edited — and size is never consulted.
+
+The 11-repo sweep tabulated in 0278 found exactly one repo that has ever edited
+it: ImperialDragonHarness, at 8 005 bytes against a 2 141-byte shipped baseline,
+roughly 2 000 tokens paid at every session start everywhere that content is
+resident.
+
+The interesting fact is *what* accreted, and it is the reason a plain ban would
+be destructive: optimistic-ID collision recovery, the renumber-clear-of-the-
+frontier rule and its counter-example, the per-PR `gh pr view` enumeration
+(and why `gh pr list --json files` silently returns nothing), running `erg check`
+against `origin/main` after a ticket PR merges, the cross-PR CI gate, artifacts
+versus decision records, and the handoff-document section template. Almost none
+of that is harness-specific. It is generic git-erg lore that had nowhere else to
+live, so it went into the only file the agent was guaranteed to read.
+
+The fix is to give it a home. `erg integration` already exists and already
+prints long-form guidance on demand (7 816 bytes today), which is the same
+pointer-and-payload split the harness uses for its own conditional rules.
+
+## Relevant files
+
+- `src/go/assets/AGENTS.md` — the shipped asset, 2 141 bytes; canonical source,
+  never edit a deployed copy
+- `src/go/bootstrap_assets.go` — embeds and maps the asset
+- `src/go/integration.go` (or wherever `cmdIntegration` lives) — the on-demand
+  channel that gains the migrated material
+- `~/.claude/tickets/AGENTS.md` — the 8 005-byte edited copy the material is
+  read *from*; READ ONLY from this ticket, it lives in another repo and is
+  0906's to change
+
+## Actions
+
+1. Partition the harness copy into three buckets: generic git-erg lore, adopter-
+   specific material (CI job names, local paths, harness-only conventions), and
+   what is already in the shipped baseline.
+2. Move the generic long-form material into the `erg integration` output.
+3. Leave a one-line pointer in the shipped `AGENTS.md` naming the command that
+   prints it. The shipped file must not grow by more than that pointer — a lean
+   resident file is the point, not a side effect.
+4. Give adopter-specific lore a declared home that the shipped asset points at,
+   so the ban 0289 installs never forces a repo to discard local knowledge.
+
+## Test
+
+Assert on *content*, not exit code: after the move, `erg integration` output
+contains the optimistic-ID collision recipe and the `gh pr view` enumeration
+trap (see the Plan-pass log entry above for the full bucket-1 list this must
+cover). Red step — write the assertion before the move and watch it fail,
+since none of that text exists in `src/go/assets/integration.md` today.
+
+A size assertion on `src/go/assets/AGENTS.md` guards Action 3: give it a
+concrete ceiling rather than "order of magnitude" — e.g. stay at or under
+2400 bytes (current 2141 + a one-line pointer of the form
+`See 'erg integration' for git-erg conventions and lore.` plus a blank line),
+so a later edit cannot creep the resident file back up unnoticed. Red step:
+assert the byte count today (2141) is already under the ceiling, so the
+assertion is proven non-vacuous before Action 3 lands; it must still hold
+after the pointer is added.
+
+Partition test (bucket boundary, not just presence): assert that none of the
+bucket-2 (adopter-specific) strings — `climate-finance-het`,
+`search-works-for-zotero`, `scripts/check-cross-pr-ticket-collision.sh`,
+`harness-extension-point`, `erg-pr-merge` — appear in
+`src/go/assets/integration.md` or `src/go/assets/AGENTS.md`. Without this,
+a migration that copies the harness copy wholesale (the antipattern this
+ticket exists to avoid) would still pass the two positive-content
+assertions above.
+
+## Verification
+
+- [ ] `erg integration` output contains the optimistic-ID collision recipe
+- [ ] `erg integration` output contains the `gh pr list --json files` trap and
+      the per-PR `gh pr view` enumeration that replaces it
+- [ ] the shipped `assets/AGENTS.md` has not grown by more than a pointer
+- [ ] the pointer names a command that actually exists and exits 0
+- [ ] `make check` passes
+
+## Invariants
+
+- Core stays offline: nothing added here may make the forge layer load-bearing
+  for `erg` core. The `gh pr view` material is documentation printed by a
+  command, not a code path that shells out to a forge.
+- ASCII-only under `src/go/`.
+- The canonical asset is `src/go/assets/AGENTS.md`; never edit a deployed copy.
+
+## Exit criteria
+
+The generic lore is reachable from `erg integration` in a repo that has only
+run `erg init`, the shipped asset is still lean, and no adopter-specific
+material was discarded in the move — it has a declared home named by the
+shipped file.
+
+## Related
+
+- 0277 — parent tracker; keeps Actions 1 and 6 and the harness-side verification
+- 0289 — the hard error that makes this migration load-bearing; must land after
+  this ticket, or the ban would fire before the lore has anywhere to go
+- ImperialDragonHarness 0906 — the cross-repo half: restoring that repo's copy
+  to pristine once this channel exists

@@ -1,0 +1,96 @@
+%erg 0.1
+Title: Make an unrecognized AGENTS.md hash a hard error in erg check
+Created: 2026-09-16
+Author: MinhHaDuong
+Blocked-by: 0288
+
+--- log ---
+2026-09-16T10:13Z MinhHaDuong created
+2026-09-16T16:45Z claude note Split from 0277 under the raid monster-ticket checklist, author-arbitrated. Carries 0277's Action 5 alone. Blocked-by 0288 because the ban's error message has to name a destination that exists: enforcing before the on-demand channel is built would tell an adopter to move its lore somewhere that is not there yet. Also sequenced after 0283 in practice -- 0283's stampless signal is what lets this error tell "never ran erg init" from "confirmed local edit", and without that distinction the hard error misfires on a legitimately unstamped adopter.
+
+--- body ---
+## Context
+
+This is 0277's Action 5, carved out as its own sign-off unit.
+
+Today the asset machinery answers one question about `tickets/AGENTS.md` —
+pristine or locally edited — and does nothing with the answer beyond preserving
+the local copy. 0277's decision (author, 2026-09-10) is that local editing of
+the shipped asset is to be **forbidden**, not merely budgeted, and that is
+enforceable precisely because the sweep in 0278 shows a single instance.
+
+A ban with no escape hatch would destroy that one repo's content, which is why
+0288 builds the on-demand channel first and this ticket only lands the
+enforcement once the destination exists.
+
+**The distinction this error must not get wrong.** An unrecognized hash has two
+very different causes: a confirmed local edit, and a store that never recorded
+provenance at all. 0283 adds `assetStamplessSignal` for the second case. This
+ticket must consume that signal rather than grow a second hash-comparison path
+in `erg check` — 0283 exists to centralize exactly this, and duplicating it is
+the antipattern the Imagine pass on 0277 flagged. Without the distinction, the
+hard error fires on a legitimately unstamped adopter and tells it to migrate
+content it never wrote.
+
+## Relevant files
+
+- `src/go/manifest.go` — `isCleanUpgrade` (write path) and the drift signal
+  constants 0283 adds beside `assetDriftSignal`
+- `src/go/check.go` — `corpusWarnings` / `cmdCheck`, where the warning becomes
+  an error
+- `src/go/assets/AGENTS.md` — carries the pointer 0288 installs; the error
+  message names the same destination
+
+## Actions
+
+1. Make an unrecognized `tickets/AGENTS.md` hash a hard error on `erg check`,
+   consuming 0283's existing signal rather than re-deriving the comparison.
+2. Write the message so it names the escape hatch — where the content should go
+   (`erg integration`, per 0288) — rather than only refusing.
+3. Re-survey the known adopters immediately before enforcing (0277 Action 1,
+   coordinated with the tracker): a snapshot taken weeks earlier is not evidence
+   about the moment of enforcement. The 2026-09-10 sweep was wrong about
+   `chemin-de-voix` on the day it was taken.
+
+## Test
+
+Red step: a fixture repo whose `tickets/AGENTS.md` carries a local edit,
+asserting `erg check` fails and that the message names the destination. Against
+today's code it passes silently, so watch it fail before the fix.
+
+The positive control matters as much: a fixture at a recognized shipped hash
+must stay silent, and a *stampless* fixture must report stamplessness rather
+than the edit error. A check whose all-clear cannot be told from "I could not
+look" is not a check — demonstrate the failing arm firing before trusting the
+passing arm's silence.
+
+## Verification
+
+- [ ] `erg check` fails on a locally-edited `tickets/AGENTS.md`, and the message
+      names where the content should go
+- [ ] `erg check` stays silent on every hash recognized through the stamp path
+- [ ] a stampless store still gets 0283's stampless report, NOT this ticket's
+      edit error — the two causes stay distinguishable
+- [ ] the re-survey is taken at enforcement time and recorded in the log
+- [ ] `make check` passes
+
+## Invariants
+
+- No second hash-comparison path. This consumes 0283's signal; it does not
+  re-derive it.
+- `erg migrate`'s announced overwrite of `AGENTS.md` is a settled charter
+  decision (0224, PR #275, guarded by two committed tests). This ticket does not
+  touch it and must not be read as reopening it.
+- ASCII-only under `src/go/`.
+
+## Exit criteria
+
+An adopter that edits the shipped `tickets/AGENTS.md` is told so by `erg check`,
+loudly, with a named destination for the content — and an adopter that merely
+never stamped its store is told something different and correct.
+
+## Related
+
+- 0277 — parent tracker
+- 0288 — builds the destination this error names; hard prerequisite
+- 0283 — supplies the stampless signal that keeps the two causes apart

@@ -12,6 +12,7 @@ Author: HDMX-coding-agent
 
 2026-09-16T07:50Z MinhHaDuong note Path D settled: not a defect, a charter decision (0224, PR #275) guarded by two committed tests. 0280 closed record-only. This tracker's "most dangerous path" framing for D was inherited unexamined and is corrected in the body; on the evidence the dangerous path was B (0279).
 2026-09-16T08:55Z MinhHaDuong note Third correction to this ticket's factual base: chemin-de-voix was never stampless. Measured 2026-09-16 -- stamp present since 2026-06-03, both assets matching byte for byte. That removes the last justification for the historical-hash table (0281, now wontfix) and unblocks 0277, which was coupled to it. All three errors in this ticket share a shape: state asserted from a reading, never measured against the repo.
+2026-09-16T15:10Z claude note Imagine pass: this tracker is NOT purely integration-verification yet. 0281 split a fourth child, 0283 (path A visibility), before closing wontfix; 0283 is listed in this ticket's own Children and Verification sections but is still open, unblocked since 0279 closed, and carries a real code change (assetDriftWarnings/update.go), so exit criterion 1 ("all three children closed") is stale on its own count -- there are four, and one remains. Recommend sequencing 0283 to land before the integration pass, since the pass should exercise the stampless drift state and that state's "saying so" behaviour does not exist until 0283 ships. Minimal integration pass once 0283 lands: a small scripted check building three fixture stores (clean/matching stamp, stamp with a local edit, no stamp) and running init/update/migrate on each, asserting silence on clean, preservation-with-message on edited (all three commands), and a visible stampless report on erg check/init/update -- recorded as a log transcript per exit criterion 2's own wording, promoted to a committed test only if it surfaces an interaction the per-child unit tests miss. Antipattern check: 0280 (migrate's force-overwrite of AGENTS.md, a charter decision) and 0281 (no hash table, wontfix) are author-settled and final; the integration pass must treat migrate's AGENTS.md overwrite as the wanted, announced outcome, not a violation to re-litigate -- no risk found of the pass reopening either verdict, but the check should be designed so a naive read of migrate's output doesn't manufacture a false failure against invariant 3.
 
 --- body ---
 ## Context
@@ -193,7 +194,9 @@ cannot see it.
 
 ## Exit criteria
 
-- 0279, 0280, and 0281 are all closed
+- 0279, 0280, 0281 and 0283 are all closed (0283 was split out of 0281 before
+  0281 closed wontfix; it is listed in Children above, so this line's original
+  three-way enumeration was stale, not a narrower intent)
 - The integration pass above is run and recorded in this ticket's log
 - The whole-class invariant — no tracked file is ever overwritten or reverted
   without saying so — holds across `init`, `update`, and `migrate` together,
