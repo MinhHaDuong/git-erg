@@ -291,7 +291,13 @@ func cmdValidate(args []string) int {
 			fmt.Fprintf(os.Stderr, "WARNING: skipping %s (not a .erg file)\n", arg)
 			continue
 		}
-		t, parseErrs := parseErg(arg)
+		// The file's own directory is the store root here, which is what makes
+		// `erg validate FILE` agree with `erg check DIR` on rule 14's
+		// grandfather (ticket 0285). Unrooted, validate reads the machine's
+		// absolute path, and since validate is what the pre-commit hook runs,
+		// the local gate would be laxer than the CI one on the same file.
+		dir := filepath.Dir(arg)
+		t, parseErrs := parseErgIn(dir, arg)
 		// Shout (non-fatal) on an interior header blank: validate runs in the
 		// pre-commit hook, so this is where an author sees the nudge at commit
 		// time. The file is still accepted -- exit code is unaffected (ticket 0141).
@@ -300,7 +306,6 @@ func cmdValidate(args []string) int {
 				"WARNING: %s: blank line inside header block -- run `erg migrate` to normalise (tolerated; not a validation error)\n",
 				t.Filename())
 		}
-		dir := filepath.Dir(arg)
 		localIDs, ok := idCache[dir]
 		if !ok {
 			localIDs = globLocalIDs(dir)

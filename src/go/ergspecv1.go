@@ -24,6 +24,13 @@ const separatorBody = "--- body ---"
 type Erg struct {
 	Path string
 
+	// Root is the store directory the ticket was discovered under, exactly as
+	// the caller spelled it -- set by loadErgs, empty for a bare single-file
+	// parseErg (validate, rm). It bounds the v1 closure path test: components
+	// above the store root belong to the machine's directory layout, not the
+	// store's, so they must not decide a ticket's closed state (ticket 0285).
+	Root string
+
 	// v1 headers -- typed fields populated from first occurrence
 	Title         string   // required, non-empty (validator rule 2)
 	Created       string   // required, non-empty

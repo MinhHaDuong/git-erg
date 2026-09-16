@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestListEntryHas(t *testing.T) {
 	e := listEntry{closed: false, blocked: true, labels: []string{"needs-human", "deferred"}}
@@ -173,5 +177,92 @@ func TestLoadListEntries(t *testing.T) {
 	// Two unresolved refs warn: 0003's URI handle and 0005's unknown local 9999.
 	if len(warnings) != 2 {
 		t.Fatalf("got %d warnings, want 2: %v", len(warnings), warnings)
+	}
+}
+
+// TestLoadListEntriesUnderTrippedAncestor covers `erg list` and `erg ready`
+// against the ticket 0285 defect: loadListEntries is the seam both commands
+// share, and its closed flag comes straight from IsClosed(). Addressed by an
+// absolute path under an ancestor ending in "-closed", every open ticket used
+// to read as closed, so both commands listed an empty store. A blocker whose
+// target is thereby mis-read as closed is also silently satisfied, which is
+// why 0002 carries a Blocked-by on 0001 here.
+func TestLoadListEntriesUnderTrippedAncestor(t *testing.T) {
+	store := filepath.Join(t.TempDir(), "dossier-closed", "tickets")
+	if err := os.MkdirAll(store, 0755); err != nil {
+		t.Fatal(err)
+	}
+	writeErg(t, store, "0001-normal-open-ticket.erg",
+		"%erg 0.1\nTitle: Normal\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+	writeErg(t, store, "0002-another-open-one.erg",
+		"%erg 0.1\nTitle: Another\nCreated: 2024-01-02\nAuthor: test\nBlocked-by: 0001\n\n--- log ---\n--- body ---\n")
+
+	entries, _ := loadListEntries(store)
+	if len(entries) != 2 {
+		t.Fatalf("got %d entries, want 2", len(entries))
+	}
+	for _, e := range entries {
+		if e.closed {
+			t.Errorf("%s: closed=true, want false -- the tripped component is above the store root", e.file)
+		}
+	}
+	// erg ready filters on !closed && !blocked: 0001 is ready, 0002 is not.
+	if entries[0].blocked {
+		t.Errorf("0001 should not be blocked, got blockedBy=%+v", entries[0].blockedBy)
+	}
+	if !entries[1].blocked {
+		t.Error("0002 should be blocked by the still-open 0001")
+	}
+}
+
+// TestResolvePathRefUnderTrippedAncestor covers the quietest face of ticket
+// 0285. A cross-module `Blocked-by: sibling/0042` is resolved by reading the
+// sibling file directly, outside any store walk, so its closure state was
+// decided from the whole absolute path: under a "*-closed" ancestor every
+// such blocker resolved as closed and `erg ready` offered a genuinely blocked
+// ticket for work. No message, no exit code -- just a wrong answer, which is
+// why the corpus-wide failure this ticket started from was the lesser bug.
+//
+// The two fixtures differ only in the ancestor's name, so the untripped one
+// is the positive control for the tripped one.
+func TestResolvePathRefUnderTrippedAncestor(t *testing.T) {
+	gitOrSkip(t)
+	build := func(t *testing.T, ancestor string) string {
+		t.Helper()
+		top := filepath.Join(t.TempDir(), ancestor, "repo")
+		main := filepath.Join(top, "main", "tickets")
+		sibling := filepath.Join(top, "sibling", "tickets")
+		for _, d := range []string{main, sibling} {
+			if err := os.MkdirAll(d, 0755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// resolvePathRef anchors on the worktree top, so the fixture needs a
+		// real repository for the sibling module to be reachable at all.
+		gitRun(t, top, "init", "-q", ".")
+		writeErg(t, main, "0001-depends.erg",
+			"%erg 0.1\nTitle: Depends on sibling\nCreated: 2024-01-01\nAuthor: test\nBlocked-by: sibling/0042\n\n--- log ---\n--- body ---\n")
+		writeErg(t, sibling, "0042-the-sibling.erg",
+			"%erg 0.1\nTitle: The sibling\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		return main
+	}
+
+	blockedIn := func(t *testing.T, ancestor string) bool {
+		t.Helper()
+		entries, _ := loadListEntries(build(t, ancestor))
+		if len(entries) != 1 {
+			t.Fatalf("expected 1 entry, got %d", len(entries))
+		}
+		return entries[0].blocked
+	}
+
+	// Positive control: with an innocuous ancestor the open sibling blocks.
+	// If this is false the fixture never resolved the ref and the assertion
+	// below would pass without testing anything.
+	if !blockedIn(t, "dossier-ok") {
+		t.Fatal("control: an open cross-module blocker must block -- fixture did not resolve the ref")
+	}
+	if !blockedIn(t, "dossier-closed") {
+		t.Error("a cross-module blocker read as closed because of an ancestor above the sibling store")
 	}
 }
