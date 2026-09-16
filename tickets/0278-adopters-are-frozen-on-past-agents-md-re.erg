@@ -11,6 +11,7 @@ Author: HDMX-coding-agent
 2026-09-16T07:12Z MinhHaDuong note converted to a tracker under the raid monster-ticket checklist. Action 1 ("settle path D first... it leads the fix") is a dependency chain hidden in prose: the rest of the hardening cannot be safely planned until D's outcome is known, and paths A/C/D touch the same files as path B (0279). Decomposed into 0280 (path D, Blocked-by 0279) and 0281 (paths A/C + the mechanical hardening, Blocked-by 0280). This ticket stays open until 0279, 0280, and 0281 are all closed; its own Actions/Test/Verification/Exit-criteria below are superseded by the children's and are kept for the record, not for direct execution.
 
 2026-09-16T07:50Z MinhHaDuong note Path D settled: not a defect, a charter decision (0224, PR #275) guarded by two committed tests. 0280 closed record-only. This tracker's "most dangerous path" framing for D was inherited unexamined and is corrected in the body; on the evidence the dangerous path was B (0279).
+2026-09-16T08:55Z MinhHaDuong note Third correction to this ticket's factual base: chemin-de-voix was never stampless. Measured 2026-09-16 -- stamp present since 2026-06-03, both assets matching byte for byte. That removes the last justification for the historical-hash table (0281, now wontfix) and unblocks 0277, which was coupled to it. All three errors in this ticket share a shape: state asserted from a reading, never measured against the repo.
 
 --- body ---
 ## Context
@@ -83,9 +84,12 @@ avoid three PRs editing `manifest.go`/`installAssets` concurrently:
    self-contained when this ticket was written; lands first.
 2. **0280** — path D (`erg migrate`'s unconditional overwrite).
    **CLOSED 2026-09-16, record-only, no code change.**
-3. **0281** — paths A and C (stranded-silent, and the fix's own hazard) plus
-   the mechanical hardening. Filed `Blocked-by: 0280`; unblocked when 0280
-   closed without touching code. Still sequenced after 0279.
+3. **0283** — path A (stampless store reports itself instead of staying
+   silent). The load-bearing remainder. `Blocked-by: 0279`.
+4. **0281** — the generated hash table. **CLOSED wontfix 2026-09-16**: its
+   sole named beneficiary, `chemin-de-voix`, was measured and found already
+   recognized through the stamp path. Zero known beneficiaries, and building
+   it would have created path C rather than removed it.
 
 ### Correction: path D was not the dangerous one (2026-09-16)
 
@@ -169,11 +173,10 @@ cannot see it.
 - [ ] 0279 closed — direction-blind upgrade fixed
 - [x] 0280 closed — path D settled and recorded (2026-09-16): fires, but by
       deliberate charter decision, covered by two pre-existing tests
-- [ ] 0281 closed — a local edit survives `init`, `migrate`, and an
-      older-binary `init`; a stampless store at a shipped hash upgrades and
-      says so; a stampless store reports its condition instead of passing
-      silently; the table is generated from history and a test fails when a
-      shipped revision is missing from it; chemin-de-voix upgrades cleanly
+- [ ] 0283 closed — a stampless store reports its condition instead of
+      passing silently
+- [x] 0281 closed wontfix — the table has no known beneficiary; the repo
+      that justified it was measured and found already recognized
 - [ ] integration pass: with all three merged, replay 0279's fixture, 0280's
       fixture, and 0281's fixtures together and confirm no regression across
       the combination
