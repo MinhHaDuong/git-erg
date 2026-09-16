@@ -2,6 +2,7 @@
 Title: Vendored tickets/erg-github copies have no staleness channel
 Created: 2026-09-16
 Author: MinhHaDuong
+Closed: vendored drift now reported by erg check
 
 --- log ---
 2026-09-16T07:40Z MinhHaDuong created
@@ -10,6 +11,7 @@ Author: MinhHaDuong
 2026-09-16T16:20Z claude note Blind-Spot pass: the collision this ticket's own Imagine note describes in prose was never formalized -- no Blocked-by header, so erg ready would have offered 0282 and 0283 as parallel targets, which is the contention rule's exact failure case. Blocked-by 0283 added. Wider picture the per-ticket passes missed: check.go has three concurrent editors in this raid, not two -- 0285 in folderClosure (l.19) and both 0283 and 0282 in the corpusWarnings/cmdCheck family (l.177/239). 0285 is a disjoint function and can land in parallel; 0283 and 0282 are same-function-family and must serialize in that order.
 
 2026-09-16T11:41Z MinhHaDuong note blocker 0283 closed — Blocked-by removed.
+2026-09-16T11:53Z MinhHaDuong closed — vendored drift now reported by erg check
 --- body ---
 ## Context
 
@@ -80,13 +82,61 @@ the same discipline 0281 uses for path A, because the defect here is also
 silence.
 If (c): a docs test asserting the README states the manual-pull contract.
 
+## Decision (Action 1, settled 2026-09-16)
+
+**Option (b): keep it vendored, make the drift visible.** erg ships a
+read-only reference copy and reports divergence; it never writes the file.
+
+Why not (a), full embedded-asset treatment: it makes the forge layer
+load-bearing for `erg` core, which this ticket's own Invariants section
+forbids, and it would give `erg init` a write path over a CI-adjacent script
+the adopter may have customised.
+
+Why not (c), document-only: the cost lands on every adopter forever, silently
+— it is exactly the 0255 recurrence this ticket exists to close.
+
+The shape of (b) as built, so a later reader does not have to reconstruct it:
+
+- `src/go/assets/erg-github` is now the canonical copy and is embedded;
+  `tickets/erg-github` is its deployment, pinned to it by `make regen-assets`
+  and `tests/test_selfcoherence.sh`, exactly like `AGENTS.md`.
+- `vendoredAssetPaths` (`src/go/init.go`) is a third path list, deliberately
+  unreachable from every writer. It stays out of `initAssetPaths` because that
+  list drives both `installAssets` (a write) and `buildManifest` (a stamp that
+  would record an installation that never happened — 0292's defect).
+- `vendoredDriftWarnings` (`src/go/manifest.go`) compares disk against embedded
+  and emits a NOTE, appended OUTSIDE the managed branch: the managed side
+  returns early with no manifest, and an unstamped store is precisely the
+  long-unmaintained adopter most likely to be carrying a stale helper.
+- The message claims no direction (older upstream copy vs. local
+  customisation are indistinguishable by a hash compare), consults no stamp,
+  and does not prescribe `erg init` — which does not touch a vendored path and
+  would report success while changing nothing.
+
+Durable record outside this ticket: `README.md` § "Forge layer: `erg-github`"
+→ "Vendoring contract", and `erg check --help`.
+
+## Known adopters carrying a stale copy (Action 3)
+
+- `aedist-technical-report` — confirmed by 0255's own Reproduction section
+  (PR #442/#443 are where the `cmd_verify()` ticket-ID extraction gap actually
+  fired). Its committed copy predates the 0255 fix. Not edited from here: this
+  ticket changes git-erg only, and the point of the fix is that the repo's own
+  `erg check` now says so.
+
+No other adopter was surveyed; the sweep is not the deliverable, the channel
+is. Any adopter running an `erg` from this revision onward now discovers its
+own answer.
+
 ## Verification
 
-- [ ] the contract is decided and written down somewhere durable, not just
-      in this ticket
-- [ ] an adopter carrying a stale `erg-github` either converges (a), is told
-      (b), or is documented as owning the problem (c)
-- [ ] the known-stale adopters from Action 3 are listed
+- [x] the contract is decided and written down somewhere durable, not just
+      in this ticket — README § Vendoring contract, `erg check --help`, and
+      the code comments on `vendoredAssetPaths` / `vendoredDriftWarnings`
+- [x] an adopter carrying a stale `erg-github` either converges (a), is told
+      (b), or is documented as owning the problem (c) — (b): told, on every
+      `erg check`, with a manual re-vendor route
+- [x] the known-stale adopters from Action 3 are listed — above
 
 ## Invariants
 
