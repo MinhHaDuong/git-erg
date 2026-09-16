@@ -27,9 +27,14 @@
 # proves its own composition arm reached the code path at all. Drop
 # "erg: updated" from an update arm and the arm still passes when no swap
 # happened, on an assertion about a report that never ran. The cost is that
-# four grep literals now live in two files; all four are prefixes of the
-# cross-version constants in manifest.go/update.go, which may be extended at
-# the END only (ticket 0292), so a wording change is already governed.
+# four grep literals now live in two files, and nothing governs a reword of
+# them. An earlier revision of this comment claimed all four were prefixes of
+# the cross-version constants ticket 0292 pins to extend-at-the-end; measured,
+# that is false on every count -- two of the four come from init.go, none is
+# one of the three named constants, and the stampless/update literal is an
+# infix of a line 0292's own Action 6 plans to reword rather than extend. The
+# duplication is a real maintenance cost, accepted for the reachability it
+# buys, not a cost someone else's discipline already covers.
 #
 # THE TRAP THIS SUITE IS BUILT AROUND. `erg migrate` overwrites a diverged
 # tickets/AGENTS.md unconditionally. That is a SETTLED CHARTER DECISION (ticket
