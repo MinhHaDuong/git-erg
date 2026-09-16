@@ -11,6 +11,8 @@ Author: MinhHaDuong
 2026-09-16T09:10Z Claude note Corrected Title, Problem and Exit criteria in place. The Imagine pass said to do this before Plan and it was missed; new sections were appended instead, so a cold reader met the wrong file and an unusable PCRE regex before reaching the correction. Original text is in git history.
 2026-09-16T09:12Z Claude note Plan amendment, undeclared when made: PR #339 also mechanizes the script's POSIX-regex header contract (tests/test_erg_github.sh). It was prose-only, and this fix edits the very line it governs -- the ticket's own suggested grep -oiP would have passed unnoticed. Belongs with this fix rather than a follow-up ticket because the guard and the edit it guards are the same change.
 2026-09-16T09:14Z Claude note Review round 1 (PR #339) found a defect introduced by the fix: grep -i makes the new (closed/) group case-insensitive while the BRE sed is not, so tickets/Closed/NNNN cleared the filter without substituting and the whole body line passed through as $ids. Failed closed, but fixed by a trailing grep -xE '[0-9]{4}' id-shape filter, with a test.
+2026-09-16T09:20Z Claude note Plan Action 2 amended in place. Its deferral of the erg-pr-merge cross-reference cited 0282 as the anchor, but 0282 covers adopter-vendored copies of tickets/erg-github and never mentions erg-pr-merge -- the anchor did not exist. The comment is corrected in this PR; the Plan no longer forbids what its own diff does.
+2026-09-16T09:35Z Claude note Round 2 reverted the round-1 fix as worse than the defect. Dropping the unsubstituted line empties $ids, and an empty $ids IS the escape hatch, so TICKETS/0043 on an OPEN ticket returned PASS -- a silent bypass of the required gate, where main merely failed closed and garbled. Replaced by case-folding the body once (tr) and dropping grep -i, so the filter and the substitution cannot disagree about any literal, now or when one is added later. Tests now pin the branch taken (the "ticket NNNN is closed" message), not the exit code: escape-hatch PASS and real PASS are both exit 0, which is why the round-1 test could not see its own regression.
 --- body ---
 Migrated from GitHub issue MinhHaDuong/git-erg#145 (opened 2026-05-23).
 
@@ -193,8 +195,19 @@ pair (not `grep -oiP`) before this moves to Plan.
    grep -oP)") does not mention the closed/ tolerance. Add one clause, e.g.
    "...tolerates an optional tickets/closed/ prefix (ticket 0255)." Not
    exit-criteria-bearing, but cheap and keeps the comment accurate for the
-   next reader. Do not touch the `skills/merge/erg-pr-merge` cross-reference
-   in that comment — out of scope per the Scope decision above (0282).
+   next reader.
+
+   **Amended 2026-09-16, after this Plan was written.** This action originally
+   read "Do not touch the `skills/merge/erg-pr-merge` cross-reference in that
+   comment — out of scope per the Scope decision above (0282)." That deferral
+   cited an anchor that does not exist: 0282 is about adopter-vendored copies
+   of `tickets/erg-github`, and never mentions `skills/merge/erg-pr-merge`. The
+   cross-reference is also false on its own terms as of this ticket's fix — it
+   claims parity of id-sets with a script that lives in another repo and that
+   still lacks the `closed/` tolerance, so the two have actually diverged here.
+   The comment IS corrected: it now describes only what this script accepts and
+   asserts no parity that nothing measures. Recorded here rather than left as a
+   Plan that forbids what its own diff does.
 
 3. No other call site reads this pattern. `ticket_is_closed()` (lines 44-58)
    already globs `tickets/closed/"$id"-*.erg` directly and needs no change —

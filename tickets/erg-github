@@ -76,15 +76,20 @@ cmd_verify() {
 	# (ticket 0255). Other merge-and-close tooling accepts a similar id-set, but
 	# no parity is asserted here -- nothing compares them, so this comment
 	# describes only what this script accepts.
-	# Portable (grep -iE + BRE sed; never GNU-only grep -oP).
-	# The trailing filter keeps $ids a set of bare ids or empty, never a
-	# pass-through line: grep is case-insensitive and the BRE sed is not, so a
-	# mis-capitalized tickets/Closed/NNNN matches the filter while the
-	# substitution does not fire (ticket 0255 review).
-	ids=$(printf '%s\n' "$body" |
-		grep -iE '^[*]{0,2}ticket:?[*]{0,2}:? *tickets/(closed/)?[0-9]{4}' 2>/dev/null |
-		sed 's/.*tickets\/\(closed\/\)\{0,1\}\([0-9][0-9][0-9][0-9]\).*/\2/' |
-		grep -xE '[0-9]{4}' || true)
+	# Portable (grep -E + BRE sed; never GNU-only grep -oP).
+	#
+	# Case is folded once, up front, instead of with grep -i. The filter and the
+	# substitution must agree on every literal in the pattern, and -i buys that
+	# only for the filter: it let a mis-cased TICKETS/ or Closed/ clear grep
+	# while the case-sensitive sed declined to substitute, so the whole body
+	# line passed through as an id (ticket 0255 review). Folding first makes the
+	# two halves structurally incapable of disagreeing, for these literals and
+	# for any added later. Deliberately not fixed by dropping the unsubstituted
+	# line: an empty $ids is the escape hatch below, so discarding turns a
+	# fail-closed defect into a silent PASS of this gate.
+	ids=$(printf '%s\n' "$body" | tr '[:upper:]' '[:lower:]' |
+		grep -E '^[*]{0,2}ticket:?[*]{0,2}:? *tickets/(closed/)?[0-9]{4}' 2>/dev/null |
+		sed 's/.*tickets\/\(closed\/\)\{0,1\}\([0-9][0-9][0-9][0-9]\).*/\2/' || true)
 
 	if [ -z "$ids" ]; then
 		# Escape hatch: an unlinked / emergency merge. Loud and distinct from a

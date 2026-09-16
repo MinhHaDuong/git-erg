@@ -124,7 +124,7 @@ else
     fail "verify: closed ticket should pass (rc=$rc, out: $out)"
 fi
 
-mk_closed_ticket() { # id -- writes into tickets/closed/ (archived), no Closed: header
+mk_closed_ticket() { # id  (writes into tickets/closed/, i.e. archived)
     f="$REPO/tickets/closed/$1-x.erg"
     mkdir -p "$REPO/tickets/closed"
     {
@@ -159,13 +159,41 @@ else
     fail "verify: tickets/bogus/NNNN should fall to escape hatch, not resolve as a ticket ref (rc=$rc, out: $out)"
 fi
 
-# --- verify: $ids is always a set of bare ids, never a pass-through line.
-# grep is case-insensitive but the BRE sed is not, so tickets/Closed/NNNN
-# clears the filter while the substitution does not fire; without the trailing
-# id-shape filter the whole PR-body line reached ticket_is_closed (0255 review). ---
+# --- verify: case variants resolve, and resolve via the REAL check.
+# The filter and the substitution must agree on every literal: while the filter
+# was grep -i and the sed was not, a mis-cased TICKETS/ or Closed/ cleared one
+# and not the other (ticket 0255 review). These assertions pin the branch taken,
+# not the exit code -- escape-hatch PASS and a real PASS are both exit 0, so an
+# rc-only assertion is satisfied by the bypass it is meant to catch. ---
+for variant in "tickets/Closed/0044-x.erg" "TICKETS/closed/0044-x.erg" "Tickets/Closed/0044-x.erg"; do
+    out=$(run_verify x "**Ticket:** $variant" "" 7) && rc=0 || rc=$?
+    if [ "$rc" -eq 0 ] && echo "$out" | grep -q "ticket 0044 is closed" && ! echo "$out" | grep -qi "escape hatch"; then
+        pass "verify: case variant $variant resolves via ticket_is_closed"
+    else
+        fail "verify: case variant $variant should resolve via ticket_is_closed (rc=$rc, out: $out)"
+    fi
+done
+
+# --- verify: the case variants must not become a way PAST the gate. An OPEN
+# ticket named in a case variant must still FAIL. This is the fail-open
+# regression guard: dropping the unsubstituted line empties $ids, which is the
+# escape hatch, so the required check PASSES a PR whose ticket is still open. ---
+mk_ticket 0045 open
+for variant in "TICKETS/0045-x.erg" "Tickets/0045-x.erg"; do
+    out=$(run_verify x "**Ticket:** $variant" "" 7) && rc=0 || rc=$?
+    if [ "$rc" -eq 1 ] && echo "$out" | grep -qi "please close ticket 0045"; then
+        pass "verify: open ticket named as $variant still FAILs the gate"
+    else
+        fail "verify: $variant on an OPEN ticket must FAIL, not pass (rc=$rc, out: $out)"
+    fi
+done
+
+# --- verify: whatever the spelling, $ids never carries a pass-through body
+# line -- an unsubstituted line reaching ticket_is_closed produced a garbled
+# hard failure quoting the PR body back as a ticket id (ticket 0255 review). ---
 out=$(run_verify x "**Ticket:** tickets/Closed/0044-x.erg" "" 7) && rc=0 || rc=$?
-if [ "$rc" -eq 0 ] && ! echo "$out" | grep -q 'Ticket:'; then
-    pass "verify: a mis-capitalized tickets/Closed/NNNN never leaks the body line into \$ids"
+if ! echo "$out" | grep -q 'Ticket:'; then
+    pass "verify: a mis-capitalized path never leaks the body line into \$ids"
 else
     fail "verify: tickets/Closed/NNNN leaked a non-id into \$ids (rc=$rc, out: $out)"
 fi

@@ -62,6 +62,12 @@ through `/verify`.
 - **git-erg dogfoods the embedded defaults verbatim:** the diverged
   `tickets/AGENTS.md` was reconciled and `tickets/.ergrc` added so both match
   `src/go/assets/`, enforced by the self-coherence guard. (0213 -- #249)
+- **`erg-github verify`** resolves a `**Ticket:** tickets/closed/NNNN-...` line,
+  so a PR whose ticket was archived before the gate ran is checked instead of
+  being misread as referencing no ticket and passed through the escape hatch.
+  Case is folded before matching, so a mis-cased `TICKETS/` or `Closed/` is
+  resolved rather than silently unmatched. A subdirectory that is not `closed/`
+  still does not resolve. (0255 -- #339)
 
 ### Removed
 - Stale tracked `tickets/spec-erg-v1.md` (and the already-untracked

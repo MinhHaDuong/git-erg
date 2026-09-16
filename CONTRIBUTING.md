@@ -38,7 +38,8 @@ releasing); `make test` must never modify it.
 - One change per commit; the message explains *why this change and not
   another*.
 - Open one merge request per ticket. Put a `**Ticket:**
-  tickets/NNNN-...erg` line in the body so the ticket auto-closes on merge.
+  tickets/NNNN-...erg` line in the body so the ticket auto-closes on merge
+  (`tickets/closed/NNNN-...erg` also resolves, for a ticket archived in the PR).
 - Keep the diff inside the change-scope allowlist in `AGENTS.md` section 3.
 
 ## Adding a subcommand
