@@ -2,6 +2,7 @@
 Title: erg init hides a stampless store instead of recording it
 Created: 2026-09-16
 Author: claude
+Closed: merged via PR #360
 
 --- log ---
 2026-09-16T11:17Z claude created
@@ -12,6 +13,7 @@ Author: claude
 2026-09-16T12:56Z claude note Architectural call settled (Action 2, channel-2 shape): the THIRD PRESERVE REASON, not moving cmdInit's chained check. Moving the check is what 0283's criterion asks for literally, but it disturbs exit ordering for every exit-2 run, leaves defect 2's false 'has local edits' untouched, and does not even work on the non-skipping leg, where installAssets has already written the manifest so the store is no longer stampless when the chained check runs. The third reason closes channel 2 and fixes the attribution in one stroke, which is what 0279 established. Two consequences worth recording: the gate for the new reason is per-ASSET stamp presence (stamps[name] == ""), matching defect 3's per-asset gate rather than the per-store 'is there a manifest' question; and defect 1's fix is only VISIBLE because of defect 3's -- once init leaves a preserved asset unstamped, the manifest it writes is partial, and without the per-asset fallback the condition would be silent again through a different door.
 2026-09-16T12:56Z claude note Defect 1 implemented as CARRY, not DROP. A preserved file keeps whatever the previous manifest recorded for it and gains no new entry; only a file with no prior stamp ends up unstamped. Dropping the prior entry was the first instinct and is wrong: that entry is evidence about a PAST install, and it is what lets the next run say 'has local edits' and mean it -- dropping it swaps a false record for a lost one and silently downgrades the next run's verdict to 'reason unknown' on a store whose provenance WAS recorded. The rollback case still skips the manifest WHOLE, because the evidence at stake there is the date: header, a property of the file rather than of any asset in it. Out of scope and left as-is: erg migrate stamps .ergrc at the embedded hash although it never writes that file (migrateAssetPaths excludes it) -- same class, different command, below the severity floor.
 2026-09-16T12:56Z claude note Defect 4 surface: 'erg init --show NAME', prints one embedded asset on stdout and nothing else. Covers .ergrc, AGENTS.md and the vendored erg-github; accepts the bare name or the tickets/-prefixed form; needs no project and no tickets/ directory, since it reads nothing from disk. Chosen over a new subcommand to keep the blast radius inside init.go and off main.go's dispatch and its CMDS coverage gate. assetStamplessSignal was EXTENDED, never reworded -- its literal is already in the committed bootstrap binary, so a reworded prefix would silently break the old binary's grep in update.go. update.go's own follow-up line has no cross-version consumer and was reworded in place; it still declines to promise that erg init resolves anything, because it does not.
+2026-09-16T14:00Z MinhHaDuong closed — merged via PR #360
 --- body ---
 ## Context
 
