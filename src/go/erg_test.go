@@ -939,8 +939,10 @@ func TestFolderClosure(t *testing.T) {
 
 	// Corpus-safety control (ticket 0256): the one archived ticket whose
 	// basename ends in "-closed" is legitimate because it lives under
-	// closed/. The !inClosedDir guard is what keeps the new rule off the
-	// whole archive; without it this subtest goes red.
+	// closed/. Note what actually protects it -- the Closed: header, via
+	// !hasClosed, not the !inClosedDir guard. A well-formed archive always
+	// carries the header, so this subtest survives removal of that guard;
+	// the subtest below is the one that pins it.
 	t.Run("closed-dir ticket with a -closed basename stays clean", func(t *testing.T) {
 		dir := t.TempDir()
 		closedDir := filepath.Join(dir, "closed")
@@ -953,6 +955,31 @@ func TestFolderClosure(t *testing.T) {
 		errs := folderClosure(tickets)
 		if len(errs) != 0 {
 			t.Errorf("expected no errors for an archived -closed basename, got: %v", errs)
+		}
+	})
+
+	// This is the control that pins the !inClosedDir guard (ticket 0256).
+	// An open, header-less ticket misfiled into closed/ with a -closed
+	// basename is the only state where the guard changes the output: without
+	// it, the ticket draws both the placement error and the basename error,
+	// whose remedies contradict each other ("move it out or remove the
+	// Closed: header" vs "rename the file or erg close it"). One defect must
+	// produce one actionable message.
+	t.Run("open ticket misfiled into closed/ with a -closed basename reports once", func(t *testing.T) {
+		dir := t.TempDir()
+		closedDir := filepath.Join(dir, "closed")
+		if err := os.MkdirAll(closedDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		writeErg(t, closedDir, "0001-work-closed.erg",
+			"%erg 0.1\nTitle: Work\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		tickets, _ := loadErgs(dir)
+		errs := folderClosure(tickets)
+		if len(errs) != 1 {
+			t.Fatalf("expected exactly one violation, got %d: %v", len(errs), errs)
+		}
+		if !strings.Contains(errs[0], "open ticket in closed/ directory") {
+			t.Errorf("expected the placement error, got: %v", errs)
 		}
 	})
 }
