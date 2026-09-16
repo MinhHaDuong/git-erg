@@ -1,0 +1,147 @@
+%erg 0.1
+Title: make check aborts when an empty .git sits above the temp directory
+Created: 2026-09-16
+Author: MinhHaDuong
+
+--- log ---
+2026-09-16T10:30Z MinhHaDuong created
+2026-09-16T10:40Z MinhHaDuong note Scope widened after measuring: the workaround clears the contract probe and the run then fails on verify. Two stacked failures, so the ticket is about make check being runnable, not about one probe.
+2026-09-16T11:15Z MinhHaDuong note Host cleanup done (rmdir, both empty); make check then ran end to end. That also confirms the verify/reproducibility failure shared this cause rather than being a second defect -- it was simply unreachable while the cascade halted earlier. Repo-level fix still wanted: the probe must not depend on what sits above its temp dir.
+2026-09-16T11:05Z MinhHaDuong note Cause corrected. The first two log entries and the original title blamed the Go version; that was wrong. Measured: /tmp/.git and /scratch/tmp/.git exist on this host and are EMPTY directories. go list runs fine from the module root on this same toolchain. The Go version only determines whether buildvcs performs the upward walk that finds them.
+
+--- body ---
+## Context
+
+`make check` aborts at `Makefile:56`:
+
+```
+FAIL: offline (neg control): detector failed to flag net/http
+contract: 16 passed, 1 failed, 0 warned, 1 skipped
+```
+
+**The cause is not the Go version.** An earlier revision of this ticket said so
+and was wrong. Measured on this host:
+
+- `/tmp/.git` and `/scratch/tmp/.git` both exist, and both are **empty
+  directories** — not repositories, just directories with that name.
+- `go list -deps ./...` run from the module root (`src/go/`) exits 0 on this
+  same Go 1.22.2, with and without `-buildvcs=false`. The toolchain is fine.
+
+The chain is:
+
+1. `tests/test_contract.sh:98` builds its probe in a `mktemp` working directory
+   under `$TMPDIR`.
+2. Go's buildvcs walks *upward* from that directory looking for a VCS root and
+   finds `/tmp/.git`.
+3. It runs `git` there; the directory is empty, so git exits 128.
+4. `go list` returns empty output.
+5. The probe's grep finds no `net/http`, and the **negative control** reports
+   that the detector failed to flag it.
+
+So the Go version matters only in that it determines whether that upward walk
+happens at all. The defect is the interaction between a stray `.git` above the
+temp root and a probe that builds there.
+
+## Why it clears the severity floor
+
+**It is the negative control that fails.** The failing assertion is the one
+claiming the detector *can see* a violation. When it fails, the adjacent
+`offline` PASS reports only that the detector said nothing — which is what a
+blind detector does. The failure voids the result beside it.
+
+**It halts the cascade.** `make` stops at the failing target, so every suite
+ordered after `test-contract` never runs. A contributor reporting "make check
+passed" has run a strict subset without being told which. That happened
+repeatedly during `/raid 255 256 278 279`, including in reports I wrote.
+
+**It was re-diagnosed from scratch at least four times** in a single session,
+by three reviewers and by me, each paying the diagnosis cost again. The cost is
+not the failure; it is the rediscovery.
+
+## Two fixes, and they are not alternatives
+
+**Host-level**: `rmdir /tmp/.git /scratch/tmp/.git`. **Done 2026-09-16** —
+both were empty, and `make check` went green end to end immediately after. This
+fixes every session on this machine, but a host can regrow a stray at any time
+and adopters have their own hosts, so it settles nothing durable.
+
+**Repo-level**: make the probe immune. Either pass `-buildvcs=false` where it
+invokes `go list`, or point the probe's `TMPDIR` at a directory it controls.
+This is the durable half — the host fix is a cleanup, not a guarantee.
+
+Do the repo-level one. The host-level one is worth doing anyway, and is not
+this ticket's deliverable.
+
+## The second failure behind it
+
+With the contract probe cleared, the run reaches the next target and fails:
+
+```
+verify: FAIL -- committed binary is NOT reproducible
+```
+
+**Confirmed same cause, 2026-09-16.** Both stray directories were removed
+(`rmdir`, both empty) and `make check` then ran end to end on the same
+toolchain: `ALL TESTS PASSED`, `CHECK PASSED (test + validate)`. So the
+reproducibility failure was the same buildvcs artifact, not a genuine
+difference in the committed binary. One cause, two symptoms, and the second was
+only ever reachable once the first was cleared — which is what a halting
+cascade hides.
+
+## What is left after the host cleanup
+
+The symptom is gone here; the ticket is not. The probe is still unable to tell
+"no network import" from "I could not look", and the next stray `.git` on any
+host reproduces it exactly. The remaining deliverable is Action 1: make the
+probe immune, so its verdict means what it claims regardless of what sits above
+its working directory.
+
+## Relevant files
+
+- `tests/test_contract.sh:98` — the offline probe and its negative control
+- `Makefile:56` — the target where the cascade stops
+- `Makefile:120` — the `verify` target that fails next
+- `.github/workflows/CI.yml` — pins Go 1.21, which is why CI never sees any of it
+
+## Actions
+
+1. Make the probe immune to a stray `.git` above its working directory
+   (`-buildvcs=false`, or a controlled `TMPDIR`). Confirm the fix does not
+   weaken what the probe detects: the flag suppresses VCS stamping, not
+   dependency resolution, but this is a negative control, and a weakened one is
+   worse than a red one.
+2. Consider whether `make check` should continue past a failing suite, or at
+   minimum name the suites it did not reach. A cascade that stops silently
+   turns one local red into an unreliable green for everything behind it. This
+   run is the evidence: the reproducibility failure existed the whole time and
+   was simply unreachable behind the halt.
+
+## Test
+
+Red step: create an empty `.git` above the probe's temp root and watch the
+negative control fail. That is the positive control for the diagnosis itself —
+without it, a fix that merely happens to pass on a clean host proves nothing.
+Then confirm the probe still flags a genuinely network-importing fixture.
+
+## Verification
+
+- [ ] The probe passes with an empty `.git` sitting above its temp root
+- [ ] The probe still flags a real `net/http` import
+- [ ] `make check` runs end to end, not merely past the first failing target
+- [ ] Still green on Go 1.21, matching CI
+
+## Invariants
+
+- The offline probe must keep detecting a real `net/http` import. A fix that
+  makes the control pass by weakening what it inspects is a regression wearing
+  a green check.
+
+## Exit criteria
+
+- A stray `.git` above the temp root can no longer make `make check` report a
+  failure that has nothing to do with the code under test
+
+## Related
+
+- 0285 — also surfaced by review during the same raid, also pre-existing, also
+  invisible from this repo's own happy path.
