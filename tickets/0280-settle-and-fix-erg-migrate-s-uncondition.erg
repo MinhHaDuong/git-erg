@@ -1,0 +1,87 @@
+%erg 0.1
+Title: Settle and fix erg migrate's unconditional asset overwrite
+Created: 2026-09-16
+Author: MinhHaDuong
+Blocked-by: 0279
+
+--- log ---
+2026-09-16T07:12Z MinhHaDuong created
+2026-09-16T07:12Z MinhHaDuong note Split from 0278 (path D) as part of a raid monster-ticket decomposition; 0278's own Action 1 said settle this first because the outcome could change the shape of the rest.
+
+--- body ---
+## Context
+
+`erg migrate` bypasses the 3-state divergence check. `migrate.go:261` calls
+`installAssets(root, migrateAssetPaths, false, false)` — `refuseDiverged` is
+false, so a divergent `AGENTS.md` is overwritten unconditionally.
+
+This is **read in the code, not demonstrated**: a fixture with a local edit
+survived `erg migrate` in testing because the run reported `already clean` and
+never reached the asset step. Whether the path actually fires on a store that
+genuinely needs migrating is the open question, and settling it is this
+ticket's first action.
+
+Split out of 0278 (now a tracker) because 0278's own Action 1 named this the
+most dangerous of the four paths in the set and said it must be settled
+*before* the rest of the hardening work, since the finding could change that
+work's shape. `Blocked-by: 0279` — both this ticket and 0279 touch
+`installAssets`/`manifest.go`-adjacent code, so this lands after the
+direction-blind-upgrade fix rather than in parallel with it, to avoid two PRs
+editing the same functions concurrently.
+
+## Relevant files
+
+- `src/go/migrate.go` — line 261, the `refuseDiverged=false` call
+- `src/go/init.go` — `installAssets`, `migrateAssetPaths`
+
+## Actions
+
+1. Build a fixture store that genuinely needs migrating (not `already clean`),
+   give it a locally-edited `AGENTS.md`, run `erg migrate`, and record what
+   happens. This is the open empirical question 0278 named — settle it first.
+2. If it overwrites: apply the same divergence check used elsewhere
+   (`refuseDiverged=true`, or the equivalent), so `erg migrate` never silently
+   destroys a local edit. If a forced overwrite is still wanted for the
+   migrate path, it must announce what it replaced.
+3. If it preserves: document why `refuseDiverged=false` is safe here (e.g. an
+   earlier gate already screens for divergence before this call is reached),
+   and commit the fixture as a regression test so the finding survives future
+   refactors of `migrate.go`.
+
+## Test
+
+Red step, and it doubles as Action 1's investigation: a fixture store that
+genuinely needs migrating, carrying a locally-edited `AGENTS.md`, run through
+`erg migrate`. Assert on the local edit's survival either way — the assertion
+itself is the finding, whichever way it comes out.
+
+## Verification
+
+- [ ] path D's actual behaviour (overwrite or preserve) is recorded in this
+      ticket's log, with the transcript
+- [ ] the fixture from Action 1 is a committed regression test, not a one-off
+      manual run
+- [ ] a local edit survives `erg migrate`, with or without `--force`
+      documented as the only route that can replace it, and only with
+      announcement
+
+## Invariants
+
+- No tracked file is overwritten by `migrate` without saying so (same
+  invariant 0278 states for the whole asset machinery).
+- A pristine current asset stays a silent no-op under `migrate`, same as under
+  `init`.
+
+## Exit criteria
+
+- `erg migrate`'s behaviour on a genuinely-divergent store carrying a local
+  edit is settled, recorded, and covered by a committed test
+- If path D was dangerous, it no longer silently destroys a local edit
+
+## Related
+
+- 0278 — tracker; this is path D, split out under the monster-ticket checklist
+- 0279 — lands first; this ticket is `Blocked-by` it to keep the two PRs off
+  the same functions
+- 0281 — the remainder of 0278's hardening; it is `Blocked-by` this ticket,
+  since D's outcome may change its scope

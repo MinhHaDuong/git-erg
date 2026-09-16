@@ -1,0 +1,110 @@
+%erg 0.1
+Title: Generate historical asset hashes from history; make a stampless store report itself
+Created: 2026-09-16
+Author: MinhHaDuong
+Blocked-by: 0280
+
+--- log ---
+2026-09-16T07:12Z MinhHaDuong created
+2026-09-16T07:12Z MinhHaDuong note Split from 0278 as the remainder after path B (0279) and path D (0280) were carved out under the raid monster-ticket decomposition.
+
+--- body ---
+## Context
+
+0278 (now a tracker) named four paths that can overwrite or strand a tracked
+asset file, none proved by a test. Path B is 0279 (self-contained, split out
+first). Path D is 0280 (the dangerous, undemonstrated `erg migrate` path,
+settled before this ticket). What remains is path A (stranded, silent on every
+channel, when no `.erg-assets` stamp exists) and path C (the fix's own
+hazard — a wrong `extraHistoricalHashes` entry destroys a genuine local edit
+with no warning), plus the mechanical work that makes both safe: a
+generated, not hand-typed, historical-hash table, and a store's absence of
+provenance reported instead of silently passed.
+
+`Blocked-by: 0280` — 0278's own Action 1 said settling path D "leads the fix":
+if `erg migrate` needs the same 3-state check this ticket builds, the
+generation mechanism and the visibility message have to cover that call site
+too, and this ticket should not be planned or executed until that is known.
+
+## Relevant files
+
+- `src/go/manifest.go` — `extraHistoricalHashes`, `isCleanUpgrade`,
+  `assetDriftWarnings`, `assetDriftSignal`
+- `src/go/init.go` — `installAssets`, `initAssetPaths`
+- `src/go/update.go` — the manifest-gated post-swap hint
+- `src/go/assets/AGENTS.md`, `.ergrc`, `spec-erg-v1.md`, `integration.md` —
+  the embedded assets the machinery must cover, not just `AGENTS.md`
+- `src/go/bootstrap_assets.go`
+
+## Actions
+
+1. Populate `extraHistoricalHashes` from git history **mechanically** — a
+   generated list, or a test that regenerates it from
+   `git log -- src/go/assets/*` and fails on divergence. Never
+   hand-transcribed: a wrong entry (path C) is exactly what a typo produces,
+   and a typo there is unrecoverable — it makes a local edit look like a
+   pristine old release and destroys it with no warning.
+2. Apply the table to every embedded asset (`.ergrc`, `spec-erg-v1.md`,
+   `integration.md`), not just `AGENTS.md` — the machinery is shared across
+   all of them.
+3. Make the absence of a stamp visible instead of silent (path A): `erg check`
+   should say that a store has no provenance manifest and cannot be upgraded,
+   rather than returning nil and passing. Today three channels stay silent for
+   the same reason — `assetDriftWarnings` returns nil early when the manifest
+   is missing, and `erg update`'s post-swap hint is gated on
+   `os.Stat(manifestName)` — fix the root cause once, not each channel
+   separately.
+4. Rewrite the dormancy note in `manifest.go` to say what the table is for
+   once it is load-bearing, and what a wrong entry costs.
+
+## Test
+
+Red step: a fixture carrying a genuine local edit must be preserved by every
+remaining path this ticket touches. One test per path, not one test for the
+machinery.
+
+Positive control before trusting any silence: a fixture at a known shipped
+hash with no stamp must currently fail to upgrade. If it upgrades, the test is
+not exercising the fallback and proves nothing about the table.
+
+Third arm: a fixture with no stamp must produce a *visible* message, asserted
+on content — path A's defining property is silence, so an exit-code assertion
+cannot see it.
+
+## Verification
+
+- [ ] a stampless store at a shipped hash upgrades, and says so
+- [ ] a stampless store reports its condition instead of passing silently
+- [ ] the table is generated from history, and a test fails when a shipped
+      revision is missing from it
+- [ ] chemin-de-voix (the repo demonstrating path A) upgrades cleanly once the
+      table recognizes it
+- [ ] a wrong-entry fixture (path C) is caught by the generation test, not
+      merely by review
+
+## Invariants
+
+- No tracked file is ever overwritten or reverted without saying so — the
+  invariant 0278 states for the whole class; this ticket implements it for
+  the paths still open after 0279 and 0280.
+- A genuine local edit is never clobbered by any path, including `--force`
+  paths, which must at least announce what they replaced.
+- `erg init` on a pristine current asset stays a silent no-op.
+- Stores written before the `date:` field keep working; absent provenance
+  degrades to today's behaviour, never to a refusal.
+
+## Exit criteria
+
+- Every remaining path that can overwrite an embedded asset is covered by a
+  test that fails against today's code
+- `extraHistoricalHashes` is generated from history, not maintained by hand
+- A store with no manifest is told so, on a channel a human or agent will see
+- The dormancy note reflects the table's real role
+
+## Related
+
+- 0278 — tracker; this ticket is the remainder after 0279 (path B) and 0280
+  (path D) were split out
+- 0279 — path B, lands first in an earlier wave
+- 0280 — path D, must land before this ticket; its outcome may change this
+  ticket's scope

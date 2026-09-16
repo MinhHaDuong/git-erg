@@ -8,6 +8,8 @@ Author: HDMX-coding-agent
 
 2026-09-10T08:43Z HDMX-coding-agent note rewritten after measuring the sweep instead of inferring it. The original framing -- "five adopters are frozen" -- was wrong twice: four of the five upgrade cleanly via the stamp path and have now been refreshed, and the content they were said to be missing was never in the shipped asset. Scope corrected, and the ticket re-aimed at the defect class the author names: a tracked file must never vanish or revert without saying so.
 
+2026-09-16T07:12Z MinhHaDuong note converted to a tracker under the raid monster-ticket checklist. Action 1 ("settle path D first... it leads the fix") is a dependency chain hidden in prose: the rest of the hardening cannot be safely planned until D's outcome is known, and paths A/C/D touch the same files as path B (0279). Decomposed into 0280 (path D, Blocked-by 0279) and 0281 (paths A/C + the mechanical hardening, Blocked-by 0280). This ticket stays open until 0279, 0280, and 0281 are all closed; its own Actions/Test/Verification/Exit-criteria below are superseded by the children's and are kept for the record, not for direct execution.
+
 --- body ---
 ## Context
 
@@ -70,7 +72,28 @@ The known paths, with their evidence level stated honestly:
   asset step. Whether the path fires on a store that genuinely needs migrating
   is open, and settling it is the first action below.
 
-## Relevant files
+## Children
+
+This ticket is a tracker. Its execution is split three ways, sequenced to
+avoid three PRs editing `manifest.go`/`installAssets` concurrently:
+
+1. **0279** — path B (silent revert on a direction-blind upgrade). Already
+   self-contained when this ticket was written; lands first.
+2. **0280** — path D (`erg migrate`'s unconditional overwrite). The
+   undemonstrated, most-dangerous path; `Blocked-by: 0279`.
+3. **0281** — paths A and C (stranded-silent, and the fix's own hazard) plus
+   the mechanical hardening (generated hash table, stampless visibility,
+   applied to every embedded asset). `Blocked-by: 0280`, since D's outcome may
+   change this ticket's shape, per Action 1 below.
+
+Close this tracker only after all three are closed and an integration pass
+confirms the whole invariant — no tracked file is overwritten or reverted
+without saying so — holds across `init`, `update`, and `migrate` together.
+0277's own `Blocked-by: 0278` really means "blocked by 0281": that is the
+child that builds the generated table 0277 needs before an unrecognized hash
+can become a hard error.
+
+## Relevant files (original scope; see each child for its own subset)
 
 - `src/go/manifest.go` — `extraHistoricalHashes`, `isCleanUpgrade`,
   `assetDriftWarnings`, `assetDriftSignal`
@@ -79,7 +102,7 @@ The known paths, with their evidence level stated honestly:
 - `src/go/update.go` — the manifest-gated post-swap hint
 - `src/go/assets/AGENTS.md`, `src/go/bootstrap_assets.go`
 
-## Actions
+## Actions (superseded — kept for record; see each child's own Actions)
 
 1. Settle path D first, because it is the only one whose behaviour is unknown:
    build a store that genuinely needs migrating, give it a locally-edited
@@ -97,7 +120,7 @@ The known paths, with their evidence level stated honestly:
 5. Rewrite the dormancy note in `manifest.go` to say what the table is for once
    it is load-bearing, and what a wrong entry costs.
 
-## Test
+## Test (per child — this is the union all three must satisfy together)
 
 Red step, and it is the invariant that matters: a fixture carrying a genuine
 local edit must be preserved by **every** path — `init`, `migrate`, and an
@@ -113,15 +136,18 @@ Third arm: a fixture with no stamp must produce a *visible* message, asserted
 on content. Path A's defining property is silence, so an exit-code assertion
 cannot see it.
 
-## Verification
+## Verification (tracker-level; each child owns its own subset)
 
-- [ ] path D settled and recorded, with the transcript in this ticket
-- [ ] a local edit survives `init`, `migrate`, and an older-binary `init`
-- [ ] a stampless store at a shipped hash upgrades, and says so
-- [ ] a stampless store reports its condition instead of passing silently
-- [ ] the table is generated from history, and a test fails when a shipped
-      revision is missing from it
-- [ ] chemin-de-voix upgrades cleanly once the table recognizes it
+- [ ] 0279 closed — direction-blind upgrade fixed
+- [ ] 0280 closed — path D settled and recorded, with the transcript
+- [ ] 0281 closed — a local edit survives `init`, `migrate`, and an
+      older-binary `init`; a stampless store at a shipped hash upgrades and
+      says so; a stampless store reports its condition instead of passing
+      silently; the table is generated from history and a test fails when a
+      shipped revision is missing from it; chemin-de-voix upgrades cleanly
+- [ ] integration pass: with all three merged, replay 0279's fixture, 0280's
+      fixture, and 0281's fixtures together and confirm no regression across
+      the combination
 
 ## Invariants
 
@@ -135,16 +161,19 @@ cannot see it.
 
 ## Exit criteria
 
-- Every path that can overwrite an embedded asset is covered by a test that
-  fails against today's code
-- `extraHistoricalHashes` is generated from history, not maintained by hand
-- A store with no manifest is told so, on a channel a human or agent will see
-- The dormancy note reflects the table's real role
+- 0279, 0280, and 0281 are all closed
+- The integration pass above is run and recorded in this ticket's log
+- The whole-class invariant — no tracked file is ever overwritten or reverted
+  without saying so — holds across `init`, `update`, and `migrate` together,
+  not just within each child's own scope
 
 ## Related
 
 - 0277 — the shipped asset's *content*, which the sweep shows is the live
-  problem where staleness was not. Its `Blocked-by: 0278` still holds: making
-  an unrecognized hash a hard error before the table exists would fail
-  chemin-de-voix.
-- 0279 — path B, split out because it is self-contained and fixable now.
+  problem where staleness was not. Its `Blocked-by: 0278` really means
+  `Blocked-by: 0281` (see Children above): making an unrecognized hash a hard
+  error before the table exists would fail chemin-de-voix.
+- 0279 — path B, first child, lands first.
+- 0280 — path D, second child, `Blocked-by: 0279`.
+- 0281 — paths A/C plus the mechanical hardening, third child,
+  `Blocked-by: 0280`.
