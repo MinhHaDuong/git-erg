@@ -57,8 +57,12 @@ func TestSlugifyNeverProducesClosedBasename(t *testing.T) {
 			strings.Repeat("x", 32) + "-closed-extra-words-here-padding-more",
 		},
 		{
-			"title ending in the word closed",
-			"rework the archive path when a ticket is closed",
+			// Distinct path from the two cases above: this slug is 36
+			// characters, so no truncation happens at all. The guard must
+			// fire on a title that simply ends in "closed", not only on one
+			// the 40-char cut mangled into it.
+			"short title ending in closed, untruncated",
+			"archive the ticket once it is closed",
 		},
 		{
 			"title that is only the word closed",

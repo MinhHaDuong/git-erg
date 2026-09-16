@@ -895,13 +895,13 @@ func TestFolderClosure(t *testing.T) {
 		}
 		found := false
 		for _, e := range errs {
-			if strings.Contains(e, "closed-ticket pattern") {
+			if strings.Contains(e, "filename reads as closed") {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Errorf("expected an error about the 'closed-ticket pattern', got: %v", errs)
+			t.Errorf("expected an error about a filename reading as closed, got: %v", errs)
 		}
 	})
 

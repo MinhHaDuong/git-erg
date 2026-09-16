@@ -235,7 +235,7 @@ Author: a
 --- body ---
 EOF
 rc=0; out=$($ERG check "$FIXTURES/closure3" 2>&1) || rc=$?
-if echo "$out" | grep -q "VIOLATION.*closed-ticket pattern"; then
+if echo "$out" | grep -q "VIOLATION.*filename reads as closed"; then
     pass "basename-only closed ticket is a violation"
 else
     fail "basename-only closed ticket is a violation (got: $out)"
