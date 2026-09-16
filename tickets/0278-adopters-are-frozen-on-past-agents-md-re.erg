@@ -14,6 +14,7 @@ Author: HDMX-coding-agent
 2026-09-16T08:55Z MinhHaDuong note Third correction to this ticket's factual base: chemin-de-voix was never stampless. Measured 2026-09-16 -- stamp present since 2026-06-03, both assets matching byte for byte. That removes the last justification for the historical-hash table (0281, now wontfix) and unblocks 0277, which was coupled to it. All three errors in this ticket share a shape: state asserted from a reading, never measured against the repo.
 2026-09-16T15:10Z claude note Imagine pass: this tracker is NOT purely integration-verification yet. 0281 split a fourth child, 0283 (path A visibility), before closing wontfix; 0283 is listed in this ticket's own Children and Verification sections but is still open, unblocked since 0279 closed, and carries a real code change (assetDriftWarnings/update.go), so exit criterion 1 ("all three children closed") is stale on its own count -- there are four, and one remains. Recommend sequencing 0283 to land before the integration pass, since the pass should exercise the stampless drift state and that state's "saying so" behaviour does not exist until 0283 ships. Minimal integration pass once 0283 lands: a small scripted check building three fixture stores (clean/matching stamp, stamp with a local edit, no stamp) and running init/update/migrate on each, asserting silence on clean, preservation-with-message on edited (all three commands), and a visible stampless report on erg check/init/update -- recorded as a log transcript per exit criterion 2's own wording, promoted to a committed test only if it surfaces an interaction the per-child unit tests miss. Antipattern check: 0280 (migrate's force-overwrite of AGENTS.md, a charter decision) and 0281 (no hash table, wontfix) are author-settled and final; the integration pass must treat migrate's AGENTS.md overwrite as the wanted, announced outcome, not a violation to re-litigate -- no risk found of the pass reopening either verdict, but the check should be designed so a naive read of migrate's output doesn't manufacture a false failure against invariant 3.
 
+2026-09-16T11:50Z MinhHaDuong note Integration pass run and mechanized as tests/test_assetinvariant.sh (42 assertions, green). Three fixture stores -- clean, edited (both assets), stampless -- each driven through erg init, erg update and erg migrate over ONE store, plus erg check as the reporting channel. The whole-class invariant holds in both directions: every managed asset whose bytes changed was named with a 'git restore' undo hint, and no unchanged asset was narrated as refreshed. migrate's force-overwrite of a diverged AGENTS.md is encoded as the WANTED outcome (charter 0224 / PR #275), asserted as overwrite-plus-announcement, never as preservation. Red step, two negative controls, both watched to fail on the real binary: (1) the naive reading -- assert the AGENTS.md edit survives migrate -- goes red, proving the fixture reaches migrate's force-overwrite leg rather than stopping at 'already clean' as this ticket's path-D bullet reported; (2) the auditor's announcement grep pointed at a token installAssets never prints makes edited/migrate report 'changed SILENTLY', proving the FAIL path is reachable. No composition defect found across init/update/migrate. One cosmetic finding, below the severity floor and not ticketed: 'migrate: AGENTS.md refreshed (0 created, 0 refreshed, 1 unchanged)' prints unconditionally, so greping migrate's output for 'refreshed' proves nothing -- the suite reads installAssets' per-file line instead. make check green end to end, exit 0.
 --- body ---
 ## Context
 
@@ -171,16 +172,26 @@ cannot see it.
 
 ## Verification (tracker-level; each child owns its own subset)
 
-- [ ] 0279 closed — direction-blind upgrade fixed
+- [x] 0279 closed — direction-blind upgrade fixed
 - [x] 0280 closed — path D settled and recorded (2026-09-16): fires, but by
       deliberate charter decision, covered by two pre-existing tests
-- [ ] 0283 closed — a stampless store reports its condition instead of
-      passing silently
+- [x] 0283 closed — a stampless store reports its condition instead of
+      passing silently (PR #348)
 - [x] 0281 closed wontfix — the table has no known beneficiary; the repo
       that justified it was measured and found already recognized
-- [ ] integration pass: with all three merged, replay 0279's fixture, 0280's
-      fixture, and 0281's fixtures together and confirm no regression across
-      the combination
+- [x] integration pass: run 2026-09-16 and mechanized rather than left as a
+      log transcript, because an invariant that matters gets a guard — prose
+      contracts rot. `tests/test_assetinvariant.sh` builds three fixture
+      stores (clean, edited, stampless) and drives each through `erg init`,
+      `erg update` and `erg migrate` over ONE store, auditing both halves of
+      the invariant after every command: a managed asset whose bytes changed
+      must be named with an undo hint, and one whose bytes did not must not be
+      narrated as refreshed. `erg migrate`'s force-overwrite of a diverged
+      AGENTS.md is asserted as the WANTED, announced outcome (charter 0224 /
+      PR #275), never as preservation — the naive reading was run first and
+      watched go red, which is also what proves the fixture reaches migrate's
+      force-overwrite leg instead of stopping at "already clean". No
+      composition defect found; 42 assertions green, `make check` exit 0.
 
 ## Invariants
 
