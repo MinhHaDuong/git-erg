@@ -192,13 +192,11 @@ reconciled. The line numbers quoted above (`98`, `96-99`) are those of
       Read this as "nothing halts the cascade any more", which is what this
       ticket can deliver. Making `make` *report* the suites it never reached
       when something does fail is 0290's job, not this box's.
-- [ ] Still green on Go 1.21, matching CI — no 1.21 toolchain on this host and
-      fetching one would breach the offline contract; CI is the check.
-      `-buildvcs` has been a shared build flag (build/install/list/test) since
-      Go 1.18, so acceptance is not in doubt -- and a toolchain that did
-      reject it would make both arms go red, not pass, since
-      `neg_offline_detects` swallows stderr. A silent regression is the
-      one failure mode this cannot have.
+- [x] Still green on Go 1.21, matching CI — the `test` job on PR #346 is
+      SUCCESS at `5dfc82d`. No 1.21 toolchain exists on this host and fetching
+      one would have breached the offline contract, so CI was the only place
+      this could be answered; it has now answered it, rather than being
+      promised as future evidence.
 
 ## Invariants
 
