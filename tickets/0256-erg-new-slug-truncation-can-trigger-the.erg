@@ -1,0 +1,22 @@
+%erg 0.1
+Title: erg new slug truncation can trigger the pathIsClosed component test
+Created: 2026-07-02
+Author: MinhHaDuong
+
+--- log ---
+2026-07-02T07:49Z MinhHaDuong created
+
+--- body ---
+## Problem
+
+`erg new` kebab-cases the title and truncates the slug to 40 characters, but never checks the result against the `pathIsClosed` component test (`closed`, `closed-*`, `closed.*`, `*-closed`). A title that mentions "closed" mid-sentence can therefore produce a file that the whole toolchain silently treats as a closed ticket.
+
+Observed live on 2026-07-02: `erg new "erg-pr-merge regex misses tickets/closed/NNNN paths"` created `0255-erg-pr-merge-regex-misses-tickets-closed.erg` -- the 40-char truncation landed exactly on `-closed`. The ticket vanished from `erg list` and `erg ready` immediately after creation, with no warning from `new`, `validate`, or `check`.
+
+Note the asymmetry: rule 14 rejects a *Title* that starts or ends with a status word, but nothing guards the *slug*, and truncation can manufacture a `-closed` suffix from a perfectly valid title.
+
+## Exit criteria
+
+- [ ] `erg new` never produces a filename for which `pathIsClosed` fires (e.g. trim or extend the truncation point, or drop the offending trailing segment)
+- [ ] Regression test covering a title whose 40-char truncation lands on `-closed`
+- [ ] `erg check` (or `validate`) warns when an open-by-header ticket has a `pathIsClosed`-positive basename, so hand-created files get caught too
