@@ -47,6 +47,34 @@ if [ -z "$bashism" ]; then
 else
     fail "erg-github contains a bashism ([[ / local / declare -a / pipefail / \$'...')"
 fi
+
+# --- POSIX regex ratchet: the script's own header (ticket 0209) promises
+# "grep -iE + BRE sed; never GNU-only grep -oP". That was prose-only until
+# ticket 0255 edited the very line it governs. Bans PCRE (grep -P, \K) and the
+# GNU BRE shorthands \? and \+, whose POSIX spellings are \{0,1\} and \{1,\}.
+# Comment lines are stripped first: the header states the ban in prose and
+# would otherwise trip the detector describing it.
+gnuregex='grep[^|]*-[a-zA-Z]*P|\\K|sed [^|]*\\[?+]'
+code_only() { grep -v '^[[:space:]]*#' "$1"; }
+if code_only "$SCRIPT" | grep -qE "$gnuregex"; then
+    fail "erg-github uses a GNU-only regex extension (grep -P / \\K / BRE \\? / \\+)"
+else
+    pass "erg-github regexes are POSIX (no grep -P, \\K, or GNU BRE shorthands)"
+fi
+# Negative control: the ratchet above must actually fire. A null result from a
+# detector that cannot see is indistinguishable from a clean file.
+ctl="$TDIR/gnuregex-ctl"
+{
+    printf "\tids=\$(grep -oiP 'tickets/\\\\K[0-9]{4}' x)\n"
+    printf "\tid=\$(printf x | sed 's/a\\\\?b/c/')\n"
+} > "$ctl"
+nctl=$(code_only "$ctl" | grep -cE "$gnuregex" || true)
+if [ "$nctl" -eq 2 ]; then
+    pass "POSIX regex ratchet (neg control): flags both grep -oP/\\K and sed \\?"
+else
+    fail "POSIX regex ratchet (neg control): flagged $nctl of 2 planted violations"
+fi
+
 # shebang is /bin/sh
 if head -1 "$SCRIPT" | grep -q '^#!/bin/sh'; then
     pass "erg-github shebang is /bin/sh"
@@ -94,6 +122,80 @@ if [ "$rc" -eq 0 ] && echo "$out" | grep -q "PASS"; then
     pass "verify: closed ticket passes"
 else
     fail "verify: closed ticket should pass (rc=$rc, out: $out)"
+fi
+
+mk_closed_ticket() { # id  (writes into tickets/closed/, i.e. archived)
+    f="$REPO/tickets/closed/$1-x.erg"
+    mkdir -p "$REPO/tickets/closed"
+    {
+        echo "%erg 0.1"
+        echo "Title: X"
+        echo "Created: 2026-06-02"
+        echo "Author: t"
+        echo ""
+        echo "--- log ---"
+        echo "--- body ---"
+    } > "$f"
+}
+
+# --- verify: PR body references tickets/closed/NNNN -> PASS via the real
+# ticket_is_closed() check, not the escape hatch (ticket 0255) ---
+mk_closed_ticket 0044
+out=$(run_verify x "**Ticket:** tickets/closed/0044-x.erg" "" 7) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -q "ticket 0044 is closed" && ! echo "$out" | grep -qi "escape hatch"; then
+    pass "verify: tickets/closed/NNNN resolves via ticket_is_closed, not escape hatch"
+else
+    fail "verify: tickets/closed/NNNN should PASS via ticket_is_closed, not the escape hatch (rc=$rc, out: $out)"
+fi
+
+# --- verify: a non-"closed" subdirectory segment does not confuse the ticket-id
+# extraction (only closed/ is special, ticket 0255). NEGATIVE CONTROL: 0044 is
+# archived above, so an over-broad regex matching any subdirectory would resolve
+# it here and report a real PASS instead of falling to the escape hatch. ---
+out=$(run_verify x "**Ticket:** tickets/bogus/0044-x.erg" "" 7) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -qi "escape hatch"; then
+    pass "verify: tickets/bogus/NNNN does not spuriously resolve (falls to escape hatch)"
+else
+    fail "verify: tickets/bogus/NNNN should fall to escape hatch, not resolve as a ticket ref (rc=$rc, out: $out)"
+fi
+
+# --- verify: case variants resolve, and resolve via the REAL check.
+# The filter and the substitution must agree on every literal: while the filter
+# was grep -i and the sed was not, a mis-cased TICKETS/ or Closed/ cleared one
+# and not the other (ticket 0255 review). These assertions pin the branch taken,
+# not the exit code -- escape-hatch PASS and a real PASS are both exit 0, so an
+# rc-only assertion is satisfied by the bypass it is meant to catch. ---
+for variant in "tickets/Closed/0044-x.erg" "TICKETS/closed/0044-x.erg" "Tickets/Closed/0044-x.erg"; do
+    out=$(run_verify x "**Ticket:** $variant" "" 7) && rc=0 || rc=$?
+    if [ "$rc" -eq 0 ] && echo "$out" | grep -q "ticket 0044 is closed" && ! echo "$out" | grep -qi "escape hatch"; then
+        pass "verify: case variant $variant resolves via ticket_is_closed"
+    else
+        fail "verify: case variant $variant should resolve via ticket_is_closed (rc=$rc, out: $out)"
+    fi
+done
+
+# --- verify: the case variants must not become a way PAST the gate. An OPEN
+# ticket named in a case variant must still FAIL. This is the fail-open
+# regression guard: dropping the unsubstituted line empties $ids, which is the
+# escape hatch, so the required check PASSES a PR whose ticket is still open. ---
+mk_ticket 0045 open
+for variant in "TICKETS/0045-x.erg" "Tickets/0045-x.erg"; do
+    out=$(run_verify x "**Ticket:** $variant" "" 7) && rc=0 || rc=$?
+    if [ "$rc" -eq 1 ] && echo "$out" | grep -qi "please close ticket 0045"; then
+        pass "verify: open ticket named as $variant still FAILs the gate"
+    else
+        fail "verify: $variant on an OPEN ticket must FAIL, not pass (rc=$rc, out: $out)"
+    fi
+done
+
+# --- verify: whatever the spelling, $ids never carries a pass-through body
+# line -- an unsubstituted line reaching ticket_is_closed produced a garbled
+# hard failure quoting the PR body back as a ticket id (ticket 0255 review). ---
+out=$(run_verify x "**Ticket:** tickets/Closed/0044-x.erg" "" 7) && rc=0 || rc=$?
+if ! echo "$out" | grep -q 'Ticket:'; then
+    pass "verify: a mis-capitalized path never leaks the body line into \$ids"
+else
+    fail "verify: tickets/Closed/NNNN leaked a non-id into \$ids (rc=$rc, out: $out)"
 fi
 
 # --- verify: open ticket -> FAIL (exit 1) ---

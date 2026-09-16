@@ -1,29 +1,55 @@
 %erg 0.1
-Title: erg-pr-merge regex misses tickets/closed/NNNN paths
+Title: erg-github verify regex misses tickets/closed/NNNN paths
 Created: 2026-07-02
 Author: MinhHaDuong
+Closed: autoclosed — PR #339
 
 --- log ---
 2026-07-02T07:47Z MinhHaDuong created
 
 2026-07-02T07:48Z migrated from GitHub issue #145
 2026-09-16T07:45Z MinhHaDuong note Scoped to this repo's own copy; adopter propagation split to 0282. Imagine pass also corrected the target file (tickets/erg-github, POSIX grep+sed, not the erg-pr-merge grep -oiP the ticket names) and the consequence (escape-hatch PASS of a required check, not a silent skip).
+2026-09-16T09:10Z Claude note Corrected Title, Problem and Exit criteria in place. The Imagine pass said to do this before Plan and it was missed; new sections were appended instead, so a cold reader met the wrong file and an unusable PCRE regex before reaching the correction. Original text is in git history.
+2026-09-16T09:12Z Claude note Plan amendment, undeclared when made: PR #339 also mechanizes the script's POSIX-regex header contract (tests/test_erg_github.sh). It was prose-only, and this fix edits the very line it governs -- the ticket's own suggested grep -oiP would have passed unnoticed. Belongs with this fix rather than a follow-up ticket because the guard and the edit it guards are the same change.
+2026-09-16T09:14Z Claude note Review round 1 (PR #339) found a defect introduced by the fix: grep -i makes the new (closed/) group case-insensitive while the BRE sed is not, so tickets/Closed/NNNN cleared the filter without substituting and the whole body line passed through as $ids. Failed closed, but fixed by a trailing grep -xE '[0-9]{4}' id-shape filter, with a test.
+2026-09-16T09:20Z Claude note Plan Action 2 amended in place. Its deferral of the erg-pr-merge cross-reference cited 0282 as the anchor, but 0282 covers adopter-vendored copies of tickets/erg-github and never mentions erg-pr-merge -- the anchor did not exist. The comment is corrected in this PR; the Plan no longer forbids what its own diff does.
+2026-09-16T09:35Z Claude note Round 2 reverted the round-1 fix as worse than the defect. Dropping the unsubstituted line empties $ids, and an empty $ids IS the escape hatch, so TICKETS/0043 on an OPEN ticket returned PASS -- a silent bypass of the required gate, where main merely failed closed and garbled. Replaced by case-folding the body once (tr) and dropping grep -i, so the filter and the substitution cannot disagree about any literal, now or when one is added later. Tests now pin the branch taken (the "ticket NNNN is closed" message), not the exit code: escape-hatch PASS and real PASS are both exit 0, which is why the round-1 test could not see its own regression.
+2026-09-16T09:15Z MinhHaDuong closed — autoclosed — PR #339
 --- body ---
 Migrated from GitHub issue MinhHaDuong/git-erg#145 (opened 2026-05-23).
 
 ## Problem
 
-The ticket-ID extraction regex in `erg-pr-merge` (line ~73):
+*Corrected in place 2026-09-16 (see the log). As filed, this section named
+`erg-pr-merge` and a GNU-PCRE fix; both were wrong for this repo, and the
+Imagine pass below establishes why. The original text is in git history; it is
+replaced rather than annotated so a cold reader does not act on it.*
 
-```bash
-TICKET_ID=$(echo "$BODY" | grep -oiP '^\*{0,2}ticket:?\*{0,2}:?\s*tickets/\K\d+' | head -1 || true)
+The ticket-ID extraction in `tickets/erg-github` (`cmd_verify`, lines 76-78):
+
+```sh
+ids=$(printf '%s\n' "$body" |
+	grep -iE '^[*]{0,2}ticket:?[*]{0,2}:? *tickets/[0-9]{4}' 2>/dev/null |
+	sed 's/.*tickets\/\([0-9][0-9][0-9][0-9]\).*/\1/' || true)
 ```
 
-matches `tickets/NNNN` but silently yields empty string for `tickets/closed/NNNN`. When `erg close` archives the ticket before the merge (moving it to `tickets/closed/`), the PR body's `**Ticket:** tickets/closed/NNNN-name.erg` line does not match, so the auto-close step is skipped without error.
+anchors the four digits directly after `tickets/`, so it matches
+`tickets/NNNN` but yields the empty string for `tickets/closed/NNNN`. When
+`erg close` archives the ticket before the merge, the PR body's
+`**Ticket:** tickets/closed/NNNN-name.erg` line does not match.
+
+The consequence is not an inert skip. Empty `$ids` is the **escape hatch**
+branch built for genuinely unlinked PRs (lines 80-89): `cmd_verify` logs
+`PASS -- no ticket referenced (escape hatch invoked)`, emits a `::warning::`
+and exits 0. So a correctly-linked PR passes a required check via the wrong
+path and with a misleading audit trail -- and a PR whose body cites
+`tickets/closed/NNNN` for a ticket that is *not* in fact closed is falsely
+passed outright.
 
 ## Workaround
 
-Don't pre-close the ticket; let `erg-pr-merge` close it atomically. If ticket is already closed (e.g. closed via another path), skip `erg-pr-merge` and use `gh api repos/{owner}/{repo}/pulls/{pr}/merge` directly.
+Reference the ticket by its live top-level path, or do not pre-close it
+before the gate runs.
 
 ## Reproduction
 
@@ -46,9 +72,16 @@ does not wait on it.
 
 ## Exit criteria
 
-- [ ] Regex tolerates an optional `closed/` segment, e.g.:
-      `grep -oiP '^\*{0,2}ticket:?\*{0,2}:?\s*tickets/(?:closed/)?\K\d+'`
-- [ ] PR bodies referencing `tickets/closed/NNNN-...` still resolve the ticket ID
+*Corrected in place 2026-09-16 alongside the Problem section: as filed these
+named `erg-pr-merge` and a `grep -oiP ... \K` fix, which `tickets/erg-github`
+forbids by its own header comment.*
+
+- [ ] The extraction in `tickets/erg-github` tolerates an optional `closed/`
+      segment, using portable ERE + BRE only (no `grep -P`, no `\K`)
+- [ ] PR bodies referencing `tickets/closed/NNNN-...` resolve the ticket ID and
+      reach the real `ticket_is_closed` check, not the escape hatch
+- [ ] A subdirectory that is not literally `closed/` still does not resolve
+      (the fix is scoped, not a general subdirectory match)
 
 ## Imagine
 
@@ -164,8 +197,19 @@ pair (not `grep -oiP`) before this moves to Plan.
    grep -oP)") does not mention the closed/ tolerance. Add one clause, e.g.
    "...tolerates an optional tickets/closed/ prefix (ticket 0255)." Not
    exit-criteria-bearing, but cheap and keeps the comment accurate for the
-   next reader. Do not touch the `skills/merge/erg-pr-merge` cross-reference
-   in that comment — out of scope per the Scope decision above (0282).
+   next reader.
+
+   **Amended 2026-09-16, after this Plan was written.** This action originally
+   read "Do not touch the `skills/merge/erg-pr-merge` cross-reference in that
+   comment — out of scope per the Scope decision above (0282)." That deferral
+   cited an anchor that does not exist: 0282 is about adopter-vendored copies
+   of `tickets/erg-github`, and never mentions `skills/merge/erg-pr-merge`. The
+   cross-reference is also false on its own terms as of this ticket's fix — it
+   claims parity of id-sets with a script that lives in another repo and that
+   still lacks the `closed/` tolerance, so the two have actually diverged here.
+   The comment IS corrected: it now describes only what this script accepts and
+   asserts no parity that nothing measures. Recorded here rather than left as a
+   Plan that forbids what its own diff does.
 
 3. No other call site reads this pattern. `ticket_is_closed()` (lines 44-58)
    already globs `tickets/closed/"$id"-*.erg` directly and needs no change —
