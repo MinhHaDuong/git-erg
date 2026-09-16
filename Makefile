@@ -100,8 +100,9 @@ validate: build
 # src/go/assets/ you run this and commit. The self-coherence guard
 # (tests/test_selfcoherence.sh) fails CI if the deployed copy drifts from the
 # embedded source, and `make regen-assets && git diff --exit-code tickets/`
-# must be clean. Only the 2 retained assets are deployed (.ergrc, AGENTS.md);
-# the spec and integration guide are served on demand (erg spec / integration).
+# must be clean. Two assets are deployed by erg init (.ergrc, AGENTS.md); the
+# spec and integration guide are served on demand (erg spec / integration); and
+# erg-github is copied here without ever being installed -- see below.
 #
 # erg-github is a THIRD case and the reason it is copied here (ticket 0282).
 # erg never installs it -- it is vendored, adopters own their copy -- but the
