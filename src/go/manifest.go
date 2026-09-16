@@ -488,8 +488,14 @@ func assetDriftWarnings(dir string) []string {
 // chmod +x. Widening it later is a deliberate choice, not a patch.
 //
 // It reports a CRLF checkout as drift, and that is correct rather than a false
-// positive: erg-github runs under /bin/sh, where a CRLF script does not
-// execute at all. Such a copy genuinely differs from the one that works.
+// positive: erg-github runs under /bin/sh, and a CRLF copy is broken there.
+// How it breaks depends on how far the conversion reached. A whole-file
+// conversion corrupts the shebang too, so the kernel never finds the
+// interpreter and nothing runs. Leave the shebang intact and CRLF only the
+// body and it does start, reads twenty lines of comment, then dies on
+// "set -eu\r". Either way the copy differs from the one that works, which is
+// what the note claims -- the earlier wording said no CRLF copy executes at
+// all, which is true only of the first case.
 //
 // There is deliberately no acknowledge path -- no key, no stamp, nothing that
 // silences the note for a copy the adopter customised on purpose. Silencing
