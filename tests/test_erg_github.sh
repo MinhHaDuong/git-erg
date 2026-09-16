@@ -47,6 +47,34 @@ if [ -z "$bashism" ]; then
 else
     fail "erg-github contains a bashism ([[ / local / declare -a / pipefail / \$'...')"
 fi
+
+# --- POSIX regex ratchet: the script's own header (ticket 0209) promises
+# "grep -iE + BRE sed; never GNU-only grep -oP". That was prose-only until
+# ticket 0255 edited the very line it governs. Bans PCRE (grep -P, \K) and the
+# GNU BRE shorthands \? and \+, whose POSIX spellings are \{0,1\} and \{1,\}.
+# Comment lines are stripped first: the header states the ban in prose and
+# would otherwise trip the detector describing it.
+gnuregex='grep[^|]*-[a-zA-Z]*P|\\K|sed [^|]*\\[?+]'
+code_only() { grep -v '^[[:space:]]*#' "$1"; }
+if code_only "$SCRIPT" | grep -qE "$gnuregex"; then
+    fail "erg-github uses a GNU-only regex extension (grep -P / \\K / BRE \\? / \\+)"
+else
+    pass "erg-github regexes are POSIX (no grep -P, \\K, or GNU BRE shorthands)"
+fi
+# Positive control: the ratchet above must actually fire. A null result from a
+# detector that cannot see is indistinguishable from a clean file.
+ctl="$TDIR/gnuregex-ctl"
+{
+    printf "\tids=\$(grep -oiP 'tickets/\\\\K[0-9]{4}' x)\n"
+    printf "\tid=\$(printf x | sed 's/a\\\\?b/c/')\n"
+} > "$ctl"
+nctl=$(code_only "$ctl" | grep -cE "$gnuregex" || true)
+if [ "$nctl" -eq 2 ]; then
+    pass "POSIX regex ratchet (pos control): flags both grep -oP/\\K and sed \\?"
+else
+    fail "POSIX regex ratchet (pos control): flagged $nctl of 2 planted violations"
+fi
+
 # shebang is /bin/sh
 if head -1 "$SCRIPT" | grep -q '^#!/bin/sh'; then
     pass "erg-github shebang is /bin/sh"
