@@ -137,6 +137,38 @@ for f in "$ROOT/src/go/assets/integration.md" "$ROOT/src/go/assets/AGENTS.md"; d
     fi
 done
 
+# --- the declared home for adopter lore is genuinely erg's to ignore ---
+#
+# The asset above makes two factual claims about tickets/LOCAL.md: erg check
+# ignores it like any other non-.erg file, and erg never rewrites or deletes it.
+# Both are claims about behaviour, so pin them here rather than trust the prose.
+
+ERG_ABS=$(CDPATH= cd "$(dirname "$ERG")" && pwd)/$(basename "$ERG")
+LOREDIR=$(mktemp -d)
+mkdir -p "$LOREDIR/tickets"
+cp "$ERG_ABS" "$LOREDIR/tickets/erg"
+$ERG init "$LOREDIR" >/dev/null 2>&1
+printf '# local lore\nCI job: check-cross-pr\n' > "$LOREDIR/tickets/LOCAL.md"
+if $ERG check "$LOREDIR/tickets" >/dev/null 2>&1; then
+    pass "erg check ignores tickets/LOCAL.md"
+else
+    fail "erg check rejects a store holding tickets/LOCAL.md"
+fi
+$ERG init "$LOREDIR" >/dev/null 2>&1
+if [ "$(cat "$LOREDIR/tickets/LOCAL.md")" = "$(printf '# local lore\nCI job: check-cross-pr')" ]; then
+    pass "erg init leaves tickets/LOCAL.md byte-identical"
+else
+    fail "erg init rewrote tickets/LOCAL.md"
+fi
+# Negative control: the same comparison must notice a rewrite.
+printf 'clobbered\n' > "$LOREDIR/tickets/LOCAL.md"
+if [ "$(cat "$LOREDIR/tickets/LOCAL.md")" = "$(printf '# local lore\nCI job: check-cross-pr')" ]; then
+    fail "negative control: a rewritten LOCAL.md was NOT detected"
+else
+    pass "negative control: a rewritten LOCAL.md is detected"
+fi
+rm -r "$LOREDIR"
+
 # Negative control: prove the scan above detects a leak.
 LEAKPROBE=$(mktemp)
 trap 'rm -f "$LEAKPROBE"' EXIT

@@ -111,9 +111,10 @@ directly: `./tickets/erg-github verify`.
 
 The shipped `tickets/AGENTS.md` is *resident* context: an agent re-reads every
 byte of it at the start of every session. So it stays short, and the long-form
-conventions below are served here, on demand. Read them once when you start
-working with tickets in a repo; re-read them when a collision or a handoff
-actually happens.
+conventions are served here, on demand: this section, then the
+handoff-document template and the note on where project-specific lore belongs.
+Read them once when you start working with tickets in a repo; re-read them when
+a collision or a handoff actually happens.
 
 ### ID allocation is optimistic
 
@@ -225,9 +226,10 @@ extension points your forge wrapper hooks into -- that knowledge is worth
 writing down, and it must not be written into `tickets/AGENTS.md`.
 
 `tickets/AGENTS.md` is an erg asset: `erg init` upgrades it in place when it is
-untouched stock, and a local edit turns every later upgrade into a conflict you
-have to resolve by hand. Put project-specific ticket lore in `tickets/LOCAL.md`
-instead. erg never writes, reads, upgrades or deletes that file -- it is yours,
+untouched stock, but once you have edited it, init preserves your copy, skips
+the upgrade and exits 2. You keep the edit and stop receiving improvements to
+the file, until you merge the two by hand. Put project-specific ticket lore in
+`tickets/LOCAL.md` instead. erg never writes, reads, upgrades or deletes that file -- it is yours,
 and `erg check` ignores it like any other non-`.erg` file. The shipped
 `tickets/AGENTS.md` names it, so an agent reading its resident context knows
 where your local rules live.
