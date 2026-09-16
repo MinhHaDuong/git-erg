@@ -108,6 +108,13 @@ const assetStamplessSignal = "no .erg-assets stamp -- cannot tell whether this i
 // cross-version consumer -- erg update greps for those two, not for this one
 // (see update.go) -- so, like assetRollbackSignal, it is free to be reworded
 // later. If a future erg update ever greps it, that freedom ends.
+//
+// Note precisely what the freedom rests on: the ABSENCE OF A GREPPING
+// CONSUMER, not the literal being unreleased. Ticket 0292 recorded how that
+// second reading fails -- assetStamplessSignal was safe to reword right up to
+// the commit that rebuilt the committed binary, and nothing in the code
+// announced the window closing. A consumer is visible in the source; a release
+// boundary is not.
 const vendoredDriftSignal = "differs from the erg-github this binary ships -- it is vendored, so erg never writes it; if the difference is not your own customisation, re-vendor it by hand (README, 'Forge layer: erg-github')"
 
 // sha256hex returns the hex-encoded SHA-256 of b.
