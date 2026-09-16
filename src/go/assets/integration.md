@@ -118,10 +118,20 @@ a collision or a handoff actually happens.
 
 ### ID allocation is optimistic
 
-`erg new` scans only the local checkout, so parallel sessions on different
-branches or in different checkouts can hand out the same ID. No reservation
-machinery exists or is planned. Fetch before allocating, and run `erg check`
-after every fetch in ticket-heavy sessions.
+`erg new` returns one past the highest ID it can see, and it looks in three
+places: the store itself, every sibling git worktree at the same relative path,
+and every `refs/heads` and `refs/remotes` tip. A sibling session holding an ID
+on an unmerged branch is therefore already avoided, without a fetch.
+
+What remains is narrower, and still real. A ref you have not fetched is
+invisible, so a collision with another clone is possible until you fetch. The
+branch scan runs under a 200 ms deadline and prints a warning on stderr when it
+trips -- a result that arrives with that warning may have missed IDs on
+un-checked-out branches. And two allocations racing between the scan and the
+commit can still land on the same number. No reservation machinery exists or is
+planned. So: fetch before allocating, run `erg check` after every fetch in
+ticket-heavy sessions, and read that deadline warning when it appears rather
+than past it.
 
 Re-run the collision scan **at the merge gate too**, not only at allocation: a
 sibling PR can renumber onto your ID after you allocated, and once that sibling
@@ -135,10 +145,16 @@ clear of the high-water mark -- not to the next free ID. The next-free ID is
 the most contended seat in the repo: every parallel session computes the same
 value and races for it, so renumbering to it is exactly as collision-prone as
 the allocation that just collided, and chasing the frontier cannot converge
-while siblings are still filing. IDs are free and a gap costs nothing. One
-filing has collided three times in a single session this way, leaving the
-default branch red on a duplicate ID twice; it settled on the first try once it
-jumped a dozen clear of the frontier.
+while siblings are still filing. One filing has collided three times in a
+single session this way, leaving the default branch red on a duplicate ID
+twice; it settled on the first try once it jumped a dozen clear of the
+frontier.
+
+A jumped ID is gone for good, so weigh the jump rather than treating it as
+free. `erg new` returns max-plus-one, never the first gap, so the numbers you
+skip are never handed out later. The trade is a permanent hole against a
+repeated collision, and the hole is cheap only while the repo is far from
+`9999`.
 
 This rule governs **collision recovery only**. Initial allocation stays dense:
 `erg new`'s next-free ID is the correct first try. Jumping clear of the
