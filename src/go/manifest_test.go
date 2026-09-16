@@ -1179,7 +1179,7 @@ func TestInstallAssetsPreserveReasonIsObserved(t *testing.T) {
 		if !strings.Contains(stderr, ".ergrc") {
 			t.Errorf("the per-file line must name the asset: %q", stderr)
 		}
-		if !strings.Contains(stderr, "no .erg-assets stamp") {
+		if !strings.Contains(stderr, "no usable .erg-assets stamp") {
 			t.Errorf("init must report the condition it actually observed: %q", stderr)
 		}
 	})
@@ -1290,6 +1290,130 @@ func TestInitShowPrintsTheEmbeddedAsset(t *testing.T) {
 		}
 		if !strings.Contains(stderr, "--show") {
 			t.Errorf("the error must name the flag it is about: %q", stderr)
+		}
+	})
+}
+
+// TestAssetStamplessSignalKeepsItsShippedPrefix pins the cross-version contract
+// by BYTES, against a hardcoded snapshot, because every other assertion in this
+// package compares assetStamplessSignal with itself and is therefore invariant
+// under any rewording -- self-referential, zero protection (PR #360 round 1).
+//
+// The premise is measured, not assumed: this exact text is inside the committed
+// bootstrap binary, so a store that ran erg update carries an OLD binary that
+// greps update.go's copy of it against a NEW binary's `erg check` output. Reword
+// the front and the old side stops recognising its own signal, with no error
+// anywhere. Extending the END is always safe; that is what HasPrefix allows.
+//
+// tests/test_check.sh guards the same contract from the other side, but by two
+// PROSE ANCHORS inside the string -- a mid-string reword that respects both
+// would pass there and still break the real grep. This test closes that gap:
+// it is a byte comparison over the whole historical prefix.
+//
+// If this test fails, do not update the constant below to match. The constant
+// below is the record of what shipped; the code is what must be repaired.
+func TestAssetStamplessSignalKeepsItsShippedPrefix(t *testing.T) {
+	// Verbatim from the binary committed at origin/main before ticket 0292.
+	const shipped = "no .erg-assets stamp -- cannot tell whether this is a clean upgrade or a local edit; its git history can, and 'erg init' preserves the file either way but stamps it as if shipped"
+
+	if !strings.HasPrefix(assetStamplessSignal, shipped) {
+		t.Fatalf("assetStamplessSignal no longer starts with the text an already-shipped binary greps for.\n got: %q\nwant prefix: %q", assetStamplessSignal, shipped)
+	}
+	// And the printed line must carry it too -- a constant kept intact while
+	// the format string around it drops or reflows it would pass the check
+	// above and still break the grep.
+	root := stamplessFixture(t, "# a .ergrc this binary does not ship\n")
+	got := strings.Join(assetDriftWarnings(filepath.Join(root, "tickets")), "\n")
+	if !strings.Contains(got, shipped) {
+		t.Errorf("the PRINTED line dropped the shipped prefix: %q", got)
+	}
+}
+
+// TestInstallAssetsRejectsAStampThatIsNotAHash is PR #360 round 1's red-team
+// finding, turned into a guard. Carrying a preserved asset's prior stamp
+// forward (ticket 0292, defect 1) replaced an unconditional restamp, and that
+// restamp had been self-healing a case nobody had noticed: a manifest entry
+// that parses but is not a SHA-256 -- truncated mid-line, or hand-edited.
+//
+// Before the fix, such an entry was carried verbatim into every later manifest,
+// FOREVER, and because installAssets read stamp presence as the evidence for
+// "has local edits", every subsequent run asserted an edit nothing had observed
+// -- the exact false-reason class this ticket set out to remove, reached
+// through a different door. The trade was a wrong-attribution defect for a
+// never-self-heals one.
+//
+// Both halves are asserted, because fixing either alone leaves the other: the
+// garbage must not survive the run, AND the verdict must not rest on it.
+func TestInstallAssetsRejectsAStampThatIsNotAHash(t *testing.T) {
+	const customised = "# locally customised .ergrc -- never shipped by any erg\nlabels = deferred\n"
+
+	t.Run("a truncated stamp is dropped, not carried forward", func(t *testing.T) {
+		truncated := sha256hex([]byte(customised))[:20]
+		root := stampFixture(t, manifestWith(t, "", truncated), customised)
+		// Fixture guard: the entry must PARSE, or this exercises the
+		// no-manifest path and proves nothing about carry-forward.
+		if got := readManifest(root)[".ergrc"]; got != truncated {
+			t.Fatalf("fixture guard: the truncated stamp did not parse (got %q)", got)
+		}
+
+		stderr := captureStderr(t, func() {
+			if _, _, skipped, _, err := installAssets(root, initAssetPaths, true, false); err != nil {
+				t.Fatalf("installAssets: %v", err)
+			} else if skipped != 1 {
+				t.Fatalf("fixture guard: expected .ergrc preserved, got skipped=%d", skipped)
+			}
+		})
+		if got, present := readManifest(root)[".ergrc"]; present {
+			t.Errorf("a stamp that is not a hash survived the run: %q", got)
+		}
+		if strings.Contains(stderr, "has local edits") {
+			t.Errorf("the verdict rested on a stamp that is not evidence: %q", stderr)
+		}
+		if !strings.Contains(stderr, "no usable .erg-assets stamp") {
+			t.Errorf("init must name the condition it observed: %q", stderr)
+		}
+	})
+
+	t.Run("control: a well-formed stamp is still carried and still believed", func(t *testing.T) {
+		// Without this arm, "drop every carried stamp" passes above and
+		// silently deletes the evidence defect 1's fix exists to keep.
+		older := "ERGRC FROM AN EARLIER RELEASE -- pristine, not a local edit\n"
+		good := sha256hex([]byte(older))
+		root := stampFixture(t, manifestWith(t, "", good), customised)
+
+		stderr := captureStderr(t, func() {
+			if _, _, _, _, err := installAssets(root, initAssetPaths, true, false); err != nil {
+				t.Fatalf("installAssets: %v", err)
+			}
+		})
+		if got := readManifest(root)[".ergrc"]; got != good {
+			t.Errorf("a well-formed prior stamp was dropped: got %q, want %q", got, good)
+		}
+		if !strings.Contains(stderr, "has local edits") {
+			t.Errorf("a file differing from a real stamp is a local edit: %q", stderr)
+		}
+	})
+
+	t.Run("looksLikeAssetHash: the shapes it must separate", func(t *testing.T) {
+		real := sha256hex([]byte("anything"))
+		for _, ok := range []string{real, strings.Repeat("0", 64), strings.Repeat("f", 64)} {
+			if !looksLikeAssetHash(ok) {
+				t.Errorf("rejected a valid hash shape: %q", ok)
+			}
+		}
+		bad := []string{
+			"",
+			real[:63],               // one short
+			real + "0",              // one long
+			strings.ToUpper(real),   // uppercase: sha256hex never emits it
+			strings.Repeat("g", 64), // right length, not hex
+			real[:62] + "zz",        // right length, tail not hex
+			"sha256:" + real[:57],   // a prefix pasted in with its label
+		}
+		for _, s := range bad {
+			if looksLikeAssetHash(s) {
+				t.Errorf("accepted something that is not a hash: %q", s)
+			}
 		}
 	})
 }

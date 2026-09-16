@@ -126,6 +126,39 @@ func sha256hex(b []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// looksLikeAssetHash reports whether s has the shape sha256hex produces: 64
+// lowercase hex digits. It answers "is this stamp usable as evidence", which is
+// a different question from parseManifest's "is this line syntactically an
+// entry" -- and keeping them different is deliberate, since parseManifest's
+// looser rule is what makes a hand-written or truncated manifest parse at all
+// rather than fail init.
+//
+// Two call sites need the stricter question, and they need the SAME answer
+// (ticket 0292, PR #360 round 1). buildManifest carries a preserved asset's
+// prior stamp forward, and installAssets reads a stamp's presence as the
+// evidence for "has local edits". Before this predicate, a stamp that was
+// non-empty but not a hash -- a manifest truncated mid-line, or edited by hand
+// -- was carried forward verbatim FOREVER and made every subsequent run assert
+// an edit nothing had observed: the exact false-reason class this ticket exists
+// to remove, reached through a different door. The pre-0292 code self-healed
+// that by accident, because it restamped every entry with the embedded hash on
+// every run; dropping that overwrite is what made a validation step necessary.
+//
+// Anything that fails here is treated as no stamp at all, which is the honest
+// reading and matches what parseManifest already does with an empty hash.
+func looksLikeAssetHash(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
 // buildManifest returns the deterministic provenance manifest content for the
 // embedded assets in initAssetPaths. The hashes are of the EMBEDDED content
 // (what this binary ships), so the manifest is the reference a clean init
@@ -155,7 +188,10 @@ func buildManifest(carry map[string]string) (string, error) {
 	for _, rel := range initAssetPaths {
 		name := strings.TrimPrefix(rel, "tickets/")
 		if prev, preserved := carry[name]; preserved {
-			if prev == "" {
+			// A stamp that is not a hash is not evidence, and carrying it
+			// forward would preserve it past every future run. Dropping it
+			// restores the self-healing the pre-0292 restamp gave for free.
+			if !looksLikeAssetHash(prev) {
 				continue
 			}
 			entries = append(entries, entry{name: name, sum: prev})
@@ -583,6 +619,15 @@ func managedAssetWarnings(dir string) []string {
 			// init itself now writes: a run that preserved one asset stamps
 			// the others and leaves that one unstamped, so a partial manifest
 			// is the normal product of the fix above, not a corruption.
+			//
+			// Known and unfixable from here (PR #360 round 1): an OLDER erg
+			// reading such a manifest is SILENT about the unstamped asset,
+			// because its own copy of this loop still has the bare `continue`.
+			// That is the pre-0292 gate in the old binary, not a new defect,
+			// but this change makes partial manifests routine, so a mixed
+			// fleet loses the warning until every binary is updated. Nothing
+			// in a new binary can repair an old one's gate; the only lever is
+			// erg update, which the stampless report already names.
 			if note, has := stamplessNote(dir, rel); has {
 				warnings = append(warnings, note)
 			}

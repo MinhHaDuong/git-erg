@@ -133,6 +133,20 @@ else
     fail "helpUpdate missing 'erg init' reference (ticket 0223 regression)"
 fi
 
+# helpCheck must not describe the stampless NOTE as a whole-store condition
+# (ticket 0292, defect 3). The gate is per asset: a manifest that stamps some
+# assets and not others is what `erg init` writes whenever it preserves one, and
+# the NOTE fires for the unstamped asset in that store. The pre-0292 wording --
+# "there is NO .erg-assets manifest at all" -- told a reader the opposite of
+# what tests/test_check.sh's PARTIAL fixture asserts, and nothing caught it
+# because check.go was untouched by the change that invalidated it.
+CHECKHELP=$("$ERG" check --help 2>&1) || true
+if echo "$CHECKHELP" | grep -qF 'no .erg-assets entry stamps this asset'; then
+    pass "helpCheck describes the stampless NOTE as a per-asset condition"
+else
+    fail "helpCheck still ties the stampless NOTE to a whole missing manifest"
+fi
+
 # README's re-vendor recipe must name the offline route (ticket 0292).
 # `erg init --show erg-github` exists partly to give that recipe a source that
 # needs neither the network nor a clone -- and init.go's own comment cites the

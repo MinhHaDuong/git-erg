@@ -468,7 +468,7 @@ if [ -f "$SL/tickets/.erg-assets" ]; then
     fail "stampless init: fixture carries a manifest (test would prove nothing)"
 else
     OUT_SL=$($ERG init "$SL" 2>&1 || true)
-    if echo "$OUT_SL" | grep -qF "has no .erg-assets stamp -- preserving"; then
+    if echo "$OUT_SL" | grep -qF "has no usable .erg-assets stamp -- preserving"; then
         pass "stampless init: erg init reports the condition itself (0283 channel 2)"
     else
         fail "stampless init: no channel-2 report from erg init (got: $OUT_SL)"
@@ -573,8 +573,6 @@ if (cd "$EMPTYDIR" && "$ERG_ABS_SHOW" init --show .ergrc >/dev/null 2>&1); then
 else
     fail "--show: refused to print an embedded asset for want of a store"
 fi
-
-
 
 # --- Flags help: --force acknowledges the downgrade case ---
 # "local edits are replaced" is no longer the whole story: on a rollback the

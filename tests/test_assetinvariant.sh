@@ -520,7 +520,7 @@ else
 fi
 
 audit_step "$S" "stampless/init" run_init
-if echo "$AUDIT_OUT" | grep -q "tickets/.ergrc differs from the copy this binary ships and has no .erg-assets stamp -- preserving"; then
+if echo "$AUDIT_OUT" | grep -q "tickets/.ergrc differs from the copy this binary ships and has no usable .erg-assets stamp -- preserving"; then
     pass "stampless/init: an unattributable divergence is preserved, not clobbered"
 else
     fail "stampless/init: expected preservation of the unstamped divergence (got: $AUDIT_OUT)"

@@ -139,10 +139,9 @@ Flags:
                   writing nothing. NAME is .ergrc, AGENTS.md or erg-github
                   (with or without the "tickets/" prefix). The output is byte-
                   identical to what the asset compare uses, so it pipes into
-                  diff or sha256sum -- which is how you answer, for yourself,
-                  the question every asset report poses: does my copy differ
-                  from the shipped one because I edited it, or because the
-                  binary moved on?
+                  diff or sha256sum and settles what an asset report cannot:
+                  whether a copy differs because it was edited locally or
+                  because the binary moved on.
 
                     erg init --show .ergrc | diff - tickets/.ergrc
 
@@ -298,10 +297,19 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 			// report a stampless store's condition at all: the chained corpus
 			// check below cannot, because a preserved asset means skipped > 0
 			// and the run returns 2 several lines above it.
+			// The predicate is looksLikeAssetHash, not `!= ""`: a stamp that is
+			// not a hash -- a manifest truncated mid-line, or hand-edited --
+			// is not evidence of anything, and reading it as one reinstates
+			// the false attribution on every run (PR #360 round 1). It is the
+			// same predicate buildManifest uses to decide what may be carried
+			// forward, which is what keeps the verdict and the record agreeing.
 			reason := "has local edits -- preserving (run with --force to overwrite)"
 			short := "local edits"
-			if stamps[name] == "" {
-				reason = "differs from the copy this binary ships and has no .erg-assets stamp -- preserving; nothing here records whether that is your edit or an unstamped upgrade (run 'erg init --show " + name + "' to see the shipped copy, --force to overwrite)"
+			if !looksLikeAssetHash(stamps[name]) {
+				// "no usable stamp", not "no stamp": the manifest may hold a
+				// line for this asset that is not a hash, and saying it holds
+				// nothing would be its own unobserved claim.
+				reason = "differs from the copy this binary ships and has no usable .erg-assets stamp -- preserving; nothing here records whether that is your edit or an unstamped upgrade (run 'erg init --show " + name + "' to see the shipped copy, --force to overwrite)"
 				short = "differs, no stamp, reason unknown"
 			}
 			if preserveRollback {
