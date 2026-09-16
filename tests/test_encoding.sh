@@ -152,7 +152,7 @@ else
 fi
 
 # Negative control for U+FFFD: write a temp file and verify the scanner fires.
-TMPFFFD=$(mktemp /tmp/test_encoding_fffd_negctrl_XXXXXX.txt)
+TMPFFFD=$(mktemp "${TMPDIR:-/tmp}/test_encoding_fffd_negctrl_XXXXXX.txt")
 printf 'bad content \357\277\275 end\n' > "$TMPFFFD"
 if LC_ALL=C grep -qe "$FFFD" "$TMPFFFD" 2>/dev/null; then
     pass "U+FFFD guard (neg control): injected U+FFFD detected"
