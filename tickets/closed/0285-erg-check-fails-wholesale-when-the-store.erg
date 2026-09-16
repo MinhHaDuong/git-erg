@@ -161,6 +161,11 @@ Bounding the path test to the store root has one wrong answer, and it is
 accepted rather than defended. Addressing a store **at** its `closed/`
 subdirectory -- `erg check tickets/closed`, or a bare `erg check` run from
 inside it -- reports every correctly archived ticket there as misfiled. The
+error is two-sided, and both halves are the same fact: in that position a
+genuinely misfiled open ticket is also missed. An unsupported invocation gives
+wrong answers in both directions; that is what unsupported means here, and it
+is why the remedy is to say so rather than to harden each direction in turn.
+The
 archive is not a store; nothing in the toolchain addresses it as one
 (`integration.md`, the `Makefile`, `erg archive` and `erg close` all load the
 parent), and `erg list`/`erg ready` are unaffected because archived tickets
