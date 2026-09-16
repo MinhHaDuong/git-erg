@@ -2,7 +2,6 @@
 Title: Vendored tickets/erg-github copies have no staleness channel
 Created: 2026-09-16
 Author: MinhHaDuong
-Blocked-by: 0283
 
 --- log ---
 2026-09-16T07:40Z MinhHaDuong created
@@ -10,6 +9,7 @@ Blocked-by: 0283
 2026-09-16T09:45Z claude note Imagine pass: option (b), a version stamp reusing the existing manifest.go/assetDriftWarnings plumbing, is the right scope -- extending the 3-state dpkg compare (option a) to a forge-optional POSIX-sh script would make the forge layer load-bearing for erg core, which the ticket's own Invariants section forbids, and option (c) leaves every adopter permanently exposed to the exact 0255 recurrence this ticket exists to close. The smallest honest fix: embed erg-github as a fifth entry so buildManifest/assetDriftWarnings hash it like AGENTS.md/.ergrc (bootstrap_assets.go's assetMapping, manifest.go's initAssetPaths-driven loop), but keep it out of installAssets' write path -- it must report drift, never overwrite a vendored file with an unreviewed CI-adjacent script. No scope creep found: the ticket does not ask for auto-update, matching 0283's report-don't-fix pattern; the risk is 0283-style asset-drift machinery growing a second write path if the author later decides visibility isn't enough, which is out of scope here. Files most likely touched: src/go/bootstrap_assets.go (assetMapping entry), src/go/manifest.go (initAssetPaths and/or a sibling read-only list assetDriftWarnings walks), src/go/check.go (surfacing the WARN), possibly src/go/init.go (excluding it from the install/write side while including it in the compare side). Shares files with 0283: src/go/manifest.go and src/go/check.go both appear in 0283's Relevant files (manifest.go:184 assetDriftWarnings, check.go:173/251 corpusWarnings/cmdCheck) and would need to be sequenced or coordinated rather than edited blind in parallel; init.go overlaps too. No shared file with 0277 (that ticket's manifest.go touch is isCleanUpgrade/write-path for AGENTS.md specifically, not the drift-warning read path this ticket would extend), though both sit in the same asset-machinery family.
 2026-09-16T16:20Z claude note Blind-Spot pass: the collision this ticket's own Imagine note describes in prose was never formalized -- no Blocked-by header, so erg ready would have offered 0282 and 0283 as parallel targets, which is the contention rule's exact failure case. Blocked-by 0283 added. Wider picture the per-ticket passes missed: check.go has three concurrent editors in this raid, not two -- 0285 in folderClosure (l.19) and both 0283 and 0282 in the corpusWarnings/cmdCheck family (l.177/239). 0285 is a disjoint function and can land in parallel; 0283 and 0282 are same-function-family and must serialize in that order.
 
+2026-09-16T11:41Z MinhHaDuong note blocker 0283 closed — Blocked-by removed.
 --- body ---
 ## Context
 
