@@ -8,6 +8,8 @@ Author: MinhHaDuong
 2026-09-16T16:45Z claude note Split from 0277 under the raid monster-ticket checklist, author-arbitrated. Carries 0277's Action 5 alone. Blocked-by 0288 because the ban's error message has to name a destination that exists: enforcing before the on-demand channel is built would tell an adopter to move its lore somewhere that is not there yet. Also sequenced after 0283 in practice -- 0283's stampless signal is what lets this error tell "never ran erg init" from "confirmed local edit", and without that distinction the hard error misfires on a legitimately unstamped adopter.
 
 2026-09-16T11:27Z MinhHaDuong note blocker 0288 closed — Blocked-by removed.
+2026-09-16T12:55Z claude note Design constraint surfaced by the harness session at its 0906 merge, verified here against isCleanUpgrade (manifest.go:391) rather than reasoned about. The hard error must fire on an UNRECOGNIZED hash and must NOT fire on a stamp that is merely behind the running binary. These are different states and the machinery already tells them apart: with a stamp present, isCleanUpgrade tests diskHash == stampedHash and never consults the currently-embedded hash, so a store whose file matches its own stamp is a clean upgrade whatever the binary now ships; only a stampless store falls back to the known-hash list. Separately, managedAssetWarnings compares the STAMP against the embedded version and warns when the binary has moved past it -- that warning means 'a re-init would refresh you', it is the designed nudge, and turning it into an error would fail every adopter who has simply not re-inited since the last release. Worked case that prompted this: ImperialDragonHarness restored its AGENTS.md to the 2356-byte asset its vendored binary embeds, with a committed manifest; git-erg main now ships 2393. That repo must stay green, and under the rule above it does -- its file matches its stamp. If the enforcement had keyed on the embedded hash instead, it would have gone red on a file made pristine an hour earlier.
+2026-09-16T13:05Z MinhHaDuong note Author proposes installing the shipped AGENTS.md read-only (mode 0444) alongside the hard error. Accepted and written into the body. Verified before accepting: git ls-files -s shows this repo's assets at 100644/100755, so git carries only the executable bit and a read-only mode cannot be committed or survive a clone. It is therefore friction at the moment of the edit, for adopters who ran erg init, and not a substitute for Action 1's enforcement, which has to work on a fresh clone too.
 --- body ---
 ## Context
 
@@ -73,6 +75,43 @@ passing arm's silence.
       edit error — the two causes stay distinguishable
 - [ ] the re-survey is taken at enforcement time and recorded in the log
 - [ ] `make check` passes
+
+## Author's proposal: install the asset read-only
+
+Accepted 2026-09-16. It attacks the problem one step earlier than Action 1:
+the hard error detects an edit after the fact and reports it at the next
+`erg check`, while mode 0444 fails at the moment the edit is attempted, which
+is the better time to be told. It is also legible from `ls -l` without reading
+any documentation.
+
+**It is a speed bump, not a lock, and must be described as one.** Measured on
+this repo:
+
+```
+100644  tickets/.ergrc
+100644  tickets/AGENTS.md
+100755  tickets/erg-github
+```
+
+Git records only the executable bit -- there is no `100444` -- so the mode
+cannot be committed and does not survive a clone or a `git checkout`. The
+protection exists only where `erg init` ran locally. `chmod +w` undoes it in
+one command, most editors offer to save anyway, and `git checkout` writes
+regardless of mode.
+
+So the two mechanisms have different jobs and both are wanted: the mode is
+friction at the moment of the mistake, for the population that ran `erg init`;
+the hash error is the enforcement, because a check must also work on a fresh
+clone where the mode is gone.
+
+Two consequences to handle rather than discover:
+
+1. `erg init` must `chmod +w` before rewriting on upgrade. Today it simply
+   writes. That is a new path that can fail on permissions or ownership, and
+   it needs its own arm in the fixture set.
+2. The documentation must call it friction, not protection. A mechanism
+   announced as a guarantee that one `chmod` defeats is the same
+   overstatement this ticket family keeps correcting.
 
 ## Invariants
 
