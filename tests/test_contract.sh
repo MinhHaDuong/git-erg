@@ -98,14 +98,22 @@ neg_offline_module() {  # $1 = module directory to create
 neg_offline_detects() {  # $1 = module directory; true when net/http is seen
     (cd "$1" && go list -buildvcs=false -deps . 2>/dev/null) | grep -qE '^net/http$'
 }
-# The same probe genuinely without the flag — used only to confirm the
-# adversarial condition really bites before arm 2 credits the flag for surviving
-# it. `GOFLAGS=` is what makes "unflagged" true: an ambient
-# `GOFLAGS=-buildvcs=false`, which someone hitting this very bug would plausibly
-# export, would otherwise re-add the flag behind our back and turn arm 2's red
-# control into a permanent misdiagnosed skip.
+# The same probe with the flag taken away — used only to confirm the adversarial
+# condition really bites before arm 2 credits the flag for surviving it.
 neg_offline_detects_unflagged() {  # $1 = module directory
-    (cd "$1" && GOFLAGS= go list -deps . 2>/dev/null) | grep -qE '^net/http$'
+    (cd "$1" && go list -deps . 2>/dev/null) | grep -qE '^net/http$'
+}
+# Arm 2's environment. Go can be handed `-buildvcs=false` through three doors,
+# and a test that leaves two of them open is measuring the machine rather than
+# the code: the explicit argument above, an exported `GOFLAGS`, and `go env -w`,
+# which an empty-but-set `GOFLAGS` silently falls through to. Someone hitting
+# this very bug would plausibly set either of the latter two as a workaround —
+# and then arm 2 passes, and keeps passing after the fix is reverted. Shut both
+# ambient doors so the explicit argument is the only flag in play.
+neg_offline_pin_env() {
+    GOFLAGS=
+    GOENV=off
+    export GOFLAGS GOENV
 }
 
 if [ "$DEPS_OK" = yes ]; then
@@ -139,9 +147,12 @@ if [ "$DEPS_OK" = yes ]; then
     # Prove the unflagged probe really is blinded before crediting the flagged
     # one, and name no cause: the point is that the arm was not exercised, and
     # guessing why in the message is how a skip starts lying.
-    if neg_offline_detects_unflagged "$NEG_STRAY/mod"; then
+    # Both calls run under neg_offline_pin_env, in a subshell so the pinning does
+    # not leak to arm 1 or to the rest of the suite. They call the very same
+    # detector arm 1 does, so stripping the flag there is caught here.
+    if ( neg_offline_pin_env; neg_offline_detects_unflagged "$NEG_STRAY/mod" ); then
         skip "offline (neg control): stray .git did not blind an unflagged go list — arm not exercised"
-    elif neg_offline_detects "$NEG_STRAY/mod"; then
+    elif ( neg_offline_pin_env; neg_offline_detects "$NEG_STRAY/mod" ); then
         pass "offline (neg control): detects net/http despite a stray .git above the build dir"
     else
         fail "offline (neg control): a stray .git above the build dir blinded the detector"
