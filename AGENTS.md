@@ -132,8 +132,21 @@ Unattended edits are allowed only in these paths:
 - `README.md`
 - `Makefile`
 - `AGENTS.md`
+- `docs/erg-manual.md`
 
 Any required edit outside this set: open PR as draft and stop merge for that ticket.
+
+`docs/erg-manual.md` is on the list because it is **generated and
+drift-tested**: `make docs` writes it from `erg --help --all`, and
+`tests/test_docs.sh` fails CI when the committed copy diverges. An agent
+cannot put arbitrary content there — the only edit it can land is the one
+the build produces, which is the same edit CI demands. Without the entry,
+any ticket changing help text was unsatisfiable: regenerate and this gate
+stops the merge, or leave it stale and CI goes red (ticket 0284).
+
+That reasoning does not extend by analogy. Add a generated, drift-tested
+artifact if one appears; do not widen this to `docs/*.md`, where the
+hand-written files have no such guard.
 
 ### 4) Verification gate (must pass before merge)
 
