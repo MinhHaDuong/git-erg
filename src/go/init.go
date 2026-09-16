@@ -310,7 +310,7 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 				// line for this asset that is not a hash, and saying it holds
 				// nothing would be its own unobserved claim.
 				reason = "differs from the copy this binary ships and has no usable .erg-assets stamp -- preserving; nothing here records whether that is your edit or an unstamped upgrade (run 'erg init --show " + name + "' to see the shipped copy, --force to overwrite)"
-				short = "differs, no stamp, reason unknown"
+				short = "differs, no usable stamp, reason unknown"
 			}
 			if preserveRollback {
 				rollbackPreserved = true

@@ -605,11 +605,22 @@ func managedAssetWarnings(dir string) []string {
 	var warnings []string
 	for _, rel := range initAssetPaths {
 		name := strings.TrimPrefix(rel, "tickets/")
-		stamp, ok := stamps[name]
-		if !ok || stamp == "" {
-			// A manifest exists, but it stamps nothing for THIS asset, so
-			// there is no stamp-relative claim to make about it -- and the
-			// stampless compare is exactly the one that applies. Skipping
+		// looksLikeAssetHash, not `!= ""`: this is the THIRD reader of a stamp
+		// as evidence, after buildManifest's carry branch and installAssets'
+		// preserve reason, and it has to give the same answer as both (PR #360
+		// round 2 -- round 1 wired the predicate into two call sites and a
+		// comment claimed that was all of them). On a manifest holding a
+		// non-hash stamp, the looser gate sent this loop into the stamped
+		// branch, where the stamp cannot equal the embedded hash, and `erg
+		// check` then printed a confident directional "binary upgraded since
+		// last init -- run 'erg init' to refresh" about a file `erg init`
+		// refuses to attribute or refresh. Two commands, one store,
+		// contradicting each other, on a claim neither could support.
+		stamp := stamps[name]
+		if !looksLikeAssetHash(stamp) {
+			// The manifest stamps nothing usable for THIS asset, so there is
+			// no stamp-relative claim to make about it -- and the stampless
+			// compare is exactly the one that applies. Skipping
 			// here instead reproduced 0283's silence one level down: not
 			// drift-warned (no stamp for it), not stampless-warned (the
 			// manifest is not nil, and parseManifest returns non-nil as soon

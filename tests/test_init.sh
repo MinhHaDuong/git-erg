@@ -375,7 +375,7 @@ UP="$TDIR/dpkg-upgrade"
 mkdir -p "$UP/tickets"; touch "$UP/tickets/erg"
 printf 'OLD PRISTINE ERGRC\n' > "$UP/tickets/.ergrc"
 oldhash=$(printf 'OLD PRISTINE ERGRC\n' | sha256sum | cut -d' ' -f1)
-printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:%s\n  AGENTS.md sha256:deadbeef\n' "$oldhash" > "$UP/tickets/.erg-assets"
+printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:%s\n  AGENTS.md sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n' "$oldhash" > "$UP/tickets/.erg-assets"
 OUT_UP=$($ERG init "$UP" 2>&1) && rc=$? || rc=$?
 if ! grep -q 'OLD PRISTINE ERGRC' "$UP/tickets/.ergrc"; then
     pass "dpkg row2: on-disk==stamp!=embedded is a clean upgrade (overwritten)"
@@ -392,7 +392,7 @@ fi
 LE="$TDIR/dpkg-localedit"
 mkdir -p "$LE/tickets"; touch "$LE/tickets/erg"
 printf 'MY LOCAL EDIT\n' > "$LE/tickets/.ergrc"
-printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:0000000000000000000000000000000000000000000000000000000000000000\n  AGENTS.md sha256:x\n' > "$LE/tickets/.erg-assets"
+printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\n  AGENTS.md sha256:x\n' > "$LE/tickets/.erg-assets"
 $ERG init "$LE" >/dev/null 2>&1 && lrc=0 || lrc=$?
 if [ "$lrc" -eq 2 ] && grep -q 'MY LOCAL EDIT' "$LE/tickets/.ergrc"; then
     pass "dpkg row3: divergent-from-stamp is a local edit (preserved, exit 2)"
@@ -492,7 +492,7 @@ mkdir -p "$SLN/tickets"
 touch "$SLN/tickets/erg"
 printf '# an .ergrc that is not what this binary embeds\nlabels = whatever\n' > "$SLN/tickets/.ergrc"
 OUT_SLN=$($ERG init -n "$SLN" 2>&1 || true)
-if echo "$OUT_SLN" | grep -qF "would preserve (differs, no stamp, reason unknown)"; then
+if echo "$OUT_SLN" | grep -qF "would preserve (differs, no usable stamp, reason unknown)"; then
     pass "stampless init -n: the dry run reports the condition too"
 else
     fail "stampless init -n: dry run gave no reason, or the wrong one (got: $OUT_SLN)"

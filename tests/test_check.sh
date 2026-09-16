@@ -778,8 +778,15 @@ fi
     fi
 
 # --- asset drift warning (ticket 0212) ---
-# Requires a .erg-assets manifest; a stamp != embedded means the binary was
-# upgraded since the last init. Non-fatal (exit 0).
+# Requires a usable stamp for the asset; a stamp != embedded means the binary
+# was upgraded since the last init. Non-fatal (exit 0).
+#
+# The fixture stamps are 64 hex digits, and the width is load-bearing since
+# ticket 0292: a stamp that is not a SHA-256 is read as no stamp at all, so the
+# six-digit placeholders these fixtures used to carry would route the asset to
+# the stampless compare and this arm would assert a warning that cannot fire.
+# What the arm is about is a WELL-FORMED stamp that disagrees with the embedded
+# hash, which is what a hash of nothing gives it.
 DRIFTDIR="$FIXTURES/drift"
 mkdir -p "$DRIFTDIR"
 cat > "$DRIFTDIR/9001-x.erg" <<'EOF'
@@ -791,7 +798,7 @@ Author: t
 --- log ---
 --- body ---
 EOF
-printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:000000\n  AGENTS.md sha256:111111\n' > "$DRIFTDIR/.erg-assets"
+printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:0000000000000000000000000000000000000000000000000000000000000000\n  AGENTS.md sha256:1111111111111111111111111111111111111111111111111111111111111111\n' > "$DRIFTDIR/.erg-assets"
 rc=0; out=$($ERG check "$DRIFTDIR" 2>&1) || rc=$?
 if [ "$rc" -eq 0 ] && echo "$out" | grep -q "differs from the .erg-assets stamp"; then
     pass "drift: stamp != embedded emits a non-fatal warning"
@@ -810,7 +817,7 @@ fi
 ROLLDIR="$FIXTURES/rollback"
 mkdir -p "$ROLLDIR"
 cp "$DRIFTDIR/9001-x.erg" "$ROLLDIR/"
-printf '# erg provenance manifest -- do not edit\nrev: x\ndate: 2099-01-01T00:00:00Z\nassets:\n  .ergrc sha256:000000\n  AGENTS.md sha256:111111\n' > "$ROLLDIR/.erg-assets"
+printf '# erg provenance manifest -- do not edit\nrev: x\ndate: 2099-01-01T00:00:00Z\nassets:\n  .ergrc sha256:0000000000000000000000000000000000000000000000000000000000000000\n  AGENTS.md sha256:1111111111111111111111111111111111111111111111111111111111111111\n' > "$ROLLDIR/.erg-assets"
 rc=0; out=$($ERG check "$ROLLDIR" 2>&1) || rc=$?
 if [ "$rc" -eq 0 ] && echo "$out" | grep -q "run 'erg update' first"; then
     pass "drift: stamp newer than the binary names 'erg update'"

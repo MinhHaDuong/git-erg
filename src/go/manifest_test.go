@@ -1199,7 +1199,7 @@ func TestInstallAssetsPreserveReasonIsObserved(t *testing.T) {
 		if strings.Contains(stdout, "(local edits)") {
 			t.Errorf("the dry-run label claims an edit no stamp attests: %q", stdout)
 		}
-		if !strings.Contains(stdout, "no stamp") {
+		if !strings.Contains(stdout, "no usable stamp") {
 			t.Errorf("the dry-run label must name the observed condition: %q", stdout)
 		}
 	})
@@ -1416,4 +1416,67 @@ func TestInstallAssetsRejectsAStampThatIsNotAHash(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestStampNotAHashIsReadTheSameWayEverywhere is PR #360 round 2's blocker,
+// turned into the guard the round-1 fix should have shipped with. Round 1 wired
+// looksLikeAssetHash into two readers of "is this stamp evidence" and a comment
+// claimed that was all of them. There was a third: managedAssetWarnings still
+// gated on `stamp == ""`, so a manifest holding a non-hash stamp sent it into
+// the STAMPED branch, where the stamp cannot equal the embedded hash -- and
+// `erg check` printed a confident directional "binary upgraded since last init
+// -- run 'erg init' to refresh" about a file `erg init`, on the same store,
+// refuses to attribute and refuses to refresh.
+//
+// Two commands contradicting each other on one store is worse than either
+// being wrong alone, so the assertion is on AGREEMENT, not on either message in
+// isolation: whatever the reading, check and init must reach it together. That
+// is also what makes this test survive a future change of wording.
+//
+// Fixture note, recorded because the first attempt at this repro produced a
+// clean-looking false negative: the manifest separator is the literal
+// " sha256:" (see parseManifest). A line written as "name hash" does not parse,
+// the store falls through to the no-manifest branch, and the benign stampless
+// NOTE appears instead of the WARN -- which reads exactly like "no defect
+// here". The fixture guard below is what refuses that reading.
+func TestStampNotAHashIsReadTheSameWayEverywhere(t *testing.T) {
+	const customised = "# locally customised .ergrc -- never shipped by any erg\nlabels = deferred\n"
+	// Non-empty, parses as an entry, is not a SHA-256: a manifest truncated
+	// mid-line, or edited by hand.
+	const notAHash = "c6c529c913c76291ab93"
+
+	root := stampFixture(t, manifestWith(t, "", notAHash), customised)
+	ticketsDir := filepath.Join(root, "tickets")
+
+	// Fixture guard: the entry must PARSE and the manifest must be read as
+	// present. Without this the test silently exercises the no-manifest path
+	// and proves nothing about the stamped branch.
+	stamps := readManifestFile(filepath.Join(ticketsDir, manifestName))
+	if stamps == nil {
+		t.Fatal("fixture guard: the manifest does not parse, so the stamped branch is never reached")
+	}
+	if stamps[".ergrc"] != notAHash {
+		t.Fatalf("fixture guard: the malformed stamp did not survive the parse (got %q)", stamps[".ergrc"])
+	}
+
+	got := strings.Join(assetDriftWarnings(ticketsDir), "\n")
+	if strings.Contains(got, assetDriftSignal) || strings.Contains(got, assetRollbackSignal) {
+		t.Errorf("erg check made a directional stamp claim on a stamp that is not a hash: %q", got)
+	}
+	if !strings.Contains(got, assetStamplessSignal) {
+		t.Errorf("the divergence must still be reported, through the honest channel: %q", got)
+	}
+
+	stderr := captureStderr(t, func() {
+		if _, _, _, _, err := installAssets(root, initAssetPaths, true, false); err != nil {
+			t.Fatalf("installAssets: %v", err)
+		}
+	})
+	// The agreement assertion: check declined to attribute, so init must too.
+	if strings.Contains(stderr, "has local edits") {
+		t.Errorf("erg init attributed what erg check declined to attribute: %q", stderr)
+	}
+	if !strings.Contains(stderr, "no usable .erg-assets stamp") {
+		t.Errorf("init must name the same condition check named: %q", stderr)
+	}
 }
