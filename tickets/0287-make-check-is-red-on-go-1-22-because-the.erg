@@ -33,8 +33,9 @@ and was wrong. Measured on this host:
 
 The chain is:
 
-1. `tests/test_contract.sh:98` builds its probe in a `mktemp` working directory
-   under `$TMPDIR`.
+1. The offline negative control in `tests/test_contract.sh` builds its probe in
+   a `mktemp` working directory under `$TMPDIR`. (It was line 98 on
+   `origin/main` before this ticket; the fix moved it.)
 2. Go's buildvcs walks *upward* from that directory looking for a VCS root and
    finds `/tmp/.git`.
 3. It runs `git` there; the directory is empty, so git exits 128.
