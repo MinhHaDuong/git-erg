@@ -189,10 +189,19 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 		if exists {
 			diskHash = sha256hex(existing)
 		}
+		// The one state in which overwriting this asset would be a genuine
+		// version rollback: it is byte-identical to what the stamp records,
+		// and the stamp was written by a binary newer than this one. An
+		// ordinary local edit, or an asset with no stamp entry, has no
+		// established ordering. Computed once because both the preserve
+		// branch and the downgrade label below need exactly this fact, and a
+		// comment is a weaker guarantee that they agree than one expression.
+		stampedByNewer := rollback && stamps[name] != "" && diskHash == stamps[name]
+
 		if exists && refuseDiverged {
 			if !isCleanUpgrade(diskHash, stamps[name], knownAssetHashes(rel), stampDate, buildDate) {
 				preserve = true
-				preserveRollback = rollback && stamps[name] != "" && diskHash == stamps[name]
+				preserveRollback = stampedByNewer
 			}
 		}
 
@@ -230,9 +239,8 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 		// swap. A file with an ordinary local edit, or with no stamp entry at
 		// all, has no established version ordering -- calling its overwrite a
 		// downgrade asserts a history never observed, which is the same defect
-		// this label exists to fix, pointed the other way. Same predicate as
-		// preserveRollback above; the two must stay in step.
-		downgrade := exists && rollback && stamps[name] != "" && diskHash == stamps[name]
+		// this label exists to fix, pointed the other way.
+		downgrade := exists && stampedByNewer
 		if dryRun {
 			verb := "would create "
 			if exists {
