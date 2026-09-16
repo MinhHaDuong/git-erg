@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-09-16T15:23Z — Raid over the six open non-dyne tickets (0277, 0278, 0282, 0283, 0285, 0287) closed all six, plus children 0288, 0289, 0292, 0296 and 0297. `make check` runs end to end again (0287): a stray empty `.git` above `$TMPDIR` blinded the offline negative control, and twelve suites after `test-contract` had not executed for an unknown period. The asset-machinery family is closed out. 0277's ban landed via 0289 and was verified in composition, not by re-running its children's tests: in a store that has only run `erg init`, the lore is reachable from `erg integration` and the ban fires. Re-surveyed at enforcement time, all three known adopters match their own stamp and exit 0; a positive control with one byte appended exits 1. The author's read-only 0444 proposal was withdrawn — it buys friction that no clone inherits, at the price of a new write path in `erg init`. Open from this line: the dyne queue only._
+_Last updated: 2026-09-16T15:47Z — The September raid is closed. All six non-dyne tickets (0277, 0278, 0282, 0283, 0285, 0287) and their five children (0288, 0289, 0292, 0296, 0297) are merged and archived; the asset-machinery family is done. Two findings outlive it. `make check` runs end to end again (0287) after a stray empty `.git` above `$TMPDIR` blinded the offline negative control, which had left twelve suites after `test-contract` unexecuted for an unknown period. And an edit to the shipped `tickets/AGENTS.md` is now a hard error (0289), keyed on the store's own stamp and never on the embedded hash — re-surveyed at enforcement time, all three known adopters exit 0. Open: the dyne queue only._
 
 ## North star:
 
@@ -32,11 +32,12 @@ An agent-friendly local ticket system for development in disconnected environmen
   a docs-drift gate whose two sides shared one omission, a test that never
   exercised the command it claimed to guard, and `test_assetinvariant.sh`
   itself, which passed a `downgrade := false` mutant and was inert on a binary
-  built without `-X main.buildDate`, and an enforcement whose fixtures added a dummy
-  ticket to step around an empty-corpus early return that skipped the check entirely.
-  The fixes were mostly right first time; the
+  built without `-X main.buildDate`; and twice, a check skipped outright by an
+  empty-corpus early return, its absence hidden by a fixture helper that added a
+  dummy ticket to step around it. The fixes were mostly right first time; the
   guards around them were not. Revert the hunk and watch the specific test
-  redden — per case, not per suite.
+  redden — per case, not per suite. A helper that exists to reach the code under
+  test is describing what the code refuses to do: read it before the assertions.
 - **`erg new` is not blind across branches.** It returns max+1 over three
   sources: the store, sibling worktrees at the same relative path, and every
   `refs/heads` and `refs/remotes` tip. Shipped documentation said otherwise
@@ -54,15 +55,14 @@ Premature, unproven, or waiting on evidence. Do not promote without AGENTS.md ba
 - feat: erg new with body on the line.
 - audit: usage in idh.
 - feat: AI script to realign docs and code (partial: 0232)
-- test: opt-in `make mutate-assetinvariant` to mechanize the mutation controls
-  `test_assetinvariant.sh` currently records in prose.
 
 ## Status
-<!-- generated 2026-09-16T13:10Z -->
+<!-- generated 2026-09-16T15:47Z · as of 11fdb60 -->
 
-**Recent commits:**
-  871804f Merge pull request #359 from MinhHaDuong/note-0289
-  4a842a6 Merge pull request #358 from MinhHaDuong/t0296-rollback-arm
-  9c52b1d test(0297): correct a carried-forward count, and close the ticket
-  5d8b2d6 test(0297): a fourth arm, because the suite passed a mutant it should have killed
-  b9d0199 ticket(0289): accept the read-only proposal, as friction and not as a lock
+**Tickets:** 1 ready · 4 blocked — `erg ready tickets/` for full list
+  next: 0271 Write pep-dyne-v1.md, the dyne design rationale
+**In flight:** no open PRs · CI main: success
+**Recent (first-parent):**
+  11fdb60 chore: rebuild bootstrap binary [skip ci]
+  63b5e92 Merge pull request #366 from MinhHaDuong/store-warnings-empty-corpus
+  74564a1 Merge pull request #365 from MinhHaDuong/t0277-close-tracker
