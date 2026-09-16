@@ -289,6 +289,38 @@ else
     fail "empty dir exits 0"
 fi
 
+# --- Ticketless store: the dir-based scans still run ---
+# corpusWarnings used to return nil on an empty corpus, which silenced four
+# scans that need no ticket to be meaningful (stray Go source, encoding,
+# interior header blanks, asset drift). The population that silenced was the
+# fresh adopter who has run `erg init` and not filed a ticket yet -- exactly
+# the one those scans are for. Two arms, because a warning that never fires
+# and a store that is genuinely clean print the same thing.
+mkdir -p "$FIXTURES/ticketless-stray"
+touch "$FIXTURES/ticketless-stray/fake.go"
+rc=0; out=$($ERG check "$FIXTURES/ticketless-stray" 2>&1) || rc=$?
+if echo "$out" | grep -qF "WARN: Go source files found in"; then
+    pass "ticketless store: stray Go source still warns"
+else
+    fail "ticketless store: stray Go source drew no warning (got: $out)"
+fi
+if [ $rc -eq 0 ]; then
+    pass "ticketless store: a warning is not a verdict, exit stays 0"
+else
+    fail "ticketless store: warning changed the exit code (rc=$rc)"
+fi
+
+# Positive control for the arm above: a ticketless store with nothing wrong
+# must stay silent. Without it, an implementation that warns unconditionally
+# would pass the first arm and nothing would notice.
+mkdir -p "$FIXTURES/ticketless-clean"
+rc=0; out=$($ERG check "$FIXTURES/ticketless-clean" 2>&1) || rc=$?
+if [ $rc -eq 0 ] && ! echo "$out" | grep -q "WARN"; then
+    pass "ticketless store: a clean one warns about nothing"
+else
+    fail "ticketless store: clean store warned anyway (rc=$rc, got: $out)"
+fi
+
 # --- Stray Go source warns ---
 mkdir -p "$FIXTURES/stray/tools/go"
 cat > "$FIXTURES/stray/0001-x.erg" <<'EOF'
