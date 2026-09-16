@@ -1,0 +1,125 @@
+%erg 0.1
+Title: erg migrate discards the rollback provenance erg init preserves
+Created: 2026-09-16
+Author: claude
+
+--- log ---
+2026-09-16T12:42Z claude created
+
+--- body ---
+
+## Context
+
+Found by ticket 0278's integration pass, in the rollback fixture the pass did
+not originally have (see 0297). Measured on the real binary, not read off the
+source.
+
+Ticket 0279 gave `installAssets` an exemption whose whole purpose is to keep
+evidence alive: when a run preserves an asset *because this binary predates the
+stamp*, it returns early and does NOT rewrite `.erg-assets`. Its own comment
+says why -- stamping with the older binary's rev/date "would record a state that
+never happened, and would destroy the very evidence that said so, making the
+next run misreport the same rollback as a local edit."
+
+`erg migrate` calls the same function with `refuseDiverged=false`
+(`migrate.go:263`). That leg never takes the preserve branch, so
+`rollbackPreserved` is never set, so the early return never fires -- and the
+manifest is rewritten. The exemption is scoped to the branch that raises the
+flag, not to the condition the flag is about.
+
+## Measured
+
+Store: both managed assets diverged from embedded, `.erg-assets` recording the
+on-disk hashes and dated `2099-01-01T00:00:00Z` (so the running binary predates
+the stamp).
+
+    $ erg check tickets/
+      WARN .ergrc: embedded version is older than the .erg-assets stamp ...
+      WARN AGENTS.md: embedded version is older than the .erg-assets stamp ...
+
+    $ erg init .
+    init: tickets/.ergrc is newer than this binary -- preserving ...
+    init: tickets/AGENTS.md is newer than this binary -- preserving ...
+    # .erg-assets untouched -- 0279's exemption, working as designed
+
+    $ erg migrate tickets/
+    init: downgraded tickets/AGENTS.md (git restore -- tickets/AGENTS.md to undo)
+    # .erg-assets now: rev <this binary>, date <now>, EMBEDDED hashes for BOTH
+
+    $ erg check tickets/
+    ERG CHECK: PASS (1 tickets)      <-- silent
+
+## What is and is not wrong here
+
+The AGENTS.md overwrite is correct and announced -- charter decision 0224, and
+`downgraded` is the right word for it. That part is not the defect.
+
+Two things are:
+
+1. `.ergrc` was never touched by this run (it is outside `migrateAssetPaths`)
+   and still holds its divergence, yet the new manifest records it at the
+   EMBEDDED hash. The manifest asserts a state that never happened. This is the
+   same shape as ticket 0292's "stamps it as if shipped", reached by a different
+   path.
+2. The rollback condition goes silent afterwards, with no command having said
+   anything about it. No file is lost -- a later `erg init` still preserves the
+   diverged `.ergrc` as a local edit -- but the direction is gone, so the store
+   can no longer tell "this binary is behind" from "someone edited this", and
+   `erg init`'s remedy line changes accordingly.
+
+It is the diagnostic half of ticket 0278's invariant: nothing was overwritten
+silently, but the evidence that an overwrite WOULD be a revert was.
+
+## Relevant files
+
+- `src/go/init.go` -- `installAssets`: `rollbackPreserved` is set only inside
+  the `preserve` branch; the manifest rewrite at the end is gated on it
+- `src/go/migrate.go:263` -- the `refuseDiverged=false` call
+- `src/go/manifest.go` -- `buildManifest` always writes `initAssetPaths`, so a
+  migrate run stamps `.ergrc` too, an asset it never looks at
+- `tests/test_assetinvariant.sh` -- arm 4 documents this in a comment and
+  deliberately does not assert it
+
+## Actions
+
+1. Decide the rule. Two candidates, and the choice is a design call:
+   (a) suppress the manifest rewrite whenever the store is in a rollback state,
+   not only when a preserve fired -- `rollback` is already computed at the top
+   of `installAssets`; or
+   (b) stamp only the assets this run actually wrote, leaving other entries as
+   they were, which also answers 0292's case and is the larger change.
+2. Implement, with the comment saying which rule and why.
+
+## Test
+
+Red step: the rollback fixture above, `erg migrate tickets/`, then assert
+`erg check` still reports the rollback WARN. It does not today.
+
+Second arm: after that migrate, `.erg-assets` must not claim `.ergrc` is at the
+embedded hash while the divergence is on disk.
+
+## Verification
+
+- [ ] rollback WARN survives `erg migrate`
+- [ ] no manifest entry records a hash for an asset this run did not write
+- [ ] `make check` green, including `tests/test_assetinvariant.sh`
+
+## Invariants
+
+- migrate must keep force-overwriting a diverged `AGENTS.md`, and keep calling
+  it `downgraded` when the stamp is newer (charter 0224; two committed tests,
+  plus arm 4 of `tests/test_assetinvariant.sh`)
+- 0279's existing exemption on the init path must keep working
+
+## Exit criteria
+
+- A migrate run no longer erases the provenance that establishes a rollback
+- The chosen rule is stated in the code, not only in this ticket
+
+## Related
+
+- 0279 -- introduced the exemption this path escapes
+- 0292 -- the same "stamped as if shipped" defect on the init/stampless path;
+  its action (b) above would cover both
+- 0278 -- the integration pass that found this
+- 0297 -- the suite arm that exercises the rollback state
