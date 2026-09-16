@@ -12,6 +12,7 @@ Closed: vendored drift now reported by erg check
 
 2026-09-16T11:41Z MinhHaDuong note blocker 0283 closed — Blocked-by removed.
 2026-09-16T11:53Z MinhHaDuong closed — vendored drift now reported by erg check
+2026-09-16T12:21Z MinhHaDuong note PR #353 review round 1: CONTRIBUTING's dogfood-assets section named only .ergrc/AGENTS.md and would have sent a contributor at the deployed copy -- fixed. Two design questions the ticket never weighed (no acknowledge path for a deliberate customisation; the exec bit invisible to a content compare) recorded in the body rather than filed, both below the severity floor.
 --- body ---
 ## Context
 
@@ -150,6 +151,29 @@ own answer.
 - The vendoring contract for `tickets/erg-github` is explicit, and drift in
   an adopter copy is either impossible, visible, or documented as the
   adopter's own responsibility
+
+## Weighed and not built (PR #353 review, round 1)
+
+Recorded because the ticket weighed (a)/(b)/(c) and never weighed these, and a
+later reader should find the reasoning rather than re-derive it. Neither meets
+the severity floor for a ticket of its own; if one bites in practice, it
+arrives with evidence attached.
+
+- **No acknowledge path.** An adopter who legitimately customises the file they
+  are told they own gets the NOTE on every `erg check`, forever — a stronger
+  nag than 0283's precedent, where a stamp lets a customised `.ergrc` stay
+  quiet. Silencing it would mean erg recording a per-store fact about a file it
+  does not own, which is the ownership claim this design declines to make. The
+  message names the customisation case so a customiser can read it once.
+- **The exec bit is invisible to the compare.** A copy with the right bytes and
+  mode 0644 is silent, and then fails CI with "permission denied". Reporting
+  mode is a second signal about a different property, on a bit some filesystems
+  do not carry and for which no positive control was available; the README
+  recipe keeps its `chmod +x` instead.
+
+A CRLF checkout reporting as drift is not on this list: a CRLF `erg-github`
+does not execute under `/bin/sh` at all, so it genuinely is a different file
+and the report is correct.
 
 ## Related
 

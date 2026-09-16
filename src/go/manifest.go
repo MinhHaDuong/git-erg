@@ -476,6 +476,28 @@ func assetDriftWarnings(dir string) []string {
 // initAssetPaths would have been the smaller diff and the wrong one: that list
 // drives installAssets (a write) and buildManifest (a stamp recording an
 // install that never happened, ticket 0292's defect).
+//
+// The compare sees CONTENT and nothing else, which has two consequences a
+// reader should know rather than rediscover (PR #353 review):
+//
+// It cannot see the executable bit. A copy with the right bytes and mode 0644
+// is silent here, yet fails in CI with "permission denied". Reporting mode
+// would be a second signal about a different property, on a bit that several
+// filesystems do not carry, and no positive control was available for those --
+// so this function stays about content, and the README recipe keeps its
+// chmod +x. Widening it later is a deliberate choice, not a patch.
+//
+// It reports a CRLF checkout as drift, and that is correct rather than a false
+// positive: erg-github runs under /bin/sh, where a CRLF script does not
+// execute at all. Such a copy genuinely differs from the one that works.
+//
+// There is deliberately no acknowledge path -- no key, no stamp, nothing that
+// silences the note for a copy the adopter customised on purpose. Silencing
+// would mean recording a per-store fact about a file erg does not own, which
+// is the ownership claim this whole design declines to make; the note says
+// "not your own customisation?" precisely so a customiser can read it once and
+// move on. If that proves too noisy in practice, the fix is a decision about
+// what erg may record, not a flag bolted on here.
 func vendoredDriftWarnings(dir string) []string {
 	var notes []string
 	for _, rel := range vendoredAssetPaths {

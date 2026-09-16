@@ -931,6 +931,28 @@ else
     pass "vendored: makes no stamp-relative claim"
 fi
 
+# Same stale copy, but in a STAMPED store. The managed-asset branch returns
+# early only when there is no manifest, so an implementation that folded the
+# vendored compare into that branch would report here and go silent above (or
+# the reverse). The Go test covers both; this is the CLI layer's parity arm.
+VENDSTAMP="$FIXTURES/vendored-stamped"
+mkdir -p "$VENDSTAMP/tickets"
+touch "$VENDSTAMP/tickets/erg"
+cp "$DRIFTDIR/9001-x.erg" "$VENDSTAMP/tickets/"
+$ERG init "$VENDSTAMP" >/dev/null 2>&1
+printf '#!/bin/sh\n# an old vendored erg-github, predating the 0255 fix\nexit 0\n' > "$VENDSTAMP/tickets/erg-github"
+# Guard: the arm is only about a STAMPED store if init actually stamped one.
+if ! grep -q "sha256:[0-9a-f]" "$VENDSTAMP/tickets/.erg-assets" 2>/dev/null; then
+    fail "vendored: stamped fixture has no manifest (test would duplicate the stampless arm)"
+else
+    rc=0; out=$($ERG check "$VENDSTAMP/tickets" 2>&1) || rc=$?
+    if [ "$rc" -eq 0 ] && echo "$out" | grep -qF "it is vendored, so erg never writes it"; then
+        pass "vendored: a stale erg-github is reported in a stamped store too"
+    else
+        fail "vendored: the stamped branch swallowed the vendored report (rc=$rc, got: $out)"
+    fi
+fi
+
 # Silent arm 1: the copy this binary ships. src/go/assets/erg-github IS the
 # embedded reference (the self-coherence guard pins it to tickets/erg-github),
 # so a store holding it byte-for-byte has nothing to report.
