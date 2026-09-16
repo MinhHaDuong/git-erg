@@ -935,17 +935,17 @@ fi
 # early only when there is no manifest, so an implementation that folded the
 # vendored compare into that branch would report here and go silent above (or
 # the reverse). The Go test covers both; this is the CLI layer's parity arm.
-VENDSTAMP="$FIXTURES/vendored-stamped"
-mkdir -p "$VENDSTAMP/tickets"
-touch "$VENDSTAMP/tickets/erg"
-cp "$DRIFTDIR/9001-x.erg" "$VENDSTAMP/tickets/"
-$ERG init "$VENDSTAMP" >/dev/null 2>&1
-printf '#!/bin/sh\n# an old vendored erg-github, predating the 0255 fix\nexit 0\n' > "$VENDSTAMP/tickets/erg-github"
+VENDOREDSTAMP="$FIXTURES/vendored-stamped"
+mkdir -p "$VENDOREDSTAMP/tickets"
+touch "$VENDOREDSTAMP/tickets/erg"
+cp "$DRIFTDIR/9001-x.erg" "$VENDOREDSTAMP/tickets/"
+$ERG init "$VENDOREDSTAMP" >/dev/null 2>&1
+printf '#!/bin/sh\n# an old vendored erg-github, predating the 0255 fix\nexit 0\n' > "$VENDOREDSTAMP/tickets/erg-github"
 # Guard: the arm is only about a STAMPED store if init actually stamped one.
-if ! grep -q "sha256:[0-9a-f]" "$VENDSTAMP/tickets/.erg-assets" 2>/dev/null; then
+if ! grep -qE "sha256:[0-9a-f]{64}" "$VENDOREDSTAMP/tickets/.erg-assets" 2>/dev/null; then
     fail "vendored: stamped fixture has no manifest (test would duplicate the stampless arm)"
 else
-    rc=0; out=$($ERG check "$VENDSTAMP/tickets" 2>&1) || rc=$?
+    rc=0; out=$($ERG check "$VENDOREDSTAMP/tickets" 2>&1) || rc=$?
     if [ "$rc" -eq 0 ] && echo "$out" | grep -qF "it is vendored, so erg never writes it"; then
         pass "vendored: a stale erg-github is reported in a stamped store too"
     else

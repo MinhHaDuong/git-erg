@@ -171,9 +171,12 @@ arrives with evidence attached.
   do not carry and for which no positive control was available; the README
   recipe keeps its `chmod +x` instead.
 
-A CRLF checkout reporting as drift is not on this list: a CRLF `erg-github`
-does not execute under `/bin/sh` at all, so it genuinely is a different file
-and the report is correct.
+A CRLF checkout reporting as drift is not on this list: a CRLF copy of a
+`/bin/sh` script is broken rather than differently encoded — whole-file
+conversion (what `core.autocrlf` does) sends the kernel looking for an
+interpreter named `/bin/sh\r` and nothing runs, a body-only CR lets the shell
+start and die on the first mislexed command — so the report is correct either
+way.
 
 ## Related
 
