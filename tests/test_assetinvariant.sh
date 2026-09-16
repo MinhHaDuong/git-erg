@@ -130,7 +130,29 @@ fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 # audits and no other signal. Ticket 0278's log cites the count as evidence, so
 # the count is asserted. Bump it deliberately when adding an arm -- a surprise
 # here means coverage moved without anyone deciding it should.
-EXPECTED_ASSERTIONS=57
+EXPECTED_ASSERTIONS=58
+
+# The rollback arm is INERT on a binary with no embedded build date. isRollback
+# consults looksLikeBuildDate, which degrades to pre-0279 behaviour on an empty
+# one: `erg init` then silently reverts a local edit and calls it "refreshed" --
+# ticket 0279's exact defect, reproduced live by PR #358's red team on a binary
+# built without -X main.buildDate. Every rollback assertion still passes there,
+# because the fixture never reaches the direction logic at all.
+#
+# So the arm has to say whether it ran against a binary that can fail. A suite
+# green on a binary whose feature is switched off is the shape this whole file
+# exists to refuse, one level up: an all-clear that cannot be told from "I could
+# not look". `make build` populates the date; a build that bypasses the Makefile
+# may not.
+erg_build_date=$("$ERG_ABS" version 2>/dev/null | sed -n 's/^[[:space:]]*built:[[:space:]]*//p')
+case "$erg_build_date" in
+[0-9][0-9][0-9][0-9]-*)
+    pass "binary under test carries a build date, so the rollback arm is live"
+    ;;
+*)
+    fail "binary under test has no build date ($erg_build_date) -- isRollback degrades to pre-0279 behaviour and every rollback assertion below is vacuous; build with make"
+    ;;
+esac
 
 # Local-path git remotes drive the `erg update` arms (update fetches the
 # committed binary via git, never HTTP). Hardened hosts set
