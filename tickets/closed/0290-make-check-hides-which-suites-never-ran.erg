@@ -2,12 +2,14 @@
 Title: make check hides which suites never ran when a target fails
 Created: 2026-09-16
 Author: MinhHaDuong
+Closed: wontfix: the real defect was 0287's buildvcs blindness, now fixed; a silent cascade only bites a run that is already red -- below the severity floor (author, 2026-09-16)
 
 --- log ---
 2026-09-16T10:31Z MinhHaDuong created
 2026-09-16T17:55Z claude note Filed during the raid over 0277-0287 as 0287's Action 2, which both the Imagine and Plan passes judged to be outside 0287's own exit criteria (those name only the buildvcs symptom). Bundled onto 0287's PR as a ticket, not a fix. It clears the severity floor on measured evidence rather than on principle: the baseline run taken at the start of the raid halts at test-contract, which sits 22nd in TEST_SUITES, leaving 11 suites unexecuted and unnamed -- and one of those unreached suites, verify, was misattributed to 0287's cause for most of a day precisely because nobody could tell "did not run" from "ran and passed".
 
 2026-09-16T11:48Z claude note Arithmetic corrected in the body, and the error named here rather than edited out of the entry above. The 17:55Z line says contract sits 22nd of 33 suites; recounting TEST_SUITES gives 29th of 40. The load-bearing figure was right -- eleven suites after contract never ran, and they are named in the body -- but the two counts around it were wrong, and they were repeated into PR #345's description and into the raid's own reporting before a reviewer checked them against the Makefile. Nothing in the argument depends on them; they were miscounted, not misread.
+2026-09-16T12:10Z MinhHaDuong closed — wontfix: the real defect was 0287's buildvcs blindness, now fixed; a silent cascade only bites a run that is already red -- below the severity floor (author, 2026-09-16)
 --- body ---
 ## Context
 
