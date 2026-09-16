@@ -6,6 +6,7 @@ Author: MinhHaDuong
 --- log ---
 2026-09-16T10:30Z MinhHaDuong created
 2026-09-16T10:40Z MinhHaDuong note Scope widened after measuring: the workaround clears the contract probe and the run then fails on verify. Two stacked failures, so the ticket is about make check being runnable, not about one probe.
+2026-09-16T11:15Z MinhHaDuong note Host cleanup done (rmdir, both empty); make check then ran end to end. That also confirms the verify/reproducibility failure shared this cause rather than being a second defect -- it was simply unreachable while the cascade halted earlier. Repo-level fix still wanted: the probe must not depend on what sits above its temp dir.
 2026-09-16T11:05Z MinhHaDuong note Cause corrected. The first two log entries and the original title blamed the Go version; that was wrong. Measured: /tmp/.git and /scratch/tmp/.git exist on this host and are EMPTY directories. go list runs fine from the module root on this same toolchain. The Go version only determines whether buildvcs performs the upward walk that finds them.
 
 --- body ---
@@ -59,9 +60,10 @@ not the failure; it is the rediscovery.
 
 ## Two fixes, and they are not alternatives
 
-**Host-level**: `rmdir /tmp/.git /scratch/tmp/.git`. Both are empty, so this
-risks nothing, and it fixes every session on this machine immediately. But a
-host can regrow a stray at any time, and adopters have their own hosts.
+**Host-level**: `rmdir /tmp/.git /scratch/tmp/.git`. **Done 2026-09-16** —
+both were empty, and `make check` went green end to end immediately after. This
+fixes every session on this machine, but a host can regrow a stray at any time
+and adopters have their own hosts, so it settles nothing durable.
 
 **Repo-level**: make the probe immune. Either pass `-buildvcs=false` where it
 invokes `go list`, or point the probe's `TMPDIR` at a directory it controls.
@@ -78,11 +80,21 @@ With the contract probe cleared, the run reaches the next target and fails:
 verify: FAIL -- committed binary is NOT reproducible
 ```
 
-Plausibly the same root cause — `verify` also rebuilds in a temporary directory,
-and a run with `TMPDIR` pointed at a clean directory was reported green end to
-end. **Not confirmed.** Settle it before assuming one fix covers both; if it is
-a genuine reproducibility difference rather than a buildvcs artifact, it is a
-separate problem wearing the same symptom.
+**Confirmed same cause, 2026-09-16.** Both stray directories were removed
+(`rmdir`, both empty) and `make check` then ran end to end on the same
+toolchain: `ALL TESTS PASSED`, `CHECK PASSED (test + validate)`. So the
+reproducibility failure was the same buildvcs artifact, not a genuine
+difference in the committed binary. One cause, two symptoms, and the second was
+only ever reachable once the first was cleared — which is what a halting
+cascade hides.
+
+## What is left after the host cleanup
+
+The symptom is gone here; the ticket is not. The probe is still unable to tell
+"no network import" from "I could not look", and the next stray `.git` on any
+host reproduces it exactly. The remaining deliverable is Action 1: make the
+probe immune, so its verdict means what it claims regardless of what sits above
+its working directory.
 
 ## Relevant files
 
@@ -98,11 +110,11 @@ separate problem wearing the same symptom.
    weaken what the probe detects: the flag suppresses VCS stamping, not
    dependency resolution, but this is a negative control, and a weakened one is
    worse than a red one.
-2. Settle whether `verify`'s reproducibility failure shares the cause or is a
-   separate defect. Do not assume.
-3. Consider whether `make check` should continue past a failing suite, or at
+2. Consider whether `make check` should continue past a failing suite, or at
    minimum name the suites it did not reach. A cascade that stops silently
-   turns one local red into an unreliable green for everything behind it.
+   turns one local red into an unreliable green for everything behind it. This
+   run is the evidence: the reproducibility failure existed the whole time and
+   was simply unreachable behind the halt.
 
 ## Test
 
