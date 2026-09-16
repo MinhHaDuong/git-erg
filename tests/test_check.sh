@@ -858,5 +858,18 @@ else
 fi
 
 
+# --- Help text: the asset-drift bullet names BOTH directions ---
+# cmdCheck calls assetDriftWarnings, which is direction-aware (assetDriftSignal
+# vs assetRollbackSignal). Help text that names only the upgrade direction
+# prescribes 'erg init' for a rollback -- the command that PERFORMS the revert,
+# which is exactly the false-direction claim ticket 0279 removes from the code.
+# Static help is a place that claim can be reintroduced; this test closes it.
+HELPOUT=$($ERG check --help 2>&1) || true
+if echo "$HELPOUT" | grep -q "run 'erg init'" && echo "$HELPOUT" | grep -q "run 'erg update' first"; then
+    pass "help: asset-drift bullet names both directions"
+else
+    fail "help: asset-drift bullet documents only one direction (got: $HELPOUT)"
+fi
+
 echo "check: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
