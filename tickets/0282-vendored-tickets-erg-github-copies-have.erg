@@ -1,0 +1,106 @@
+%erg 0.1
+Title: Vendored tickets/erg-github copies have no staleness channel
+Created: 2026-09-16
+Author: MinhHaDuong
+
+--- log ---
+2026-09-16T07:40Z MinhHaDuong created
+2026-09-16T07:40Z MinhHaDuong note Surfaced by the cross-ticket Blind-Spot pass of /raid 255 256 278 279: 0255 fixes a bug in git-erg's own copy of a file that is vendored per-repo, so the fix cannot reach the repo where the bug was actually reported.
+
+--- body ---
+## Context
+
+`tickets/erg-github` is, in the README's own words (L104-105), "a separate
+committed POSIX-sh helper (**it travels with the clone**)". Unlike `.ergrc`
+and `AGENTS.md`, it is not an embedded asset: it is vendored into each
+adopter repo as a plain committed file, and nothing in the toolchain ever
+compares an adopter's copy against the shipped one.
+
+That means it has **no staleness channel at all**. The asset machinery —
+`.erg-assets`, `isCleanUpgrade`, `assetDriftWarnings`, the whole 3-state
+dpkg compare that 0278, 0279 and 0281 exist to harden — does not cover this
+file. An adopter running a year-old `erg-github` gets no warning, no drift
+signal, and no `erg check` complaint.
+
+The concrete bite: 0255 fixes a ticket-ID extraction gap in
+`tickets/erg-github`'s `cmd_verify()`. 0255's own Reproduction section names
+`aedist-technical-report` PR #442/#443 as where that bug actually fired —
+and that repo has its own committed copy of the buggy script. Merging 0255
+into git-erg fixes git-erg's copy and reaches nothing else. Every adopter
+needs a manual re-vendor that nothing will ever prompt them to do.
+
+Note the shape: this is the same defect class the asset-machinery tickets
+are about — a tracked file drifting silently — applied to the one file none
+of them covers. 0278's own invariant ("no tracked file is ever overwritten
+or reverted without saying so") has a sibling this repo has never stated:
+*no shipped file goes stale in an adopter without saying so.*
+
+## Relevant files
+
+- `tickets/erg-github` — the vendored helper itself
+- `README.md` L100-108 — where the "travels with the clone" contract is stated
+- `src/go/init.go` — `initAssetPaths`, `migrateAssetPaths`, `orphanAssetPaths`;
+  `erg-github` appears in none of them
+- `src/go/manifest.go` — the drift machinery that does not see this file
+- `src/go/check.go` — where a staleness report would most naturally surface
+
+## Actions
+
+1. Decide the contract first, because the rest follows from it, and this is
+   an architectural call, not an implementation detail. Three coherent
+   options, and they are genuinely different products:
+   a. **Make it an embedded asset** like `.ergrc`/`AGENTS.md` — `erg init`
+      installs and upgrades it through the existing 3-state compare. Adopters
+      converge automatically. Costs: the forge layer stops being optional,
+      and a local edit to it now needs the same divergence handling.
+   b. **Keep it vendored, add a version stamp** — `erg-github` carries a
+      version line, `erg check` compares it against the running binary's
+      expectation and reports staleness without touching the file. Cheapest
+      honest fix: it makes the drift *visible* without claiming ownership of
+      the file.
+   c. **Declare it explicitly out of scope** — document in README that
+      `erg-github` is a starting point adopters own outright, and that
+      upstream fixes must be pulled manually. Costs nothing to build, but
+      the cost lands on every adopter forever, silently.
+2. Implement whichever the author picks.
+3. Regardless of choice: record in 0255's wake which adopters are known to
+   carry a stale copy. `aedist-technical-report` is one, confirmed by 0255's
+   own reproduction.
+
+## Test
+
+If (a): the existing asset tests extend to cover `erg-github` — the same
+fixtures 0281 builds.
+If (b): a fixture repo with an old `erg-github` must produce a *visible*
+staleness message from `erg check`, asserted on content, not exit code —
+the same discipline 0281 uses for path A, because the defect here is also
+silence.
+If (c): a docs test asserting the README states the manual-pull contract.
+
+## Verification
+
+- [ ] the contract is decided and written down somewhere durable, not just
+      in this ticket
+- [ ] an adopter carrying a stale `erg-github` either converges (a), is told
+      (b), or is documented as owning the problem (c)
+- [ ] the known-stale adopters from Action 3 are listed
+
+## Invariants
+
+- `erg` core stays offline and forge-blind. Whatever is chosen here must not
+  make the binary reach the network or depend on `gh`.
+- A non-forge adopter is never wedged by this: `erg-github` is optional
+  infrastructure and must remain so.
+
+## Exit criteria
+
+- The vendoring contract for `tickets/erg-github` is explicit, and drift in
+  an adopter copy is either impossible, visible, or documented as the
+  adopter's own responsibility
+
+## Related
+
+- 0255 — the fix whose reach this ticket is about. 0255 lands in git-erg's
+  copy only; that is deliberate and does not wait on this ticket.
+- 0278, 0281 — the same "a tracked file drifts silently" class, for the
+  embedded assets that *do* have a staleness channel.

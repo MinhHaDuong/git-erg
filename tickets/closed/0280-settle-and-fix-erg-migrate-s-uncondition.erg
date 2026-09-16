@@ -1,0 +1,218 @@
+%erg 0.1
+Title: Settle and fix erg migrate's unconditional asset overwrite
+Created: 2026-09-16
+Author: MinhHaDuong
+Blocked-by: 0279
+Closed: settled record-only: path D is a charter decision (0224, PR #275), guarded by two committed tests; no code change indicated
+
+--- log ---
+2026-09-16T07:12Z MinhHaDuong created
+2026-09-16T07:12Z MinhHaDuong note Split from 0278 (path D) as part of a raid monster-ticket decomposition; 0278's own Action 1 said settle this first because the outcome could change the shape of the rest.
+
+2026-09-16T07:26Z MinhHaDuong closed — settled record-only: path D is a charter decision (0224, PR #275), guarded by two committed tests; no code change indicated
+--- body ---
+## Context
+
+`erg migrate` bypasses the 3-state divergence check. `migrate.go:261` calls
+`installAssets(root, migrateAssetPaths, false, false)` — `refuseDiverged` is
+false, so a divergent `AGENTS.md` is overwritten unconditionally.
+
+This is **read in the code, not demonstrated**: a fixture with a local edit
+survived `erg migrate` in testing because the run reported `already clean` and
+never reached the asset step. Whether the path actually fires on a store that
+genuinely needs migrating is the open question, and settling it is this
+ticket's first action.
+
+Split out of 0278 (now a tracker) because 0278's own Action 1 named this the
+most dangerous of the four paths in the set and said it must be settled
+*before* the rest of the hardening work, since the finding could change that
+work's shape. `Blocked-by: 0279` — both this ticket and 0279 touch
+`installAssets`/`manifest.go`-adjacent code, so this lands after the
+direction-blind-upgrade fix rather than in parallel with it, to avoid two PRs
+editing the same functions concurrently.
+
+## Relevant files
+
+- `src/go/migrate.go` — line 261, the `refuseDiverged=false` call
+- `src/go/init.go` — `installAssets`, `migrateAssetPaths`
+
+## Actions
+
+1. Build a fixture store that genuinely needs migrating (not `already clean`),
+   give it a locally-edited `AGENTS.md`, run `erg migrate`, and record what
+   happens. This is the open empirical question 0278 named — settle it first.
+2. If it overwrites: apply the same divergence check used elsewhere
+   (`refuseDiverged=true`, or the equivalent), so `erg migrate` never silently
+   destroys a local edit. If a forced overwrite is still wanted for the
+   migrate path, it must announce what it replaced.
+3. If it preserves: document why `refuseDiverged=false` is safe here (e.g. an
+   earlier gate already screens for divergence before this call is reached),
+   and commit the fixture as a regression test so the finding survives future
+   refactors of `migrate.go`.
+
+## Test
+
+Red step, and it doubles as Action 1's investigation: a fixture store that
+genuinely needs migrating, carrying a locally-edited `AGENTS.md`, run through
+`erg migrate`. Assert on the local edit's survival either way — the assertion
+itself is the finding, whichever way it comes out.
+
+## Verification
+
+- [ ] path D's actual behaviour (overwrite or preserve) is recorded in this
+      ticket's log, with the transcript
+- [ ] the fixture from Action 1 is a committed regression test, not a one-off
+      manual run
+- [ ] a local edit survives `erg migrate`, with or without `--force`
+      documented as the only route that can replace it, and only with
+      announcement
+
+## Invariants
+
+- No tracked file is overwritten by `migrate` without saying so (same
+  invariant 0278 states for the whole asset machinery).
+- A pristine current asset stays a silent no-op under `migrate`, same as under
+  `init`.
+
+## Exit criteria
+
+- `erg migrate`'s behaviour on a genuinely-divergent store carrying a local
+  edit is settled, recorded, and covered by a committed test
+- If path D was dangerous, it no longer silently destroys a local edit
+
+## Related
+
+- 0278 — tracker; this is path D, split out under the monster-ticket checklist
+- 0279 — lands first; this ticket is `Blocked-by` it to keep the two PRs off
+  the same functions
+- 0281 — the remainder of 0278's hardening; it is `Blocked-by` this ticket,
+  since D's outcome may change its scope
+
+## Imagine
+
+**Premise check: LIVE.** `installAssets(root, migrateAssetPaths, false, false)`
+is still literally the call at `src/go/migrate.go:261` — `refuseDiverged=false`,
+confirmed by reading the current file, not memory of the split-off text.
+
+**Action 1's open question is already answered by reading the code — no new
+fixture needed.** `cmdMigrate` (migrate.go:80) does two independent things: it
+walks `tickets/*.erg` files reporting `migrated`/`already clean` counts, and —
+separately, gated only on `filepath.Base(dir) == "tickets"` — it calls
+`migrateLayout(dir)` (migrate.go:264-266), which is what reaches the
+`installAssets` call at line 261 (inside `migrateLayout`, not `cmdMigrate`).
+Nothing about the per-ticket `already clean` tally gates `migrateLayout`: it
+runs whenever the directory is literally named `tickets`, regardless of
+whether any `.erg` file needed a rewrite. So the earlier fixture that "reported
+already clean and never reached the asset step" did not demonstrate immunity —
+it most likely used a directory not named `tickets`, or otherwise never called
+`migrateLayout`. Read straight, the asset step is reached on *every*
+`erg migrate tickets/` run, unconditionally of ticket-file cleanliness.
+**Confidence: high**, from control flow alone (migrate.go:80-181 for the
+per-file walk, 264-266 for the gate, 182-261 for `migrateLayout` itself — no
+early return before line 261 depends on ticket-file state, only on
+archive/closed collisions or self-copy I/O errors).
+
+**Path D does fire on a diverged AGENTS.md, and it is proven — by an existing,
+already-committed test, not a hypothetical.** `src/go/migrate_test.go:448`
+(`TestMigrateLayoutErgrc`, subtest "diverged AGENTS.md is force-overwritten by
+migrateLayout") writes `AGENTS.md = "DIVERGED\n"`, calls `migrateLayout`
+directly, and asserts the content is replaced with the embedded asset —
+i.e. it asserts the overwrite as the *wanted* outcome, not a regression to
+guard against. `tests/test_migrate.sh:391-401` does the same at the
+integration level (`$ERG migrate "$ADIR/tickets"` on a fresh dir with no
+tickets needing migration, `DIVERGED` AGENTS.md, asserts it is gone
+afterward). Both predate this ticket.
+
+**This is not an open bug — it is a closed, deliberate, charter-level
+decision.** `docs/erg-imagine-charter.md` (~line 124-127, French) states
+migrate "reste en force-overwrite (la migration est une étape revue)" and is
+"exempt du prompt dpkg". Ticket `tickets/closed/0224-...erg` (closed via PR
+#275) is the paper trail: it originally proposed exactly what this ticket's
+Action 2 proposes (`refuseDiverged=true` for migrate), a raid flag caught that
+this reverses the documented charter decision, escalated to the author, and
+the author's actual resolution was narrower — separation of concerns, not a
+protection flag: `.ergrc` (configuration) was excluded from migrate's asset
+list entirely (now delivered only by `erg init`'s dpkg 3-state path), while
+`AGENTS.md` explicitly *keeps* force-overwrite because "agent docs track the
+binary." The two tests cited above are 0224's own exit-criterion tests for
+that decision, not incidental coverage.
+
+**It is also not silent, contrary to this ticket's "silently destroys" framing
+— though the label is wrong.** `installAssets` prints
+`init: refreshed tickets/AGENTS.md (git restore -- tickets/AGENTS.md to undo)`
+to stderr on every overwrite (init.go, end of the write branch), and
+`migrateLayout` additionally prints a summary count
+(`migrate: AGENTS.md refreshed (...)`). The per-file line is hardcoded
+`"init: ..."` even when the caller is `migrate` — a real but cosmetic mislabel
+(the doc comment on `installAssets` says callers get to label messages with
+their own command name; this one line doesn't). Below the severity floor for
+its own ticket; noting it here for the record rather than filing.
+
+**Antipattern scan.** Action 2 as written (apply `refuseDiverged=true` to the
+migrate call site) would silently reopen a decision the author already made
+explicitly and narrowly in 0224, and would break the two existing tests cited
+above (they assert the opposite). That is not YAGNI or premature abstraction
+in the usual sense, but the same-shaped trap: rebuilding machinery (a
+divergence check) that was deliberately *not* wanted at this call site, per a
+documented decision this ticket's author already rendered. Action 3's framing
+("if it preserves: document why, and commit a regression test") is structurally
+the closer match to what's actually true here, except the fixture and the
+documentation both already exist (0224 + the charter) — so even Action 3's
+remaining work is mostly citation, not construction.
+
+**Recommendation.** Downgrade this ticket's scope: no code change to
+`installAssets`/`migrate.go` is indicated. The concrete remainder is (a)
+record this finding in the log with a pointer to 0224 and the charter line,
+satisfying the "settled, recorded, covered by a committed test" exit
+criterion using the tests that already exist, and (b) optionally, as a
+separate below-floor note (not a ticket per the severity floor: cosmetic,
+non-destructive), the `"init:"` label on the per-file refresh message when
+called from `migrate`. If the author wants to revisit the charter decision
+itself, that's a new, explicit ticket against the charter/0224 outcome, not a
+silent reversal riding in on this one.
+
+## Resolution (2026-09-16): settled, no code change
+
+Path D is settled. It fires — `migrateLayout` reaches the `installAssets`
+call on every `erg migrate tickets/` run, gated only on the directory being
+named `tickets`, never on whether any `.erg` file needed rewriting. The
+earlier fixture that "reported already clean and never reached the asset
+step" did not demonstrate immunity; it most likely used a directory not
+named `tickets`.
+
+**But it is not a defect.** The force-overwrite of a diverged `AGENTS.md` is
+a deliberate, documented, author-settled decision:
+
+- `docs/erg-imagine-charter.md` L122-127: migrate *"reste en force-overwrite
+  (la migration est une etape revue)"* and is *"exempt du prompt dpkg"*.
+- `tickets/closed/0224-migrate-clobbers-locally-edited-ergrc-us.erg`, closed
+  via PR #275, is the paper trail. It originally proposed exactly what this
+  ticket's Action 2 proposed. A raid flag caught that this reverses the
+  charter; the author's resolution was narrower — `.ergrc` (configuration)
+  was excluded from migrate's asset list entirely, while `AGENTS.md`
+  explicitly *keeps* force-overwrite, because agent docs track the binary.
+- Two committed tests assert the overwrite as the **wanted** outcome, and are
+  0224's own exit-criterion tests: `src/go/migrate_test.go:446`
+  ("diverged AGENTS.md is force-overwritten by migrateLayout — charter
+  decision intact") and `tests/test_migrate.sh:389` (same, at the integration
+  level, naming ticket 0224).
+
+All four citations were verified against the tree, not taken on an agent's
+word.
+
+It is also **not silent**, contrary to 0278's framing of this path:
+`installAssets` prints `refreshed ... (git restore -- ... to undo)` on every
+overwrite, and `migrateLayout` prints a summary count. The one real nit is
+cosmetic — that per-file line is hardcoded `"init: ..."` even when the caller
+is `migrate`, despite `installAssets`'s own doc comment saying callers label
+messages with their own command name. Below the severity floor; recorded
+here rather than filed.
+
+0278's "most dangerous path in the set" framing for path D is therefore
+wrong, and is corrected in that tracker.
+
+Closing record-only. The exit criterion "path D settled, recorded, covered by
+a committed test" is met by evidence that already existed; no fixture needed
+building and no code change is indicated. Reversing the charter decision
+would be a separate, explicit ticket against 0224 and the charter — not a
+silent reversal riding in on this one.
