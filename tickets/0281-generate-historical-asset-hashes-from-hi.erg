@@ -2,29 +2,33 @@
 Title: Generate historical asset hashes from history; make a stampless store report itself
 Created: 2026-09-16
 Author: MinhHaDuong
-Blocked-by: 0280
 
 --- log ---
 2026-09-16T07:12Z MinhHaDuong created
 2026-09-16T07:12Z MinhHaDuong note Split from 0278 as the remainder after path B (0279) and path D (0280) were carved out under the raid monster-ticket decomposition.
 
+2026-09-16T07:26Z MinhHaDuong note blocker 0280 closed — Blocked-by removed.
+2026-09-16T07:45Z MinhHaDuong note Action 2 narrowed to two assets (.ergrc, AGENTS.md); the other two embedded files are orphanAssetPaths and never reach isCleanUpgrade. Priority note added: Action 3 (visibility) outranks Actions 1-2 (the table), since an unrecognized hash already degrades safely and path C is a hazard the table creates.
 --- body ---
 ## Context
 
 0278 (now a tracker) named four paths that can overwrite or strand a tracked
 asset file, none proved by a test. Path B is 0279 (self-contained, split out
-first). Path D is 0280 (the dangerous, undemonstrated `erg migrate` path,
-settled before this ticket). What remains is path A (stranded, silent on every
+first). Path D is 0280 -- settled 2026-09-16 as **not a defect**: the
+`erg migrate` force-overwrite is a deliberate charter decision (0224, PR
+#275) guarded by two committed tests, so 0280 closed record-only with no
+code change. What remains is path A (stranded, silent on every
 channel, when no `.erg-assets` stamp exists) and path C (the fix's own
 hazard — a wrong `extraHistoricalHashes` entry destroys a genuine local edit
 with no warning), plus the mechanical work that makes both safe: a
 generated, not hand-typed, historical-hash table, and a store's absence of
 provenance reported instead of silently passed.
 
-`Blocked-by: 0280` — 0278's own Action 1 said settling path D "leads the fix":
-if `erg migrate` needs the same 3-state check this ticket builds, the
-generation mechanism and the visibility message have to cover that call site
-too, and this ticket should not be planned or executed until that is known.
+**Unblocked 2026-09-16.** The `Blocked-by: 0280` this ticket was filed with
+existed to serialise against a code collision in `manifest.go`/`installAssets`
+pending D's outcome. D produced no code change, so there is nothing to
+serialise against and the header is dropped. This ticket is still sequenced
+after **0279**, which does touch those functions.
 
 ## Relevant files
 
@@ -44,9 +48,13 @@ too, and this ticket should not be planned or executed until that is known.
    hand-transcribed: a wrong entry (path C) is exactly what a typo produces,
    and a typo there is unrecoverable — it makes a local edit look like a
    pristine old release and destroys it with no warning.
-2. Apply the table to every embedded asset (`.ergrc`, `spec-erg-v1.md`,
-   `integration.md`), not just `AGENTS.md` — the machinery is shared across
-   all of them.
+2. Apply the table to `.ergrc` as well as `AGENTS.md` -- and **only** those
+   two. `spec-erg-v1.md` and `integration.md` are `orphanAssetPaths`
+   (`init.go:28`): removed on exact match, never written or upgraded, and
+   `isCleanUpgrade`/`knownAssetHashes` are never called on them. 0278's
+   "every embedded asset" was wrong on the code; extending the table to the
+   two on-demand-served files would build machinery for a path that does not
+   exist. If a future ticket starts installing them, the table extends then.
 3. Make the absence of a stamp visible instead of silent (path A): `erg check`
    should say that a store has no provenance manifest and cannot be upgraded,
    rather than returning nil and passing. Today three channels stay silent for
@@ -56,6 +64,16 @@ too, and this ticket should not be planned or executed until that is known.
    separately.
 4. Rewrite the dormancy note in `manifest.go` to say what the table is for
    once it is load-bearing, and what a wrong entry costs.
+
+## Priority note (from the Imagine pass)
+
+Actions are listed in 0278's original order, but that order is probably
+wrong. An unrecognized hash **already** degrades safely -- preserve, exit 2
+-- so path A's defect is *silence*, not missing auto-recognition. And path C
+is a hazard **created by** building the hash table, not one the table
+removes: no table, no path C. If this ticket has to shrink, Action 3
+(visibility) is the load-bearing part and Actions 1-2 (the table) are the
+optional part, not the reverse.
 
 ## Test
 
@@ -106,8 +124,7 @@ cannot see it.
 - 0278 — tracker; this ticket is the remainder after 0279 (path B) and 0280
   (path D) were split out
 - 0279 — path B, lands first in an earlier wave
-- 0280 — path D, must land before this ticket; its outcome may change this
-  ticket's scope
+- 0280 -- path D, closed record-only 2026-09-16; no longer a blocker
 
 ## Imagine
 

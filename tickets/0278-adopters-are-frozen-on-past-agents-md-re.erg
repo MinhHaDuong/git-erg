@@ -10,6 +10,8 @@ Author: HDMX-coding-agent
 
 2026-09-16T07:12Z MinhHaDuong note converted to a tracker under the raid monster-ticket checklist. Action 1 ("settle path D first... it leads the fix") is a dependency chain hidden in prose: the rest of the hardening cannot be safely planned until D's outcome is known, and paths A/C/D touch the same files as path B (0279). Decomposed into 0280 (path D, Blocked-by 0279) and 0281 (paths A/C + the mechanical hardening, Blocked-by 0280). This ticket stays open until 0279, 0280, and 0281 are all closed; its own Actions/Test/Verification/Exit-criteria below are superseded by the children's and are kept for the record, not for direct execution.
 
+2026-09-16T07:50Z MinhHaDuong note Path D settled: not a defect, a charter decision (0224, PR #275) guarded by two committed tests. 0280 closed record-only. This tracker's "most dangerous path" framing for D was inherited unexamined and is corrected in the body; on the evidence the dangerous path was B (0279).
+
 --- body ---
 ## Context
 
@@ -79,12 +81,38 @@ avoid three PRs editing `manifest.go`/`installAssets` concurrently:
 
 1. **0279** — path B (silent revert on a direction-blind upgrade). Already
    self-contained when this ticket was written; lands first.
-2. **0280** — path D (`erg migrate`'s unconditional overwrite). The
-   undemonstrated, most-dangerous path; `Blocked-by: 0279`.
+2. **0280** — path D (`erg migrate`'s unconditional overwrite).
+   **CLOSED 2026-09-16, record-only, no code change.**
 3. **0281** — paths A and C (stranded-silent, and the fix's own hazard) plus
-   the mechanical hardening (generated hash table, stampless visibility,
-   applied to every embedded asset). `Blocked-by: 0280`, since D's outcome may
-   change this ticket's shape, per Action 1 below.
+   the mechanical hardening. Filed `Blocked-by: 0280`; unblocked when 0280
+   closed without touching code. Still sequenced after 0279.
+
+### Correction: path D was not the dangerous one (2026-09-16)
+
+This tracker called path D "the most dangerous path in the set" and said
+settling it should "lead the fix". Both claims were wrong, and the error was
+inherited unexamined from this ticket's own path-D bullet below rather than
+measured.
+
+Path D does fire — `migrateLayout` reaches `installAssets` on every
+`erg migrate tickets/` run, gated only on the directory being named
+`tickets`, never on ticket-file cleanliness. But the force-overwrite of a
+diverged `AGENTS.md` is a **deliberate, documented, author-settled
+decision**: `docs/erg-imagine-charter.md` L122-127 ("reste en
+force-overwrite... exempt du prompt dpkg"), settled in closed ticket 0224 via
+PR #275, and guarded by two committed tests that assert the overwrite as the
+*wanted* outcome (`src/go/migrate_test.go:446`, `tests/test_migrate.sh:389`).
+0280's proposed fix would have reversed the author's decision and broken both
+tests.
+
+It is also not silent, contrary to the bullet below: `installAssets` prints
+a refresh line with a `git restore` undo hint on every overwrite.
+
+Two consequences for this tracker: the path-D bullet below is retained for
+the record but is superseded by 0280's Resolution section, and the ordering
+premise ("settle D first, it leads the fix") is void. On the evidence, the
+dangerous path was **B** (0279, a genuine silent revert), and what remains in
+0281 is mostly **A** — silence, not destruction.
 
 Close this tracker only after all three are closed and an integration pass
 confirms the whole invariant — no tracked file is overwritten or reverted
@@ -139,7 +167,8 @@ cannot see it.
 ## Verification (tracker-level; each child owns its own subset)
 
 - [ ] 0279 closed — direction-blind upgrade fixed
-- [ ] 0280 closed — path D settled and recorded, with the transcript
+- [x] 0280 closed — path D settled and recorded (2026-09-16): fires, but by
+      deliberate charter decision, covered by two pre-existing tests
 - [ ] 0281 closed — a local edit survives `init`, `migrate`, and an
       older-binary `init`; a stampless store at a shipped hash upgrades and
       says so; a stampless store reports its condition instead of passing

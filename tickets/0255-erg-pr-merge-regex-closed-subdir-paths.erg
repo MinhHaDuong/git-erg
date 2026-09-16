@@ -7,6 +7,7 @@ Author: MinhHaDuong
 2026-07-02T07:47Z MinhHaDuong created
 
 2026-07-02T07:48Z migrated from GitHub issue #145
+2026-09-16T07:45Z MinhHaDuong note Scoped to this repo's own copy; adopter propagation split to 0282. Imagine pass also corrected the target file (tickets/erg-github, POSIX grep+sed, not the erg-pr-merge grep -oiP the ticket names) and the consequence (escape-hatch PASS of a required check, not a silent skip).
 --- body ---
 Migrated from GitHub issue MinhHaDuong/git-erg#145 (opened 2026-05-23).
 
@@ -27,6 +28,21 @@ Don't pre-close the ticket; let `erg-pr-merge` close it atomically. If ticket is
 ## Reproduction
 
 Observed during aedist-technical-report PR #442/#443 (ticket 0237 pre-closed via `erg close`, then moved to `tickets/closed/`; PR body referenced `tickets/closed/0237-...`).
+
+## Scope decision (author, 2026-09-16)
+
+This ticket fixes **this repo's own copy** of `tickets/erg-github` and stops
+there. It does not propagate to adopters.
+
+That is a real limit, not an oversight: `tickets/erg-github` travels with the
+clone (README L104-105), so every adopter carries its own committed copy and
+nothing compares them. This ticket's own Reproduction names
+`aedist-technical-report` PR #442/#443 -- that repo's copy stays buggy until
+someone re-vendors by hand, and nothing will prompt them to.
+
+The propagation gap is filed as **0282** (vendored `erg-github` copies have
+no staleness channel), which is where the contract question belongs. 0255
+does not wait on it.
 
 ## Exit criteria
 

@@ -3,11 +3,13 @@ Title: Settle and fix erg migrate's unconditional asset overwrite
 Created: 2026-09-16
 Author: MinhHaDuong
 Blocked-by: 0279
+Closed: settled record-only: path D is a charter decision (0224, PR #275), guarded by two committed tests; no code change indicated
 
 --- log ---
 2026-09-16T07:12Z MinhHaDuong created
 2026-09-16T07:12Z MinhHaDuong note Split from 0278 (path D) as part of a raid monster-ticket decomposition; 0278's own Action 1 said settle this first because the outcome could change the shape of the rest.
 
+2026-09-16T07:26Z MinhHaDuong closed — settled record-only: path D is a charter decision (0224, PR #275), guarded by two committed tests; no code change indicated
 --- body ---
 ## Context
 
@@ -167,4 +169,50 @@ separate below-floor note (not a ticket per the severity floor: cosmetic,
 non-destructive), the `"init:"` label on the per-file refresh message when
 called from `migrate`. If the author wants to revisit the charter decision
 itself, that's a new, explicit ticket against the charter/0224 outcome, not a
+silent reversal riding in on this one.
+
+## Resolution (2026-09-16): settled, no code change
+
+Path D is settled. It fires — `migrateLayout` reaches the `installAssets`
+call on every `erg migrate tickets/` run, gated only on the directory being
+named `tickets`, never on whether any `.erg` file needed rewriting. The
+earlier fixture that "reported already clean and never reached the asset
+step" did not demonstrate immunity; it most likely used a directory not
+named `tickets`.
+
+**But it is not a defect.** The force-overwrite of a diverged `AGENTS.md` is
+a deliberate, documented, author-settled decision:
+
+- `docs/erg-imagine-charter.md` L122-127: migrate *"reste en force-overwrite
+  (la migration est une etape revue)"* and is *"exempt du prompt dpkg"*.
+- `tickets/closed/0224-migrate-clobbers-locally-edited-ergrc-us.erg`, closed
+  via PR #275, is the paper trail. It originally proposed exactly what this
+  ticket's Action 2 proposed. A raid flag caught that this reverses the
+  charter; the author's resolution was narrower — `.ergrc` (configuration)
+  was excluded from migrate's asset list entirely, while `AGENTS.md`
+  explicitly *keeps* force-overwrite, because agent docs track the binary.
+- Two committed tests assert the overwrite as the **wanted** outcome, and are
+  0224's own exit-criterion tests: `src/go/migrate_test.go:446`
+  ("diverged AGENTS.md is force-overwritten by migrateLayout — charter
+  decision intact") and `tests/test_migrate.sh:389` (same, at the integration
+  level, naming ticket 0224).
+
+All four citations were verified against the tree, not taken on an agent's
+word.
+
+It is also **not silent**, contrary to 0278's framing of this path:
+`installAssets` prints `refreshed ... (git restore -- ... to undo)` on every
+overwrite, and `migrateLayout` prints a summary count. The one real nit is
+cosmetic — that per-file line is hardcoded `"init: ..."` even when the caller
+is `migrate`, despite `installAssets`'s own doc comment saying callers label
+messages with their own command name. Below the severity floor; recorded
+here rather than filed.
+
+0278's "most dangerous path in the set" framing for path D is therefore
+wrong, and is corrected in that tracker.
+
+Closing record-only. The exit criterion "path D settled, recorded, covered by
+a committed test" is met by evidence that already existed; no fixture needed
+building and no code change is indicated. Reversing the charter decision
+would be a separate, explicit ticket against 0224 and the charter — not a
 silent reversal riding in on this one.
