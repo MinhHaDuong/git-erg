@@ -115,6 +115,49 @@ integration. It is not a subcommand of `erg` -- run it directly:
   (an audited escape hatch for emergency/unlinked merges), and outside CI the
   check degrades non-blockingly when `gh` is unavailable.
 
+### Vendoring contract: you own your copy, `erg` tells you when it drifts
+
+`erg-github` is **vendored, not installed**. `erg init` does not write it,
+`erg update` does not refresh it, and nothing in the toolchain will ever
+overwrite it: you may have edited it or wired it into your own CI, and that
+copy is yours.
+
+What `erg` does instead is **report**. The binary embeds a read-only reference
+copy, and `erg check` emits a `NOTE` when the `erg-github` in your store
+differs from it:
+
+```
+NOTE erg-github: differs from the erg-github this binary ships -- it is
+vendored, so erg never writes it; ...
+```
+
+The note claims no direction: a difference may be an upstream fix you have not
+picked up (the case this exists for -- an `erg-github` bug fixed upstream
+reaches you only when you re-vendor) or a local customisation of your own. It
+consults no `.erg-assets` stamp, because `erg` never wrote the file and the
+stamp says nothing about it. A repo with **no** `erg-github` at all is silent:
+the forge layer is optional and stays optional.
+
+To re-vendor, copy the helper over your own, then read the diff before
+committing it -- especially if you have customised it:
+
+```bash
+# erg version prints the revision this binary was built from; pulling the
+# helper from that same revision is what makes the note go quiet.
+REV=$(tickets/erg version | awk '/revision:/{print $2}')
+curl -fsSL "https://github.com/MinhHaDuong/git-erg/raw/$REV/tickets/erg-github" \
+  -o tickets/erg-github && chmod +x tickets/erg-github
+```
+
+From a git-erg clone at that revision, `cp <clone>/tickets/erg-github
+tickets/erg-github` does the same. Pulling from `main` instead works too, but
+if your binary is older the note will simply change sides -- helper and binary
+are shipped as one vintage, so upgrade both together.
+
+Maintainers: the reference copy is `src/go/assets/erg-github`. Edit that one
+and run `make regen-assets`; `tests/test_selfcoherence.sh` fails CI if the
+deployed `tickets/erg-github` drifts from it.
+
 ## Install into a project
 
 The zero-install path above already works. To add the optional `erg` CLI,

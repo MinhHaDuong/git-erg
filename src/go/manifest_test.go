@@ -747,3 +747,154 @@ func TestAssetDriftWarningsReportsStamplessDivergence(t *testing.T) {
 		}
 	})
 }
+
+// vendoredFixture builds a store whose managed assets are byte-identical to the
+// embedded copies -- so .ergrc and AGENTS.md contribute nothing and every
+// assertion below can only be about the vendored helper -- and whose
+// tickets/erg-github holds the caller's content. An empty ergGithub means the
+// file is not written at all: that is the non-forge adopter, and it is a case,
+// not a degenerate one. withManifest decides whether a .erg-assets stamp is
+// present, because the vendored compare must survive BOTH branches of
+// assetDriftWarnings: the stampless branch is reached by an early return, and
+// an implementation that appends the vendored notes after that return reports
+// nothing for exactly the stores most likely to be stale.
+func vendoredFixture(t *testing.T, ergGithub string, withManifest bool) string {
+	t.Helper()
+	root := t.TempDir()
+	ticketsDir := filepath.Join(root, "tickets")
+	if err := os.MkdirAll(ticketsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range initAssetPaths {
+		content, ok := bootstrapAsset(rel)
+		if !ok {
+			t.Fatalf("embedded asset missing: %s", rel)
+		}
+		name := strings.TrimPrefix(rel, "tickets/")
+		if err := os.WriteFile(filepath.Join(ticketsDir, name), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if ergGithub != "" {
+		if err := os.WriteFile(filepath.Join(ticketsDir, "erg-github"), []byte(ergGithub), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if withManifest {
+		body, err := buildManifest()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(ticketsDir, manifestName), []byte(body), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Guard: the fixture only isolates the vendored helper if the managed
+	// assets are silent. An edit that lets .ergrc or AGENTS.md diverge here
+	// would make every assertion below pass on the wrong warning.
+	for _, w := range assetDriftWarnings(ticketsDir) {
+		if strings.Contains(w, assetDriftSignal) || strings.Contains(w, assetRollbackSignal) || strings.Contains(w, assetStamplessSignal) {
+			t.Fatalf("vendoredFixture is not isolating the vendored helper: a managed asset spoke: %q", w)
+		}
+	}
+	return root
+}
+
+// TestAssetDriftWarningsReportsVendoredStaleness is ticket 0282's red step.
+//
+// tickets/erg-github is vendored: a plain committed POSIX-sh helper that
+// travels with the clone. Because it was in none of erg's asset lists, it had
+// no staleness channel at all -- not the .erg-assets stamp, not isCleanUpgrade,
+// not assetDriftWarnings -- so an adopter carrying a year-old copy was told
+// nothing, ever. The concrete bite: ticket 0255 fixed a ticket-ID extraction
+// gap in this script's cmd_verify(), and the repo where that bug actually fired
+// (aedist-technical-report) carries its own committed copy the fix never
+// reaches.
+//
+// The defect is SILENCE, so the assertions are on message CONTENT -- never on a
+// count, a length, or an exit code. Warnings are non-fatal by construction:
+// erg check's exit code is identical before and after this fix, and a test
+// reading it would pass in both worlds. The same holds for len(warnings): the
+// noisy arm must be shown to FIRE before either silent arm means anything, or
+// an implementation that never reports at all passes both of them trivially.
+func TestAssetDriftWarningsReportsVendoredStaleness(t *testing.T) {
+	embedded, ok := bootstrapAsset("tickets/erg-github")
+	if !ok {
+		t.Fatal("embedded erg-github missing: this binary ships no reference copy to compare against")
+	}
+
+	// A plausible year-old vendored copy: a real script, just not this one.
+	const stale = "#!/bin/sh\n# erg-github -- an old vendored copy, predating the 0255 fix\nexit 0\n"
+	if stale == embedded {
+		t.Fatal("test fixture collides with the embedded content")
+	}
+
+	t.Run("noisy arm: a stale vendored copy is reported", func(t *testing.T) {
+		for _, withManifest := range []bool{true, false} {
+			name := "stamped store"
+			if !withManifest {
+				name = "stampless store"
+			}
+			t.Run(name, func(t *testing.T) {
+				root := vendoredFixture(t, stale, withManifest)
+				got := strings.Join(assetDriftWarnings(filepath.Join(root, "tickets")), "\n")
+				if !strings.Contains(got, vendoredDriftSignal) {
+					t.Fatalf("a vendored erg-github differing from the shipped copy must be reported\n got: %q\nwant substring: %q", got, vendoredDriftSignal)
+				}
+				if !strings.Contains(got, "erg-github") {
+					t.Errorf("the report must name the file it is about: %q", got)
+				}
+			})
+		}
+	})
+
+	t.Run("noisy arm: the report claims no stamp-relative direction", func(t *testing.T) {
+		// erg never wrote this file, so the .erg-assets stamp says nothing
+		// about it and the report must not borrow the managed assets'
+		// vocabulary. "run 'erg init' to refresh" would be a false promise:
+		// init does not touch a vendored file and never will.
+		root := vendoredFixture(t, stale, true)
+		got := strings.Join(assetDriftWarnings(filepath.Join(root, "tickets")), "\n")
+		if strings.Contains(got, assetDriftSignal) || strings.Contains(got, assetRollbackSignal) || strings.Contains(got, assetStamplessSignal) {
+			t.Errorf("a vendored file must not be reported through the managed-asset signals: %q", got)
+		}
+	})
+
+	t.Run("silent arm: a current vendored copy says nothing", func(t *testing.T) {
+		for _, withManifest := range []bool{true, false} {
+			root := vendoredFixture(t, embedded, withManifest)
+			for _, w := range assetDriftWarnings(filepath.Join(root, "tickets")) {
+				if strings.Contains(w, vendoredDriftSignal) {
+					t.Errorf("a copy identical to the shipped one must stay silent (manifest=%v): %q", withManifest, w)
+				}
+			}
+		}
+	})
+
+	t.Run("silent arm: no vendored copy at all says nothing", func(t *testing.T) {
+		// The invariant that keeps the forge layer OPTIONAL: a repo that never
+		// adopted erg-github has nothing to compare and must never be nagged
+		// into adopting it. Without this arm, an implementation that reports
+		// on absence passes the noisy arm and wedges every non-forge adopter.
+		for _, withManifest := range []bool{true, false} {
+			root := vendoredFixture(t, "", withManifest)
+			if _, err := os.Stat(filepath.Join(root, "tickets", "erg-github")); !os.IsNotExist(err) {
+				t.Fatalf("fixture guard: erg-github must be absent for this arm (err=%v)", err)
+			}
+			for _, w := range assetDriftWarnings(filepath.Join(root, "tickets")) {
+				if strings.Contains(w, vendoredDriftSignal) {
+					t.Errorf("a store with no erg-github must stay silent (manifest=%v): %q", withManifest, w)
+				}
+			}
+		}
+	})
+
+	t.Run("the shipped reference is the deployed helper, not a stub", func(t *testing.T) {
+		// The compare is only worth anything if the embedded blob is the real
+		// script. A truncated or placeholder asset would make every adopter
+		// copy look stale -- the loudest possible false positive.
+		if !strings.Contains(embedded, "cmd_verify") || !strings.Contains(embedded, "#!/bin/sh") {
+			t.Errorf("embedded erg-github does not look like the forge helper (len=%d)", len(embedded))
+		}
+	})
+}

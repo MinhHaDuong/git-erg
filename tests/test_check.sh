@@ -896,6 +896,72 @@ else
     fi
 fi
 
+# --- vendored erg-github drift (ticket 0282) ---
+# tickets/erg-github is vendored: a committed POSIX-sh helper that travels with
+# the clone, in none of erg's asset lists, and therefore -- until 0282 -- on no
+# staleness channel at all. An adopter carrying a year-old copy was told
+# nothing, ever, which is how 0255's cmd_verify() fix failed to reach the repo
+# where that bug actually fired.
+#
+# Asserted on message CONTENT, never on the exit code: these are warnings, so
+# the exit code is 0 in both the fixed and the unfixed world and reading it
+# would prove nothing. The noisy arm comes FIRST; the two silent arms only mean
+# something once the report has been seen to fire.
+VENDORED="$FIXTURES/vendored"
+mkdir -p "$VENDORED"
+cp "$DRIFTDIR/9001-x.erg" "$VENDORED/"
+printf '#!/bin/sh\n# an old vendored erg-github, predating the 0255 fix\nexit 0\n' > "$VENDORED/erg-github"
+rc=0; out=$($ERG check "$VENDORED" 2>&1) || rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -qF "it is vendored, so erg never writes it"; then
+    pass "vendored: a stale erg-github is reported (non-fatal)"
+else
+    fail "vendored: expected a non-fatal vendored-drift report (rc=$rc, got: $out)"
+fi
+if echo "$out" | grep -qF "erg-github" && echo "$out" | grep -qF "re-vendor it by hand"; then
+    pass "vendored: the report names the file and a route erg cannot walk for you"
+else
+    fail "vendored: the report must name the file and the manual remedy (got: $out)"
+fi
+# erg never wrote this file, so no stamp-relative claim may be made about it,
+# in either direction -- and 'erg init' must not be prescribed: it does not
+# touch a vendored path, so it would report success and change nothing.
+if echo "$out" | grep -qF "differs from the .erg-assets stamp" || echo "$out" | grep -qF "no .erg-assets stamp"; then
+    fail "vendored: claimed a stamp comparison for a file erg never wrote (got: $out)"
+else
+    pass "vendored: makes no stamp-relative claim"
+fi
+
+# Silent arm 1: the copy this binary ships. src/go/assets/erg-github IS the
+# embedded reference (the self-coherence guard pins it to tickets/erg-github),
+# so a store holding it byte-for-byte has nothing to report.
+VENDOREDOK="$FIXTURES/vendored-current"
+mkdir -p "$VENDOREDOK"
+cp "$DRIFTDIR/9001-x.erg" "$VENDOREDOK/"
+cp src/go/assets/erg-github "$VENDOREDOK/erg-github"
+# Guard: without a real, non-empty copy this arm degenerates into the absent
+# case below and would pass while proving nothing about the equality gate.
+if [ ! -s "$VENDOREDOK/erg-github" ]; then
+    fail "vendored control: fixture has no erg-github copy (test would be vacuous)"
+else
+    rc=0; out=$($ERG check "$VENDOREDOK" 2>&1) || rc=$?
+    if [ "$rc" -eq 0 ] && ! echo "$out" | grep -qF "it is vendored, so erg never writes it"; then
+        pass "vendored: a copy identical to the shipped one stays silent"
+    else
+        fail "vendored: an exact match must not be nagged (rc=$rc, got: $out)"
+    fi
+fi
+
+# Silent arm 2: no erg-github at all. This is the invariant that keeps the
+# forge layer OPTIONAL -- erg core is offline and forge-blind, and a repo that
+# declined the forge helper must never be nagged into adopting it. $NODRIFT is
+# a store with no assets on disk whatsoever, so it is exactly that case.
+out=$($ERG check "$NODRIFT" 2>&1 || true)
+if echo "$out" | grep -qF "it is vendored, so erg never writes it"; then
+    fail "vendored: reported a store that carries no erg-github at all (should not)"
+else
+    pass "vendored: no erg-github on disk -> silent (forge layer stays optional)"
+fi
+
 # Matching manifest -> no drift warning (exit criterion: no warn when all
 # assets match the embedded version). `erg init` stamps THIS binary's own
 # embedded assets, so the manifest matches by construction. init needs a

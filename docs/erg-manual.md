@@ -119,6 +119,15 @@ Additionally emits warnings (non-fatal) for:
     is not nagged) and silent when it matches the embedded copy exactly.
     NOTE marks the weaker class: a condition reported, not a repair advised.
     Both classes are counted together in the trailing "N warnings" summary.
+  - Vendored drift (NOTE, not WARN): tickets/erg-github on disk differs from
+    the copy this binary ships. That file is vendored, not installed -- it
+    travels with the clone and the adopter owns it -- so erg compares and
+    reports, and never writes it. No direction is claimed (the copy may be an
+    older upstream one OR your own customisation) and no .erg-assets stamp is
+    consulted, since init never wrote the file and the stamp says nothing about
+    it. The remedy is manual: re-vendor it (see README, "Forge layer:
+    erg-github"). Silent when the file is absent -- the forge layer is
+    optional, and a repo that never adopted it is never nagged into it.
 
 Exit codes: 0 on pass (warnings are printed but do not affect exit code), 1 on any
 violation. The value 1 is a hard failure here, consistent with the shared exit-code

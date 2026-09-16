@@ -78,6 +78,38 @@ const assetRollbackSignal = "is older than the .erg-assets stamp (this binary pr
 // its two siblings.
 const assetStamplessSignal = "no .erg-assets stamp -- cannot tell whether this is a clean upgrade or a local edit; its git history can, and 'erg init' preserves the file either way but stamps it as if shipped"
 
+// vendoredDriftSignal is the fourth condition, and the only one about a file
+// erg does not own: a VENDORED file (vendoredAssetPaths -- today just
+// tickets/erg-github) whose bytes on disk differ from the copy this binary
+// embeds (ticket 0282). Vendored means the adopter owns it outright: it was
+// committed into their repo as a plain file, they may have wired it into CI,
+// and erg has never written it and never will. So this reports, and stops.
+//
+// Note what it does NOT say, and why each omission is forced:
+//
+// No claim that the on-disk copy is OLDER. The comparison establishes only
+// that the two differ; the adopter may equally have customised theirs. Naming
+// it "stale" would be a direction this compare cannot support -- the same
+// discipline assetStamplessSignal follows for the unstamped managed asset.
+//
+// No stamp-relative claim, in either direction. The .erg-assets manifest
+// records what init WROTE, and init never wrote this file, so the stamp is
+// silent about it by construction: this compare is disk-against-embedded and
+// ignores the manifest entirely, which is also why it reads identically in a
+// stamped and an unstamped store.
+//
+// No "run 'erg init'". That remedy is true for the managed assets and false
+// here -- init does not touch a vendored path, so advising it would send an
+// adopter to a command that reports success and changes nothing. The route
+// named instead is the one that actually exists: re-vendor the file by hand,
+// documented in README's forge-layer section.
+//
+// Unlike assetDriftSignal and assetStamplessSignal this literal has no
+// cross-version consumer -- erg update greps for those two, not for this one
+// (see update.go) -- so, like assetRollbackSignal, it is free to be reworded
+// later. If a future erg update ever greps it, that freedom ends.
+const vendoredDriftSignal = "differs from the erg-github this binary ships -- it is vendored, so erg never writes it; if the difference is not your own customisation, re-vendor it by hand (README, 'Forge layer: erg-github')"
+
 // sha256hex returns the hex-encoded SHA-256 of b.
 func sha256hex(b []byte) string {
 	sum := sha256.Sum256(b)
@@ -364,7 +396,8 @@ func isCleanUpgrade(diskHash, stampedHash string, known []string, stampDate, run
 	return false
 }
 
-// assetDriftWarnings reports assets whose .erg-assets stamp differs from the
+// managedAssetWarnings is assetDriftWarnings' managed-asset half: it reports
+// assets erg INSTALLS whose .erg-assets stamp differs from the
 // current binary's embedded version -- i.e. the binary was upgraded since the
 // last init, so the deployed assets are behind and a re-init would refresh
 // them. Comparing the stamp (not the on-disk bytes) means a deliberate local
@@ -392,7 +425,74 @@ func isCleanUpgrade(diskHash, stampedHash string, known []string, stampDate, run
 // "binary upgraded since last init" wording was previously printed even when the
 // running binary was months OLDER than the stamp, advising an erg init that
 // would have reverted the asset.
+// Two populations, compared differently, reported together (ticket 0282).
+// managedAssetWarnings covers what erg INSTALLS, where the stamp is meaningful
+// and the remedy is a command. vendoredDriftWarnings covers what erg only
+// SHIPS A REFERENCE FOR, where there is no stamp and no command.
+//
+// The append order matters exactly once: the vendored notes must be appended
+// OUTSIDE the managed branch, not inside it. The managed side returns early
+// when there is no manifest, and a store with no .erg-assets is precisely the
+// long-unmaintained adopter most likely to be carrying a year-old erg-github --
+// so an implementation that folded the vendored compare into either branch
+// would go silent for the population the fix exists to serve. The test's noisy
+// arm runs over both stamped and stampless stores for that reason.
 func assetDriftWarnings(dir string) []string {
+	return append(managedAssetWarnings(dir), vendoredDriftWarnings(dir)...)
+}
+
+// vendoredDriftWarnings reports each file in vendoredAssetPaths whose bytes on
+// disk differ from the copy this binary embeds. It is the staleness channel
+// tickets/erg-github never had: not being in any asset list, it was invisible
+// to the stamp, to isCleanUpgrade and to the whole 3-state compare, so a
+// year-old vendored copy produced no signal on any channel (ticket 0282).
+//
+// Deliberately NOT a fourth state of the dpkg compare. That machinery exists to
+// decide whether erg may overwrite a file; here the answer is fixed at "no" --
+// the adopter owns this file, may have wired it into CI, and gets a report
+// rather than a write. Reusing the compare's plumbing (the embedded blob, the
+// byte equality) without reusing its authority is the whole shape of the fix.
+//
+// Silent in the two cases that carry no information, and the second one is an
+// invariant rather than an optimisation:
+//
+//   - The bytes match what this binary ships: nothing to say.
+//   - The file is absent: the repo never adopted the forge layer. erg core is
+//     forge-blind and erg-github is optional infrastructure, so absence is a
+//     legitimate steady state, not a gap to nag about. A report here would
+//     wedge every non-forge adopter into an adoption they declined.
+//
+// Unreadable folds into absent, following readManifestFile, installAssets and
+// stamplessWarnings -- breaking ranks in one function would be the surprise.
+//
+// No manifest is read and none is written. Adding these paths to
+// initAssetPaths would have been the smaller diff and the wrong one: that list
+// drives installAssets (a write) and buildManifest (a stamp recording an
+// install that never happened, ticket 0292's defect).
+func vendoredDriftWarnings(dir string) []string {
+	var notes []string
+	for _, rel := range vendoredAssetPaths {
+		name := strings.TrimPrefix(rel, "tickets/")
+		shipped, ok := bootstrapAsset(rel)
+		if !ok {
+			// This binary ships no reference copy, so there is nothing to
+			// compare against. Silence is the only honest answer: reporting
+			// would be asserting drift from a blob that does not exist.
+			continue
+		}
+		onDisk, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			continue
+		}
+		if string(onDisk) == shipped {
+			continue
+		}
+		notes = append(notes, fmt.Sprintf("NOTE %s: %s", name, vendoredDriftSignal))
+	}
+	return notes
+}
+
+func managedAssetWarnings(dir string) []string {
 	// dir is the ticket store itself (the dir holding .erg-assets), so read the
 	// manifest file directly rather than via readManifest (which joins tickets/).
 	stamps := readManifestFile(filepath.Join(dir, manifestName))
@@ -424,7 +524,7 @@ func assetDriftWarnings(dir string) []string {
 	return warnings
 }
 
-// stamplessWarnings is assetDriftWarnings' no-manifest branch (ticket 0283).
+// stamplessWarnings is managedAssetWarnings' no-manifest branch (ticket 0283).
 // For each managed asset it compares the bytes on disk against the bytes this
 // binary embeds -- the SAME bootstrapAsset lookup the stamped branch uses, and
 // deliberately only against the single CURRENTLY embedded copy. Matching a
