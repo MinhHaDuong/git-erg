@@ -60,15 +60,23 @@ const assetRollbackSignal = "is older than the .erg-assets stamp (this binary pr
 // compares embedded against embedded, finds them equal, and this condition goes
 // permanently silent with the divergence still on disk and still unrecorded.
 // Ticket 0292 tracks extending 0279's "don't stamp what you didn't touch"
-// exemption to that case. Until it lands, the honest advice is to look before
-// running init, which is what this wording says.
+// exemption to that case.
+//
+// It points at git rather than at erg, and that is not a stylistic choice. No
+// erg subcommand can show you the embedded copy: `erg init -n` reports only
+// THAT a file differs, and spec/integration dump different embedded files
+// entirely. Advising a comparison erg cannot perform would swap a trap for a
+// dead end, so the message names the tool the store is already kept in. 0292
+// carries the requirement to expose the embedded copy, which is what would let
+// this text name an erg command instead.
 //
 // The cross-version extend-at-the-END rule binds from the first RELEASED
-// binary that prints this literal. It was rewritten once during review of 0283
-// (before any release carried it) precisely because "run 'erg init' to find
-// out" promised the resolution described above; after 0283 ships, this text is
-// frozen at the front like its two siblings.
-const assetStamplessSignal = "no .erg-assets stamp -- cannot tell whether this is a clean upgrade or a local edit; compare it against the shipped copy before running 'erg init', which preserves the file but stamps it as if shipped"
+// binary that prints this literal. It was rewritten twice during review of
+// 0283, before any release carried it: "run 'erg init' to find out" promised
+// the resolution described above, and its replacement advised a comparison no
+// command could make. After 0283 ships, this text is frozen at the front like
+// its two siblings.
+const assetStamplessSignal = "no .erg-assets stamp -- cannot tell whether this is a clean upgrade or a local edit; its git history can, and 'erg init' preserves the file either way but stamps it as if shipped"
 
 // sha256hex returns the hex-encoded SHA-256 of b.
 func sha256hex(b []byte) string {

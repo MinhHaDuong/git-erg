@@ -857,12 +857,13 @@ else
     fail "stampless: expected a non-fatal stampless report (rc=$rc, got: $out)"
 fi
 # A bare "erg init" grep would also be satisfied by assetRollbackSignal, which
-# ends "...then 'erg init'". Assert the stampless advice specifically: look
-# BEFORE you init, because init stamps the file as if shipped (ticket 0292).
-if echo "$out" | grep -qF "compare it against the shipped copy before running 'erg init'"; then
-    pass "stampless: the report names the remedy, and names it as look-first"
+# ends "...then 'erg init'". Assert the stampless advice specifically: it must
+# point at a tool that can actually answer (git history), and must state what
+# erg init costs here -- it stamps the file as if shipped (ticket 0292).
+if echo "$out" | grep -qF "its git history can" && echo "$out" | grep -qF "stamps it as if shipped"; then
+    pass "stampless: the report names an answerable route and init's cost"
 else
-    fail "stampless: the report must advise comparing before 'erg init' (got: $out)"
+    fail "stampless: the report must name git history and init's stamping cost (got: $out)"
 fi
 # Guard: no stamp exists here, so no stamp-relative claim may be made.
 if echo "$out" | grep -qF "differs from the .erg-assets stamp"; then

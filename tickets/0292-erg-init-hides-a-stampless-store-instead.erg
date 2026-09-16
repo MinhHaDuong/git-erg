@@ -108,6 +108,22 @@ where it should be "this asset is stamped". The fix is per-asset rather than
 per-store -- route an unstamped asset through the stampless path even when the
 manifest is present.
 
+## Defect 4 — no way to see the embedded copy
+
+Found by the round-2 red team on PR #348. 0283's message tells the reader the
+on-disk asset differs from what the binary ships, and **no `erg` subcommand can
+show them what it ships.** The full surface was enumerated: `erg init -n`
+reports only *that* a file differs, `erg spec` and `erg integration` dump
+different embedded files entirely, and nothing exposes `bootstrapAsset(".ergrc")`.
+The only route today is a workaround nobody would find: a second store, a copy
+of the binary, `erg init`, then a manual `diff`.
+
+0283 therefore points the reader at the store's git history instead, which is
+honest but is not erg answering for itself. Exposing the embedded copy — a
+`--show`/`--diff` flag on `erg init`, or an `erg spec`-style dump — is what
+would let that message name an erg command, and it is the prerequisite for any
+"compare them yourself" advice anywhere in the tool.
+
 ## Relevant files
 
 - `src/go/init.go` — `installAssets` (the `writeManifest` call and the
@@ -120,6 +136,36 @@ manifest is present.
   and the `stamplessFixture` helper are the idiom to extend
 - `tests/test_check.sh` — the `stampless` / `stampmatch` fixtures
 - `tests/test_init.sh` — where defect 2's channel assertion belongs
+
+## Actions
+
+Ordered so the state-corrupting one lands first and nothing depends on a
+decision not yet made.
+
+1. **Stop stamping what init did not touch (defect 1).** Extend `init.go`'s
+   `rollbackPreserved` exemption to cover the local-edits-preserved case: a
+   file `installAssets` preserved does not get an entry in the manifest it
+   writes. The exemption's existing comment already states the rationale;
+   generalise it rather than adding a second special case beside it.
+2. **Decide the channel-2 shape (defect 2), then implement it.** Either move
+   `cmdInit`'s chained check above `if skipped > 0 { return 2 }` on both legs,
+   or give `installAssets` a third preserve reason ("differs, no stamp, reason
+   unknown") carried on the per-file line. The second is closer to what 0279
+   established and does not disturb exit ordering; the first is what 0283's
+   original criterion asked for literally. This is the architectural call --
+   settle it in the ticket log before writing code.
+3. **Fix the false reason (defect 2, second half).** `init.go:212`'s flat
+   `has local edits` must not be printed for a file whose provenance the code
+   never observed.
+4. **Gate per asset, not per store (defect 3).** Route an asset with no entry
+   in an otherwise-valid manifest through `stamplessWarnings` instead of
+   skipping it.
+5. **Expose the embedded copy (defect 4).** Pick one surface and document it in
+   the relevant `help*` constant; regenerate `docs/erg-manual.md`.
+6. **Revisit 0283's wordings.** `assetStamplessSignal` can name an erg command
+   once action 5 lands, and `update.go`'s follow-up line can stop routing
+   through `erg check`. Both are cross-version literals by then: extend at the
+   END only, never rewrite.
 
 ## Test
 
@@ -139,6 +185,23 @@ immediately following `check` or `update`:
 - `tests/test_init.sh` — defect 2's channel: a stampless diverged store must
   report its condition through `erg init` (and through `erg init -n`), not only
   through `erg check`.
+
+## Verification
+
+- [ ] Run `erg check` on a stampless diverged store, then `erg init`, then
+      `erg check` again: the second check still reports the condition. Today
+      it is silent, which is defect 1's whole signature.
+- [ ] `grep` the manifest `erg init` wrote: no entry for the preserved file.
+- [ ] `erg init` and `erg init -n` on that store both report the condition
+      (defect 2), and neither claims `has local edits` for a file whose
+      provenance was never observed.
+- [ ] Delete one asset's line from a valid `.erg-assets`, diverge that asset,
+      `erg check` reports it (defect 3). Sibling control: restore the line,
+      it goes quiet.
+- [ ] The command chosen in action 5 prints the embedded copy byte-identical
+      to `bootstrapAsset`, verified by piping it through `sha256sum` against
+      the manifest a clean `erg init` writes.
+- [ ] `make docs` leaves no drift; `make check` passes.
 
 ## Invariants
 
