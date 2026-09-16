@@ -2,10 +2,12 @@
 Title: erg migrate discards the rollback provenance erg init preserves
 Created: 2026-09-16
 Author: claude
+Closed: autoclosed — PR #363
 
 --- log ---
 2026-09-16T12:42Z claude created
 
+2026-09-16T14:56Z MinhHaDuong closed — autoclosed — PR #363
 --- body ---
 
 ## Context
