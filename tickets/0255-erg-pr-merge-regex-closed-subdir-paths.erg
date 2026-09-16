@@ -33,3 +33,68 @@ Observed during aedist-technical-report PR #442/#443 (ticket 0237 pre-closed via
 - [ ] Regex tolerates an optional `closed/` segment, e.g.:
       `grep -oiP '^\*{0,2}ticket:?\*{0,2}:?\s*tickets/(?:closed/)?\K\d+'`
 - [ ] PR bodies referencing `tickets/closed/NNNN-...` still resolve the ticket ID
+
+## Imagine
+
+**Scope correction.** The ticket title/body/exit-criteria describe
+`erg-pr-merge` (a merge-and-close script) with a `grep -oiP` (GNU-only PCRE)
+suggested fix. Neither exists in this repo: there is no `skills/merge/`
+directory here (that path is a harness-repo convention, not git-erg's — this
+is git-erg itself). The actual defect lives in `tickets/erg-github`
+(`cmd_verify`, lines 76-78), a *verification* script that fails a PR whose
+referenced ticket is still open. Its header (line 75) explicitly commits to
+portability: "grep -iE + BRE sed; never GNU-only grep -oP" — so the ticket's
+suggested `grep -oiP` fix is inapplicable here on top of being the wrong file.
+
+**Consequence, corrected.** The ticket's Problem section describes the effect
+as "auto-close step is skipped without error" (true of `erg-pr-merge`, a
+close-executing script, where a missed match just means nothing gets
+auto-closed — inert). `cmd_verify` in `tickets/erg-github` is different: it is
+a required CI gate that either PASSES or FAILS a PR. Traced the empty-`$ids`
+branch (lines 80-89): when the regex fails to extract an id, `cmd_verify`
+does NOT skip silently — it takes the "escape hatch" branch built for
+genuinely unlinked PRs, logs `PASS -- no ticket referenced (escape hatch
+invoked)`, emits a `::warning::` in CI, and exits 0. So a PR that correctly
+references `tickets/closed/0237-...` is misclassified as an *unlinked* PR:
+it passes, but via the wrong path and with a spurious "no ticket referenced"
+audit warning, rather than via the intended `ticket_is_closed` check (which
+already handles the closed/ subdirectory correctly, line 48) reporting "PASS
+-- ticket 0237 is closed in this PR." Worse case: if a PR body referenced
+`tickets/closed/NNNN` for a ticket that was *not actually* closed (body
+written by hand, or copy-paste error), the escape hatch would falsely PASS a
+PR that should FAIL — a silent compliance bypass on the required check, not
+merely a missing convenience.
+
+**Premise check: LIVE.** Verified empirically (not just by reading):
+```
+$ printf '**Ticket:** tickets/0237-foo.erg\n' | grep -iE '^[*]{0,2}ticket:?[*]{0,2}:? *tickets/[0-9]{4}' | sed 's/.*tickets\/\([0-9][0-9][0-9][0-9]\).*/\1/'
+0237
+$ printf '**Ticket:** tickets/closed/0237-foo.erg\n' | grep -iE '^[*]{0,2}ticket:?[*]{0,2}:? *tickets/[0-9]{4}' | sed 's/.*tickets\/\([0-9][0-9][0-9][0-9]\).*/\1/'
+(empty)
+```
+`git log --oneline -- tickets/erg-github` shows a single commit (`0b9d206`,
+ticket 0209) — the regex has never been patched since. Bug is live in the
+current tree.
+
+**Simplest fix (against the real file/lines, portable — no `-oP`).** Add an
+optional `closed/` segment to both the grep filter and the sed extraction in
+`tickets/erg-github` lines 76-78, using a POSIX BRE interval (`\{0,1\}`, not
+the GNU-only `\?`) so the file keeps the portability guarantee its own header
+comment promises:
+
+```bash
+ids=$(printf '%s\n' "$body" |
+	grep -iE '^[*]{0,2}ticket:?[*]{0,2}:? *tickets/(closed/)?[0-9]{4}' 2>/dev/null |
+	sed 's/.*tickets\/\(closed\/\)\{0,1\}\([0-9][0-9][0-9][0-9]\).*/\2/' || true)
+```
+(`(closed/)?` is plain ERE, valid in `grep -E`; `\{0,1\}` is the POSIX BRE
+equivalent of `\?`, portable to `sed` implementations that reject the GNU
+extension.)
+
+**Antipattern scan.** No YAGNI/premature-abstraction hits — this is a
+one-line regex broadening on an already-narrow, single-purpose extraction;
+no new abstraction, option, or generalization is warranted. The fix should
+land as a direct edit to `tickets/erg-github`, not a new helper or config
+knob. Recommend the ticket's title and exit criteria be corrected to name
+`tickets/erg-github` (not `erg-pr-merge`) and the portable `grep -iE` + `sed`
+pair (not `grep -oiP`) before this moves to Plan.

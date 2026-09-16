@@ -20,3 +20,79 @@ Note the asymmetry: rule 14 rejects a *Title* that starts or ends with a status 
 - [ ] `erg new` never produces a filename for which `pathIsClosed` fires (e.g. trim or extend the truncation point, or drop the offending trailing segment)
 - [ ] Regression test covering a title whose 40-char truncation lands on `-closed`
 - [ ] `erg check` (or `validate`) warns when an open-by-header ticket has a `pathIsClosed`-positive basename, so hand-created files get caught too
+
+## Imagine
+
+**Premise check: LIVE.** `slugify` (`src/go/new.go:18-30`) truncates to 40 chars
+at line 22-24 with a bare `strings.TrimRight(s, "-")` and no `pathIsClosed`
+call anywhere in `new.go`. `TestSlugify` (`src/go/new_test.go:10-32`) pins the
+40-char boundary (two cases at exactly 40/41 `a`s) but has no case landing on
+a `-closed` suffix, so exit criterion 2 (regression test) is unmet in the
+current tree. Separately, `check.go`'s `folderClosure` (`check.go:17-34`,
+called from `validateCorpus` at `validate.go:120`, itself invoked from
+`cmdCheck`, so directory/header mismatches are hard VIOLATIONs, not
+warnings) only calls `pathIsClosed(filepath.Dir(t.Path))` (`check.go:21`) --
+directory only, never the basename -- so a hand-crafted or
+truncation-produced `NNNN-*-closed.erg`
+with no `Closed:` header passes `erg check` silently today: `t.IsClosed()`
+(`erg.go:36`) already returns true via the basename branch of `pathIsClosed`,
+but nothing in `check.go` surfaces the mismatch as a warning. Exit criterion 3
+is confirmed unmet.
+
+**Why now / why this scope.** This is a live, previously-observed data-loss
+bug (0255 vanished from `erg list`/`erg ready` with zero warning) with a
+minimal, well-understood blast radius (one function in `new.go`, one warning
+function in `check.go`, two test files). Fits comfortably under the
+"verified empirical need" bar (STATE.md) and nowhere near monster-ticket
+territory (2 files touched, not 15+).
+
+**Simplest fix path for (a).** Because the generated basename is always
+`NNNN-slug` (digits first), the only branch of `pathIsClosed` a generated slug
+can ever trigger is the trailing `strings.HasSuffix(lower, "-closed")` check --
+the `closed`-equality and `closed-`/`closed.`-prefix branches require the
+component to *start* with "closed", which the numeric ID prefix forecloses.
+So the fix does not need a generic retry loop: after the existing 40-char
+truncate + trim, build the candidate basename (`id-placeholder + "-" + s`,
+or just test `s` for a trailing `-closed`) and, if it would land
+`pathIsClosed`-positive, strip the trailing `-closed` segment (not just the
+last char) and re-run `TrimRight(s, "-")`; fall back to `"untitled"` if that
+empties the slug. This is "drop the offending trailing segment" from the exit
+criteria, and it is strictly simpler than "extend the truncation point"
+(which would require re-scanning forward for the next word boundary and could
+still land on another closed-triggering word). A fully generic guard (loop:
+truncate, test full pathIsClosed, strip trailing hyphen-segment, retry until
+clean) is more robust to future pathIsClosed rule changes and is barely more
+code -- worth considering over the targeted suffix-only fix, but either
+satisfies exit criterion 1.
+
+**Simplest fix path for (b).** Add a basename-only warning next to (not
+replacing) `folderClosure`'s directory check: for each ticket where
+`pathIsClosed(t.Path)` is true purely because of the basename (i.e. the
+directory-only test is false) and `t.Closed == ""`, emit a WARN (not a hard
+error, to match the existing WARN-vs-VIOLATION split in `check.go` for
+non-fatal corpus smells) pointing at the specific filename and telling the
+author to rename it or add `Closed:`. This reuses the existing `pathIsClosed`
+predicate with no new parsing logic.
+
+**Antipattern scan: no violation.** No stdlib or vendored kebab-case/slug
+utility exists to reuse -- Go's stdlib has no slugify equivalent, and
+`go.mod` (`src/go/go.mod`) declares zero dependencies, consistent with this
+project's standalone-binary philosophy (STATE.md: "traveling binary").
+Hand-rolling ~10 lines of regex-based normalization is the appropriate scope
+here, not premature abstraction; pulling in an external slug library would be
+the actual YAGNI violation.
+
+**Scope recommendation on (a) vs (b): keep together, but (a) is the load-bearing
+fix and (b) is a lower-urgency complement.** They share one root cause
+(nothing validates a basename against `pathIsClosed` before/after it exists)
+and touch a combined 2 source files + 2 test files -- well under the
+decomposition threshold. (a) alone closes the originally observed live bug (a
+tool-generated file silently vanishing); (b) is genuinely independent value
+(it also catches hand-created or externally-renamed files that (a) can never
+see, since (a) only guards the `erg new` code path) but is a warning, not a
+correctness fix for `erg new` itself. Recommendation: implement both in this
+ticket as originally scoped -- the combined diff is small enough that
+splitting would add ticket-admin overhead disproportionate to the work. If
+executor time is constrained, (a) is the part that must not slip; (b) is the
+part that could safely become a fast-follow without leaving the original
+defect unfixed.

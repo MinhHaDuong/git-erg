@@ -108,3 +108,94 @@ cannot see it.
 - 0279 — path B, lands first in an earlier wave
 - 0280 — path D, must land before this ticket; its outcome may change this
   ticket's scope
+
+## Imagine
+
+Read `src/go/manifest.go`, `src/go/init.go`, `src/go/bootstrap_assets.go`,
+`src/go/assets/*`, the Makefile, and git history for `src/go/assets/*`. Three
+findings bear on scope before this ticket is planned in earnest.
+
+**Premise check: LIVE.** `extraHistoricalHashes` (`manifest.go:142-144`) is
+still exactly the empty map the ticket describes:
+```go
+var extraHistoricalHashes = map[string][]string{
+    // "AGENTS.md": {"<sha256 of a past shipped AGENTS.md>"},
+}
+```
+`knownAssetHashes` (line 149) reads it directly; nothing populates it. Path A
+and path C as described are both still open.
+
+**Scope correction to Action 2 — only two assets ever reach `isCleanUpgrade`.**
+`src/go/bootstrap_assets.go` embeds all four files (`AGENTS.md`, `.ergrc`,
+`spec-erg-v1.md`, `integration.md` — confirmed present), but `src/go/init.go`
+shows only two of them are ever installed through the dpkg 3-state compare
+that consults `extraHistoricalHashes`:
+- `initAssetPaths` (`init.go:10-13`) = `.ergrc`, `AGENTS.md` — `erg init`'s
+  install/upgrade path.
+- `migrateAssetPaths` (`init.go:20`) = `AGENTS.md` only — `erg migrate`'s
+  path, and 0280's subject.
+- `spec-erg-v1.md` and `integration.md` are `orphanAssetPaths` (`init.go:28`):
+  removed from disk only on an **exact** embedded-content match, never
+  written or upgraded, and `isCleanUpgrade`/`knownAssetHashes` are never
+  called on them (confirmed: the only call site is inside `installAssets`'s
+  loop over `paths`, i.e. `initAssetPaths`/`migrateAssetPaths`). The
+  Makefile's own `regen-assets` target says this in so many words: "Only the
+  2 retained assets are deployed (.ergrc, AGENTS.md); the spec and
+  integration guide are served on demand." Action 2 as written ("apply the
+  table to every embedded asset... not just AGENTS.md") should be narrowed to
+  `.ergrc` and `AGENTS.md` — extending it to the two on-demand-served files
+  would build machinery for a code path that does not exist today. If a
+  future ticket starts installing those to disk, the table extends then.
+
+**Recommended generation mechanism: a test that recomputes and diffs, not a
+`go:generate` step.** There is no `go:generate` directive anywhere in
+`src/go/` today — introducing one would be new tooling convention, not reuse
+of an existing one. This repo already has the right-shaped precedent instead:
+`regen-assets` (Makefile) + `tests/test_selfcoherence.sh`, which fails CI
+when the deployed `tickets/` copy drifts from the embedded source, using the
+same "computed target, committed literal, CI-verified drift check" pattern
+this ticket needs. Recommend the same shape: a Go test (sibling to the
+existing `manifest_test.go`, which already walks `extraHistoricalHashes`
+mutation via `t.Cleanup`) that shells out to `git log --follow -- FILE` for
+each of `.ergrc`/`AGENTS.md`, computes the SHA-256 of the blob at each
+revision (`git show <rev>:path` or `git cat-file`), and fails with a diff
+against the committed `extraHistoricalHashes` literal when a shipped
+revision is missing or an entry doesn't correspond to any real revision (the
+same test catches path C — a fabricated hash with no matching commit). This
+is the second option Action 1 already names ("a generated list, or a test
+that regenerates it... and fails on divergence") — pick the test, because a
+`go:generate`/build-time codegen step would make `git` a runtime requirement
+of `go build`/`go install` for consumers of this module, where a test only
+needs `git` in CI and dev checkouts, matching what `test_selfcoherence.sh`
+already assumes.
+
+**Antipattern scan: not over-engineered, but the two sub-problems (table vs.
+visibility) should stay separable.** The corpus this table would cover is
+small and bounded, not a runaway abstraction: `git log --oneline --follow --
+src/go/assets/AGENTS.md` returns 15 revisions since ticket 0083, and
+`src/go/assets/.ergrc` returns 4, likely fewer after dedup for
+content-identical round-trips (e.g. the ASCII/Unicode `≤` fix-then-refix
+pair). Generating ~19 entries from this repo's own history is proportionate;
+it is not the kind of table search-works-for-zotero's ID-decade sprawl
+warned against.
+
+The "just refuse unrecognized hashes going forward, don't backfill" question
+is worth asking directly because the code **already does that** — the
+dormancy note at `manifest.go:140-141` states it as the current, deliberate
+behavior: "An unrecognized old asset degrades safely to 'preserve' (exit 2,
+rerunnable with --force) -- never a silent clobber." Refusal-by-default is
+not something this ticket needs to add; the table only widens which old
+revisions get auto-recognized as safe-to-upgrade instead of stopping for a
+manual `--force`. That reframes what's actually broken on path A: the
+*silence*, not the missing recognition. chemin-de-voix today gets "would
+preserve" (the safe, correct outcome) with zero explanation anywhere why.
+Action 3 (visibility) fixes that on its own, independent of whether the
+table is ever populated. If this ticket's scope needs to shrink under
+0280's outcome, Action 3 is the higher-value, lower-risk piece to keep;
+Action 1/2 (the table) is worth building because the corpus is cheap and it
+closes path C, but it is not what path A's silence needs.
+
+Recommendation: keep Actions 1, 3, 4; narrow Action 2 to `.ergrc` +
+`AGENTS.md` only, with a one-line note on why `spec-erg-v1.md` /
+`integration.md` are out of scope (orphan-only, no install/upgrade path
+exists for them today).

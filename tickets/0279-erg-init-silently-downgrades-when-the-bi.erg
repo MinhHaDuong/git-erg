@@ -134,3 +134,93 @@ assertion that only reads exit codes.
   defect is distinct from both: 0278 is about a table that is empty, this is
   about a comparison that is direction-blind. Neither 0277 nor 0278 describes
   it, and it fires on repos that both of them consider healthy.
+
+## Imagine
+
+**Why now / why this scope.** The reproduction in Context is not a corner
+case: any agent carrying a newer `erg` into an older adopter repo (the
+ordinary cross-repo helping gesture the ticket names) hits this on the very
+next `erg init`, guided there by a warning whose own words are backwards. The
+blast radius is one file (`manifest.go`) plus the two call sites that already
+consume its verdict (`init.go`, `update.go`), so this is sized for a single
+PR, not a decomposition.
+
+**Fix path confirmed, with one addition the ticket's Actions section
+undercounts.** `writeManifest` (manifest.go:62-69) already writes `rev:` and
+`date:` into `.erg-assets` on every init. But `parseManifest`
+(manifest.go:107-126) only extracts lines matching the `" sha256:"` asset
+pattern — the `rev:`/`date:` header lines are silently skipped today, so
+nothing currently reads them back. "Both sides of the comparison are already
+on disk and in the binary" (ticket, § The material for the fix already
+exists) is true of what gets *written*, not of what gets *parsed* — the
+manifest reader needs a new field (stamped date, and optionally rev) before
+`isCleanUpgrade` can be handed it. This is a small addition (extend
+`parseManifest`'s return type or add a sibling accessor), not a redesign, and
+it does not contradict the ticket's premise — it refines Action 1 from "give
+isCleanUpgrade the date" to "read the date, then give it to isCleanUpgrade."
+
+**Simplest comparison: plain string compare, not date parsing.** `buildDate`
+is stamped by the Makefile as `date -u +%Y-%m-%dT%H:%M:%SZ`
+(Makefile:35) — fixed-width ISO-8601 UTC — and the codebase already relies on
+lexical string comparison of exactly this format to order two build dates:
+`version.go:237` (`buildDate > otherDate`) inside `cmdVersion`'s
+same-binary-family discovery. Reusing that precedent means no new
+`time.Parse` path, no timezone/format-drift risk, and no new dependency —
+`stampDate > buildDate` (or `<`, depending on which side is asked) is the
+whole comparison. This is simpler than the ticket's own phrasing ("stamp's
+date ... running binary's buildDate") might suggest if read as implying a
+parsed-time comparison; recommend making the string-compare choice explicit
+in the implementation to head off a future PR "upgrading" it to
+`time.Parse` for no benefit.
+
+**No monotonic build-number exists to use instead.** Checked `version.go` for
+a simpler ordering signal than a date: the only two provenance fields the
+binary carries are `buildDate` (string, lexically ordered by construction)
+and `vcsRevision` (a short git hash — MinhHaDuong's commits are not
+monotonic short hashes, so revision alone cannot express order without a
+`git merge-base --is-ancestor` check, which is unavailable offline and far
+heavier than string comparison). `buildDate` is therefore not just the
+simplest available signal, it is the only one that orders without extra
+machinery. Antipattern scan verdict: **no YAGNI/premature-abstraction risk
+in the proposed fix** — it adds one struct field's worth of state
+(stamp date) and one string comparison, reusing an existing format and an
+existing comparison idiom rather than inventing either.
+
+**`assetDriftSignal` split does not break `update.go`'s consumer.**
+`update.go:228` greps the re-exec'd binary's `erg check` output for the
+literal `assetDriftSignal` string, but that grep only fires in the
+just-updated-so-strictly-newer context (`erg update && erg init`), which by
+construction is always the upgrade direction. Splitting the constant into an
+upgrade-direction message and a distinct rollback-direction message (ticket
+Action 2) leaves `update.go`'s existing grep target (the upgrade message)
+intact; the new rollback message needs no consumer of its own beyond
+`assetDriftWarnings`'s own stderr output. No coordinated multi-file rename is
+needed — just add the second string alongside the first.
+
+**Premise check: LIVE.** Confirmed by direct reading, not inference:
+
+- `isCleanUpgrade` (manifest.go:163-173) takes `(diskHash, stampedHash,
+  known []string)` and returns `diskHash == stampedHash` (or a membership
+  test against `known`). No date, no rev, no direction — only equality. The
+  doc comment above it (manifest.go:158-162) confirms the design intent
+  never considered direction ("a pristine prior release... as opposed to a
+  local edit"), silently conflating "prior" with "any release."
+- The one call site, `init.go:150` —
+  `isCleanUpgrade(diskHash, stamps[name], knownAssetHashes(rel))` — passes no
+  date or build-metadata argument at all, so the direction-blindness is not
+  masked upstream either.
+- `assetDriftWarnings` (manifest.go:184-208) computes drift as
+  `stamp != sha256hex(embeddedContent)` (line 202) — inequality only — and
+  unconditionally formats it via the fixed constant `assetDriftSignal =
+  "...binary upgraded since last init"` (manifest.go:24) regardless of which
+  side is actually newer.
+- `init.go:187` — `fmt.Fprintf(os.Stderr, "init: refreshed %s ...")` fires
+  on every overwrite of an existing file, whether the overwrite is a genuine
+  upgrade or (today) a silent rollback; there is no separate "downgraded"
+  path.
+
+Verdict: **LIVE**, and the ticket's own repro (fixture rev `8331a94`
+2026-06-05 vs `089cd31` 2026-06-29, Context section) is consistent with what
+the code does: `isCleanUpgrade` returns true on hash equality alone, so the
+older binary's embedded copy overwrites the newer on-disk asset, and
+`assetDriftWarnings`/`init.go:187` narrate it as an upgrade throughout.
