@@ -2,6 +2,7 @@
 Title: Move generic git-erg lore out of the shipped AGENTS.md into an on-demand channel
 Created: 2026-09-16
 Author: MinhHaDuong
+Closed: merged via PR #347
 
 --- log ---
 2026-09-16T10:13Z MinhHaDuong created
@@ -11,6 +12,7 @@ Author: MinhHaDuong
 2026-09-16T10:35Z claude note Executed. Bucket 1 moved into src/go/assets/integration.md as new sections '5. Working conventions for agents' (optimistic-ID allocation; renumber clear of the frontier; the gh pr view collision scan; erg check against origin/main after a ticket PR merges; decision records vs artifacts), '## Handoff-document sections' (the template, verbatim), and '## Project-specific ticket lore: tickets/LOCAL.md' -- the declared home Action 4 asks for, named by the shipped asset. Shipped AGENTS.md 2141 -> 2356 bytes: one pointer paragraph added, and the stale clause 'on ID collision, renumber to the next free ID' dropped from the ticket-ID bullet, since it directly contradicts the policy just migrated and the resident file would have won that contradiction. Tests in tests/test_integration.sh: six content assertions on erg integration output (red first -- all six failed before the move), a 2400-byte ceiling on the shipped asset with an over-ceiling negative control, and a bucket-boundary scan for the five adopter-specific strings across both assets with a planted-leak negative control. Bucket 2 was carried over as generic phrasing only: no incident name, date, ticket number or CI job name entered either asset.
 2026-09-16T11:24Z claude note Two commits went unlogged after the entry above and are recorded here at the real clock rather than back-dated. ed8e3cb corrected init's upgrade semantics and pinned the two LOCAL.md claims as tests instead of prose -- erg check ignores the non-.erg file, and a second erg init leaves it byte-identical -- after review found both asserted rather than demonstrated. f47c756 answered review round 1: the bucket-boundary guard was widened past its five literal strings, the stale next-free-ID policy was swept out of pep-erg-v1.md where it had survived the AGENTS.md edit in different words, erg integration's own help text was widened to match its tripled content, and the manual was regenerated.
 2026-09-16T11:25Z claude note Verify-gate round 1 bounced this PR on the paper trail, not the code: exit criteria 3/3 verified live, make check rc=0, scope clean across nine files. Three items answered here. The test comment claiming the date and ticket-number greps ban those shapes "structurally" now states what they actually catch -- one spelling of each, as the round-2 red team demonstrated by planting July 2026, 2026/07/22 and a digitless narrative and watching the suite stay green. The round-2 findings dispositioned as follow-ups are filed as 0293 rather than left as a recorded intention. The missing log entries are the note above. Not done, deliberately: the out-of-order timestamps earlier in this log stay as they are -- the author's instruction is not to rewrite logs, and the entries are format-legal and gate-legal.
+2026-09-16T11:27Z MinhHaDuong closed — merged via PR #347
 --- body ---
 ## Context
 

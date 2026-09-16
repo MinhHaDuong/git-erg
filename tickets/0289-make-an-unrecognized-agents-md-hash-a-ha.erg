@@ -2,12 +2,12 @@
 Title: Make an unrecognized AGENTS.md hash a hard error in erg check
 Created: 2026-09-16
 Author: MinhHaDuong
-Blocked-by: 0288
 
 --- log ---
 2026-09-16T10:13Z MinhHaDuong created
 2026-09-16T16:45Z claude note Split from 0277 under the raid monster-ticket checklist, author-arbitrated. Carries 0277's Action 5 alone. Blocked-by 0288 because the ban's error message has to name a destination that exists: enforcing before the on-demand channel is built would tell an adopter to move its lore somewhere that is not there yet. Also sequenced after 0283 in practice -- 0283's stampless signal is what lets this error tell "never ran erg init" from "confirmed local edit", and without that distinction the hard error misfires on a legitimately unstamped adopter.
 
+2026-09-16T11:27Z MinhHaDuong note blocker 0288 closed — Blocked-by removed.
 --- body ---
 ## Context
 
