@@ -2,6 +2,7 @@
 Title: Forbid local edits to the shipped tickets/AGENTS.md
 Created: 2026-09-10
 Author: HDMX-coding-agent
+Closed: autoclosed — PR #365
 
 --- log ---
 2026-09-10T06:53Z HDMX-coding-agent created
@@ -14,6 +15,7 @@ Author: HDMX-coding-agent
 2026-09-16T16:50Z claude note Converted to a tracker, author-arbitrated during the raid. The Blind-Spot pass found this ticket unclosable by construction: Action 6 and two of its exit criteria require state in ImperialDragonHarness, which no git-erg PR can produce, while that repo's own 0906 is recorded as blocked on this one -- a deadlock neither ticket could see alone. Decomposed into 0288 (Actions 2-4, the content migration, unblocked) and 0289 (Action 5 plus the enforcement-time re-survey, Blocked-by 0288 and sequenced after 0283). The harness-side bullets moved to 0906 rather than kept as criteria this repo cannot meet. Two sign-off units, a cross-repo action and a dependency chain stated only in prose: four of the monster-ticket checklist's marks on one ticket.
 2026-09-16T15:23Z claude note Integration check run and recorded, per this ticket's own exit criterion -- the two halves composed, not each child's tests re-run. Built erg from origin/main at the 0289 merge, created a store that has only run 'erg init', and measured: 'erg integration' prints the ID-collision recovery material (9 hits), the shipped AGENTS.md carries the one-line pointer naming that command and tickets/LOCAL.md as the adopter's own home, the pristine init-only store exits 0, and a single appended line makes it exit 1 with a message naming both destinations. Enforcement-time re-survey of the three known adopters, same binary: ImperialDragonHarness, chemin-de-voix and AEDIST-technical-report all exit 0, each carrying only the designed 'binary upgraded since last init' nudge -- every one matches its own stamp and none is locally edited. Three passes are a null result, so a positive control was fired on a copy of an adopter's assets with one byte appended: exit 1. The ban bites, and it bites nobody today. Note on method: the first exit-code probe read the status of a pipeline's tail rather than erg's, and was remeasured without the pipe before any of these numbers were believed.
 
+2026-09-16T15:25Z MinhHaDuong closed — autoclosed — PR #365
 --- body ---
 ## Context
 
