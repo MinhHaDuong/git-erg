@@ -2,11 +2,14 @@
 Title: The integration.md adopter-lore tripwire catches one spelling of two shapes
 Created: 2026-09-16
 Author: MinhHaDuong
+Closed: wontfix: below the severity floor -- the real defect was fixed inline in PR #347; filed only because a gate demanded an artifact the floor forbids
 
 --- log ---
 2026-09-16T11:20Z MinhHaDuong created
 2026-09-16T11:22Z claude note Filed from PR #347's round-2 red team (findings 2 and 3) after verify-gate bounced that PR for recording the disposition without executing it. Both halves were dispositioned "follow-up, not a merge condition" and that judgement stands -- this is a documentation-quality guard on a doc-migration ticket, below the severity floor for blocking a merge. What was missing was the artifact.
 
+2026-09-16T11:52Z MinhHaDuong note Author audit of the raid's ticket balance: six opened to close three, and this one is one of two that should not exist. The severity floor says a finding below it gets fixed inline, recorded, or dropped -- sweeps report such findings, they do not mint tickets for them. The round-2 red team said so itself, in those words, and the real defect it named -- a test comment claiming a structural ban the greps do not deliver -- was fixed inline in PR #347, which is exactly what the floor prescribes. What remained here was a choice of guard aperture that blocks nothing. Filed anyway because verify-gate bounced #347 for recording the disposition without producing an artifact: a gate demanding a ticket the floor forbids. The gate was wrong and I complied instead of contesting it. Closing wontfix; the options survive in this file for whoever next touches the guard.
+2026-09-16T11:45Z MinhHaDuong closed — wontfix: below the severity floor -- the real defect was fixed inline in PR #347; filed only because a gate demanded an artifact the floor forbids
 --- body ---
 ## Context
 

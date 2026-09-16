@@ -7,6 +7,7 @@ Author: claude
 2026-09-16T11:17Z claude created
 2026-09-16T11:25Z claude note Filed from the round-1 review panel on PR #348 (ticket 0283). 0283 made a stampless diverged store visible on erg check and erg update; every defect below is about what erg init then does with it, which is why they are one ticket and not three. Defects 1 and 2 were each reproduced end to end by two independent reviewers; defect 3 by one, with a stated repro. All three are pre-existing code -- none is a regression from 0283 -- but 0283 is what starts steering users into defect 1, which is why it is the blocking one.
 
+2026-09-16T11:50Z claude note Defect 4 gains two demonstrated cases from PR #348's round-3 red team, which landed after that PR merged. 0283's fallback -- point the reader at the store's own version-control history -- is not true in every store shape erg itself accepts: a plain directory under no version control takes erg check fine and has no history at all, and a repository where the diverged asset is untracked gives an empty history for it. A third case is weaker but real: even with full history, it cannot separate a clean old shipped version from a local edit without the comparison point this defect is about. So the advice is honest about erg's own limits and still dead-ends for two concrete users. Whatever exposes the embedded copy should be what the message names.
 --- body ---
 ## Context
 
