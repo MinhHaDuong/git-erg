@@ -47,7 +47,9 @@ project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
 renames archive/ to closed/ if archive/ exists and closed/ does not, refreshes
 tickets/AGENTS.md (force-overwrite, no prompt -- agent docs track the binary;
 .ergrc is configuration, delivered by 'erg init', so run 'erg update && erg
-init' to refresh it with the dpkg 3-state rule that preserves local edits), and
+init' to refresh it with the dpkg 3-state rule, which preserves a file for
+either of two reasons: it has local edits, or it matches an .erg-assets stamp
+newer than this binary -- see 'erg init --help'), and
 rewrites .git/hooks/pre-commit if it references
 the legacy tickets/tools/go/erg path or the legacy 'validate tickets/' CLI
 form. The hook rewrite is content-based and idempotent; hooks without legacy

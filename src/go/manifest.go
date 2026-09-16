@@ -21,7 +21,21 @@ const manifestName = ".erg-assets"
 // assetDriftSignal is the stable substring of the asset-drift warning emitted by
 // assetDriftWarnings. erg update greps the re-exec'd new binary's `erg check`
 // output for it (ticket 0212), so producer and consumer share this one literal.
-const assetDriftSignal = "differs from the .erg-assets stamp (binary upgraded since last init)"
+// Producer and consumer are DIFFERENT binaries (the new one prints, the old one
+// greps), so this literal is a cross-version contract: it may be extended at the
+// END only, never rewritten, and the printed line must keep containing the
+// historical text verbatim. The remedy moved inside the constant (ticket 0279)
+// precisely so the rollback signal below can name a DIFFERENT remedy while the
+// printed line for this direction stays byte-identical to what it always was.
+const assetDriftSignal = "differs from the .erg-assets stamp (binary upgraded since last init) -- run 'erg init' to refresh"
+
+// assetRollbackSignal is the opposite direction: the stamp is NEWER than the
+// running binary, so the deployed assets are ahead of what this binary embeds
+// and `erg init` would REVERT them (ticket 0279). It has no cross-version
+// consumer -- erg update only ever re-execs a strictly newer binary, which is by
+// construction the assetDriftSignal direction -- so it is free to say what it
+// means and to name its own remedy.
+const assetRollbackSignal = "is older than the .erg-assets stamp (this binary predates the last init) -- run 'erg update' first, then 'erg init'"
 
 // sha256hex returns the hex-encoded SHA-256 of b.
 func sha256hex(b []byte) string {
@@ -125,6 +139,128 @@ func parseManifest(data []byte) map[string]string {
 	return out
 }
 
+// parseManifestDate extracts the "date:" header line from manifest bytes -- the
+// buildDate of the binary that last ran init here. Returns "" when the field is
+// absent, which is what a manifest written by an erg predating the field looks
+// like. Deliberately a SIBLING of parseManifest rather than an extension of it:
+// parseManifest returns the asset map and has callers and tests of its own, and
+// the date is needed by exactly two of them, so widening its return type would
+// churn every call site to serve two.
+func parseManifestDate(data []byte) string {
+	const prefix = "date:"
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, prefix) {
+			return strings.TrimSpace(strings.TrimPrefix(line, prefix))
+		}
+	}
+	return ""
+}
+
+// readManifestDateFile reads the date: field of the manifest AT path (the file
+// itself, not its parent). Sibling of readManifestFile, same absence contract:
+// unreadable reads as absent.
+func readManifestDateFile(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return parseManifestDate(data)
+}
+
+// readManifestDate reads the date: field of <root>/tickets/.erg-assets. Sibling of
+// readManifest.
+func readManifestDate(root string) string {
+	return readManifestDateFile(filepath.Join(root, "tickets", manifestName))
+}
+
+// buildDateLayout is the exact fixed-width shape the Makefile stamps into the
+// binary and buildManifest copies into .erg-assets: date -u +%Y-%m-%dT%H:%M:%SZ.
+// Digits are written as '0' here; every other byte must match literally.
+const buildDateLayout = "0000-00-00T00:00:00Z"
+
+// looksLikeBuildDate reports whether s has exactly buildDateLayout's shape AND
+// denotes a possible calendar instant.
+//
+// This is the guard that makes lexical comparison legitimate rather than merely
+// convenient: only same-shape, same-zone, fixed-width ISO-8601 sorts
+// chronologically as a string. Anything else -- a date-only stamp, an offset
+// instead of Z, a hand-edited manifest, the "unknown" literal, or the "y" that
+// a test fixture happens to carry -- is not comparable, and a string compare
+// against it would silently return an answer that means nothing. ("y" > any
+// digit, so an unguarded compare reads every garbage stamp as "newer than the
+// binary", i.e. as a rollback.) The ticket is explicit that an unparseable
+// stamp must degrade to the prior behaviour, never to a refusal.
+//
+// So do not "simplify" isRollback back into a bare comparison. This guard is
+// not defensive padding around the compare; it is the half of the compare that
+// time.Parse would have supplied, and dropping it costs a whole capability
+// silently -- no error, no warning, just a store whose assets can never be
+// refreshed again. tests/test_check.sh's drift fixture stamps "date: y" and is
+// the standing positive control for exactly that.
+func looksLikeBuildDate(s string) bool {
+	if len(s) != len(buildDateLayout) {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if buildDateLayout[i] == '0' {
+			if s[i] < '0' || s[i] > '9' {
+				return false
+			}
+		} else if s[i] != buildDateLayout[i] {
+			return false
+		}
+	}
+	// Byte shape alone is not enough. "9999-99-99T99:99:99Z" has the right
+	// shape, and sorts above every real stamp, so a shape-only guard hands the
+	// lexical compare a value that means nothing and it answers "rollback" --
+	// freezing the store exactly as an unguarded compare would. Range-check the
+	// groups so an impossible calendar value lands in the same not-comparable
+	// bucket as "y": no direction, fall through to pre-0279 behaviour.
+	//
+	// Ranges only -- no month-length or leap-year arithmetic. Lexical ordering
+	// is unaffected by whether February had 30 days, and a calendar library is
+	// exactly the dependency this compare avoids. Second 60 is admitted: it is
+	// a legal leap second the stamper can emit.
+	return inRange(s[5:7], 1, 12) && // month
+		inRange(s[8:10], 1, 31) && // day
+		inRange(s[11:13], 0, 23) && // hour
+		inRange(s[14:16], 0, 59) && // minute
+		inRange(s[17:19], 0, 60) // second (60 = leap second)
+}
+
+// inRange reports whether the two-digit group g, known to be digits already,
+// denotes a value within [lo, hi].
+func inRange(g string, lo, hi int) bool {
+	v := int(g[0]-'0')*10 + int(g[1]-'0')
+	return v >= lo && v <= hi
+}
+
+// isRollback reports whether stampDate is strictly newer than runningDate: the
+// binary running now PREDATES the one that last ran init here, so overwriting
+// the deployed assets with this binary's embedded copies would be a revert, not
+// a refresh (ticket 0279).
+//
+// Plain lexical comparison, no time.Parse, guarded by a shape check. Both sides
+// are the same fixed-width ISO-8601 UTC stamp the Makefile writes, which sorts
+// chronologically as a string; version.go's outdated-sibling check already
+// orders two buildDates exactly this way. The shape check (looksLikeBuildDate)
+// is what replaces the parse: it answers "is this comparable", which is the only
+// question parsing would have answered here.
+//
+// Either side missing, "unknown" (what buildManifest writes for an unstamped
+// build), or not of that shape means there is no provenance to compare -- and
+// absent or unreadable provenance is NOT evidence of a rollback. Those cases
+// return false, so every caller falls through to the pre-0279 behaviour. This
+// is the invariant that keeps stores written by an erg predating the date:
+// field working.
+func isRollback(stampDate, runningDate string) bool {
+	if !looksLikeBuildDate(stampDate) || !looksLikeBuildDate(runningDate) {
+		return false
+	}
+	return stampDate > runningDate
+}
+
 // extraHistoricalHashes maps an asset name to SHA-256 hex digests of PAST
 // shipped versions, beyond the current embedded one. It is the offline fallback
 // the dpkg compare consults when no .erg-assets stamp is present.
@@ -160,9 +296,24 @@ func knownAssetHashes(rel string) []string {
 // as opposed to a local edit (must be preserved). It is a clean upgrade when
 // the on-disk hash matches the recorded stamp (the file is exactly what the
 // last init wrote), or, when no stamp is recorded, a known shipped hash.
-func isCleanUpgrade(diskHash, stampedHash string, known []string) bool {
+//
+// "Prior" is the load-bearing word, and until ticket 0279 nothing checked it:
+// hash equality alone was read as a licence to overwrite, in either direction,
+// so a binary OLDER than the stamp cheerfully reverted a newer asset and
+// reported a refresh. stampDate/runningDate supply the direction (see
+// isRollback); when the stamp is the newer side this is a rollback, not an
+// upgrade, and the file is preserved instead (exit 2, overridable with --force).
+//
+// The direction check guards the STAMP branch only. The history branch below
+// requires exact equality to a hash this binary already ships in its own
+// knownAssetHashes table -- i.e. a version this binary knows it superseded --
+// so it cannot express "newer than me" in the first place.
+func isCleanUpgrade(diskHash, stampedHash string, known []string, stampDate, runningDate string) bool {
 	if stampedHash != "" {
-		return diskHash == stampedHash
+		if diskHash != stampedHash {
+			return false
+		}
+		return !isRollback(stampDate, runningDate)
 	}
 	for _, h := range known {
 		if diskHash == h {
@@ -181,6 +332,12 @@ func isCleanUpgrade(diskHash, stampedHash string, known []string) bool {
 // nagged. Comparing the stamp (not the on-disk bytes) means a deliberate local
 // edit does not raise a drift warning; only a binary upgrade past the recorded
 // stamp does.
+//
+// The hash comparison establishes THAT the two differ, never which is newer, so
+// the message is chosen by the stamp's recorded date instead (ticket 0279): the
+// "binary upgraded since last init" wording was previously printed even when the
+// running binary was months OLDER than the stamp, advising an erg init that
+// would have reverted the asset.
 func assetDriftWarnings(dir string) []string {
 	// dir is the ticket store itself (the dir holding .erg-assets), so read the
 	// manifest file directly rather than via readManifest (which joins tickets/).
@@ -188,6 +345,9 @@ func assetDriftWarnings(dir string) []string {
 	if stamps == nil {
 		return nil
 	}
+	// Which side is newer. Read once: the date is a property of the manifest,
+	// not of any one asset in it.
+	rollback := isRollback(readManifestDateFile(filepath.Join(dir, manifestName)), buildDate)
 	var warnings []string
 	for _, rel := range initAssetPaths {
 		name := strings.TrimPrefix(rel, "tickets/")
@@ -200,8 +360,11 @@ func assetDriftWarnings(dir string) []string {
 			continue
 		}
 		if stamp != sha256hex([]byte(content)) {
-			warnings = append(warnings, fmt.Sprintf(
-				"WARN %s: embedded version %s -- run 'erg init' to refresh", name, assetDriftSignal))
+			signal := assetDriftSignal
+			if rollback {
+				signal = assetRollbackSignal
+			}
+			warnings = append(warnings, fmt.Sprintf("WARN %s: embedded version %s", name, signal))
 		}
 	}
 	return warnings

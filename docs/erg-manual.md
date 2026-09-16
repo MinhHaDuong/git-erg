@@ -20,7 +20,8 @@ a different git worktree than the working directory. Pass DIR explicitly to over
 
 **Exit codes (shared by `check` and `init`).** `0` success;
 `1` a hard error (bad flag, unreadable directory, write failure, or a
-corpus violation); `2` local edits were preserved and skipped
+corpus violation); `2` a file was preserved and skipped, having either
+local edits or a stamp newer than the running binary
 (`init` only -- run with `--force` to overwrite). Any non-zero
 status is a failure for scripting purposes. The value `1` always means a
 hard failure -- it never doubles as "skipped".
@@ -98,8 +99,16 @@ Additionally emits warnings (non-fatal) for:
   - Interior header blank: a blank line inside the header block (tolerated on
     read; run 'erg migrate' to normalise).
   - Asset drift: the .erg-assets stamp differs from this binary's embedded
-    asset (the binary was upgraded since the last init; run 'erg init' to
-    refresh). Only emitted when a .erg-assets manifest is present.
+    asset. The message names the direction, because the remedy differs and one
+    of the two would destroy data if applied to the other:
+      - this binary is NEWER than the stamp (upgraded since the last init):
+        refreshing is an upgrade; run 'erg init' to refresh.
+      - this binary is OLDER than the stamp (it predates the last init):
+        refreshing would REVERT the deployed assets; run 'erg update' first,
+        then 'erg init'.
+    Only emitted when a .erg-assets manifest is present. A stamp with no
+    comparable date carries no direction and is reported as the upgrade case,
+    which is the pre-0279 behaviour.
 
 Exit codes: 0 on pass (warnings are printed but do not affect exit code), 1 on any
 violation. The value 1 is a hard failure here, consistent with the shared exit-code
@@ -399,7 +408,9 @@ project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
 renames archive/ to closed/ if archive/ exists and closed/ does not, refreshes
 tickets/AGENTS.md (force-overwrite, no prompt -- agent docs track the binary;
 .ergrc is configuration, delivered by 'erg init', so run 'erg update && erg
-init' to refresh it with the dpkg 3-state rule that preserves local edits), and
+init' to refresh it with the dpkg 3-state rule, which preserves a file for
+either of two reasons: it has local edits, or it matches an .erg-assets stamp
+newer than this binary -- see 'erg init --help'), and
 rewrites .git/hooks/pre-commit if it references
 the legacy tickets/tools/go/erg path or the legacy 'validate tickets/' CLI
 form. The hook rewrite is content-based and idempotent; hooks without legacy
@@ -457,13 +468,26 @@ clean upgrade -- erg never touched it, so it is overwritten and a
 is a local edit: it is preserved and the command exits 2 (local edits are never
 overwritten without --force).
 
+The stamp also records which binary wrote it, and init compares that date with
+its own. If this binary is the OLDER one -- an erg from before the last init --
+then refreshing would revert the deployed assets, not upgrade them. Such a file
+is preserved too, and init says so and points at 'erg update' rather than
+claiming a local edit. A stamp with no date (written by an erg predating the
+field) carries no direction and is treated exactly as before. This is what makes
+'erg update && erg init' a pair the code enforces and not merely a convention.
+
 Flags:
 
   -n, --dry-run   Preview what init would create, refresh, skip, or leave
                   unchanged without writing or removing any file.
   --force         Overwrite files that differ from the embedded version
                   instead of skipping them. Use with care: local edits are
-                  replaced.
+                  replaced. On a rollback (the .erg-assets stamp is newer than
+                  this binary) a forced overwrite of a file still matching that
+                  stamp is reported as "downgraded", not "refreshed": nothing
+                  there was locally edited, the file is being reverted to an
+                  older release. Run 'erg update' first if that is not what you
+                  want.
 
 If tickets/spec-erg-v1.md or tickets/integration.md exist from a previous init
 and match the current embedded content, they are removed as orphaned assets.
@@ -481,8 +505,9 @@ effect until erg init overwrites the file (clean upgrade) or the user opts in wi
 --force (local edit). erg update alone cannot un-shadow a frozen vocabulary.
 
 Exit codes: 0 success; 1 a hard error (bad flag, missing binary, write
-failure); 2 local edits were preserved and skipped (run with --force to
-overwrite). See "Exit codes" in erg --help --all.
+failure); 2 a file was preserved and skipped -- either it has local edits, or
+it is newer than this binary (run with --force to overwrite). See "Exit codes"
+in erg --help --all.
 
 ## erg install [DIR] [--hooks] [--push-hook] [--inject-agents] [--create-agents-md]
 
@@ -607,5 +632,7 @@ are delivered by a follow-up 'erg init'. The canonical sequence after an update 
 
 erg init applies the dpkg-style 3-state rule: byte-identical files are left untouched;
 a file that matches the previously recorded stock hash is a clean upgrade and is
-overwritten; a locally-edited file is preserved (exit 2). Running erg update alone is
-never sufficient to absorb new defaults.
+overwritten; a locally-edited file is preserved (exit 2). A file the stamp says a
+NEWER erg wrote is preserved too, so an init run from a stale binary reports the
+situation instead of reverting the store. Running erg update alone is never
+sufficient to absorb new defaults.

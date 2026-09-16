@@ -53,8 +53,10 @@ are delivered by a follow-up 'erg init'. The canonical sequence after an update 
 
 erg init applies the dpkg-style 3-state rule: byte-identical files are left untouched;
 a file that matches the previously recorded stock hash is a clean upgrade and is
-overwritten; a locally-edited file is preserved (exit 2). Running erg update alone is
-never sufficient to absorb new defaults.
+overwritten; a locally-edited file is preserved (exit 2). A file the stamp says a
+NEWER erg wrote is preserved too, so an init run from a stale binary reports the
+situation instead of reverting the store. Running erg update alone is never
+sufficient to absorb new defaults.
 `
 
 // resolveUpdateRemote applies the update-source precedence: the ERG_UPDATE_URL

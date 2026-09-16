@@ -522,5 +522,17 @@ rm -rf "$NHDIR"
         fail "unknown flag not rejected (rc=$rc, got: $out)"
     fi
 
+# --- helpMigrate cross-reference names BOTH preserve reasons ---
+# The pointer at 'erg init' describes the dpkg 3-state rule. Since 0279 that
+# rule preserves for two distinct reasons; naming only the pre-0279 one leaves
+# the cross-reference telling a user their untouched-but-newer .ergrc was
+# preserved as a local edit.
+HELPOUT=$($ERG migrate --help 2>&1) || true
+if echo "$HELPOUT" | grep -q "local edits" && echo "$HELPOUT" | grep -q "newer than this binary"; then
+    pass "help: migrate cross-reference names both preserve reasons"
+else
+    fail "help: migrate cross-reference names only one preserve reason (got: $HELPOUT)"
+fi
+
 echo "migrate: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

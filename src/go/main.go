@@ -62,7 +62,8 @@ a different git worktree than the working directory. Pass DIR explicitly to over
 
 **Exit codes (shared by ` + "`check`" + ` and ` + "`init`" + `).** ` + "`0`" + ` success;
 ` + "`1`" + ` a hard error (bad flag, unreadable directory, write failure, or a
-corpus violation); ` + "`2`" + ` local edits were preserved and skipped
+corpus violation); ` + "`2`" + ` a file was preserved and skipped, having either
+local edits or a stamp newer than the running binary
 (` + "`init`" + ` only -- run with ` + "`--force`" + ` to overwrite). Any non-zero
 status is a failure for scripting purposes. The value ` + "`1`" + ` always means a
 hard failure -- it never doubles as "skipped".

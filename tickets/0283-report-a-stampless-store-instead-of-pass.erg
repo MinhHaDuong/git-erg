@@ -2,12 +2,12 @@
 Title: Report a stampless store instead of passing silently
 Created: 2026-09-16
 Author: MinhHaDuong
-Blocked-by: 0279
 
 --- log ---
 2026-09-16T08:10Z MinhHaDuong created
 2026-09-16T08:10Z MinhHaDuong note Split from 0281 on the raid Plan agent's recommendation. 0281's own Priority note had already established that this visibility fix is load-bearing while the hash table is optional and hazard-creating; splitting keeps a safe fix out of the shadow of a risky one. 0281 keeps the table and is now Blocked-by this ticket.
 
+2026-09-16T09:18Z MinhHaDuong note blocker 0279 closed — Blocked-by removed.
 --- body ---
 ## Context
 

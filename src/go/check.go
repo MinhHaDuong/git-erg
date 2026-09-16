@@ -219,8 +219,16 @@ Additionally emits warnings (non-fatal) for:
   - Interior header blank: a blank line inside the header block (tolerated on
     read; run 'erg migrate' to normalise).
   - Asset drift: the .erg-assets stamp differs from this binary's embedded
-    asset (the binary was upgraded since the last init; run 'erg init' to
-    refresh). Only emitted when a .erg-assets manifest is present.
+    asset. The message names the direction, because the remedy differs and one
+    of the two would destroy data if applied to the other:
+      - this binary is NEWER than the stamp (upgraded since the last init):
+        refreshing is an upgrade; run 'erg init' to refresh.
+      - this binary is OLDER than the stamp (it predates the last init):
+        refreshing would REVERT the deployed assets; run 'erg update' first,
+        then 'erg init'.
+    Only emitted when a .erg-assets manifest is present. A stamp with no
+    comparable date carries no direction and is reported as the upgrade case,
+    which is the pre-0279 behaviour.
 
 Exit codes: 0 on pass (warnings are printed but do not affect exit code), 1 on any
 violation. The value 1 is a hard failure here, consistent with the shared exit-code

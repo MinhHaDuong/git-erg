@@ -159,7 +159,11 @@ What each command does (and does not) touch:
 - `erg init`: delivers embedded-asset changes via the dpkg 3-state rule
   (byte-identical: skip; untouched stock matching the .erg-assets stamp: clean
   upgrade, overwritten; locally edited: preserved, exit 2; `--force` to
-  override). The default label vocabulary is frozen-by-copy into .ergrc at
+  override). A file the stamp says was written by a NEWER erg than the one
+  running is preserved too, and init points you at `erg update` -- which is
+  what makes the pair above an order and not a habit: running a stale binary's
+  init against a current store would otherwise revert its assets. The default
+  label vocabulary is frozen-by-copy into .ergrc at
   init time -- a new default added later to the binary is shadowed by the
   existing file and never takes effect until `erg init` overwrites it. Running
   `erg update` alone cannot un-shadow a frozen vocabulary.
