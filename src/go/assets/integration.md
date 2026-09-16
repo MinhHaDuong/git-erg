@@ -107,6 +107,133 @@ without the matching add. The pre-commit block above intentionally omits it.
 `erg-github verify` fails a PR that references a still-open ticket. Run it
 directly: `./tickets/erg-github verify`.
 
+## 5. Working conventions for agents
+
+The shipped `tickets/AGENTS.md` is *resident* context: an agent re-reads every
+byte of it at the start of every session. So it stays short, and the long-form
+conventions are served here, on demand: this section, then the
+handoff-document template and the note on where project-specific lore belongs.
+Read them once when you start working with tickets in a repo; re-read them when
+a collision or a handoff actually happens.
+
+### ID allocation is optimistic
+
+`erg new` scans only the local checkout, so parallel sessions on different
+branches or in different checkouts can hand out the same ID. No reservation
+machinery exists or is planned. Fetch before allocating, and run `erg check`
+after every fetch in ticket-heavy sessions.
+
+Re-run the collision scan **at the merge gate too**, not only at allocation: a
+sibling PR can renumber onto your ID after you allocated, and once that sibling
+has merged, a cross-PR CI gate no longer sees the collision -- such gates
+compare open PRs against each other, never a PR against the default branch.
+
+### Renumber clear of the frontier, never to the next free ID
+
+On collision, renumber (`git mv` plus fixing cross-references) to a number well
+clear of the high-water mark -- not to the next free ID. The next-free ID is
+the most contended seat in the repo: every parallel session computes the same
+value and races for it, so renumbering to it is exactly as collision-prone as
+the allocation that just collided, and chasing the frontier cannot converge
+while siblings are still filing. IDs are free and a gap costs nothing. One
+filing has collided three times in a single session this way, leaving the
+default branch red on a duplicate ID twice; it settled on the first try once it
+jumped a dozen clear of the frontier.
+
+This rule governs **collision recovery only**. Initial allocation stays dense:
+`erg new`'s next-free ID is the correct first try. Jumping clear of the
+frontier at creation time is over-application, and its cost is real -- a store
+that allocates in round decades wastes most of its ID space and makes the
+sequence unreadable.
+
+### Scan for collisions with `gh pr view`, never `gh pr list --json files`
+
+`gh pr list` does not populate `files`, so a one-shot list-plus-filter returns
+empty regardless of content -- "no collision found" and "I never looked" are
+the same output. Enumerate, then query each PR:
+
+```sh
+for n in $(gh pr list --state open --limit 60 --json number --jq '.[].number'); do
+  gh pr view "$n" --json files --jq '.files[].path' | grep -q "tickets/$ID" && echo "PR $n uses $ID"
+done
+```
+
+General form of the trap: a check whose "all clear" is indistinguishable from
+its "I could not look" is not a check. Before trusting a scan that returns
+nothing, run it against a case known to be positive.
+
+(This is documentation, printed by `erg integration`. `erg` itself never shells
+out to a forge -- the core stays offline.)
+
+### After a ticket PR merges, run `erg check` against `origin/main`, not the branch
+
+A branch-local `erg check` passes by construction -- each branch's IDs are
+unique within itself -- so it structurally cannot see a duplicate created by
+another PR. Checking the merged `origin/main` is the only check that catches a
+duplicate that has already landed, and in a repo with no CI it is the only
+collision check there is.
+
+### Decision records versus artifacts
+
+These are not the same thing, and only one of them belongs in the ticket file.
+
+A ticket's body may hold the *decisions themselves* -- a kickoff note's settled
+options, an arbitration verdict, the reasoning behind a choice. That is the
+ticket's own process record, load-bearing for the log and the exit-criteria
+trail, and it stays in the `.erg` file.
+
+It must not hold the *material the decision was made about* -- a calibration
+corpus, a few-shot set, mined training pairs, generated samples. That is an
+artifact, and the shipped rule applies: artifacts live in their natural
+location in the project tree and are referenced from the ticket body by path.
+
+## Handoff-document sections
+
+When a ticket is created as a handoff document (a new agent will pick it up
+cold), the body should include these sections so that agent has complete
+context:
+
+```markdown
+## Context
+What problem or need this addresses. Why now.
+
+## Relevant files
+- `path/to/file.py` -- role in this task
+
+## Actions
+1. Concrete step
+2. Concrete step
+
+## Test
+- What test to write first (red step of TDD)
+
+## Verification
+- [ ] How to confirm each action worked
+
+## Invariants
+- What must not break (tests, build, existing behavior)
+
+## Exit criteria
+- Definition of done -- when is this ticket complete?
+```
+
+## Project-specific ticket lore: `tickets/LOCAL.md`
+
+The conventions above are generic: they hold in any repo that uses erg. Your
+own are not. The names of your CI jobs and helper scripts, your merge-gate
+script and its PR-body conventions, the incidents that taught you a rule, the
+extension points your forge wrapper hooks into -- that knowledge is worth
+writing down, and it must not be written into `tickets/AGENTS.md`.
+
+`tickets/AGENTS.md` is an erg asset: `erg init` upgrades it in place when it is
+untouched stock, but once you have edited it, init preserves your copy, skips
+the upgrade and exits 2. You keep the edit and stop receiving improvements to
+the file, until you merge the two by hand. Put project-specific ticket lore in
+`tickets/LOCAL.md` instead. erg never writes, reads, upgrades or deletes that file -- it is yours,
+and `erg check` ignores it like any other non-`.erg` file. The shipped
+`tickets/AGENTS.md` names it, so an agent reading its resident context knows
+where your local rules live.
+
 ## Uninstall
 
 To remove erg from your project, delete the binary and the two files

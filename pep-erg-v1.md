@@ -91,8 +91,10 @@ which becomes fragile at scale.
 
 **Collision handling:** Optimistic concurrency. Two worktrees may pick the
 same number simultaneously. The pre-commit validator catches duplicates.
-The agent that loses renames its ticket (increment again). This matches
-git's own optimistic concurrency model.
+The agent that loses renames its ticket -- to a number well clear of the
+high-water mark, never to the next free ID, which is the seat every parallel
+session is racing for; `erg integration` carries the recovery procedure. This
+matches git's own optimistic concurrency model.
 
 **Alternatives considered:**
 - Mnemonic acronym IDs: creative, readable, but collision-prone and

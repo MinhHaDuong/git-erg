@@ -144,7 +144,14 @@ global install, no version skew across machines or teammates.
 3. Run `tickets/erg init` to unpack `.ergrc` and `AGENTS.md`.
 4. Run `tickets/erg install --hooks` to set up the pre-commit validation hook,
    and (for AI agents) `tickets/erg install --inject-agents` to point your root
-   `AGENTS.md` at `tickets/AGENTS.md`. Run `erg integration` for the full guide.
+   `AGENTS.md` at `tickets/AGENTS.md`. Run `erg integration` for the full guide:
+   setup, the long-form ticket conventions (ID-collision recovery, scanning open
+   PRs for a colliding ID) and the handoff-document template.
+5. Optional: write your own project-specific ticket lore -- local CI job names,
+   helper scripts, past incidents -- into `tickets/LOCAL.md`. erg never writes,
+   reads or upgrades that file, and `erg check` ignores it. Keep it out of
+   `tickets/AGENTS.md`: that one is an erg asset, it is re-read at the start of
+   every agent session, and editing it costs you every later upgrade of it.
 
 **No prebuilt binary for your platform? You don't need one.** The text-files path
 is fully functional without `erg`, and a `grep`-based pre-commit hook validates
