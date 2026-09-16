@@ -196,6 +196,20 @@ in erg --help --all.
 // orphan sweep is not performed; instead a preview line is printed for each
 // asset describing the action that would be taken. The returned counts are the
 // same as a real run would produce.
+// isStampedByNewer reports the one state in which overwriting an asset would be
+// a genuine version rollback: its bytes are byte-identical to what the stamp
+// records, and the stamp was written by a binary newer than this one. An
+// ordinary local edit, or an asset with no stamp entry, has no established
+// ordering, and neither does an absent file (diskHash "").
+//
+// One expression because THREE places need exactly this fact and must agree:
+// the preserve branch's reason, the downgrade label, and the seeding loop that
+// asks it of an asset outside this run's scope. A comment claiming they agree
+// would be a weaker guarantee than the call.
+func isStampedByNewer(rollback bool, diskHash, stamp string) bool {
+	return rollback && stamp != "" && diskHash == stamp
+}
+
 func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (created, refreshed, skipped, unchanged int, err error) {
 	// The .erg-assets stamp from a previous init (nil if absent or malformed):
 	// name -> recorded SHA-256. Read once; the dpkg compare consults it per asset.
@@ -206,15 +220,80 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 	// (ticket 0279).
 	stampDate := readManifestDate(root)
 	rollback := isRollback(stampDate, buildDate)
-	// Set when an asset was preserved BECAUSE of the rollback, which suppresses
-	// the provenance rewrite at the end of the run (see there).
-	rollbackPreserved := false
-	// Every asset this run PRESERVED, mapped to what the previous manifest
-	// recorded for it ("" when it recorded nothing). Handed to writeManifest so
-	// the manifest never claims to have installed a file it declined to touch
-	// (ticket 0292, defect 1); see buildManifest for why a prior entry is
-	// carried rather than dropped.
-	preserved := map[string]string{}
+	// Every managed asset whose state this run did NOT establish, mapped to
+	// what the previous manifest recorded for it ("" when it recorded nothing).
+	// Handed to writeManifest so the manifest never claims to have installed a
+	// file this run did not write (ticket 0292, defect 1); see buildManifest
+	// for why a prior entry is carried rather than dropped.
+	//
+	// Two populations end up here, and the second is ticket 0296. One is the
+	// files the loop below PRESERVES. The other is seeded before the loop
+	// runs: the managed assets outside this run's scope. `erg init` passes
+	// initAssetPaths and has none, but `erg migrate` passes migrateAssetPaths
+	// -- AGENTS.md only -- so .ergrc is a file that run never opens, never
+	// compares, and has nothing whatever to say about. buildManifest iterates
+	// initAssetPaths regardless, so without this seeding a migrate stamped
+	// .ergrc at the EMBEDDED hash: an assertion about a file the run never
+	// looked at, false whenever that file diverges, and silencing both the
+	// drift report and the stampless report for it from the next run on.
+	unwritten := map[string]string{}
+	// Set when an UNWRITTEN asset is demonstrably at the later version -- its
+	// bytes are what the newer stamp records. That, and not the date alone, is
+	// what suppresses the provenance rewrite at the end of the run (see there).
+	rollbackEvidence := false
+	inScope := map[string]bool{}
+	for _, rel := range paths {
+		inScope[rel] = true
+	}
+	for _, rel := range initAssetPaths {
+		if inScope[rel] {
+			continue
+		}
+		name := strings.TrimPrefix(rel, "tickets/")
+		unwritten[name] = stamps[name]
+		// The same question the loop below asks about a file it preserves,
+		// asked here about a file this run will not otherwise open.
+		//
+		// THIS GUARD IS LOAD-BEARING, not a cost saving, and it stopped being
+		// one the moment the read below gained a side effect (PR #363, round
+		// 3: the mutant deleting this line survived a green suite). Only under
+		// a rollback is there a direction for a file to stand behind; without
+		// the guard, an unreadable out-of-scope asset would raise
+		// rollbackEvidence on an ORDINARY run and suppress a manifest refresh
+		// that has nothing to do with any rollback. That it also spares the
+		// read on every non-rollback run is a side benefit, and not the
+		// reason. TestInstallAssetsDoesNotStampOutsideItsScope's
+		// "an unreadable asset on a store with no recorded direction" subtest
+		// is what fails if this line goes.
+		if !rollback {
+			continue
+		}
+		outOfScopeHash := ""
+		b, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+		switch {
+		case readErr == nil:
+			outOfScopeHash = sha256hex(b)
+		case !os.IsNotExist(readErr):
+			// Could not look, which is not the same as looked and found
+			// nothing. An ABSENT file is real evidence -- nothing on disk
+			// stands behind the stamp. An UNREADABLE one is evidence of
+			// nothing, and reading it as the former would let a chmod-000
+			// file license exactly the rewrite this gate exists to refuse,
+			// destroying the record on the way past.
+			//
+			// The sibling readers next door fold the two deliberately
+			// (stamplessNote, and `exists := readErr == nil` below). There
+			// the fold costs a report; here it would cost the record, so
+			// this one breaks ranks -- loudly, because a run that could not
+			// establish something and said nothing is the precise failure
+			// this whole ticket is about (PR #363, round 2).
+			rollbackEvidence = true
+			fmt.Fprintf(os.Stderr, "init: cannot read %s (%v) -- leaving tickets/%s as it stands\n", rel, readErr, manifestName)
+		}
+		if isStampedByNewer(rollback, outOfScopeHash, stamps[name]) {
+			rollbackEvidence = true
+		}
+	}
 	for _, rel := range paths {
 		content, ok := bootstrapAsset(rel)
 		if !ok {
@@ -259,14 +338,7 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 		if exists {
 			diskHash = sha256hex(existing)
 		}
-		// The one state in which overwriting this asset would be a genuine
-		// version rollback: it is byte-identical to what the stamp records,
-		// and the stamp was written by a binary newer than this one. An
-		// ordinary local edit, or an asset with no stamp entry, has no
-		// established ordering. Computed once because both the preserve
-		// branch and the downgrade label below need exactly this fact, and a
-		// comment is a weaker guarantee that they agree than one expression.
-		stampedByNewer := rollback && stamps[name] != "" && diskHash == stamps[name]
+		stampedByNewer := isStampedByNewer(rollback, diskHash, stamps[name])
 
 		if exists && refuseDiverged {
 			if !isCleanUpgrade(diskHash, stamps[name], knownAssetHashes(rel), stampDate, buildDate) {
@@ -277,7 +349,7 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 
 		if preserve {
 			skipped++
-			preserved[name] = stamps[name]
+			unwritten[name] = stamps[name]
 			// Name the actual reason, and only a reason this run OBSERVED.
 			// Three states, not two:
 			//
@@ -313,7 +385,7 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 				short = "differs, no usable stamp, reason unknown"
 			}
 			if preserveRollback {
-				rollbackPreserved = true
+				rollbackEvidence = true
 				reason = "is newer than this binary -- preserving (run 'erg update' first, then 'erg init')"
 				short = "newer than this binary"
 			}
@@ -374,26 +446,61 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 	// asset hashes for this binary. Written by both erg init and erg migrate
 	// (the two callers of installAssets). Skipped in dry-run.
 	//
-	// Not written AT ALL when an asset was preserved because this binary
-	// predates the stamp (ticket 0279): the run declined to touch the deployed
-	// assets, so stamping them with this older binary's rev/date would record a
-	// state that never happened -- and would destroy the very evidence that
-	// said so, making the next run misreport the same rollback as a local edit.
-	// The whole file is skipped here, not just the one entry, because the
-	// evidence at stake is the manifest's own date: header, which is a property
-	// of the file and not of any asset in it.
+	// THE RULE, in one sentence: a run records only what it established, and
+	// the manifest's own date: header is part of the record.
 	//
-	// For every OTHER preserved file the same rule applies per entry, which is
-	// what `preserved` carries (ticket 0292, defect 1): init records what it
-	// installed and stays silent about what it declined to touch, rather than
-	// stamping a customised file with the embedded hash and certifying it as
-	// shipped. That was the state corruption -- it silenced the drift report
-	// and the stampless report for that file permanently, and following the
-	// advice `erg check` printed is what triggered it.
-	if rollbackPreserved {
+	// Per ENTRY, that is what `unwritten` carries (tickets 0292 and 0296): a
+	// file this run preserved, or one outside its scope entirely, keeps
+	// whatever the previous manifest recorded for it and gains nothing new.
+	// Stamping such a file with the embedded hash certifies a customised file
+	// as byte-identical to the shipped default -- which silences the drift
+	// report and the stampless report for it permanently, with the divergence
+	// still on disk.
+	//
+	// Per FILE, the date: header cannot be carried per entry, because it is a
+	// property of the manifest and not of any asset in it -- and where a
+	// rollback is real it is the whole evidence. Rewriting it with this older
+	// binary's rev/date records a state that never happened and destroys the
+	// very thing that said so, making the next run misreport the same rollback
+	// as a local edit (ticket 0279).
+	//
+	// THE GATE IS EVIDENCE ON DISK, NOT THE DATE ALONE. A file still carrying
+	// the bytes the newer stamp records is the thing that makes the direction
+	// true; a future date with nothing standing behind it is a corrupt or
+	// hand-edited stamp, and freezing the manifest on it would make that
+	// corruption permanent. 0279 asked exactly this question, but only of a
+	// file it PRESERVED -- and `erg migrate` preserves nothing, calling in with
+	// refuseDiverged=false, so its out-of-scope .ergrc was never asked. That is
+	// the whole of ticket 0296: the seeding loop above now asks it of an asset
+	// this run does not open, and the answer reaches here.
+	//
+	// The narrower gate was chosen over "rollback && anything went unwritten"
+	// on review of PR #363: the looser form also fires on an ordinary stampless
+	// local edit under a bogus future date, which freezes a manifest `erg init`
+	// used to heal, on a path this ticket is not about. For `erg init` this
+	// gate is exactly 0279's, unchanged.
+	//
+	// A run that DID establish every managed asset still restamps, rollback or
+	// not: `erg init --force` reverts both assets deliberately, and after it
+	// the store really is at this binary's version, so saying so is the honest
+	// record (TestInstallAssetsForceDowngradeLabel pins that side).
+	//
+	// The residue, stated rather than hidden: after a migrate on a rollback
+	// store the manifest says nothing new about AGENTS.md, although migrate
+	// established it -- a stale entry where it was downgraded, no entry at all
+	// where it was created from absent. So `erg check` then reports AGENTS.md
+	// as ahead of this binary when it is not. It is the cheaper of the two
+	// available errors. It over-reports in a direction still true of the STORE
+	// (this binary IS behind its last install, which is what the rollback WARN
+	// says and what `erg update` remedies), and the write itself was announced
+	// on stderr with an undo hint, so nothing happened silently. Rewriting
+	// instead under-reports, by going permanently silent about a divergence
+	// that is really there -- and per-file precision is unavailable here,
+	// because one header cannot date two assets separately.
+	if rollbackEvidence {
 		return created, refreshed, skipped, unchanged, nil
 	}
-	if err := writeManifest(root, dryRun, preserved); err != nil {
+	if err := writeManifest(root, dryRun, unwritten); err != nil {
 		return created, refreshed, skipped, unchanged, fmt.Errorf("cannot write provenance manifest: %w", err)
 	}
 	return created, refreshed, skipped, unchanged, nil

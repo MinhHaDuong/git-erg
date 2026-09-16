@@ -172,15 +172,22 @@ func looksLikeAssetHash(s string) bool {
 // rev/date come from the build stamp (version.go), so the manifest is stable
 // for a given binary (not wall-clock dependent).
 //
-// carry names the assets installAssets PRESERVED on this run, mapped to what
-// the PREVIOUS manifest recorded for each ("" when it recorded nothing). Pass
-// nil when every asset was installed. The manifest records what init wrote, and
-// a preserved file is precisely what init did not write, so stamping it with
-// the embedded hash would certify a customised file as byte-identical to the
-// shipped default -- silencing both the drift report and the stampless report
-// for it, permanently, with the divergence still on disk (ticket 0292,
-// defect 1). That is 0279's rollback exemption generalised: don't stamp what
-// you didn't touch.
+// carry names the assets the run did NOT write, mapped to what the PREVIOUS
+// manifest recorded for each ("" when it recorded nothing). Pass nil when every
+// asset was installed. Two populations reach it, and both are the same rule --
+// 0279's rollback exemption generalised, don't stamp what you didn't touch:
+// the files installAssets PRESERVED (ticket 0292, defect 1), and the managed
+// assets outside the run's scope at all, which is how `erg migrate` used to
+// stamp .ergrc although migrateAssetPaths excludes it (ticket 0296). This
+// function iterates initAssetPaths, the full managed set, so a caller working
+// on a subset has to name the rest here; the alternative -- iterating the
+// caller's own list -- would DROP every entry for an asset it did not handle,
+// which is the lost-record failure the carry rule exists to avoid.
+//
+// Stamping such a file with the embedded hash would certify a customised file
+// as byte-identical to the shipped default -- silencing both the drift report
+// and the stampless report for it, permanently, with the divergence still on
+// disk.
 //
 // A prior entry is carried forward verbatim rather than dropped, and the
 // difference is not cosmetic. That entry is evidence about a PAST install: it
@@ -193,7 +200,10 @@ func buildManifest(carry map[string]string) (string, error) {
 	var entries []entry
 	for _, rel := range initAssetPaths {
 		name := strings.TrimPrefix(rel, "tickets/")
-		if prev, preserved := carry[name]; preserved {
+		// "carried", not "preserved": carry now also holds assets that were
+		// never preserved in the skip-and-log sense, only out of the run's
+		// scope entirely (ticket 0296).
+		if prev, carried := carry[name]; carried {
 			// A stamp that is not a hash is not evidence, and carrying it
 			// forward would preserve it past every future run. Dropping it
 			// restores the self-healing the pre-0292 restamp gave for free.
@@ -236,7 +246,7 @@ func buildManifest(carry map[string]string) (string, error) {
 
 // writeManifest writes the provenance manifest under root/tickets/. In dryRun
 // it prints a preview line and writes nothing. carry is buildManifest's
-// preserved-asset map; see there.
+// did-not-write map; see there.
 func writeManifest(root string, dryRun bool, carry map[string]string) error {
 	content, err := buildManifest(carry)
 	if err != nil {
