@@ -1480,3 +1480,125 @@ func TestStampNotAHashIsReadTheSameWayEverywhere(t *testing.T) {
 		t.Errorf("init must name the same condition check named: %q", stderr)
 	}
 }
+
+// TestInstallAssetsDoesNotStampOutsideItsScope covers ticket 0296. `erg migrate`
+// calls installAssets with migrateAssetPaths -- AGENTS.md only -- so .ergrc is
+// an asset the run never opens, never compares and has nothing to say about.
+// buildManifest nonetheless iterates initAssetPaths, so the manifest a migrate
+// wrote recorded .ergrc at the EMBEDDED hash: a claim about a file the run
+// never looked at, and on a diverged .ergrc a claim that was false.
+//
+// The subtests are the two records that can be wrong plus the whole-file case,
+// each asserted on manifest CONTENT rather than on a count: the defect is a
+// silence, and a silence has no count and no exit code.
+func TestInstallAssetsDoesNotStampOutsideItsScope(t *testing.T) {
+	embeddedErgrc, ok := bootstrapAsset("tickets/.ergrc")
+	if !ok {
+		t.Fatal("embedded .ergrc missing")
+	}
+	embeddedAgents, ok := bootstrapAsset("tickets/AGENTS.md")
+	if !ok {
+		t.Fatal("embedded AGENTS.md missing")
+	}
+	const edited = "ERGRC WITH A LOCAL EDIT -- migrate never opens this file\n"
+	if edited == embeddedErgrc {
+		t.Fatal("test fixture collides with embedded content")
+	}
+
+	t.Run("a prior entry is carried, not restamped at the embedded hash", func(t *testing.T) {
+		// An ordinary store, stamped by an OLDER binary: no rollback, so the
+		// manifest is rewritten -- and the rewrite must carry .ergrc's entry
+		// rather than assert the shipped hash for it.
+		setBuildDate(t, "2026-01-01T00:00:00Z")
+		root := stampFixture(t, manifestWith(t, "2020-01-01T00:00:00Z", sha256hex([]byte(edited))), edited)
+
+		if _, _, _, _, err := installAssets(root, migrateAssetPaths, false, false); err != nil {
+			t.Fatalf("installAssets: %v", err)
+		}
+		stamps := readManifest(root)
+		if got, want := stamps[".ergrc"], sha256hex([]byte(edited)); got != want {
+			t.Errorf("migrate restamped an asset outside its scope: got %q, want the carried %q", got, want)
+		}
+		if stamps[".ergrc"] == sha256hex([]byte(embeddedErgrc)) {
+			t.Errorf("migrate certified a diverged .ergrc as the shipped default")
+		}
+		// Positive control at the same step: "stop writing manifests" passes
+		// every assertion above and breaks provenance outright. AGENTS.md is in
+		// migrate's scope, so the manifest may, and must, record it -- and the
+		// header may, and must, be this binary's.
+		if got, want := stamps["AGENTS.md"], sha256hex([]byte(embeddedAgents)); got != want {
+			t.Errorf("the asset migrate DID handle lost its stamp: got %q, want %q", got, want)
+		}
+		if got := readManifestDate(root); got != "2026-01-01T00:00:00Z" {
+			t.Errorf("a run that established every asset it lists must restamp the header, got %q", got)
+		}
+	})
+
+	t.Run("an unstamped out-of-scope asset gets no entry invented for it", func(t *testing.T) {
+		setBuildDate(t, "2026-01-01T00:00:00Z")
+		// A manifest that stamps AGENTS.md ONLY -- the shape `erg init` now
+		// writes after preserving .ergrc (ticket 0292, defect 1).
+		manifest := "# erg provenance manifest -- do not edit\nrev: fixture\n" +
+			"date: 2020-01-01T00:00:00Z\nassets:\n" +
+			"  AGENTS.md sha256:" + sha256hex([]byte(embeddedAgents)) + "\n"
+		root := stampFixture(t, manifest, edited)
+
+		if _, _, _, _, err := installAssets(root, migrateAssetPaths, false, false); err != nil {
+			t.Fatalf("installAssets: %v", err)
+		}
+		if got := readManifest(root)[".ergrc"]; got != "" {
+			t.Errorf("migrate invented a stamp for an asset nothing had recorded: %q", got)
+		}
+		// The point of not inventing one: the condition stays reportable.
+		warnings := managedAssetWarnings(filepath.Join(root, "tickets"))
+		if !strings.Contains(strings.Join(warnings, "\n"), assetStamplessSignal) {
+			t.Errorf("the layout sweep silenced the unattributable divergence: %q", warnings)
+		}
+	})
+
+	t.Run("on a rollback store the manifest is left exactly as it stands", func(t *testing.T) {
+		// The date: header is the evidence, and it is a property of the FILE,
+		// not of any asset in it -- so no per-entry carry can preserve it and
+		// the exemption is all-or-nothing (ticket 0279, generalised).
+		// TestInstallAssetsForceDowngradeLabel is the other side of the same
+		// gate: a run that DOES establish every managed asset restamps, even
+		// on a rollback store.
+		setBuildDate(t, "2026-01-01T00:00:00Z")
+		const deployedAgents = "AGENTS.md FROM A LATER RELEASE -- migrate reverts this, loudly\n"
+		if deployedAgents == embeddedAgents {
+			t.Fatal("test fixture collides with embedded content")
+		}
+		manifest := "# erg provenance manifest -- do not edit\nrev: future\n" +
+			"date: 2099-01-01T00:00:00Z\nassets:\n" +
+			"  .ergrc sha256:" + sha256hex([]byte(edited)) + "\n" +
+			"  AGENTS.md sha256:" + sha256hex([]byte(deployedAgents)) + "\n"
+		root := stampFixture(t, manifest, edited)
+		agentsPath := filepath.Join(root, "tickets", "AGENTS.md")
+		if err := os.WriteFile(agentsPath, []byte(deployedAgents), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		stderr := captureStderr(t, func() {
+			if _, _, _, _, err := installAssets(root, migrateAssetPaths, false, false); err != nil {
+				t.Fatalf("installAssets: %v", err)
+			}
+		})
+		// Non-vacuity, asserted at the step: the run must really have reverted
+		// AGENTS.md. A fixture that never reached migrate's force-overwrite leg
+		// would leave the manifest untouched for the wrong reason.
+		if !strings.Contains(stderr, "downgraded tickets/AGENTS.md") {
+			t.Fatalf("fixture never reached the force-overwrite leg: %q", stderr)
+		}
+		got, err := os.ReadFile(filepath.Join(root, "tickets", manifestName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != manifest {
+			t.Errorf("migrate rewrote the provenance that established the rollback:\ngot  %q\nwant %q", got, manifest)
+		}
+		warnings := managedAssetWarnings(filepath.Join(root, "tickets"))
+		if !strings.Contains(strings.Join(warnings, "\n"), assetRollbackSignal) {
+			t.Errorf("the rollback report did not survive the layout sweep: %q", warnings)
+		}
+	})
+}

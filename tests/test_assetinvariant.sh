@@ -140,7 +140,7 @@ fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 # audits and no other signal. Ticket 0278's log cites the count as evidence, so
 # the count is asserted. Bump it deliberately when adding an arm -- a surprise
 # here means coverage moved without anyone deciding it should.
-EXPECTED_ASSERTIONS=62
+EXPECTED_ASSERTIONS=68
 
 # The rollback arm is INERT on a binary with no embedded build date. isRollback
 # consults looksLikeBuildDate, which degrades to pre-0279 behaviour on an empty
@@ -575,6 +575,32 @@ if grep -qF "$ERGRC_MARK" "$S/tickets/.ergrc"; then
 else
     fail "stampless/migrate: migrate destroyed the diverged .ergrc"
 fi
+# Ticket 0296, the non-rollback door of the same defect. migrate passes
+# migrateAssetPaths (AGENTS.md only), so .ergrc is an asset this run never
+# opened -- and buildManifest used to stamp it at the EMBEDDED hash anyway,
+# certifying a file the run never compared as byte-identical to the shipped
+# default. The store arrives here unstamped for .ergrc (the init above
+# preserved it), so any entry for it can only have come from this migrate.
+if grep -q "^  \.ergrc sha256:" "$S/tickets/.erg-assets"; then
+    fail "stampless/migrate: migrate stamped an asset outside its own scope ($(grep '\.ergrc sha256:' "$S/tickets/.erg-assets"))"
+else
+    pass "stampless/migrate: the asset outside migrate's scope gets no stamp from it"
+fi
+# Positive control for the assertion above, at the same step: "migrate stopped
+# writing manifests" would pass it while breaking provenance outright. AGENTS.md
+# IS in migrate's scope and migrate handled it this run, so the manifest may,
+# and must, record it.
+if grep -q "^  AGENTS\.md sha256:$(sha_of "$S/tickets/AGENTS.md")\$" "$S/tickets/.erg-assets"; then
+    pass "stampless/migrate: the asset migrate DID handle is stamped at the bytes on disk"
+else
+    fail "stampless/migrate: migrate stopped stamping what it installs (got: $(cat "$S/tickets/.erg-assets" 2>&1))"
+fi
+CHK=$("$ERG_ABS" check "$S/tickets" 2>&1 || true)
+if echo "$CHK" | grep -qF "no .erg-assets stamp"; then
+    pass "stampless/migrate: the unattributable divergence is still reported afterwards"
+else
+    fail "stampless/migrate: the layout sweep silenced the report (got: $CHK)"
+fi
 
 # ===========================================================================
 # Arm 4 -- rollback: this binary predates the stamp, so an overwrite is a
@@ -644,14 +670,40 @@ if grep -qF "$ERGRC_MARK" "$S/tickets/.ergrc"; then
 else
     fail "rollback/migrate: migrate reverted an asset it does not manage"
 fi
-# Observed here and NOT asserted, because it is a defect rather than a contract:
-# this migrate run rewrites .erg-assets with the current binary's rev/date and
-# the EMBEDDED hashes for BOTH assets -- including .ergrc, which it never
-# touched and which still holds the divergence. The rollback WARN goes silent
-# from the next run on. init declines exactly this rewrite (0279's exemption
-# above), but the exemption is set only on the preserve leg, which migrate's
-# refuseDiverged=false call never takes. Filed as ticket 0296; asserting
-# today's behaviour would turn its fix into a test failure.
+# Ticket 0296. This migrate used to rewrite .erg-assets with the current
+# binary's rev/date and the EMBEDDED hashes for BOTH assets -- including .ergrc,
+# which it never opened and which still holds its divergence -- so the rollback
+# went silent from the next run on. No file was lost; what was lost is the
+# evidence that an overwrite WOULD be a revert. 0279 declines exactly this
+# rewrite on the init path, but its exemption was set only on the preserve leg,
+# which migrate's refuseDiverged=false call never takes.
+#
+# The date: header is the whole evidence, and it is a property of the FILE, so
+# the exemption is all-or-nothing: a run on a rollback store that did not
+# establish every managed asset leaves the manifest exactly as it stands.
+if grep -q "^date: $FUTURE_STAMP\$" "$S/tickets/.erg-assets"; then
+    pass "rollback/migrate: the stamp survives, so the direction is still established next run"
+else
+    fail "rollback/migrate: migrate overwrote the provenance that proved the rollback (got: $(cat "$S/tickets/.erg-assets" 2>&1))"
+fi
+# The manifest must not claim the shipped bytes for the file migrate never
+# opened. .ergrc's entry still records what is on disk, which is what makes the
+# next run's verdict about it true rather than merely quiet.
+if grep -q "^  \.ergrc sha256:$(sha_of "$S/tickets/.ergrc")\$" "$S/tickets/.erg-assets"; then
+    pass "rollback/migrate: .ergrc's entry still records the bytes on disk, not the shipped ones"
+else
+    fail "rollback/migrate: the manifest restamped an asset this run never opened (got: $(grep '\.ergrc sha256:' "$S/tickets/.erg-assets" 2>&1))"
+fi
+# End to end, in the order a user meets it: erg check named the direction before
+# migrate (asserted at the top of this arm), and it must still name it after.
+# This is the assertion an earlier revision of this file deliberately withheld,
+# on the grounds that pinning the wart would turn its fix into a failure.
+CHK=$("$ERG_ABS" check "$S/tickets" 2>&1 || true)
+if echo "$CHK" | grep -q "WARN .ergrc: embedded version is older than the .erg-assets stamp"; then
+    pass "rollback/migrate: the rollback WARN survives the layout sweep"
+else
+    fail "rollback/migrate: the layout sweep silenced the rollback report (got: $CHK)"
+fi
 
 echo ""
 echo "=== $PASS passed, $FAIL failed ==="
