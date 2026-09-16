@@ -7,11 +7,12 @@ Author: MinhHaDuong
 2026-09-16T10:31Z MinhHaDuong created
 2026-09-16T17:55Z claude note Filed during the raid over 0277-0287 as 0287's Action 2, which both the Imagine and Plan passes judged to be outside 0287's own exit criteria (those name only the buildvcs symptom). Bundled onto 0287's PR as a ticket, not a fix. It clears the severity floor on measured evidence rather than on principle: the baseline run taken at the start of the raid halts at test-contract, which sits 22nd in TEST_SUITES, leaving 11 suites unexecuted and unnamed -- and one of those unreached suites, verify, was misattributed to 0287's cause for most of a day precisely because nobody could tell "did not run" from "ran and passed".
 
+2026-09-16T11:48Z claude note Arithmetic corrected in the body, and the error named here rather than edited out of the entry above. The 17:55Z line says contract sits 22nd of 33 suites; recounting TEST_SUITES gives 29th of 40. The load-bearing figure was right -- eleven suites after contract never ran, and they are named in the body -- but the two counts around it were wrong, and they were repeated into PR #345's description and into the raid's own reporting before a reviewer checked them against the Makefile. Nothing in the argument depends on them; they were miscounted, not misread.
 --- body ---
 ## Context
 
 `make check` is `test validate`, and `test` is `unit-test $(TEST_TARGETS)
-check-store` over 33 suites. Make stops at the first failing target, so a run
+check-store` over 40 suites. Make stops at the first failing target, so a run
 that dies early reports the suites it reached and says nothing at all about the
 rest. The output ends on the failing suite's own summary line, which reads like
 the end of the run.
@@ -23,7 +24,7 @@ contract: 16 passed, 1 failed, 0 warned, 1 skipped
 make: *** [Makefile:56 : test-contract] Erreur 1
 ```
 
-`contract` is the 22nd entry in `TEST_SUITES`. The eleven after it --
+`contract` is the 29th entry in `TEST_SUITES`. The eleven after it --
 `roundtrip`, `verify`, `stderr`, `install-staleness`, `encoding`,
 `unknown_flags`, `selfcoherence`, `gofmt`, `determinism`, `strictwrite`,
 `scopeconfinement` -- never executed, and nothing in the output says so.
