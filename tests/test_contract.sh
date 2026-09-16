@@ -82,6 +82,28 @@ else
 fi
 
 # --- 2. offline: no networking anywhere (0148 removed the last exception) ----
+# Helpers for the offline negative control below. Defined at top level, beside
+# pass/fail/skip, rather than nested inside the guard that uses them.
+neg_offline_module() {  # $1 = module directory to create
+    mkdir -p "$1"
+    printf 'module negoffline\ngo 1.21\n' > "$1/go.mod"
+    printf 'package main\nimport _ "net/http"\nfunc main() {}\n' > "$1/main.go"
+}
+# `-buildvcs=false` is load-bearing, not tidying (0287). Go's buildvcs walks
+# *upward* from the module directory hunting for a VCS root; an empty `.git`
+# directory anywhere above $TMPDIR — hosts grow them — makes git exit 128,
+# `go list` print nothing, and this control announce a blind detector. The flag
+# suppresses VCS *stamping* only; import resolution is untouched, so the control
+# keeps its teeth. Arm 2 below proves both halves of that claim.
+neg_offline_detects() {  # $1 = module directory; true when net/http is seen
+    (cd "$1" && go list -buildvcs=false -deps . 2>/dev/null) | grep -qE '^net/http$'
+}
+# The same probe without the flag — used only to confirm the adversarial
+# condition really bites before arm 2 credits the flag for surviving it.
+neg_offline_detects_unflagged() {  # $1 = module directory
+    (cd "$1" && go list -deps . 2>/dev/null) | grep -qE '^net/http$'
+}
+
 if [ "$DEPS_OK" = yes ]; then
     if printf '%s\n' "$DEPS" | grep -qE '^net($|/)'; then
         NETPKGS=$(printf '%s\n' "$DEPS" | grep -E '^net($|/)' | tr '\n' ' ')
@@ -89,24 +111,9 @@ if [ "$DEPS_OK" = yes ]; then
     else
         pass "offline: no net / net-* package in the dependency graph"
     fi
-    # Negative control: a throwaway package importing net/http must be flagged by
-    # the very same go-list check — proves the detector has teeth (offline build).
-    neg_offline_module() {  # $1 = module directory to create
-        mkdir -p "$1"
-        printf 'module negoffline\ngo 1.21\n' > "$1/go.mod"
-        printf 'package main\nimport _ "net/http"\nfunc main() {}\n' > "$1/main.go"
-    }
-    # `-buildvcs=false` is load-bearing, not tidying (0287). Go's buildvcs walks
-    # *upward* from the module directory hunting for a VCS root; an empty `.git`
-    # directory anywhere above $TMPDIR — hosts grow them — makes git exit 128,
-    # `go list` print nothing, and this control announce a blind detector. The
-    # flag suppresses VCS *stamping* only; import resolution is untouched, so the
-    # control keeps its teeth. Arm 2 below proves both halves of that claim.
-    neg_offline_detects() {  # $1 = module directory; true when net/http is seen
-        (cd "$1" && go list -buildvcs=false -deps . 2>/dev/null) | grep -qE '^net/http$'
-    }
-
-    # Arm 1 — ambient environment, unmodified.
+    # Negative control, arm 1 — a throwaway package importing net/http must be
+    # flagged by the very same go-list check, under the ambient environment,
+    # whatever that happens to be. Proves the detector has teeth (offline build).
     NEG="$WORK/neg-offline"
     neg_offline_module "$NEG"
     if neg_offline_detects "$NEG"; then
@@ -115,12 +122,20 @@ if [ "$DEPS_OK" = yes ]; then
         fail "offline (neg control): detector failed to flag net/http"
     fi
 
-    # Arm 2 — with a stray VCS directory above the build dir, manufactured here
-    # rather than borrowed from whatever the host happens to carry (0287).
+    # Arm 2 — the same assertion with a stray VCS directory above the build dir,
+    # manufactured here rather than borrowed from whatever the host carries, so
+    # the regression is caught on any machine (0287).
     NEG_STRAY="$WORK/neg-offline-stray"
     mkdir -p "$NEG_STRAY/.git"   # an empty directory, not a repository
     neg_offline_module "$NEG_STRAY/mod"
-    if neg_offline_detects "$NEG_STRAY/mod"; then
+    # Red control first. buildvcs only trips when Go can actually shell out to
+    # git; with no git on PATH it skips stamping silently, and this arm would go
+    # green with or without the flag — an all-clear indistinguishable from "I
+    # could not look", which is the shape this suite exists to refuse. So prove
+    # the unflagged probe really is blinded before crediting the flagged one.
+    if neg_offline_detects_unflagged "$NEG_STRAY/mod"; then
+        skip "offline (neg control): stray .git did not blind an unflagged go list (no git on PATH?) — arm not exercised"
+    elif neg_offline_detects "$NEG_STRAY/mod"; then
         pass "offline (neg control): detects net/http despite a stray .git above the build dir"
     else
         fail "offline (neg control): a stray .git above the build dir blinded the detector"
