@@ -21,6 +21,30 @@ var migrateAssetPaths = []string{
 	"tickets/AGENTS.md",
 }
 
+// vendoredAssetPaths lists files that erg SHIPS a reference copy of but never
+// writes: they are vendored into an adopter's repo as plain committed files the
+// adopter owns outright (ticket 0282). Today that is the forge helper
+// tickets/erg-github, which README calls out as travelling with the clone.
+//
+// This list is deliberately NOT reachable from any install path. Every writer
+// (installAssets via initAssetPaths / migrateAssetPaths, the orphan sweep via
+// orphanAssetPaths) is driven by one of the other lists; this one is consumed
+// by exactly one read-only caller, manifest.go's vendoredDriftWarnings, which
+// compares and reports. The reason is not caution about a fragile file: an
+// adopter may have wired their copy into CI, and a binary that silently
+// replaced it would be claiming an ownership the vendoring contract gives the
+// adopter. It is also why these paths stay out of initAssetPaths, whose
+// members buildManifest stamps -- stamping a file init never wrote would record
+// an installation that did not happen (the defect ticket 0292 tracks for the
+// locally-edited case).
+//
+// The forge layer stays optional: a repo with no erg-github at all has nothing
+// to compare and is never reported. erg core remains offline and forge-blind --
+// this is a byte comparison against an embedded blob, not a use of the helper.
+var vendoredAssetPaths = []string{
+	"tickets/erg-github",
+}
+
 // orphanAssetPaths lists assets that older erg versions deposited during init
 // but are now served on demand via erg spec / erg integration. If a file at
 // one of these paths matches the current embedded content exactly, init

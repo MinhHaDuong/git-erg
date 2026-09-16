@@ -100,12 +100,24 @@ validate: build
 # src/go/assets/ you run this and commit. The self-coherence guard
 # (tests/test_selfcoherence.sh) fails CI if the deployed copy drifts from the
 # embedded source, and `make regen-assets && git diff --exit-code tickets/`
-# must be clean. Only the 2 retained assets are deployed (.ergrc, AGENTS.md);
-# the spec and integration guide are served on demand (erg spec / integration).
+# must be clean. Two assets are deployed by erg init (.ergrc, AGENTS.md); the
+# spec and integration guide are served on demand (erg spec / integration); and
+# erg-github is copied here without ever being installed -- see below.
+#
+# erg-github is a THIRD case and the reason it is copied here (ticket 0282).
+# erg never installs it -- it is vendored, adopters own their copy -- but the
+# binary now embeds a reference copy so `erg check` can report an adopter's
+# drift from it. src/go/assets/erg-github is that reference and is therefore
+# the file to edit; tickets/erg-github is the deployment, exactly as for
+# AGENTS.md. Editing only the deployed copy (which is what ticket 0255 did,
+# before the reference existed) would leave every adopter compared against a
+# stale reference, so the self-coherence guard fails CI on that drift too.
+# cp preserves the destination's mode, so the deployed helper stays executable.
 .PHONY: regen-assets
 regen-assets:
 	cp src/go/assets/.ergrc tickets/.ergrc
 	cp src/go/assets/AGENTS.md tickets/AGENTS.md
+	cp src/go/assets/erg-github tickets/erg-github
 
 ready: build
 	$(ERG_BIN) ready tickets/

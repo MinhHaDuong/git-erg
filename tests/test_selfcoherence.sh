@@ -55,6 +55,30 @@ for a in $ASSETS; do
     fi
 done
 
+# (ii-bis) The VENDORED helper (ticket 0282). erg-github is not installed by
+# init -- adopters own their copy -- but the binary embeds a reference copy so
+# `erg check` can report an adopter's drift from it. That reference is only
+# worth anything if it matches what git-erg itself ships in tickets/, so the
+# same regen-clean invariant applies: edit src/go/assets/erg-github, then
+# `make regen-assets`. Editing only the deployed copy (what 0255 did, before
+# the reference existed) would silently compare every adopter against a stale
+# reference.
+if cmp -s "$ROOT/tickets/erg-github" "$ROOT/src/go/assets/erg-github"; then
+    pass "deployed tickets/erg-github matches embedded (run 'make regen-assets' if this fails)"
+else
+    fail "deployed tickets/erg-github drifted from src/go/assets/erg-github -- run 'make regen-assets'"
+fi
+
+# ...and the other half of the vendoring contract: init must NOT deposit it.
+# This is the invariant that keeps the forge layer optional and keeps erg off
+# the write path for a file the adopter owns. $TDIR is the clean-init tree from
+# (i) above, so this asserts on a real init run, not on a code reading.
+if [ -e "$TDIR/tickets/erg-github" ]; then
+    fail "erg init deposited tickets/erg-github -- vendored files must never be written by erg"
+else
+    pass "erg init leaves tickets/erg-github alone (vendored, not installed)"
+fi
+
 # (iii) Orphan assets (print-on-demand since 0206) must not be present in
 # git-erg's own tickets/ -- they are served by erg spec / erg integration
 # from the embedded source and would drift silently if re-tracked.

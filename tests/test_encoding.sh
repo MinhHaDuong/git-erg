@@ -34,7 +34,11 @@ fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 find_nonascii() {
     _pat="$1"
     _listfile=$(mktemp)
-    find src/go \( -name '*.go' -o -name '*.md' -o -name '.ergrc' \) > "$_listfile"
+    # erg-github joined the embedded assets in ticket 0282 (as the read-only
+    # reference an adopter's vendored copy is compared against). It ships inside
+    # the verified binary like every other asset here, so it is in the same
+    # 0160 corruption class and is swept by the same gate.
+    find src/go \( -name '*.go' -o -name '*.md' -o -name '.ergrc' -o -name 'erg-github' \) > "$_listfile"
     _hits=""
     while IFS= read -r _f; do
         case "$_f" in
