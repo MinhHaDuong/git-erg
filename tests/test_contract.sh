@@ -98,10 +98,14 @@ neg_offline_module() {  # $1 = module directory to create
 neg_offline_detects() {  # $1 = module directory; true when net/http is seen
     (cd "$1" && go list -buildvcs=false -deps . 2>/dev/null) | grep -qE '^net/http$'
 }
-# The same probe without the flag — used only to confirm the adversarial
-# condition really bites before arm 2 credits the flag for surviving it.
+# The same probe genuinely without the flag — used only to confirm the
+# adversarial condition really bites before arm 2 credits the flag for surviving
+# it. `GOFLAGS=` is what makes "unflagged" true: an ambient
+# `GOFLAGS=-buildvcs=false`, which someone hitting this very bug would plausibly
+# export, would otherwise re-add the flag behind our back and turn arm 2's red
+# control into a permanent misdiagnosed skip.
 neg_offline_detects_unflagged() {  # $1 = module directory
-    (cd "$1" && go list -deps . 2>/dev/null) | grep -qE '^net/http$'
+    (cd "$1" && GOFLAGS= go list -deps . 2>/dev/null) | grep -qE '^net/http$'
 }
 
 if [ "$DEPS_OK" = yes ]; then
@@ -129,12 +133,14 @@ if [ "$DEPS_OK" = yes ]; then
     mkdir -p "$NEG_STRAY/.git"   # an empty directory, not a repository
     neg_offline_module "$NEG_STRAY/mod"
     # Red control first. buildvcs only trips when Go can actually shell out to
-    # git; with no git on PATH it skips stamping silently, and this arm would go
-    # green with or without the flag — an all-clear indistinguishable from "I
-    # could not look", which is the shape this suite exists to refuse. So prove
-    # the unflagged probe really is blinded before crediting the flagged one.
+    # git — with no git on PATH it skips stamping silently — so without this the
+    # arm would go green with or without the flag, an all-clear indistinguishable
+    # from "I could not look", which is the shape this suite exists to refuse.
+    # Prove the unflagged probe really is blinded before crediting the flagged
+    # one, and name no cause: the point is that the arm was not exercised, and
+    # guessing why in the message is how a skip starts lying.
     if neg_offline_detects_unflagged "$NEG_STRAY/mod"; then
-        skip "offline (neg control): stray .git did not blind an unflagged go list (no git on PATH?) — arm not exercised"
+        skip "offline (neg control): stray .git did not blind an unflagged go list — arm not exercised"
     elif neg_offline_detects "$NEG_STRAY/mod"; then
         pass "offline (neg control): detects net/http despite a stray .git above the build dir"
     else
