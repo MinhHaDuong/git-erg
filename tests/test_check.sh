@@ -858,12 +858,21 @@ else
 fi
 # A bare "erg init" grep would also be satisfied by assetRollbackSignal, which
 # ends "...then 'erg init'". Assert the stampless advice specifically: it must
-# point at a tool that can actually answer (git history), and must state what
-# erg init costs here -- it stamps the file as if shipped (ticket 0292).
+# name a route the reader can actually take. Two of them are now asserted
+# together because the constant is a cross-version literal and ticket 0292's
+# correction could only be APPENDED to it -- the historical prefix still says
+# "its git history can" and "stamps it as if shipped", and the tail after it
+# says where each of those falls down. A test greping only the prefix would go
+# on passing if the correction were dropped.
 if echo "$out" | grep -qF "its git history can" && echo "$out" | grep -qF "stamps it as if shipped"; then
-    pass "stampless: the report names an answerable route and init's cost"
+    pass "stampless: the historical prefix of the cross-version literal is intact"
 else
-    fail "stampless: the report must name git history and init's stamping cost (got: $out)"
+    fail "stampless: the shipped prefix was reworded, which breaks erg update's grep (got: $out)"
+fi
+if echo "$out" | grep -qF "erg init --show NAME" && echo "$out" | grep -qF "no longer stamps a file it preserved"; then
+    pass "stampless: the report names the erg command that shows the shipped copy"
+else
+    fail "stampless: the report must name an erg-side comparison, not only git (got: $out)"
 fi
 # Guard: no stamp exists here, so no stamp-relative claim may be made.
 if echo "$out" | grep -qF "differs from the .erg-assets stamp"; then
@@ -893,6 +902,63 @@ else
         pass "stampless: assets matching the embedded copy exactly stay silent"
     else
         fail "stampless: an exact match must not be nagged (rc=$rc, got: $out)"
+    fi
+fi
+
+# --- partial manifest (ticket 0292, defect 3) ---
+# 0283's silence, one level down. The stamped branch skipped any asset with no
+# entry and did not fall back to the stampless compare, while parseManifest
+# returns non-nil as soon as ONE line parses -- so a manifest stamping .ergrc
+# but not AGENTS.md silenced AGENTS.md divergence on every channel: not
+# drift-warned (no stamp for it), not stampless-warned (the manifest exists).
+# The gate had to become per ASSET, not per store.
+#
+# The shape is not contrived: it is exactly what `erg init` itself writes once
+# it stops stamping a file it preserved.
+PARTIAL="$FIXTURES/partial"
+mkdir -p "$PARTIAL/tickets"
+touch "$PARTIAL/tickets/erg"
+cp "$DRIFTDIR/9001-x.erg" "$PARTIAL/tickets/"
+$ERG init "$PARTIAL" >/dev/null 2>&1
+# Drop AGENTS.md's line from the manifest init just wrote, then diverge it.
+grep -v "^  AGENTS\.md sha256:" "$PARTIAL/tickets/.erg-assets" > "$PARTIAL/manifest.tmp"
+mv "$PARTIAL/manifest.tmp" "$PARTIAL/tickets/.erg-assets"
+printf '# an AGENTS.md that is not what this binary embeds\n' > "$PARTIAL/tickets/AGENTS.md"
+# Guard: the arm is about the STAMPED branch, so the manifest must still parse
+# and must still stamp .ergrc. Without this the fixture degenerates into the
+# stampless case above and the assertion proves nothing about the per-asset gate.
+if ! grep -q "^  \.ergrc sha256:" "$PARTIAL/tickets/.erg-assets" ||
+    grep -q "^  AGENTS\.md sha256:" "$PARTIAL/tickets/.erg-assets"; then
+    fail "partial: fixture is not a partially-stamped manifest (test would be vacuous)"
+else
+    rc=0; out=$($ERG check "$PARTIAL/tickets" 2>&1) || rc=$?
+    if [ "$rc" -eq 0 ] && echo "$out" | grep -qF "AGENTS.md: no .erg-assets stamp"; then
+        pass "partial: an asset missing from an otherwise-valid manifest is reported"
+    else
+        fail "partial: the stamped branch swallowed the unstamped asset (rc=$rc, got: $out)"
+    fi
+fi
+
+# Sibling control, same fixture shape: restore the matching content and the
+# report goes quiet. Without it, an implementation reporting on "unstamped"
+# rather than on "unstamped AND diverged" passes the arm above -- and would nag
+# every store whose manifest predates an asset being added to the list.
+PARTIALOK="$FIXTURES/partial-match"
+mkdir -p "$PARTIALOK/tickets"
+touch "$PARTIALOK/tickets/erg"
+cp "$DRIFTDIR/9001-x.erg" "$PARTIALOK/tickets/"
+$ERG init "$PARTIALOK" >/dev/null 2>&1
+grep -v "^  AGENTS\.md sha256:" "$PARTIALOK/tickets/.erg-assets" > "$PARTIALOK/manifest.tmp"
+mv "$PARTIALOK/manifest.tmp" "$PARTIALOK/tickets/.erg-assets"
+if ! grep -q "^  \.ergrc sha256:" "$PARTIALOK/tickets/.erg-assets" ||
+    [ ! -f "$PARTIALOK/tickets/AGENTS.md" ]; then
+    fail "partial control: fixture is not a partially-stamped store with assets present (test would be vacuous)"
+else
+    rc=0; out=$($ERG check "$PARTIALOK/tickets" 2>&1) || rc=$?
+    if [ "$rc" -eq 0 ] && ! echo "$out" | grep -qF "no .erg-assets stamp"; then
+        pass "partial: an unstamped asset matching the embedded copy stays silent"
+    else
+        fail "partial: an exact match must not be nagged for lacking a stamp (rc=$rc, got: $out)"
     fi
 fi
 

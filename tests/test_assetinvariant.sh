@@ -32,9 +32,11 @@
 # the cross-version constants ticket 0292 pins to extend-at-the-end; measured,
 # that is false on every count -- two of the four come from init.go, none is
 # one of the three named constants, and the stampless/update literal is an
-# infix of a line 0292's own Action 6 plans to reword rather than extend. The
-# duplication is a real maintenance cost, accepted for the reachability it
-# buys, not a cost someone else's discipline already covers.
+# infix of a line 0292's Action 6 reworded rather than extended (it now sends
+# the reader to `erg init --show NAME`; "carry no .erg-assets stamp" survived
+# the reword by luck, not by contract). The duplication is a real maintenance
+# cost, accepted for the reachability it buys, not a cost someone else's
+# discipline already covers.
 #
 # "Reachability" is the right defence for two of the four, not all four.
 # "erg: updated" is what proves an update arm swapped a binary at all, and
@@ -104,6 +106,14 @@
 #      the direction logic 0279 exists for was never reached. Re-run against
 #      the arm below, the same mutant dies on
 #      "rollback/migrate: the revert is narrated as a downgrade".
+#   6. Ticket 0292's four stampless/init assertions were watched red on the
+#      pre-fix binary: init stamped .ergrc at the embedded hash, so the
+#      unstamped-file arm failed on the recorded hash and the surviving-report
+#      arm failed on an empty `erg check` -- the defect's whole signature,
+#      "following the advice the tool printed silences the tool". The two
+#      controls beside them were red for their own reasons at their own step:
+#      the AGENTS.md-is-stamped arm fails on a build that stops writing
+#      manifests, and the no-attribution arm fails on the pre-fix wording.
 #
 # Note for anyone extending the announcement grep: `erg migrate` ALWAYS prints
 # the summary line "migrate: AGENTS.md refreshed (N created, N refreshed, N
@@ -130,7 +140,7 @@ fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 # audits and no other signal. Ticket 0278's log cites the count as evidence, so
 # the count is asserted. Bump it deliberately when adding an arm -- a surprise
 # here means coverage moved without anyone deciding it should.
-EXPECTED_ASSERTIONS=58
+EXPECTED_ASSERTIONS=62
 
 # The rollback arm is INERT on a binary with no embedded build date. isRollback
 # consults looksLikeBuildDate, which degrades to pre-0279 behaviour on an empty
@@ -510,22 +520,54 @@ else
 fi
 
 audit_step "$S" "stampless/init" run_init
-if echo "$AUDIT_OUT" | grep -q "tickets/.ergrc has local edits -- preserving"; then
+if echo "$AUDIT_OUT" | grep -q "tickets/.ergrc differs from the copy this binary ships and has no .erg-assets stamp -- preserving"; then
     pass "stampless/init: an unattributable divergence is preserved, not clobbered"
 else
     fail "stampless/init: expected preservation of the unstamped divergence (got: $AUDIT_OUT)"
+fi
+# The reason, not just the outcome (ticket 0292, defect 2). With no stamp for
+# this asset, "has local edits" is an attribution nothing in the run observed --
+# the same false-reason class 0279 fixed on the rollback leg. The negative
+# assertion is what distinguishes the fix from a reword that kept the claim.
+if echo "$AUDIT_OUT" | grep -q "tickets/.ergrc has local edits"; then
+    fail "stampless/init: init attributed an edit no stamp attests (got: $AUDIT_OUT)"
+else
+    pass "stampless/init: no local-edit attribution where no stamp could support one"
 fi
 if grep -qF "$ERGRC_MARK" "$S/tickets/.ergrc"; then
     pass "stampless/init: the diverged bytes are still on disk afterwards"
 else
     fail "stampless/init: the diverged .ergrc was destroyed"
 fi
-# Deliberately NOT asserted here: that init leaves the store unstamped. It does
-# not -- installAssets writes the manifest at the end of the run, stamping the
-# preserved edit with the EMBEDDED hash, which silences the NOTE from the next
-# run on with the divergence still on disk. That is a known wart, tracked by
-# ticket 0292 and documented on assetStamplessSignal; pinning today's behaviour
-# with an assertion here would turn 0292's fix into a test failure.
+# Ticket 0292 defect 1, end to end and in the order a user meets it: erg check
+# reported the condition (asserted above), the user ran init as the advice
+# invited, and the condition must SURVIVE that. It did not before: init stamped
+# the preserved file with the EMBEDDED hash, so the next check compared embedded
+# against embedded, found them equal, and went permanently silent with the
+# divergence still on disk -- a provenance record certifying a customised file
+# as the shipped default. This is the assertion an earlier revision of this file
+# deliberately withheld, on the grounds that pinning the wart would turn its fix
+# into a failure; the fix has landed, so the assertion is now the guard.
+if grep -q "^  \.ergrc sha256:" "$S/tickets/.erg-assets"; then
+    fail "stampless/init: init stamped the file it preserved ($(grep '\.ergrc sha256:' "$S/tickets/.erg-assets"))"
+else
+    pass "stampless/init: the preserved file gets no stamp it did not earn"
+fi
+# Positive control for the assertion above, and it is not decoration: "init
+# stopped writing manifests at all" passes that one and breaks the whole
+# provenance mechanism. AGENTS.md is pristine in this fixture -- init verified
+# it this run -- so the manifest may, and must, say so.
+if grep -q "^  AGENTS\.md sha256:" "$S/tickets/.erg-assets"; then
+    pass "stampless/init: an asset init did verify IS stamped (the manifest still works)"
+else
+    fail "stampless/init: init stopped stamping altogether (got: $(cat "$S/tickets/.erg-assets" 2>&1))"
+fi
+CHK=$("$ERG_ABS" check "$S/tickets" 2>&1 || true)
+if echo "$CHK" | grep -qF "no .erg-assets stamp"; then
+    pass "stampless/init: the condition survives the init the advice sent the user to"
+else
+    fail "stampless/init: following erg check's own advice silenced the report (got: $CHK)"
+fi
 
 audit_step "$S" "stampless/migrate" run_migrate
 if grep -qF "$ERGRC_MARK" "$S/tickets/.ergrc"; then

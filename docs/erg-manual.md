@@ -457,7 +457,7 @@ erg init bundles (ticket 0243):
 Does NOT commit. Exits 1 on archive/->closed/ filename collision (both directories are left untouched; the user must resolve manually). Exits 0 otherwise.
 Review the diff with 'git diff tickets/' and commit manually.
 
-## erg init [DIR] [-n|--dry-run] [--force]
+## erg init [DIR] [-n|--dry-run] [--force] [--show NAME]
 
 Unpack embedded bootstrap assets into the project.
 
@@ -487,6 +487,17 @@ clean upgrade -- erg never touched it, so it is overwritten and a
 is a local edit: it is preserved and the command exits 2 (local edits are never
 overwritten without --force).
 
+A preserved file is not stamped. The manifest records what init INSTALLED, so
+an asset init declined to touch keeps whatever the previous manifest said about
+it and gains no new entry -- stamping it with the embedded hash would certify a
+customised file as identical to the shipped default and silence every later
+report about it. An asset with no entry is compared against the embedded copy
+directly, and erg check says so without claiming a direction.
+
+When no stamp attests the difference, init says exactly that rather than
+"local edits": with no recorded provenance, nothing distinguishes your own edit
+from an upgrade the store never stamped, and --show is how you find out.
+
 The stamp also records which binary wrote it, and init compares that date with
 its own. If this binary is the OLDER one -- an erg from before the last init --
 then refreshing would revert the deployed assets, not upgrade them. Such a file
@@ -507,6 +518,18 @@ Flags:
                   there was locally edited, the file is being reverted to an
                   older release. Run 'erg update' first if that is not what you
                   want.
+  --show NAME     Print this binary's embedded copy of NAME on stdout and exit,
+                  writing nothing. NAME is .ergrc, AGENTS.md or erg-github
+                  (with or without the "tickets/" prefix). The output is byte-
+                  identical to what the asset compare uses, so it pipes into
+                  diff or sha256sum -- which is how you answer, for yourself,
+                  the question every asset report poses: does my copy differ
+                  from the shipped one because I edited it, or because the
+                  binary moved on?
+
+                    erg init --show .ergrc | diff - tickets/.ergrc
+
+                  Needs no project and no tickets/ directory.
 
 If tickets/spec-erg-v1.md or tickets/integration.md exist from a previous init
 and match the current embedded content, they are removed as orphaned assets.

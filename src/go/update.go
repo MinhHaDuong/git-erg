@@ -241,12 +241,19 @@ func cmdUpdate(args []string) int {
 			fmt.Println("erg: deployed assets are from an earlier rev -- run 'erg init' to refresh them.")
 		}
 		if strings.Contains(string(out), assetStamplessSignal) {
-			// Deliberately does NOT say "run erg init to establish provenance".
-			// Today init would stamp a preserved local edit with the embedded
-			// hash and silence the condition for good (ticket 0292), so this
-			// sends the reader to erg check, which names the assets and says
-			// what to compare, rather than to a command that resolves nothing.
-			fmt.Println("erg: deployed assets carry no .erg-assets stamp -- run 'erg check' to see which, and compare them before 'erg init'.")
+			// Still does NOT say "run erg init to establish provenance". Init
+			// no longer stamps a preserved edit as if shipped (ticket 0292
+			// fixed that), but it still does not RESOLVE anything: it
+			// preserves the file and leaves the divergence exactly where it
+			// was. What resolves it is a human comparison, so this names the
+			// two commands that make one possible.
+			//
+			// Safe to advise --show even though this line is printed by the
+			// OLD binary: the swap has already happened, so the erg the reader
+			// runs next is the new one. The grep above is the reverse
+			// direction and is why assetStamplessSignal itself may only ever
+			// be extended at its end.
+			fmt.Println("erg: deployed assets carry no .erg-assets stamp -- run 'erg check' to see which, then 'erg init --show NAME' to compare each against the shipped copy before 'erg init'.")
 		}
 	}
 	return 0

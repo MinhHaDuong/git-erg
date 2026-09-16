@@ -37,46 +37,49 @@ const assetDriftSignal = "differs from the .erg-assets stamp (binary upgraded si
 // means and to name its own remedy.
 const assetRollbackSignal = "is older than the .erg-assets stamp (this binary predates the last init) -- run 'erg update' first, then 'erg init'"
 
-// assetStamplessSignal is the third condition: the store has NO .erg-assets
-// manifest at all, yet an asset on disk differs from what this binary embeds
-// (ticket 0283). Without a stamp there is no recorded provenance, so the
-// difference is unattributable -- it may be a clean upgrade the store never
-// stamped, or a deliberate local edit -- and the only honest report is to say
-// so and name the command that finds out. Like assetDriftSignal it is a
+// assetStamplessSignal is the third condition: no .erg-assets entry stamps this
+// asset -- either the store has no manifest at all, or the manifest it has says
+// nothing about this file -- yet the asset on disk differs from what this binary
+// embeds (tickets 0283, 0292). Without a stamp there is no recorded provenance,
+// so the difference is unattributable -- it may be a clean upgrade the store
+// never stamped, or a deliberate local edit -- and the only honest report is to
+// say so and name the command that finds out. Like assetDriftSignal it is a
 // cross-version contract: erg update greps the re-exec'd NEW binary's
 // `erg check` output for this literal (see update.go), so producer and consumer
 // share it and it may be extended at the END only, never rewritten.
 //
-// Note what it does NOT say, in three directions:
+// The tail after "--" is that extension, and its shape is forced. Two claims in
+// the original text were wrong, and both had to be corrected from the END
+// rather than in place:
 //
-// No direction or version. Establishing those would need a table of
-// historically shipped hashes, which is ticket 0281's territory and closed
-// wontfix -- this branch compares only against the single currently embedded
-// copy.
+//   - "stamps it as if shipped" described the defect ticket 0292 fixed. init
+//     now carries a preserved file's prior stamp forward and adds none where
+//     there was none, so the condition survives the run instead of being
+//     certified away.
+//   - "its git history can" is not true in every store erg accepts. A plain
+//     directory under no version control takes `erg check` fine and has no
+//     history at all; a repository where the diverged asset is untracked has
+//     none for that file. The route that works in every store is the one 0292
+//     added: `erg init --show NAME` prints the embedded copy on stdout, so
+//     diff and sha256sum can answer the question the note poses.
 //
-// No promise that `erg init` resolves anything. It does not, today: init
-// preserves a locally-edited file (good) and then writes a manifest stamping it
-// with the EMBEDDED hash (bad), so from the next run on, the stamped branch
-// compares embedded against embedded, finds them equal, and this condition goes
-// permanently silent with the divergence still on disk and still unrecorded.
-// Ticket 0292 tracks extending 0279's "don't stamp what you didn't touch"
-// exemption to that case.
+// Why not simply rewrite the sentence, which would be half the length: the
+// literal was already shipped when this correction was written. PR #348's
+// executor ran `strings` against the committed bootstrap binary and found the
+// constant present, so every store that has run `erg update` since carries an
+// OLD binary that greps for the OLD prefix. Reword the front and that old side
+// stops recognising its own signal -- silently, with no error anywhere, which
+// is the exact failure this whole family of constants exists to prevent. The
+// window to reword closed at the commit that rebuilt the binary, and nothing in
+// the code announced it closing (see vendoredDriftSignal, which records the
+// same lesson pointed at what makes a literal safe: the absence of a grepping
+// consumer, never the absence of a release).
 //
-// It points at git rather than at erg, and that is not a stylistic choice. No
-// erg subcommand can show you the embedded copy: `erg init -n` reports only
-// THAT a file differs, and spec/integration dump different embedded files
-// entirely. Advising a comparison erg cannot perform would swap a trap for a
-// dead end, so the message names the tool the store is already kept in. 0292
-// carries the requirement to expose the embedded copy, which is what would let
-// this text name an erg command instead.
-//
-// The cross-version extend-at-the-END rule binds from the first RELEASED
-// binary that prints this literal. It was rewritten twice during review of
-// 0283, before any release carried it: "run 'erg init' to find out" promised
-// the resolution described above, and its replacement advised a comparison no
-// command could make. After 0283 ships, this text is frozen at the front like
-// its two siblings.
-const assetStamplessSignal = "no .erg-assets stamp -- cannot tell whether this is a clean upgrade or a local edit; its git history can, and 'erg init' preserves the file either way but stamps it as if shipped"
+// Note what it still does NOT say. No direction or version: establishing those
+// would need a table of historically shipped hashes, which is ticket 0281's
+// territory and closed wontfix -- this branch compares only against the single
+// currently embedded copy.
+const assetStamplessSignal = "no .erg-assets stamp -- cannot tell whether this is a clean upgrade or a local edit; its git history can, and 'erg init' preserves the file either way but stamps it as if shipped -- CORRECTED since erg 0292: init no longer stamps a file it preserved, and that git history exists only where the store is version-controlled and this file tracked; 'erg init --show NAME' prints the embedded copy in any store, for diff or sha256sum"
 
 // vendoredDriftSignal is the fourth condition, and the only one about a file
 // erg does not own: a VENDORED file (vendoredAssetPaths -- today just
@@ -129,16 +132,41 @@ func sha256hex(b []byte) string {
 // would produce. Same binary + same embedded assets => byte-identical output.
 // rev/date come from the build stamp (version.go), so the manifest is stable
 // for a given binary (not wall-clock dependent).
-func buildManifest() (string, error) {
+//
+// carry names the assets installAssets PRESERVED on this run, mapped to what
+// the PREVIOUS manifest recorded for each ("" when it recorded nothing). Pass
+// nil when every asset was installed. The manifest records what init wrote, and
+// a preserved file is precisely what init did not write, so stamping it with
+// the embedded hash would certify a customised file as byte-identical to the
+// shipped default -- silencing both the drift report and the stampless report
+// for it, permanently, with the divergence still on disk (ticket 0292,
+// defect 1). That is 0279's rollback exemption generalised: don't stamp what
+// you didn't touch.
+//
+// A prior entry is carried forward verbatim rather than dropped, and the
+// difference is not cosmetic. That entry is evidence about a PAST install: it
+// is what lets the next run say "has local edits" and mean it. Dropping it
+// would swap a false record for a lost one, and the run after a re-init would
+// downgrade its own verdict to "provenance unrecorded" on a store whose
+// provenance was in fact recorded.
+func buildManifest(carry map[string]string) (string, error) {
 	type entry struct{ name, sum string }
 	var entries []entry
 	for _, rel := range initAssetPaths {
+		name := strings.TrimPrefix(rel, "tickets/")
+		if prev, preserved := carry[name]; preserved {
+			if prev == "" {
+				continue
+			}
+			entries = append(entries, entry{name: name, sum: prev})
+			continue
+		}
 		content, ok := bootstrapAsset(rel)
 		if !ok {
 			return "", fmt.Errorf("missing embedded asset: %s", rel)
 		}
 		entries = append(entries, entry{
-			name: strings.TrimPrefix(rel, "tickets/"),
+			name: name,
 			sum:  sha256hex([]byte(content)),
 		})
 	}
@@ -165,9 +193,10 @@ func buildManifest() (string, error) {
 }
 
 // writeManifest writes the provenance manifest under root/tickets/. In dryRun
-// it prints a preview line and writes nothing.
-func writeManifest(root string, dryRun bool) error {
-	content, err := buildManifest()
+// it prints a preview line and writes nothing. carry is buildManifest's
+// preserved-asset map; see there.
+func writeManifest(root string, dryRun bool, carry map[string]string) error {
+	content, err := buildManifest(carry)
 	if err != nil {
 		return err
 	}
@@ -542,6 +571,21 @@ func managedAssetWarnings(dir string) []string {
 		name := strings.TrimPrefix(rel, "tickets/")
 		stamp, ok := stamps[name]
 		if !ok || stamp == "" {
+			// A manifest exists, but it stamps nothing for THIS asset, so
+			// there is no stamp-relative claim to make about it -- and the
+			// stampless compare is exactly the one that applies. Skipping
+			// here instead reproduced 0283's silence one level down: not
+			// drift-warned (no stamp for it), not stampless-warned (the
+			// manifest is not nil, and parseManifest returns non-nil as soon
+			// as ONE line parses). Ticket 0292, defect 3.
+			//
+			// The gate is per ASSET, never per store. This is also the shape
+			// init itself now writes: a run that preserved one asset stamps
+			// the others and leaves that one unstamped, so a partial manifest
+			// is the normal product of the fix above, not a corruption.
+			if note, has := stamplessNote(dir, rel); has {
+				warnings = append(warnings, note)
+			}
 			continue
 		}
 		content, ok := bootstrapAsset(rel)
@@ -567,38 +611,53 @@ func managedAssetWarnings(dir string) []string {
 // that is ticket 0281, closed wontfix, and a future edit adding a multi-rev
 // lookup here is the one thing this function must not grow.
 //
-// Silent in both directions that carry no information: an asset that is absent
-// (the store never adopted erg's asset management) and an asset that matches
-// the embedded copy exactly (nothing to report). Only real, unattributable
-// divergence speaks, and it reports a condition rather than prescribing an
-// overwrite -- hence NOTE, not WARN. Nothing here changes what erg init does
-// about the file; this makes the condition visible, no more.
+// The per-asset decision lives in stamplessNote, which the stamped branch also
+// calls for an asset its manifest does not stamp; what stays here is only the
+// whole-store sweep.
 func stamplessWarnings(dir string) []string {
 	var notes []string
 	for _, rel := range initAssetPaths {
-		name := strings.TrimPrefix(rel, "tickets/")
-		content, ok := bootstrapAsset(rel)
-		if !ok {
-			continue
+		if note, has := stamplessNote(dir, rel); has {
+			notes = append(notes, note)
 		}
-		onDisk, err := os.ReadFile(filepath.Join(dir, name))
-		if err != nil {
-			// Absent, or present but unreadable. The two are not the same
-			// thing, and folding them together means a chmod-000 asset with
-			// real divergence stays quiet -- in a function whose whole subject
-			// is not staying quiet. It is nonetheless the convention every
-			// sibling here already follows (readManifestFile, installAssets'
-			// `exists := readErr == nil`), so the fold is deliberate: breaking
-			// ranks in one function would be the surprising move.
-			continue
-		}
-		// Direct comparison, not sha256 of both sides: this is an equality
-		// test, both operands are already in memory, and the sibling that asks
-		// the same question next door (installAssets) spells it this way.
-		if string(onDisk) == content {
-			continue
-		}
-		notes = append(notes, fmt.Sprintf("NOTE %s: %s", name, assetStamplessSignal))
 	}
 	return notes
+}
+
+// stamplessNote is the per-asset half of stamplessWarnings, split out because
+// managedAssetWarnings needs exactly this decision for an asset its manifest
+// does not stamp (ticket 0292, defect 3). One function, so the two callers
+// cannot drift into disagreeing about what "unstamped and diverged" means --
+// a comment saying they agree would be a weaker guarantee than one expression.
+//
+// Reports (note, true) only for a real, unattributable divergence. Silent in
+// both directions that carry no information: an asset that is absent (the store
+// never adopted erg's asset management) and one that matches the embedded copy
+// exactly (nothing to report). It reports a condition rather than prescribing
+// an overwrite -- hence NOTE, not WARN. Nothing here changes what erg init does
+// about the file; this makes the condition visible, no more.
+func stamplessNote(dir, rel string) (string, bool) {
+	name := strings.TrimPrefix(rel, "tickets/")
+	content, ok := bootstrapAsset(rel)
+	if !ok {
+		return "", false
+	}
+	onDisk, err := os.ReadFile(filepath.Join(dir, name))
+	if err != nil {
+		// Absent, or present but unreadable. The two are not the same
+		// thing, and folding them together means a chmod-000 asset with
+		// real divergence stays quiet -- in a function whose whole subject
+		// is not staying quiet. It is nonetheless the convention every
+		// sibling here already follows (readManifestFile, installAssets'
+		// `exists := readErr == nil`), so the fold is deliberate: breaking
+		// ranks in one function would be the surprising move.
+		return "", false
+	}
+	// Direct comparison, not sha256 of both sides: this is an equality
+	// test, both operands are already in memory, and the sibling that asks
+	// the same question next door (installAssets) spells it this way.
+	if string(onDisk) == content {
+		return "", false
+	}
+	return fmt.Sprintf("NOTE %s: %s", name, assetStamplessSignal), true
 }
