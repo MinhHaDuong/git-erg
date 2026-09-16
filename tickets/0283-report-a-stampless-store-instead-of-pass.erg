@@ -146,3 +146,26 @@ expected and fixed at rebase time, not a reason to resequence.
   let a stampless store at a known shipped hash auto-upgrade; this ticket
   only makes the condition visible. The table is optional and carries its
   own hazard; visibility is not.
+
+## Feasibility (Phase 4, 2026-09-16)
+
+All symbols this plan names were verified present. One correction for
+whoever executes it:
+
+The gate is at `update.go:226` as stated, but it is spelled
+`os.Stat(filepath.Join(ticketDir, manifestName))`, not the shorthand
+`os.Stat(manifestName)` the Actions section uses. The line number is exact;
+only the expression is abbreviated.
+
+More importantly, the four-line comment directly above it encodes the very
+premise this ticket overturns:
+
+> Only attempted when a manifest exists: without one there is nothing to
+> compare and no hint is warranted.
+
+That is false, and it is the reasoning that produced the silence. Without a
+manifest there *is* something to compare -- on-disk content against the
+embedded copy -- which is exactly what Action 1 adds. **Rewrite that comment
+as part of the change.** Leaving it in place would leave the next reader the
+same wrong premise, and a future refactor would re-derive the same gate from
+it.
