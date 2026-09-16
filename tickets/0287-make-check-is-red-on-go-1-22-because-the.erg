@@ -12,6 +12,7 @@ Author: MinhHaDuong
 2026-09-16T16:25Z claude note Blind-Spot pass, one correction and one confirmation. Correction: the 11:15Z claim that the verify/reproducibility failure "shared this cause" is inferred from correlation (one rmdir cleared both) and does NOT reproduce independently -- make verify was run standalone under the live stray-.git conditions and PASSED, because its own mktemp workdir receives a git clone that creates a valid .git inside it, so Go's upward walk stops there and never reaches /tmp. Read that line as "not reproduced independently", not as settled, and diagnose any future verify FAIL fresh rather than as a recurrence of this ticket. Confirmation: tests/*.sh was re-grepped for every mktemp-plus-go-build/list/vet combination, and test_contract.sh:98 is the only call site that builds inside a bare mktemp -d -- every other go invocation runs from src/go, which has this repo's real .git adjacent. So the one-line fix is sufficient to carry make check end to end.
 2026-09-16T17:05Z claude note Plan pass: the red step is the existing offline negative control at tests/test_contract.sh:98, but as written it only turns red when the *host* happens to have a stray empty .git above $TMPDIR -- exactly the non-determinism this ticket exists to kill, so CI (no stray .git, pinned Go 1.21) would never notice a regression here. Recommend a self-contained assertion in the same block: create an empty .git directly at $WORK (one level above $NEG, the mktemp root the negative control already uses) before invoking `go list -deps .` in $NEG, manufacturing the adversarial condition inside the test rather than borrowing it from the host. RED today: without -buildvcs=false that call errors on the manufactured stray .git and finds no net/http, reproducing the defect deterministically on any host. GREEN: after adding -buildvcs=false to the line-98 call, the same manufactured-ancestor run still finds net/http, and the pre-existing ambient-state check (lines 96-99, unmodified environment) keeps passing -- a stray-ancestor arm plus a clean-host arm. Antipattern verdict: the existing line-98 assertion is not itself tautological (it invokes the real go toolchain, not a restatement of the code under test), only incomplete as a regression guard; the fix is to add the manufactured fixture, not replace anything. Beyond that one addition, no new committed test is warranted -- Action 1 is exactly the one-line flag change, and the existing suite plus this fixture is sufficient.
 2026-09-16T10:33Z claude note Executed. Two arms, not one: arm 1 keeps the pre-existing ambient-environment assertion, arm 2 manufactures an empty .git at $WORK/neg-offline-stray one level above its own throwaway module, so the adversarial condition is built by the test instead of borrowed from the host. Deviation from the Plan pass, deliberate: the plan said mkdir $WORK/.git, but $NEG is a direct child of $WORK, so that would have poisoned the clean-host arm too and collapsed the two arms into one. A sibling subtree gives both arms honestly. Red step watched fail before the flag was added. Four-way control matrix on /dev/shm (the one filesystem on this host with no stray ancestor): clean+no-flag FOUND, stray+no-flag NOT-FOUND, stray+flag FOUND, clean+flag FOUND -- so the manufactured stray alone causes the red, and the flag alone clears it. Whole suite under TMPDIR=/dev/shm confirms the point the ticket cared about: on a stray-free host arm 1 passes with or without the fix (no teeth there, which is why CI never saw this), while arm 2 fails without it and passes with it. make check now exits 0 end to end, 0 FAIL across 37 suites; the host strays /tmp/.git and /scratch/tmp/.git are both present and regrown, and no longer matter. Action 2 deliberately not folded in -- it is ticket 0290.
+2026-09-16T11:05Z claude note Round 3 closed the third and last door. Verified against a deliberately reverted copy of the fix, eight cases: arm 2 PASSes under the fix in a plain environment, under an exported GOFLAGS=-buildvcs=false, and under the go env config file (exercised through a throwaway GOENV path, so the author's own go env was never written -- confirmed empty before and after); it FAILs in all three of those under the reverted copy; and it SKIPs, never passes, with git absent from PATH. The review's round-2 dissent is recorded and unresolved, an author call: correctness held that a machine carrying an ambient GOFLAGS cannot suffer the underlying defect either, so skipping there was defensible. Pinning the environment makes the question moot -- the arm now measures the code rather than the machine. CI was never at risk in any of the three variants.
 
 --- body ---
 ## Context
@@ -162,14 +163,24 @@ reconciled. The line numbers quoted above (`98`, `96-99`) are those of
    not at `$WORK`. `$NEG` is a direct child of `$WORK`, so a stray there would
    have poisoned the ambient arm too and collapsed the intended two arms into
    one.
-2. Arm 2 **proves its own red condition before crediting its green**. Review
-   found the guarantee was silently conditional on `git` being on `PATH`:
-   Go's buildvcs lists the `.git` entry, then shells out, and when the lookup
-   fails it skips stamping without a word — so the arm went green with or
-   without the flag. Reproduced, then closed by running the unflagged probe
-   first and reporting SKIP when the manufactured stray fails to blind it.
-   An all-clear indistinguishable from "I could not look" is not a check, and
-   that is exactly the defect class this ticket is about.
+2. Arm 2 **proves its own red condition before crediting its green**, and runs
+   **with the environment pinned**. Three review rounds found the same defect
+   class through three doors, each time a way for arm 2 to pass without having
+   tested anything: `git` absent from `PATH` (buildvcs skips stamping silently,
+   so nothing was ever blinded); an exported `GOFLAGS=-buildvcs=false`; and
+   `go env -w`, which an empty-but-set `GOFLAGS` falls through to. The last two
+   are exactly what someone hitting this bug would set as a workaround.
+
+   Closed by running the unflagged probe first and reporting SKIP when the
+   manufactured stray fails to blind it, and by shutting both ambient doors
+   (`GOFLAGS=`, `GOENV=off`) so the explicit argument is the only flag in play.
+   Verified against a deliberately reverted copy of the fix: arm 2 now fails in
+   all three environments where `git` is present, and skips rather than passes
+   where it is not.
+
+   Worth recording that the guard for this defect kept reproducing the defect:
+   an all-clear indistinguishable from "I could not look" is what the ticket is
+   about, and it took three rounds to stop writing one.
 
 ## Verification
 
