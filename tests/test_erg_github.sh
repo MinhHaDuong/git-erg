@@ -96,6 +96,41 @@ else
     fail "verify: closed ticket should pass (rc=$rc, out: $out)"
 fi
 
+mk_closed_ticket() { # id -- writes into tickets/closed/ (archived), no Closed: header
+    f="$REPO/tickets/closed/$1-x.erg"
+    mkdir -p "$REPO/tickets/closed"
+    {
+        echo "%erg 0.1"
+        echo "Title: X"
+        echo "Created: 2026-06-02"
+        echo "Author: t"
+        echo ""
+        echo "--- log ---"
+        echo "--- body ---"
+    } > "$f"
+}
+
+# --- verify: PR body references tickets/closed/NNNN -> PASS via the real
+# ticket_is_closed() check, not the escape hatch (ticket 0255) ---
+mk_closed_ticket 0044
+out=$(run_verify x "**Ticket:** tickets/closed/0044-x.erg" "" 7) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -q "ticket 0044 is closed" && ! echo "$out" | grep -qi "escape hatch"; then
+    pass "verify: tickets/closed/NNNN resolves via ticket_is_closed, not escape hatch"
+else
+    fail "verify: tickets/closed/NNNN should PASS via ticket_is_closed, not the escape hatch (rc=$rc, out: $out)"
+fi
+
+# --- verify: a non-"closed" subdirectory segment does not confuse the ticket-id
+# extraction (only closed/ is special, ticket 0255). NEGATIVE CONTROL: 0044 is
+# archived above, so an over-broad regex matching any subdirectory would resolve
+# it here and report a real PASS instead of falling to the escape hatch. ---
+out=$(run_verify x "**Ticket:** tickets/bogus/0044-x.erg" "" 7) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -qi "escape hatch"; then
+    pass "verify: tickets/bogus/NNNN does not spuriously resolve (falls to escape hatch)"
+else
+    fail "verify: tickets/bogus/NNNN should fall to escape hatch, not resolve as a ticket ref (rc=$rc, out: $out)"
+fi
+
 # --- verify: open ticket -> FAIL (exit 1) ---
 mk_ticket 0042 open
 out=$(run_verify x "**Ticket:** tickets/0042-x.erg" "" 7) && rc=0 || rc=$?
