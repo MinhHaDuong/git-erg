@@ -1,7 +1,8 @@
 %erg 0.1
-Title: Generate historical asset hashes from history; make a stampless store report itself
+Title: Generate historical asset hashes from git history
 Created: 2026-09-16
 Author: MinhHaDuong
+Blocked-by: 0283
 
 --- log ---
 2026-09-16T07:12Z MinhHaDuong created
@@ -9,7 +10,30 @@ Author: MinhHaDuong
 
 2026-09-16T07:26Z MinhHaDuong note blocker 0280 closed — Blocked-by removed.
 2026-09-16T07:45Z MinhHaDuong note Action 2 narrowed to two assets (.ergrc, AGENTS.md); the other two embedded files are orphanAssetPaths and never reach isCleanUpgrade. Priority note added: Action 3 (visibility) outranks Actions 1-2 (the table), since an unrecognized hash already degrades safely and path C is a hazard the table creates.
+2026-09-16T08:10Z MinhHaDuong note Visibility (Action 3) split out to 0283 on the Plan agent's recommendation; this ticket keeps the generated table only, and is Blocked-by 0283. The table is the optional, hazard-creating half -- see the open question added to the body.
+
 --- body ---
+## Scope (narrowed 2026-09-16)
+
+This ticket is now **the generated hash table only**. The stampless-store
+visibility fix -- which the Priority note below establishes is the
+load-bearing half -- was split out to **0283** and lands first.
+
+**Open question this ticket must answer before it is worked: is the table
+wanted at all?** An unrecognized hash already degrades safely to preserve +
+exit 2, so the table buys *convenience* -- a stampless store at a known
+shipped hash upgrades automatically instead of being preserved and reported.
+Against that, populating the table is what creates path C: a wrong entry
+makes a genuine local edit look like a pristine old release and destroys it
+with no warning. The hazard is created by the fix, not removed by it. Once
+0283 lands, a stampless store is at least *told* about its condition, which
+is most of the value; whoever picks this up should confirm the remaining
+convenience is worth the hazard before building it, and is entitled to close
+this ticket wontfix with that reasoning recorded.
+
+If it is built, the generation test (Action 6 in the Plan) is what keeps
+path C survivable -- the table must never be hand-typed.
+
 ## Context
 
 0278 (now a tracker) named four paths that can overwrite or strand a tracked

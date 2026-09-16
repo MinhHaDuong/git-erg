@@ -1,0 +1,148 @@
+%erg 0.1
+Title: Report a stampless store instead of passing silently
+Created: 2026-09-16
+Author: MinhHaDuong
+Blocked-by: 0279
+
+--- log ---
+2026-09-16T08:10Z MinhHaDuong created
+2026-09-16T08:10Z MinhHaDuong note Split from 0281 on the raid Plan agent's recommendation. 0281's own Priority note had already established that this visibility fix is load-bearing while the hash table is optional and hazard-creating; splitting keeps a safe fix out of the shadow of a risky one. 0281 keeps the table and is now Blocked-by this ticket.
+
+--- body ---
+## Context
+
+This is path A of the asset-machinery defect class tracked by 0278, and the
+one part of it that is unambiguously worth doing.
+
+With no `.erg-assets` stamp, three channels go silent for the same single
+cause: `assetDriftWarnings` (`manifest.go:184`) returns `nil` the moment
+`stamps == nil`; `corpusWarnings` therefore has nothing to report through
+either `cmdCheck` or `cmdInit`'s chained post-init check; and `erg update`'s
+post-swap hint (`update.go:226`) is gated on `os.Stat(manifestName)`, so it
+never even asks. Demonstrated: chemin-de-voix reports `would preserve` with
+no warning anywhere.
+
+**Path A's defining property is silence, not destruction.** An unrecognized
+hash already degrades safely — preserve, exit 2 — so nothing is being lost
+today; the store simply cannot tell the user it has no provenance. That is
+why this is separable from, and higher-value than, 0281's hash table: the
+table would let such stores auto-upgrade, but not building it costs only
+convenience, while leaving the silence costs the user the ability to find
+out anything at all.
+
+Split from 0281 so a safe, load-bearing fix is reviewed on its own merits
+rather than alongside a change that creates a hazard of its own (0281's
+path C: a wrong table entry destroys a genuine local edit).
+
+## Relevant files
+
+- `src/go/manifest.go:184` — `assetDriftWarnings`, the single root cause
+- `src/go/manifest.go:24` — `assetDriftSignal`, the existing
+  producer/consumer-shared-literal pattern the new constant follows
+- `src/go/update.go:226` — the `os.Stat(manifestName)` gate on the post-swap
+  hint
+- `src/go/check.go:173,251` — `corpusWarnings` and `cmdCheck`
+- `src/go/init.go:10-13,262` — `initAssetPaths`, and the chained post-init
+  check
+
+## Actions
+
+1. **`assetDriftWarnings` stops returning `nil` when the manifest is
+   absent.** Instead, for each `rel` in `initAssetPaths` (`.ergrc` and
+   `AGENTS.md` only — the other two embedded files are `orphanAssetPaths`
+   and never reach this machinery), read the on-disk file; if it exists and
+   its SHA-256 differs from the currently embedded content, append one
+   warning naming the asset and the new signal constant. If the file is
+   absent, or matches the embedded copy exactly, emit nothing for it. That
+   gate preserves the existing property the doc comment states: a store that
+   never touched erg's asset management is never nagged.
+2. **New constant beside `assetDriftSignal`** — `assetStamplessSignal`, a
+   stable substring, following the same shared-literal pattern. Wording
+   should point at the remedy, e.g. `"NOTE %s: no .erg-assets stamp --
+   cannot tell whether this is a clean upgrade or a local edit; run
+   'erg init' to find out (existing edits are never overwritten without
+   --force)"`.
+3. **`update.go` shares the detection instead of re-deciding it.** Drop the
+   `os.Stat(manifestName)` pre-check (or loosen it to "ticketDir exists") so
+   the re-exec'd `erg check` always runs after a binary swap, then match the
+   combined output against *either* signal, with two distinct follow-ups —
+   "run erg init to refresh" for drift, "run erg init to establish
+   provenance" for stampless.
+
+Fixing `assetDriftWarnings` is the root-cause change: it is the one function
+`corpusWarnings` calls, and `corpusWarnings` feeds both `cmdCheck` and
+`cmdInit`. Do not patch the three channels separately.
+
+## Test
+
+**Red step** — `TestAssetDriftWarningsReportsStamplessDivergence` in
+`src/go/manifest_test.go`:
+
+- `t.TempDir()` with `tickets/.ergrc` holding content that is **not** the
+  current embedded content (follow the fixture idiom in
+  `TestInstallAssetsHistoricalUpgrade`), and deliberately **no**
+  `.erg-assets`.
+- Call `assetDriftWarnings(dir)` directly.
+- Assert on **message content**, not count or exit code — path A's property
+  is silence, and the return value is `nil`-ish both before and after a
+  broken fix, so only a content assertion can see it.
+
+Today this fails: `assetDriftWarnings` returns `nil` as soon as
+`stamps == nil`, so the substring is never found.
+
+**Required positive control, in the same test** — `.ergrc` on disk matching
+the embedded content exactly, still no manifest, must produce **zero**
+stampless warnings. Without this arm, an implementation that warns
+unconditionally on "no manifest" passes the red step and proves nothing
+about gating on real divergence.
+
+**Integration arm** — extend `tests/test_check.sh` (already in
+`TEST_SUITES`, no new suite needed) with a fixture whose `tickets/.ergrc` is
+old-shipped content and has no `.erg-assets`, asserting `erg check`'s stderr
+carries the same substring. This proves the fix reaches the CLI channel a
+human or agent actually reads; the unit test is still the one to write and
+watch fail first.
+
+## Dependencies
+
+`Blocked-by: 0279`, which changes `isCleanUpgrade`'s signature and extends
+the manifest reader. This ticket never calls `isCleanUpgrade` and only needs
+"does a stamp exist", so it is robust to 0279's exact shape: if 0279 wraps
+the manifest return in a struct rather than a bare map, Action 1's
+nil-check becomes a field check — mechanical, not a redesign. A compile
+break at `assetDriftWarnings`'s existing `readManifestFile` call site is
+expected and fixed at rebase time, not a reason to resequence.
+
+## Verification
+
+- [ ] the red test fails before the change and passes after
+- [ ] the same-content positive control passes both before and after
+- [ ] a stampless store reports its condition through `erg check`
+- [ ] a stampless store reports its condition after `erg update`
+- [ ] a store whose assets match the embedded copy exactly is still silent
+
+## Invariants
+
+- A store that never adopted erg's asset management is never nagged — the
+  warning gates on real divergence, not on the absence of a manifest.
+- No behaviour change to the overwrite/preserve decision itself. This ticket
+  makes a condition *visible*; it does not change what `erg init` does about
+  it.
+- `erg init` on a pristine current asset stays a silent no-op.
+
+## Exit criteria
+
+- A store with no provenance manifest is told so, on every channel that
+  would have reported drift — `erg check`, `erg init`'s chained check, and
+  `erg update`'s post-swap hint
+- The message names the remedy
+- The three channels share one detection path rather than three gates
+
+## Related
+
+- 0278 — tracker; this is path A, the demonstrated-silent one
+- 0279 — lands first; this ticket is `Blocked-by` it
+- 0281 — the generated hash table, now `Blocked-by` this ticket. It would
+  let a stampless store at a known shipped hash auto-upgrade; this ticket
+  only makes the condition visible. The table is optional and carries its
+  own hazard; visibility is not.
