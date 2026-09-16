@@ -36,6 +36,16 @@
 # duplication is a real maintenance cost, accepted for the reachability it
 # buys, not a cost someone else's discipline already covers.
 #
+# "Reachability" is the right defence for two of the four, not all four.
+# "erg: updated" is what proves an update arm swapped a binary at all, and
+# without it the arm passes on a post-swap report that never ran. But
+# edited/init's exit 2 and clean/init's all-unchanged summary were measured
+# against their arms and found redundant -- each arm already carries an
+# independent guard. They stay for a weaker reason: an exit code is the
+# machine-readable half of "saying so", and the clean arm otherwise has no
+# positive statement that nothing happened. A trim is a defensible follow-up;
+# calling them guards is not.
+#
 # THE TRAP THIS SUITE IS BUILT AROUND. `erg migrate` overwrites a diverged
 # tickets/AGENTS.md unconditionally. That is a SETTLED CHARTER DECISION (ticket
 # 0224, PR #275, docs/erg-imagine-charter.md L122-127), already guarded by
@@ -46,7 +56,7 @@
 # happens SILENTLY. So the migrate arm below asserts the overwrite HAPPENED and
 # that it was announced -- asserting preservation there would be the bug.
 #
-# THREE FIXTURE STATES, each driven through init, update and migrate:
+# FOUR FIXTURE STATES, each driven through init, update and migrate:
 #   clean     -- stamp present, assets byte-identical to embedded.
 #   edited    -- stamp present, BOTH assets carrying a genuine local edit.
 #                .ergrc is outside migrateAssetPaths, AGENTS.md is inside it, so
@@ -54,6 +64,14 @@
 #   stampless -- no .erg-assets manifest, .ergrc diverged from embedded.
 #                (AGENTS.md left pristine here so the NOTE has exactly one
 #                subject and the arm cannot pass on the wrong asset.)
+#   rollback  -- stamp present, recording the bytes ON DISK, dated after this
+#                binary's build. The running erg PREDATES the last init, so an
+#                overwrite here is a revert. This is ticket 0279's defect class,
+#                the one path in the set demonstrated to lose data, and the
+#                suite shipped without it: a red-team mutant that forced
+#                `downgrade := false` (init.go:267) passed the first three arms
+#                42/0, because no fixture ever stamped newer than the binary.
+#                The arm exists so the word "downgraded" is load-bearing.
 #
 # NEGATIVE-CONTROL RECORD (red step, ticket 0278). Each arm was watched to fail
 # before being trusted:
@@ -63,21 +81,29 @@
 #      rather than stopping at "already clean" (0278's path-D bullet reports a
 #      fixture that never got there).
 #   2. audit_file's announcement grep was pointed at a token installAssets never
-#      prints. edited/migrate -- the one arm in which a managed file really does
-#      change -- then reported "changed SILENTLY", which is the FAIL path this
+#      prints. The migrate arms -- the only ones in which a managed file really
+#      does change -- then reported "changed SILENTLY", which is the FAIL path this
 #      suite exists to detect; a silenced installAssets would look exactly the
 #      same from here. Without that mutation the audit's changed-and-unannounced
 #      branch is unreachable and the whole file is decoration.
 #   3. Half (b) needed its own control -- non-vacuity is per case, and controls
 #      1 and 2 both exercise half (a). audit_file's unchanged-branch grep was
-#      pointed at a token the binary DOES print on every run; all twenty
-#      "unchanged, and not claimed otherwise" assertions flipped to FAIL, across
-#      all three states and all three commands. Both halves are therefore wired
-#      to a reachable failure, not just the one the trap lives in.
+#      pointed at a token the binary DOES print on every run; every
+#      "unchanged, and not claimed otherwise" assertion then present (seventeen of
+#      them, before the rollback arm) flipped to FAIL, across every state and
+#      every command. Both halves are wired to a reachable failure, not just the
+#      one the trap lives in.
 #   4. The coverage pin got one too: commenting out a single audit_step call
 #      dropped the run to 40 assertions, which `[ "$FAIL" -eq 0 ]` reports as a
 #      clean pass. With the pin, that run exits 1 and names the shortfall. An
 #      all-clear indistinguishable from "I never ran" is not a check.
+#   5. The rollback arm is itself the answer to a control the suite FAILED. A
+#      red-team mutant forcing `downgrade := false` (init.go:267) -- which
+#      makes erg narrate a revert as an ordinary refresh -- passed the first
+#      three arms 42/0, because no fixture stamped newer than the binary and
+#      the direction logic 0279 exists for was never reached. Re-run against
+#      the arm below, the same mutant dies on
+#      "rollback/migrate: the revert is narrated as a downgrade".
 #
 # Note for anyone extending the announcement grep: `erg migrate` ALWAYS prints
 # the summary line "migrate: AGENTS.md refreshed (N created, N refreshed, N
@@ -104,7 +130,7 @@ fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 # audits and no other signal. Ticket 0278's log cites the count as evidence, so
 # the count is asserted. Bump it deliberately when adding an arm -- a surprise
 # here means coverage moved without anyone deciding it should.
-EXPECTED_ASSERTIONS=42
+EXPECTED_ASSERTIONS=57
 
 # Local-path git remotes drive the `erg update` arms (update fetches the
 # committed binary via git, never HTTP). Hardened hosts set
@@ -129,6 +155,11 @@ echo "=== asset invariant across init/update/migrate (ticket 0278) ==="
 
 ERGRC_MARK="# LOCAL EDIT 0278 -- must survive every path"
 AGENTS_MARK="<!-- LOCAL EDIT 0278 -- migrate is allowed to take this, loudly -->"
+# A stamp date this binary cannot predate away from. Must match buildDateLayout
+# byte for byte (manifest.go): same width, same separators, Z, and a possible
+# calendar instant -- anything else is "not comparable" and isRollback returns
+# false, silently turning the rollback arm into an ordinary local-edit arm.
+FUTURE_STAMP="2099-01-01T00:00:00Z"
 
 sha_of() {
     if [ -f "$1" ]; then sha256sum "$1" | cut -d' ' -f1; else echo "ABSENT"; fi
@@ -184,6 +215,23 @@ make_store() {
         rm -f "$_dir/tickets/.erg-assets"
         printf '\n%s\n' "$ERGRC_MARK" >> "$_dir/tickets/.ergrc"
         ;;
+    rollback)
+        # Divergent bytes on disk, and a stamp that RECORDS those bytes and
+        # claims a build date this binary predates. That combination is the
+        # only one erg reads as "the deployed assets are ahead of me": the
+        # stamp branch of isCleanUpgrade needs disk == stamp before isRollback
+        # is even consulted. The date must have buildDateLayout's exact shape
+        # or looksLikeBuildDate rejects it and the whole arm silently degrades
+        # to the ordinary local-edit path -- which is what assert_state below
+        # is for.
+        printf '\n%s\n' "$ERGRC_MARK" >> "$_dir/tickets/.ergrc"
+        printf '\n%s\n' "$AGENTS_MARK" >> "$_dir/tickets/AGENTS.md"
+        printf '# erg provenance manifest -- do not edit\nrev: future\ndate: %s\nassets:\n  .ergrc sha256:%s\n  AGENTS.md sha256:%s\n' \
+            "$FUTURE_STAMP" \
+            "$(sha_of "$_dir/tickets/.ergrc")" \
+            "$(sha_of "$_dir/tickets/AGENTS.md")" \
+            > "$_dir/tickets/.erg-assets"
+        ;;
     *)
         fail "make_store: unknown state $_state"
         return 1
@@ -222,6 +270,18 @@ assert_state() {
             pass "fixture stampless: no manifest, .ergrc diverged, AGENTS.md pristine"
         else
             fail "fixture stampless: expected no manifest and a diverged .ergrc only"
+        fi
+        ;;
+    rollback)
+        # The stamp must record the bytes ON DISK -- if it did not, isCleanUpgrade
+        # would take its disk != stamp exit and the arm would exercise the
+        # local-edit path under a rollback label, proving nothing about direction.
+        if grep -q "^date: $FUTURE_STAMP\$" "$_dir/tickets/.erg-assets" &&
+            grep -q "AGENTS.md sha256:$(sha_of "$_dir/tickets/AGENTS.md")\$" "$_dir/tickets/.erg-assets" &&
+            ! cmp -s "$_dir/tickets/AGENTS.md" "$EMBEDDED_AGENTS"; then
+            pass "fixture rollback: stamp records the on-disk bytes and postdates this binary"
+        else
+            fail "fixture rollback: expected a future-dated stamp matching the on-disk hashes"
         fi
         ;;
     esac
@@ -451,6 +511,83 @@ if grep -qF "$ERGRC_MARK" "$S/tickets/.ergrc"; then
 else
     fail "stampless/migrate: migrate destroyed the diverged .ergrc"
 fi
+
+# ===========================================================================
+# Arm 4 -- rollback: this binary predates the stamp, so an overwrite is a
+# revert. Ticket 0279's defect class; the only path in the set demonstrated to
+# lose data.
+# ===========================================================================
+S="$WORKROOT/rollback"
+make_store "$S" rollback
+assert_state "$S" rollback
+
+CHK=$("$ERG_ABS" check "$S/tickets" 2>&1 || true)
+if echo "$CHK" | grep -q "WARN AGENTS.md: embedded version is older than the .erg-assets stamp"; then
+    pass "rollback/check: names the direction -- the binary is behind, not the store"
+else
+    fail "rollback/check: expected the rollback WARN (got: $CHK)"
+fi
+if echo "$CHK" | grep -q "run 'erg init' to refresh"; then
+    fail "rollback/check: advised an init that would revert the store (got: $CHK)"
+else
+    pass "rollback/check: does not advise the command that would revert the store"
+fi
+
+audit_step "$S" "rollback/init" run_init
+if echo "$AUDIT_OUT" | grep -q "tickets/AGENTS.md is newer than this binary -- preserving"; then
+    pass "rollback/init: preserved, and named as a rollback rather than as local edits"
+else
+    fail "rollback/init: expected the rollback preservation message (got: $AUDIT_OUT)"
+fi
+if echo "$AUDIT_OUT" | grep -q "has local edits"; then
+    fail "rollback/init: called a revert a local edit -- wrong reason, wrong remedy"
+else
+    pass "rollback/init: does not misreport the reason it preserved"
+fi
+# 0279's other half: the run declined to touch the assets, so it must not stamp
+# them either. Rewriting the manifest here would destroy the very evidence that
+# established the direction, and the next run would read the same store as an
+# ordinary local edit.
+if grep -q "^date: $FUTURE_STAMP\$" "$S/tickets/.erg-assets"; then
+    pass "rollback/init: the stamp survives, so the direction is still established next run"
+else
+    fail "rollback/init: init overwrote the provenance that proved the rollback"
+fi
+
+audit_step "$S" "rollback/update" run_update
+if echo "$AUDIT_OUT" | grep -q "erg: updated"; then
+    pass "rollback/update: the binary swap really happened (arm is not vacuous)"
+else
+    fail "rollback/update: no swap, so nothing about the asset state was exercised"
+fi
+# Not asserted: whether update relays the rollback condition. It does not, and
+# that is deliberate -- assetRollbackSignal has no cross-version consumer because
+# update only ever re-execs a strictly NEWER binary (manifest.go). This fixture
+# re-execs the same build, a state update cannot reach in the field, so an
+# assertion either way would pin an artifact of the fixture.
+
+# migrate takes AGENTS.md here too, and this is where the word matters: it is a
+# revert, not a refresh, and installAssets must say "downgraded". A mutant
+# forcing `downgrade := false` (init.go:267) passes every other arm in this file.
+audit_step "$S" "rollback/migrate" run_migrate
+if echo "$AUDIT_OUT" | grep -q "init: downgraded tickets/AGENTS.md (git restore -- tickets/AGENTS.md to undo)"; then
+    pass "rollback/migrate: the revert is narrated as a downgrade, not as a refresh"
+else
+    fail "rollback/migrate: a revert was reported as an ordinary refresh (got: $AUDIT_OUT)"
+fi
+if grep -qF "$ERGRC_MARK" "$S/tickets/.ergrc"; then
+    pass "rollback/migrate: .ergrc, outside migrateAssetPaths, is not reverted"
+else
+    fail "rollback/migrate: migrate reverted an asset it does not manage"
+fi
+# Observed here and NOT asserted, because it is a defect rather than a contract:
+# this migrate run rewrites .erg-assets with the current binary's rev/date and
+# the EMBEDDED hashes for BOTH assets -- including .ergrc, which it never
+# touched and which still holds the divergence. The rollback WARN goes silent
+# from the next run on. init declines exactly this rewrite (0279's exemption
+# above), but the exemption is set only on the preserve leg, which migrate's
+# refuseDiverged=false call never takes. Filed as ticket 0296; asserting
+# today's behaviour would turn its fix into a test failure.
 
 echo ""
 echo "=== $PASS passed, $FAIL failed ==="

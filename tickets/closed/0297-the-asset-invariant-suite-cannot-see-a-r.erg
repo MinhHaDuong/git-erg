@@ -1,0 +1,86 @@
+%erg 0.1
+Title: the asset invariant suite cannot see a revert narrated as a refresh
+Created: 2026-09-16
+Author: claude
+Closed: merged via PR #358
+
+--- log ---
+2026-09-16T12:42Z claude created
+
+2026-09-16T12:58Z MinhHaDuong closed — merged via PR #358
+--- body ---
+
+## Context
+
+`tests/test_assetinvariant.sh` landed with PR #352 as ticket 0278's integration
+guard: three fixture stores (clean, edited, stampless) driven through `erg
+init`, `erg update` and `erg migrate`, auditing both halves of the whole-class
+invariant after every command.
+
+Review round 2 of that PR arrived after it merged. Its red team built a mutant
+binary forcing `downgrade := false` at `src/go/init.go:267` -- which makes erg
+narrate a revert as an ordinary refresh, the exact thing ticket 0279 was filed
+and fixed for -- and **the suite passed it 42/0**.
+
+The cause is a missing fixture, not a weak assertion. Reaching the direction
+logic needs a store whose stamp RECORDS the bytes on disk and postdates the
+running binary: `isCleanUpgrade` consults `isRollback` only after
+`diskHash == stampedHash`. No fixture in the suite stamped newer than the
+binary, so `stampedByNewer` was false everywhere, `downgrade` was false
+everywhere, and the word "downgraded" was decoration.
+
+`tests/test_init.sh` still catches the mutant at the single-command tier. What
+is missing is the cross-command tier -- which is the one place 0278's invariant
+is stated, and rollback is the only path in its set demonstrated to lose data.
+
+## Relevant files
+
+- `tests/test_assetinvariant.sh` -- the suite; a fourth arm goes here
+- `src/go/manifest.go` -- `isRollback`, `looksLikeBuildDate`, and why the stamp
+  date must match `buildDateLayout` byte for byte or the arm silently degrades
+  to an ordinary local-edit arm
+- `src/go/init.go` -- `stampedByNewer`, `downgrade`, and the `rollbackPreserved`
+  exemption
+
+## Actions
+
+1. Add a `rollback` fixture state: both managed assets diverged, `.erg-assets`
+   recording the on-disk hashes, `date:` set to a future stamp of exactly
+   `buildDateLayout`'s shape.
+2. Guard the fixture in `assert_state` -- a stamp that does not match the disk
+   sends the arm down the local-edit path, where it would pass while proving
+   nothing about direction.
+3. Drive it through check, init, update and migrate like the other three.
+4. Bump the suite's coverage pin.
+
+## Test
+
+Red step, and it is the mutant itself: rebuild with `downgrade := false` at
+`init.go:267` and confirm the new arm fails on
+"rollback/migrate: the revert is narrated as a downgrade, not as a refresh",
+then revert and confirm green. A rollback arm that passes against that mutant
+has not been written yet.
+
+## Verification
+
+- [ ] `downgrade := false` mutant fails the suite
+- [ ] unmutated suite green, coverage pin matches the new count
+- [ ] `make check` exit 0
+
+## Invariants
+
+- The three existing arms keep their assertions and their counts.
+- migrate's force-overwrite of a diverged AGENTS.md stays asserted as the
+  WANTED, announced outcome (charter 0224) in the rollback arm too -- there it
+  must be announced as a *downgrade*, which is the whole point.
+- Nothing in the new arm pins behaviour ticket 0296 intends to change.
+
+## Exit criteria
+
+- A revert narrated as a refresh fails this suite
+
+## Related
+
+- 0278 -- the tracker whose integration pass this suite is
+- 0279 -- the defect class the arm exercises
+- 0296 -- the real defect the arm's fixture uncovered, left unfixed here
