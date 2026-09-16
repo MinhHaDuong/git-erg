@@ -152,3 +152,24 @@ single-file `validate`/`rm` path instead of merely scoping it correctly.
 - [x] Regression test builds its fixture under a `*-closed` ancestor and addresses it by absolute path -- a relative-path test cannot fail and would be vacuous
 - [x] The `!inClosedDir` comment in `check.go` no longer claims a scoping property the guard does not have
 - [x] `make check` passes and `erg check tickets/` still passes on the live corpus
+
+## Declared non-goal: naming a store at its own archive
+
+Bounding the path test to the store root has one wrong answer, and it is
+accepted rather than defended. Addressing a store **at** its `closed/`
+subdirectory -- `erg check tickets/closed`, or a bare `erg check` run from
+inside it -- reports every correctly archived ticket there as misfiled. The
+archive is not a store; nothing in the toolchain addresses it as one
+(`integration.md`, the `Makefile`, `erg archive` and `erg close` all load the
+parent), and `erg list`/`erg ready` are unaffected because archived tickets
+carry a `Closed:` header.
+
+The alternative was measured and is worse: keeping the root's own name in the
+test breaks two *legitimate* spellings of a well-formed store (`erg check .`
+and `erg check dossier-closed`). One wrong answer on an invocation nobody
+documents beats two on invocations people use.
+
+This is recorded here, and in the spec and `StorePath`'s doc comment, so the
+next person who hits it finds a decision instead of a puzzle. It is not a
+defect to be hardened against, and the review rounds that proposed doing so
+were declined (MOE, 2026-09-16).

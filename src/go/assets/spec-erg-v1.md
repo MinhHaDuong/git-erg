@@ -160,6 +160,10 @@ A ticket is **closed** if at least one of these holds:
 1. **Path test.** A path component (directory name or basename without extension) equals `closed`
    (case-insensitive), starts with `closed-` or `closed.`, or ends with `-closed`.
    Covers `tickets/closed/`, `0001-foo-closed.erg`. Rules out `disclosed`, `enclosed`.
+   The path tested is the one **below the directory `erg` was given** -- never the store
+   directory itself, nor anything above it. So a store that happens to live under
+   `/srv/dossier-closed/tickets` is read the same as any other, and naming a store at its own
+   `closed/` archive is unsupported: every ticket there then reads as misfiled.
 2. **Header test.** A preamble line begins with `Closed:`
    (header-key match at line start; value required, non-empty).
 
