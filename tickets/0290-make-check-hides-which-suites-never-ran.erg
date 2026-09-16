@@ -1,0 +1,94 @@
+%erg 0.1
+Title: make check hides which suites never ran when a target fails
+Created: 2026-09-16
+Author: MinhHaDuong
+
+--- log ---
+2026-09-16T10:31Z MinhHaDuong created
+2026-09-16T17:55Z claude note Filed during the raid over 0277-0287 as 0287's Action 2, which both the Imagine and Plan passes judged to be outside 0287's own exit criteria (those name only the buildvcs symptom). Bundled onto 0287's PR as a ticket, not a fix. It clears the severity floor on measured evidence rather than on principle: the baseline run taken at the start of the raid halts at test-contract, which sits 22nd in TEST_SUITES, leaving 11 suites unexecuted and unnamed -- and one of those unreached suites, verify, was misattributed to 0287's cause for most of a day precisely because nobody could tell "did not run" from "ran and passed".
+
+--- body ---
+## Context
+
+`make check` is `test validate`, and `test` is `unit-test $(TEST_TARGETS)
+check-store` over 33 suites. Make stops at the first failing target, so a run
+that dies early reports the suites it reached and says nothing at all about the
+rest. The output ends on the failing suite's own summary line, which reads like
+the end of the run.
+
+Measured on this host, 2026-09-16, before any of the raid's fixes:
+
+```
+contract: 16 passed, 1 failed, 0 warned, 1 skipped
+make: *** [Makefile:56 : test-contract] Erreur 1
+```
+
+`contract` is the 22nd entry in `TEST_SUITES`. The eleven after it --
+`roundtrip`, `verify`, `stderr`, `install-staleness`, `encoding`,
+`unknown_flags`, `selfcoherence`, `gofmt`, `determinism`, `strictwrite`,
+`scopeconfinement` -- never executed, and nothing in the output says so.
+
+## Why it clears the severity floor
+
+Not because a partial run is slow to notice, but because it produced a wrong
+diagnosis that survived most of a day.
+
+With `test-contract` failing, `verify` was unreachable. When a host-level
+cleanup cleared the stray `.git` and the whole run went green, `verify`'s
+earlier FAIL was recorded in 0287's log as having "shared this cause". It had
+not been retested; it had been *reached* for the first time. The raid's
+Blind-Spot pass ran `make verify` standalone under live stray-`.git`
+conditions and it passed, because its own `mktemp` workdir receives a `git
+clone` that plants a valid `.git` inside it and stops Go's upward walk. The
+two failures had different causes, and the cascade is what made them look like
+one.
+
+This is the repo's own recurring trap, in `make` form: an all-clear that cannot
+be told from "I could not look". A contributor who reports "make check passed"
+after an early failure has run a strict subset without being told which.
+
+## Relevant files
+
+- `Makefile:75` — `test: unit-test $(TEST_TARGETS) check-store`
+- `Makefile:82` — `check: test validate`
+- `Makefile:19` — `TEST_SUITES`, the ordered list
+
+## Actions
+
+Two options, not exclusive; the second is the cheap one and may be enough.
+
+1. Run every suite and report at the end (`make -k`-style, or a driver loop
+   that records each suite's exit code and fails at the end). Gives a complete
+   picture per run, at the cost of running suites whose preconditions a failed
+   earlier suite may have broken.
+2. Keep fail-fast, but name the unreached suites on exit. A trap on the failing
+   target prints the tail of `TEST_SUITES` that never started. Cheap, no change
+   to run semantics, and it closes the specific gap that produced the
+   misdiagnosis.
+
+Pick one deliberately; do not do both by accident.
+
+## Test
+
+Red step: a fixture that forces an early suite to fail, asserting the run's
+output names the suites that did not execute. Against today's Makefile it
+fails -- the output ends at the failing suite.
+
+Positive control: on a fully green run, the same assertion must find no
+"unreached" list, or the check is reporting unreached suites that ran.
+
+## Invariants
+
+- `make check`'s exit code stays non-zero when any suite fails. This ticket
+  changes what the run *says*, not what it *concludes*.
+- No suite may be skipped to make the report tidy.
+
+## Exit criteria
+
+A `make check` run that stops early tells the reader which suites it did not
+run. "It passed" and "it did not get there" stop looking alike.
+
+## Related
+
+- 0287 — the buildvcs defect whose diagnosis this gap corrupted. Fixed
+  separately; this ticket is its Action 2, deliberately not folded in.
