@@ -2,6 +2,7 @@
 Title: Report a stampless store instead of passing silently
 Created: 2026-09-16
 Author: MinhHaDuong
+Closed: merged via PR #348
 
 --- log ---
 2026-09-16T08:10Z MinhHaDuong created
@@ -11,6 +12,11 @@ Author: MinhHaDuong
 
 2026-09-16T14:30Z claude note Imagine pass: confirmed the diagnosis against current source (line numbers have drifted from the ticket's 184/226 since 0279 landed, but the shapes match exactly — assetDriftWarnings now at manifest.go:341 still returns nil the instant stamps == nil, corpusWarnings at check.go:187 still just appends its return value unconditionally so cmdCheck/cmdInit inherit the silence for free, and update.go's post-swap hint still gates on os.Stat(filepath.Join(ticketDir, manifestName)) before ever invoking the re-exec'd check). Recommended fix stays exactly Action 1-3 as written: add a stampless branch inside (or called from) assetDriftWarnings that, for each rel in initAssetPaths, reads dir/name directly and compares its SHA-256 against bootstrapAsset(rel) — warn with a new assetStamplessSignal constant on divergence, silent on absence or exact match; add that constant beside assetDriftSignal at manifest.go:30 following its shared-literal contract; then in update.go replace the os.Stat(manifestName) gate with an is-ticketDir-a-directory check and match the re-exec'd check output against either signal with its own follow-up line, rewriting the stale four-line comment above it per the Feasibility note. No change needed to corpusWarnings, cmdCheck, or cmdInit — they already propagate whatever assetDriftWarnings returns, which is the point of fixing the one root-cause function. Antipattern verdict: no over-building risk found — the stampless branch compares on-disk content only against the single CURRENTLY embedded hash (the same bootstrapAsset lookup the stamped branch already uses), never against a table of historical shipped hashes, so it cannot slide into 0281's hash-table territory even by accident; the only discipline required is to not let a future edit add a lookup keyed on multiple past revs into this same function.
 2026-09-16T17:15Z claude note Plan pass: the ticket's own red step (TestAssetDriftWarningsReportsStamplessDivergence in manifest_test.go, asserting on the assetStamplessSignal substring with a same-content positive control in the same test) is already non-tautological and already states both arms — noisy (divergent content warns) and silent (matching content stays silent) — so no rewrite needed there. Gap found: the Test section names an integration arm for `erg check` (tests/test_check.sh) but nothing for the `erg update` post-swap hint that Action 3 changes, even though Verification explicitly requires "a stampless store reports its condition after erg update". Checked both existing no-manifest fixtures that could have masked this — tests/test_check.sh's NODRIFT and tests/test_update.sh's WORKND — and both never write tickets/.ergrc or AGENTS.md at all (the files are literally absent, not present-and-diverged), so under Action 1's "absent -> silent" rule both stay green unchanged; no hidden regression there. The missing coverage is a genuinely new fixture: tests/test_update.sh needs a sibling of WORKND ("work-stampless") that writes a tickets/.ergrc differing from the embedded default with no .erg-assets manifest, then asserts the post-swap `erg update` output carries the stampless remedy line — the only way to exercise Action 3's channel at all, since update.go re-execs the real binary and cannot be unit-tested in isolation. Added to the Test section below.
+2026-09-16T10:35Z claude note Execute pass: implemented Actions 1-3. assetDriftWarnings now delegates the stamps == nil case to a new stamplessWarnings(dir), which compares each initAssetPaths file on disk against the single currently embedded copy via bootstrapAsset (never a table of historical hashes -- 0281 stays wontfix) and emits NOTE <asset>: assetStamplessSignal only on real divergence; absent and byte-identical both stay silent. New constant assetStamplessSignal sits beside assetDriftSignal with the same cross-version extend-at-the-END contract, since update.go greps for it. update.go's os.Stat(manifestName) gate became an is-ticketDir-a-directory check so the re-exec'd erg check always runs, matched against either signal with its own follow-up line, and the stale 'without one there is nothing to compare' comment was rewritten to say why that premise was wrong. check.go, corpusWarnings, cmdCheck and cmdInit untouched -- they already share the one call site. Red steps watched fail before the fix: the unit test's noisy arm returned "", and each shell arm was re-run against a temporarily reverted source (manifest.go branch neutered -> test_check.sh stampless arm FAILed; update.go old gate restored -> test_update.sh work-stampless arm FAILed), so neither integration arm is vacuous.
+2026-09-16T10:59Z claude note Exit-criterion gap found at the pre-PR adherence gate, recorded rather than silently fixed. Criterion 1 names three channels; channels 1 (erg check) and 3 (erg update post-swap) are implemented and tested here, but channel 2 -- cmdInit's chained post-init check -- is structurally unreachable and was so BEFORE this change, for drift warnings as much as for stampless ones: init.go's 'if skipped > 0 { return 2 }' (both the dry-run and the real leg) returns before the chained corpusWarnings block a few lines below it, and a stampless store with a diverged asset always skips. In the non-skipping case installAssets has already written the manifest, so the store is no longer stampless by the time the chained check runs. Reproduced side by side on one fixture: erg check emits the NOTE, erg init -n prints 'would preserve (local edits)' with nothing. That dry-run line is this ticket's own motivating reproduction, and init.go:212's flat 'has local edits' asserts exactly the attribution assetStamplessSignal exists to refuse -- the same false-reason class ticket 0279 fixed on the rollback leg. NOT fixed here on purpose: the repair belongs in init.go, which is outside this ticket's stated scope and is plausibly touched by sibling 0285/0289 in the same raid, and 'move the chained check above the early return' vs 'make the preserve reason stamp-aware' is a design call the author owns. Proposed as a follow-up ticket; criterion 1 is for verify-gate to arbitrate.
+2026-09-16T11:19Z claude note Review round 1 (PR #348, five-perspective panel, request-changes). Three blockers addressed. (1) helpCheck in check.go still said drift is 'Only emitted when a .erg-assets manifest is present' and never mentioned the new condition; docs/erg-manual.md carries the same sentence generated from that constant, and no CI gate can catch it since test_docs.sh only checks constant-vs-manual agreement and both were stale together. Fixed plus make docs -- a deliberate one-const widening beyond this ticket's stated scope, taken because charter chantier 4c names helpCheck for this feature and shipping a binary whose own --help contradicts its behaviour is worse than a textual conflict with sibling 0285. (2) The remedy defeated itself: erg init preserves a locally-edited asset and then stamps it with the EMBEDDED hash, so following 'run erg init to find out' converted a loud condition into a permanently silent one with the divergence still on disk. assetStamplessSignal rewritten to advise comparing against the shipped copy BEFORE running init, and update.go's follow-up now sends the reader to erg check; the rewrite is free because no released binary carries the literal yet, and the constant's doc comment now records that the extend-at-the-END rule binds from 0283's release. (3) Filed the promised follow-up as 0292, bundling the init-stamps-a-preserved-edit defect, channel 2's structural unreachability, and a partial-manifest case that reproduces the same silence one level down; listed under Related above, with exit criterion 1 read as two of three channels. Also from the panel: string comparison replaces the double sha256, the 'never nagged' claim narrowed to what actually survives (customised .ergrc now notes on every check -- the deliberate cost), the permission-denied fold documented as convention rather than oversight, and the shell greps tightened to fixed strings after one was found satisfiable by assetRollbackSignal.
+2026-09-16T11:34Z claude note Review round 2 (PR #348): correctness/consistency/scope/docprop approve, red team comment, no request-changes; all three round-1 blockers verified closed by reviewers who rebuilt the branch. Took its three touch-ups. The red team finding was real and is now fixed rather than merely routed: the round-1 wording advised comparing against the shipped copy, and no erg subcommand can show the embedded copy -- erg init -n reports only THAT a file differs, spec and integration dump different files, nothing exposes bootstrapAsset. That traded a trap for a dead end. assetStamplessSignal now points at the store's git history, which can actually answer, and states what erg init costs here; the constant's comment records both rewrites and why they were free (no released binary carries the literal yet). 0292 gains defect 4, the requirement to expose the embedded copy, which is what would let this message name an erg command. Also: this ticket's exit criterion 1 amended in place from three channels to two, because erg close is mechanical and would otherwise close a ticket whose criteria contradict its own log; and 0292 gained the missing Actions and Verification handoff headers.
+2026-09-16T11:41Z MinhHaDuong closed — merged via PR #348
 --- body ---
 ## Context
 
@@ -152,10 +158,21 @@ expected and fixed at rebase time, not a reason to resequence.
 ## Exit criteria
 
 - A store with no provenance manifest is told so, on every channel that
-  would have reported drift — `erg check`, `erg init`'s chained check, and
-  `erg update`'s post-swap hint
-- The message names the remedy
-- The three channels share one detection path rather than three gates
+  would have reported drift — `erg check` and `erg update`'s post-swap hint.
+  **Amended during review of PR #348, from three channels to two.** The third,
+  `erg init`'s chained check, cannot be reached by any asset warning at all:
+  `init.go` returns 2 at `if skipped > 0` on both the dry-run and the real leg,
+  above the chained `corpusWarnings` block, and a stampless diverged store
+  always skips. That was true before this ticket and is not something it can
+  fix from `manifest.go`; it is scoped to 0292. Verified independently by three
+  reviewers. The criterion is amended rather than left standing, because
+  `erg close` is mechanical and would otherwise close a ticket whose own exit
+  criteria contradict its log.
+- The message names the remedy, and names one that exists. It points at the
+  store's git history rather than at an `erg` subcommand because none can show
+  the embedded copy (0292 carries that), and it states what `erg init` costs
+  here rather than promising it resolves anything
+- The channels share one detection path rather than separate gates
 
 ## Related
 
@@ -165,6 +182,14 @@ expected and fixed at rebase time, not a reason to resequence.
   let a stampless store at a known shipped hash auto-upgrade; this ticket
   only makes the condition visible. The table is optional and carries its
   own hazard; visibility is not.
+- 0292 — the `erg init` half, filed from PR #348's review panel. Carries the
+  three defects this ticket knowingly does not fix: init stamps a preserved
+  local edit with the embedded hash (which is why this ticket's message
+  advises comparing BEFORE running init, rather than promising init resolves
+  anything), init's chained check is structurally unreachable so channel 2 of
+  exit criterion 1 below is unmet, and a partial manifest reproduces the same
+  silence one level down. Exit criterion 1 should be read as two of three
+  channels, with the third scoped to 0292.
 
 ## Feasibility (Phase 4, 2026-09-16)
 

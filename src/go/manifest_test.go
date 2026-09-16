@@ -646,3 +646,104 @@ func TestInstallAssetsForceDowngradeLabelOnlyForStampedFile(t *testing.T) {
 		t.Errorf("an unstamped local edit must be reported as a refresh: %q", stderr)
 	}
 }
+
+// stamplessFixture builds a store with NO .erg-assets manifest: AGENTS.md is
+// laid down matching the embedded copy exactly (so it contributes nothing and
+// the assertions can only be about .ergrc), and .ergrc gets the caller's
+// content. It returns the root; the ticket store itself is root/tickets.
+// Sibling of stampFixture, minus the stamp -- that absence is the whole point.
+func stamplessFixture(t *testing.T, ergrcContent string) string {
+	t.Helper()
+	root := t.TempDir()
+	ticketsDir := filepath.Join(root, "tickets")
+	if err := os.MkdirAll(ticketsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	agents, ok := bootstrapAsset("tickets/AGENTS.md")
+	if !ok {
+		t.Fatal("embedded AGENTS.md missing")
+	}
+	if err := os.WriteFile(filepath.Join(ticketsDir, "AGENTS.md"), []byte(agents), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ticketsDir, ".ergrc"), []byte(ergrcContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Guard: the fixture is only a *stampless* one if no manifest is present.
+	// A later edit that starts stamping here would silently reroute every
+	// assertion below into the stamped branch and prove nothing.
+	if _, err := os.Stat(filepath.Join(ticketsDir, manifestName)); err == nil {
+		t.Fatal("stamplessFixture wrote a manifest: the fixture no longer tests what it names")
+	}
+	return root
+}
+
+// TestAssetDriftWarningsReportsStamplessDivergence is ticket 0283's red step.
+// Path A's defect is SILENCE, not destruction: with no .erg-assets stamp
+// assetDriftWarnings returned nil the instant stamps == nil, and because
+// corpusWarnings just appends its return value, erg check, erg init's chained
+// check and erg update's post-swap hint all went quiet for that one cause.
+//
+// The assertion is therefore on message CONTENT, never on a count or an exit
+// code: the return value is empty both before the fix and after a fix that
+// gates wrongly, so only a substring assertion can see the difference.
+//
+// The two arms are ordered deliberately. The noisy arm must be shown to FIRE
+// first; only then does the silent arm's silence mean anything, since an
+// implementation that never warns at all passes the silent arm trivially.
+func TestAssetDriftWarningsReportsStamplessDivergence(t *testing.T) {
+	embedded, ok := bootstrapAsset("tickets/.ergrc")
+	if !ok {
+		t.Fatal("embedded .ergrc missing")
+	}
+
+	t.Run("noisy arm: diverged asset, no stamp, reports the condition", func(t *testing.T) {
+		diverged := "OLD SHIPPED ERGRC -- a pristine prior release\n"
+		if diverged == embedded {
+			t.Fatal("test fixture collides with embedded content")
+		}
+		root := stamplessFixture(t, diverged)
+
+		got := strings.Join(assetDriftWarnings(filepath.Join(root, "tickets")), "\n")
+		if !strings.Contains(got, assetStamplessSignal) {
+			t.Fatalf("a stampless store with a diverged .ergrc must report it\n got: %q\nwant substring: %q", got, assetStamplessSignal)
+		}
+		if !strings.Contains(got, ".ergrc") {
+			t.Errorf("the report must name the asset it is about: %q", got)
+		}
+		if !strings.Contains(got, "erg init") {
+			t.Errorf("the report must name the remedy: %q", got)
+		}
+		if strings.Contains(got, assetDriftSignal) || strings.Contains(got, assetRollbackSignal) {
+			t.Errorf("there is no stamp here, so no stamp-relative claim may be made: %q", got)
+		}
+	})
+
+	t.Run("silent arm: asset matches the embedded copy exactly, no stamp", func(t *testing.T) {
+		// The invariant: a store that never adopted erg's asset management is
+		// never nagged. The gate is real divergence, not the absence of a
+		// manifest -- without this arm an implementation that reports
+		// unconditionally on "no manifest" passes the noisy arm and proves
+		// nothing.
+		root := stamplessFixture(t, embedded)
+
+		for _, w := range assetDriftWarnings(filepath.Join(root, "tickets")) {
+			if strings.Contains(w, assetStamplessSignal) {
+				t.Errorf("assets matching the embedded copy exactly must stay silent: %q", w)
+			}
+		}
+	})
+
+	t.Run("silent arm: no assets on disk at all, no stamp", func(t *testing.T) {
+		// The store that genuinely has nothing to compare -- the shape the
+		// pre-0283 comment in update.go mistook for the stampless case at
+		// large. This one really is silent, and stays so.
+		root := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(root, "tickets"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if w := assetDriftWarnings(filepath.Join(root, "tickets")); len(w) != 0 {
+			t.Errorf("an empty store has nothing to compare and must stay silent, got: %v", w)
+		}
+	})
+}

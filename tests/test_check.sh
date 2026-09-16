@@ -823,7 +823,10 @@ else
     pass "drift: stamp newer than the binary never claims 'upgraded'"
 fi
 
-# No manifest -> no drift warning (derisque: no fallback without a stamp).
+# No manifest -> no drift warning (derisque: no stamp-relative claim without a
+# stamp). This fixture writes no .ergrc and no AGENTS.md at all, so it is
+# ALSO the "absent, not diverged" control for the stampless report below:
+# nothing on disk to compare, so neither channel may speak.
 NODRIFT="$FIXTURES/nodrift"
 mkdir -p "$NODRIFT"
 cp "$DRIFTDIR/9001-x.erg" "$NODRIFT/"
@@ -832,6 +835,65 @@ if echo "$out" | grep -q "differs from the .erg-assets stamp"; then
     fail "drift: warned without a manifest (should not)"
 else
     pass "drift: no manifest -> no drift warning"
+fi
+if echo "$out" | grep -qF "no .erg-assets stamp"; then
+    fail "stampless: reported a store with no assets on disk at all (should not)"
+else
+    pass "stampless: no manifest and no assets -> silent"
+fi
+
+# --- stampless store (ticket 0283) ---
+# No manifest AND an on-disk asset that differs from the embedded copy. The
+# difference is real but unattributable, and before 0283 every channel went
+# silent about it. erg check must now say so and name the remedy.
+STAMPLESS="$FIXTURES/stampless"
+mkdir -p "$STAMPLESS"
+cp "$DRIFTDIR/9001-x.erg" "$STAMPLESS/"
+printf '# an .ergrc that is not what this binary embeds\nlabels = whatever\n' > "$STAMPLESS/.ergrc"
+rc=0; out=$($ERG check "$STAMPLESS" 2>&1) || rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -qF "no .erg-assets stamp"; then
+    pass "stampless: diverged asset with no manifest is reported (non-fatal)"
+else
+    fail "stampless: expected a non-fatal stampless report (rc=$rc, got: $out)"
+fi
+# A bare "erg init" grep would also be satisfied by assetRollbackSignal, which
+# ends "...then 'erg init'". Assert the stampless advice specifically: it must
+# point at a tool that can actually answer (git history), and must state what
+# erg init costs here -- it stamps the file as if shipped (ticket 0292).
+if echo "$out" | grep -qF "its git history can" && echo "$out" | grep -qF "stamps it as if shipped"; then
+    pass "stampless: the report names an answerable route and init's cost"
+else
+    fail "stampless: the report must name git history and init's stamping cost (got: $out)"
+fi
+# Guard: no stamp exists here, so no stamp-relative claim may be made.
+if echo "$out" | grep -qF "differs from the .erg-assets stamp"; then
+    fail "stampless: claimed a stamp comparison with no stamp on disk (got: $out)"
+else
+    pass "stampless: makes no stamp-relative claim"
+fi
+
+# Positive control for the gate: same absence of a manifest, but the on-disk
+# assets match the embedded copy exactly -> silent. Without this arm, an
+# implementation that reports on "no manifest" alone passes the case above and
+# proves nothing about gating on real divergence. Built by letting `erg init`
+# lay down this binary's own assets, then deleting only the stamp it wrote.
+STAMPMATCH="$FIXTURES/stampmatch"
+mkdir -p "$STAMPMATCH/tickets"
+touch "$STAMPMATCH/tickets/erg"
+cp "$DRIFTDIR/9001-x.erg" "$STAMPMATCH/tickets/"
+$ERG init "$STAMPMATCH" >/dev/null 2>&1
+rm -f "$STAMPMATCH/tickets/.erg-assets"
+# Guard: the control is only meaningful if init actually laid the assets down.
+# Without them this would silently degenerate into the absent-asset case above.
+if [ ! -f "$STAMPMATCH/tickets/.ergrc" ] || [ -f "$STAMPMATCH/tickets/.erg-assets" ]; then
+    fail "stampless control: fixture is not a stampless store with assets present (test would be vacuous)"
+else
+    rc=0; out=$($ERG check "$STAMPMATCH/tickets" 2>&1) || rc=$?
+    if [ "$rc" -eq 0 ] && ! echo "$out" | grep -qF "no .erg-assets stamp"; then
+        pass "stampless: assets matching the embedded copy exactly stay silent"
+    else
+        fail "stampless: an exact match must not be nagged (rc=$rc, got: $out)"
+    fi
 fi
 
 # Matching manifest -> no drift warning (exit criterion: no warn when all

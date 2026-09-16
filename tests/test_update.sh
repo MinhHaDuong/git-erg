@@ -288,7 +288,11 @@ else
     fail "post-update: expected the erg init drift hint (got: $OUTD)"
 fi
 
-# No manifest -> no drift hint (nothing to compare against).
+# No manifest -> no drift hint. The remote fixture never writes tickets/.ergrc
+# or tickets/AGENTS.md, so the clone has no managed asset on disk at all: this
+# is the "truly nothing to compare" control, and it stays silent on BOTH hints.
+# It is not a control for the stampless hint's gate -- absent is not diverged --
+# which is why the fixture below exists.
 WORKND="$WORKROOT/work-nodrift"
 git clone -q "$REMOTE" "$WORKND"
 cp "$ERG_ABS" "$WORKND/tickets/erg"
@@ -297,6 +301,39 @@ if echo "$OUTND" | grep -q "run 'erg init' to refresh"; then
     fail "post-update: drift hint fired without a manifest (should not)"
 else
     pass "post-update: no manifest -> no drift hint"
+fi
+if echo "$OUTND" | grep -qF "carry no .erg-assets stamp"; then
+    fail "post-update: stampless hint fired with no assets on disk (should not)"
+else
+    pass "post-update: no manifest and no assets -> no stampless hint"
+fi
+
+# --- post-update stampless hint (ticket 0283) ---
+# No manifest, but an on-disk asset that differs from the swapped-in binary's
+# embedded copy. The pre-0283 os.Stat(manifestName) gate skipped the re-exec'd
+# check entirely here, so this condition could not be reported however loudly
+# `erg check` shouted. This fixture is the only test that reaches that call
+# site: it re-execs the real swapped binary and cannot be driven from a Go
+# unit test.
+WORKSL="$WORKROOT/work-stampless"
+git clone -q "$REMOTE" "$WORKSL"
+cp "$ERG_ABS" "$WORKSL/tickets/erg"
+printf '# an .ergrc that is not what this binary embeds\nlabels = whatever\n' > "$WORKSL/tickets/.ergrc"
+# Guard: a stamp here would reroute the run into the drift branch.
+if [ -f "$WORKSL/tickets/.erg-assets" ]; then
+    fail "post-update: stampless fixture carries a manifest (test would not exercise 0283)"
+else
+    OUTSL=$(cd "$WORKSL" && ERG_TICKET_DIR="$WORKSL/tickets" ./tickets/erg update 2>&1 || true)
+    if echo "$OUTSL" | grep -q "erg: updated" && echo "$OUTSL" | grep -qF "carry no .erg-assets stamp"; then
+        pass "post-update: stampless hint fires when a diverged asset has no stamp"
+    else
+        fail "post-update: expected the stampless provenance hint (got: $OUTSL)"
+    fi
+    if echo "$OUTSL" | grep -q "run 'erg init' to refresh"; then
+        fail "post-update: no stamp exists, yet the drift hint fired (got: $OUTSL)"
+    else
+        pass "post-update: stampless store makes no stamp-relative claim"
+    fi
 fi
 
 # Manifest up to date -> no drift hint (exit criterion: no hint when assets
