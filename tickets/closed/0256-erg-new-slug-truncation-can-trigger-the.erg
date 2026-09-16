@@ -2,11 +2,13 @@
 Title: erg new slug truncation can trigger the pathIsClosed component test
 Created: 2026-07-02
 Author: MinhHaDuong
+Closed: autoclosed — PR #343
 
 --- log ---
 2026-07-02T07:49Z MinhHaDuong created
 2026-09-16T07:45Z MinhHaDuong note Author set the basename check at error level per the spec's hard-violation rule, not warn. Side effect: makes erg-github's basename-blind ticket_is_closed() unreachable in a well-formed store.
 
+2026-09-16T09:16Z MinhHaDuong closed — autoclosed — PR #343
 --- body ---
 ## Problem
 
