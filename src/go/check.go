@@ -182,15 +182,16 @@ func headerBlankWarnings(dir string) []string {
 // Blocked-by, open Superseded-by carrier, stray Go source, encoding,
 // interior header blanks) for the already-loaded tickets rooted at dir.
 // Folder/header mismatches are now errors (validateCorpus, ticket 0241).
-// The dir-based scans (stray Go source, encoding, header blanks) walk dir
-// directly. Returns nil when there are no tickets -- callers that chain it
-// (erg init) must not fail on a read-only warning pass. The append order is
-// the single source of truth shared by cmdCheck and the init chaining, so
-// both report identically.
+// The dir-based scans (stray Go source, encoding, header blanks, asset drift)
+// walk dir directly and need no ticket to be meaningful, so this function has
+// no empty-corpus early return: the two ticket-based scans below iterate a
+// slice and yield nothing on an empty one anyway, while an early return would
+// silence the other four for a store that has only run `erg init`. That was
+// the defect, measured: a stray *.go file in a ticketless store drew no
+// warning until an unrelated ticket was filed. The append order is the single
+// source of truth shared by cmdCheck and the init chaining, so both report
+// identically.
 func corpusWarnings(tickets []Erg, dir string) []string {
-	if len(tickets) == 0 {
-		return nil
-	}
 	var warnings []string
 	warnings = append(warnings, staleBlockedBy(tickets)...)
 	warnings = append(warnings, openCarrierSupersededBy(tickets)...)
@@ -330,9 +331,16 @@ func cmdCheck(args []string) int {
 	tickets, parseErrs := loadErgs(dir)
 	if len(tickets) == 0 {
 		fmt.Println("No .erg files found.")
+		// With no tickets loaded, corpusWarnings yields exactly its dir-based
+		// scans. They are reported here for the same reason assetViolations is
+		// computed above: none of them is about the tickets, and the store
+		// they do describe exists whether or not anyone has filed one yet.
+		for _, w := range corpusWarnings(tickets, dir) {
+			fmt.Fprintf(os.Stderr, "  %s\n", w)
+		}
 		// An empty store that is otherwise fine keeps its exit 0: the absence
-		// of tickets is a legitimate state and always was. Only the asset
-		// violation changes the verdict here.
+		// of tickets is a legitimate state and always was, and a warning is
+		// not a verdict. Only the asset violation changes the verdict here.
 		if len(assetViolations) == 0 {
 			return 0
 		}

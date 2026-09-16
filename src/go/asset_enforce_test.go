@@ -235,8 +235,11 @@ func TestCheckFailsOnLocallyEditedAgentsMd(t *testing.T) {
 
 	withTicket := func(t *testing.T, dir string) {
 		t.Helper()
-		// corpusWarnings and cmdCheck both return early on an empty corpus, so
-		// the store needs one valid ticket for any of this to be reached.
+		// Gives the store a ticket so the arms below exercise the ordinary
+		// populated-corpus path. Neither corpusWarnings nor cmdCheck needs it
+		// any more -- both report the dir-based scans on an empty corpus too --
+		// but that case has its own arms, and mixing the two here would hide
+		// which path an assertion fired on.
 		ticket := "%erg 0.1\nTitle: A ticket so the corpus is not empty\n" +
 			"Created: 2026-09-16\nAuthor: fixture\n\n--- log ---\n" +
 			"2026-09-16T10:00Z fixture created\n\n--- body ---\n\nNothing.\n"
