@@ -28,6 +28,16 @@ func TestSlugify(t *testing.T) {
 		// closed ticket. The offending trailing segment must be dropped.
 		{"erg-pr-merge regex misses tickets/closed/NNNN paths",
 			"erg-pr-merge-regex-misses-tickets"},
+		// stripClosedSuffix loops, and nothing else in this suite exercises
+		// more than one iteration. These pin the multi-strip behaviour so a
+		// refactor cannot change how much of a title is discarded without
+		// saying so. Three strips:
+		{"triage closed closed closed", "triage"},
+		// Two strips, and a stopping-condition control: the loop must halt on
+		// "-enclosed" rather than treat it as another closed segment, which is
+		// only true because it tests whole path components (pathIsClosed) and
+		// not a substring.
+		{"disclosed enclosed closed closed", "disclosed-enclosed"},
 	}
 	for _, c := range cases {
 		got := slugify(c.in)
@@ -67,6 +77,15 @@ func TestSlugifyNeverProducesClosedBasename(t *testing.T) {
 		{
 			"title that is only the word closed",
 			"closed",
+		},
+		{
+			// Needs two strips. Without it the invariant is only ever tested
+			// on titles one strip fixes, so capping the loop at a single
+			// iteration -- a plausible refactor, and the remedy suggested in
+			// review -- leaves this test green while re-opening the very bug
+			// the ticket fixes (the slug would stay "disclosed-enclosed-closed").
+			"title needing more than one strip",
+			"disclosed enclosed closed closed",
 		},
 	}
 	for _, c := range cases {
