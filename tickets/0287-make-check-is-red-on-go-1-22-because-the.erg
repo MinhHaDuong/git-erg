@@ -102,7 +102,10 @@ its working directory.
 
 ## Relevant files
 
-- `tests/test_contract.sh:98` — the offline probe and its negative control
+- `tests/test_contract.sh` — the offline probe and its negative control. Named
+  by construct, not by line: the arms and their `neg_offline_*` helpers moved
+  when this ticket was executed, and a pinned line number would have rotted on
+  the very commit that fixed the defect.
 - `Makefile:56` — the target where the cascade stops
 - `Makefile:120` — the `verify` target that fails next
 - `.github/workflows/CI.yml` — pins Go 1.21, which is why CI never sees any of it
@@ -119,6 +122,10 @@ its working directory.
    turns one local red into an unreliable green for everything behind it. This
    run is the evidence: the reproducibility failure existed the whole time and
    was simply unreachable behind the halt.
+
+   **Split out to ticket 0290 and deliberately outside this ticket's exit
+   criteria.** Action 1 makes one probe honest; Action 2 changes how `make`
+   reports every suite. Different blast radius, different sign-off unit.
 
 ## Test
 
@@ -145,14 +152,34 @@ No other new committed test is warranted: Action 1 is the one-line flag
 change, and the existing suite plus this one manufactured fixture is
 sufficient to guard it without inventing a parallel mechanism.
 
+**As built** — the plan above is kept as written, since it is the record of
+what was decided; two things came out differently and this is where they are
+reconciled. The line numbers quoted above (`98`, `96-99`) are those of
+`origin/main` before the fix and no longer resolve.
+
+1. The stray went in a **sibling subtree** (`$WORK/neg-offline-stray/.git`),
+   not at `$WORK`. `$NEG` is a direct child of `$WORK`, so a stray there would
+   have poisoned the ambient arm too and collapsed the intended two arms into
+   one.
+2. Arm 2 **proves its own red condition before crediting its green**. Review
+   found the guarantee was silently conditional on `git` being on `PATH`:
+   Go's buildvcs lists the `.git` entry, then shells out, and when the lookup
+   fails it skips stamping without a word — so the arm went green with or
+   without the flag. Reproduced, then closed by running the unflagged probe
+   first and reporting SKIP when the manufactured stray fails to blind it.
+   An all-clear indistinguishable from "I could not look" is not a check, and
+   that is exactly the defect class this ticket is about.
+
 ## Verification
 
 - [x] The probe passes with an empty `.git` sitting above its temp root
       (arm 2, `$WORK/neg-offline-stray/.git`, manufactured inside the test)
 - [x] The probe still flags a real `net/http` import (both arms assert exactly
       that; the flag suppresses stamping only)
-- [x] `make check` runs end to end, not merely past the first failing target —
-      exit 0, 0 FAIL across all 37 suites
+- [x] `make check` runs end to end — exit 0, 0 FAIL across all 37 suites.
+      Read this as "nothing halts the cascade any more", which is what this
+      ticket can deliver. Making `make` *report* the suites it never reached
+      when something does fail is 0290's job, not this box's.
 - [ ] Still green on Go 1.21, matching CI — no 1.21 toolchain on this host and
       fetching one would breach the offline contract; CI is the check.
       `-buildvcs` has been a shared build flag (build/install/list/test) since
