@@ -392,7 +392,7 @@ fi
 LE="$TDIR/dpkg-localedit"
 mkdir -p "$LE/tickets"; touch "$LE/tickets/erg"
 printf 'MY LOCAL EDIT\n' > "$LE/tickets/.ergrc"
-printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\n  AGENTS.md sha256:x\n' > "$LE/tickets/.erg-assets"
+printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:0000000000000000000000000000000000000000000000000000000000000000\n  AGENTS.md sha256:x\n' > "$LE/tickets/.erg-assets"
 $ERG init "$LE" >/dev/null 2>&1 && lrc=0 || lrc=$?
 if [ "$lrc" -eq 2 ] && grep -q 'MY LOCAL EDIT' "$LE/tickets/.ergrc"; then
     pass "dpkg row3: divergent-from-stamp is a local edit (preserved, exit 2)"

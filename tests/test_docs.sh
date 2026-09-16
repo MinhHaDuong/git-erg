@@ -140,11 +140,18 @@ fi
 # "there is NO .erg-assets manifest at all" -- told a reader the opposite of
 # what tests/test_check.sh's PARTIAL fixture asserts, and nothing caught it
 # because check.go was untouched by the change that invalidated it.
+# Two clauses, not one. Pinning only the per-asset phrasing let the bullet go
+# stale a second time: round 2 added a THIRD cause (an entry that parses but is
+# not a usable hash) and the single-clause guard passed on a bullet that still
+# enumerated two. A guard that pins the opening of a sentence cannot see the
+# middle of it -- the same shape as test_check.sh's two prose anchors, fixed
+# there by pinning the byte prefix.
 CHECKHELP=$("$ERG" check --help 2>&1) || true
-if echo "$CHECKHELP" | grep -qF 'no .erg-assets entry stamps this asset'; then
-    pass "helpCheck describes the stampless NOTE as a per-asset condition"
+if echo "$CHECKHELP" | grep -qF 'entry usably stamps this' \
+    && echo "$CHECKHELP" | grep -qF 'not a usable hash'; then
+    pass "helpCheck describes the stampless NOTE as per-asset, and names all three causes"
 else
-    fail "helpCheck still ties the stampless NOTE to a whole missing manifest"
+    fail "helpCheck still ties the stampless NOTE to a whole missing manifest, or omits the unusable-entry cause"
 fi
 
 # README's re-vendor recipe must name the offline route (ticket 0292).

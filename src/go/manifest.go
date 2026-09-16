@@ -133,10 +133,16 @@ func sha256hex(b []byte) string {
 // looser rule is what makes a hand-written or truncated manifest parse at all
 // rather than fail init.
 //
-// Two call sites need the stricter question, and they need the SAME answer
-// (ticket 0292, PR #360 round 1). buildManifest carries a preserved asset's
-// prior stamp forward, and installAssets reads a stamp's presence as the
-// evidence for "has local edits". Before this predicate, a stamp that was
+// Three call sites need the stricter question, and they need the SAME answer
+// (ticket 0292, PR #360 rounds 1 and 2). buildManifest carries a preserved
+// asset's prior stamp forward; installAssets reads a stamp's presence as the
+// evidence for "has local edits"; and managedAssetWarnings -- the reader
+// erg check goes through -- decides from it whether to say "run erg init to
+// refresh" or to hand off to the stampless note. The third was missed when the
+// first two were wired, and erg check then contradicted erg init on the same
+// store: one printed a confident directional WARN, the other preserved the file
+// and said the reason was unknown. Count the readers, not the writers. Before
+// this predicate, a stamp that was
 // non-empty but not a hash -- a manifest truncated mid-line, or edited by hand
 // -- was carried forward verbatim FOREVER and made every subsequent run assert
 // an edit nothing had observed: the exact false-reason class this ticket exists
