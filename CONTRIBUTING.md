@@ -73,9 +73,11 @@ Then `make test`; both guard tests run as part of it.
 
 ## Dogfood assets (`tickets/.ergrc`, `tickets/AGENTS.md`, `tickets/erg-github`)
 
-git-erg dogfoods its own embedded assets **verbatim, with no local
-customization**: `tickets/.ergrc`, `tickets/AGENTS.md` and `tickets/erg-github`
-are *generated artifacts* whose source of truth is `src/go/assets/`. After
+This section is about **this repo's own** `tickets/` (other adopters' copies
+follow a different rule -- see the note on `erg-github` below). git-erg
+dogfoods its own embedded assets **verbatim, with no local customization**:
+`tickets/.ergrc`, `tickets/AGENTS.md` and `tickets/erg-github` are *generated
+artifacts* whose source of truth is `src/go/assets/`. After
 editing an asset under `src/go/assets/`, run `make regen-assets` to copy it
 into `tickets/` and commit both. The self-coherence guard
 (`tests/test_selfcoherence.sh`) fails CI if the deployed copy drifts from the
@@ -84,13 +86,17 @@ be clean. (The spec and integration guide are not deployed -- they are served
 on demand via `erg spec` / `erg integration`.)
 
 `erg-github` is in that list for a different reason than the other two, and the
-difference is worth knowing before you edit it (ticket 0282). `erg` does not
-install it -- it is vendored, and each adopter owns their copy -- but the
-binary embeds a reference copy so `erg check` can report an adopter's drift
-from it. Editing only the deployed `tickets/erg-github` therefore does not just
-desynchronise two files: it silently compares **every adopter** against a stale
-reference. That is the mistake ticket 0255 made, before the reference existed.
-Edit `src/go/assets/erg-github`, run `make regen-assets`, commit both.
+difference is worth knowing before you edit it (ticket 0282). Outside this
+repo, `erg-github` is **vendored**: `erg` never installs or overwrites it, and
+each adopter owns the copy sitting in their own `tickets/`. What the binary
+does is embed a reference copy, so `erg check` can tell an adopter their copy
+has drifted from it.
+
+`src/go/assets/erg-github` is that reference. Editing only our deployed
+`tickets/erg-github` therefore does more than desynchronise two files in this
+repo: it silently compares **every adopter** against a stale reference. That is
+the mistake ticket 0255 made, before the reference existed. Edit
+`src/go/assets/erg-github`, run `make regen-assets`, commit both.
 
 ## Committed helper scripts (the forge layer)
 
