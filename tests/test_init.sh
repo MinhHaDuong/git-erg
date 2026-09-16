@@ -95,10 +95,10 @@ fi
 
 OUT2=$($ERG init "$REPO" 2>&1)
 
-if echo "$OUT2" | grep -q "0 created, 0 refreshed, 0 skipped (local edits), 2 unchanged"; then
+if echo "$OUT2" | grep -q "0 created, 0 refreshed, 0 skipped (preserved), 2 unchanged"; then
     pass "re-init is idempotent (2 unchanged)"
 else
-    fail "re-init is idempotent (expected '0 created, 0 refreshed, 0 skipped (local edits), 2 unchanged', got: $OUT2)"
+    fail "re-init is idempotent (expected '0 created, 0 refreshed, 0 skipped (preserved), 2 unchanged', got: $OUT2)"
 fi
 
 # --- re-init refuses to overwrite user-edited files ---

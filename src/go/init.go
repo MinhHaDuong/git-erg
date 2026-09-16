@@ -302,14 +302,17 @@ func cmdInit(args []string) int {
 	cleanOrphanAssets(root, dryRun)
 
 	if dryRun {
-		fmt.Printf("init (dry-run): %d to create, %d to refresh, %d to skip (local edits), %d unchanged\n", created, refreshed, skipped, unchanged)
+		// "preserved", not "local edits": a file is also skipped when it is
+		// newer than this binary, and the per-file lines above already gave
+		// each skip its own reason (ticket 0279).
+		fmt.Printf("init (dry-run): %d to create, %d to refresh, %d to skip (preserved), %d unchanged\n", created, refreshed, skipped, unchanged)
 		if skipped > 0 {
 			return 2
 		}
 		return 0
 	}
 
-	fmt.Printf("init: %d created, %d refreshed, %d skipped (local edits), %d unchanged\n", created, refreshed, skipped, unchanged)
+	fmt.Printf("init: %d created, %d refreshed, %d skipped (preserved), %d unchanged\n", created, refreshed, skipped, unchanged)
 	if skipped > 0 {
 		return 2
 	}
