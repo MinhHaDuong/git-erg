@@ -2,6 +2,7 @@
 Title: Make an unrecognized AGENTS.md hash a hard error in erg check
 Created: 2026-09-16
 Author: MinhHaDuong
+Closed: autoclosed — PR #364
 
 --- log ---
 2026-09-16T10:13Z MinhHaDuong created
@@ -14,6 +15,7 @@ Author: MinhHaDuong
 2026-09-16T15:07Z coordinator note Author's read-only 0444 proposal WITHDRAWN by the author, 2026-09-16 -- not deferred, not held. The body section stays as the record of what was considered and why it was dropped; a withdrawn proposal with its reasoning is worth more to the next reader than a silent absence. Both halves of the trade. What it would have bought: friction at the moment of the edit, but only where erg init ran locally -- git carries just the executable bit (there is no 100444), so the mode does not survive a clone or a git checkout, and chmod +w defeats it in one command. What it would have cost: erg init obliged to open a NEW write path that can fail on permissions or ownership -- a real failure mode in the install path -- purchased for a population of offending editors that today's re-survey measured at zero. Not implemented here: no chmod path in init, no mode assertions, no documentation of it.
 2026-09-16T15:07Z MinhHaDuong note Actions 1 and 2 landed. Enforcement keys on the STAMP via isCleanUpgrade, never on the embedded hash, so the behind-the-binary nudge stays the WARN managedAssetWarnings already emits. Scoped to enforcedAssetPaths (tickets/AGENTS.md alone), NOT initAssetPaths: customising .ergrc is documented and encouraged, and enforcing over the whole managed set would fail erg check in every store that took erg's own advice. No second hash-comparison path -- check.go appends assetLocalEditViolations(dir) to the violation list and the comparison stays in manifest.go. assetLocalEditSignal has no cross-version grepping consumer in update.go, so it is free to be reworded later; that freedom rests on the absence of the consumer, not on the literal being unreleased.
 2026-09-16T15:18Z MinhHaDuong note PR review fix, same PR: cmdCheck returned 0 on 'No .erg files found.' before the asset check ran, so a fresh adopter with an edited AGENTS.md and no tickets yet passed silently -- and the end-to-end fixture's withTicket helper stepped around the hole, which made it invisible. assetLocalEditViolations now runs BEFORE the empty-corpus early return; an empty store that is otherwise fine keeps its exit 0. Both arms pinned: edited+no-tickets reddened against the prior tip and went green; empty+pristine kills the mutant that fails the branch unconditionally.
+2026-09-16T15:21Z MinhHaDuong closed — autoclosed — PR #364
 --- body ---
 ## Context
 
