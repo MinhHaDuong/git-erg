@@ -1,0 +1,173 @@
+%erg 0.1
+Title: erg init hides a stampless store instead of recording it
+Created: 2026-09-16
+Author: claude
+
+--- log ---
+2026-09-16T11:17Z claude created
+2026-09-16T11:25Z claude note Filed from the round-1 review panel on PR #348 (ticket 0283). 0283 made a stampless diverged store visible on erg check and erg update; every defect below is about what erg init then does with it, which is why they are one ticket and not three. Defects 1 and 2 were each reproduced end to end by two independent reviewers; defect 3 by one, with a stated repro. All three are pre-existing code -- none is a regression from 0283 -- but 0283 is what starts steering users into defect 1, which is why it is the blocking one.
+
+--- body ---
+## Context
+
+Ticket 0283 fixed the root-cause silence: `assetDriftWarnings` now reports an
+asset that differs from the embedded copy when no `.erg-assets` manifest
+exists. Two of its three channels work. Everything that is still broken lives
+on the `erg init` side, and the review panel on PR #348 found three defects
+there that share one shape -- **init treats a store with no provenance as a
+store whose provenance it may invent.**
+
+They are filed together because they are one logical unit: whoever opens
+`init.go` for any of them will be reading the same twenty lines.
+
+## Defect 1 (blocking, and the reason this ticket exists now)
+
+**`erg init` stamps a preserved local edit with the EMBEDDED hash, silencing
+the condition permanently.**
+
+`buildManifest()` always hashes `bootstrapAsset(rel)` -- the content this
+binary ships -- never the bytes on disk. `installAssets` calls `writeManifest`
+even for a file it just preserved because of local edits; only the *rollback*-
+preserved case is exempt (`init.go:281`, `if rollbackPreserved { return ... }`).
+
+So on exactly the scenario 0283 was filed for -- a customised `.ergrc`, no
+manifest -- `erg init` correctly preserves the customisation and then writes a
+manifest stamping that file with the embedded hash. From the next run on, the
+stamped branch compares embedded-hash against current-embedded-hash, finds them
+equal, and reports nothing. The divergence is still on disk, now permanently
+invisible and recorded as something it is not:
+
+```
+erg check  -> NOTE .ergrc: no .erg-assets stamp -- ...
+erg init   -> init: tickets/.ergrc has local edits -- preserving ...
+erg check  -> ERG CHECK: PASS (1 tickets)          # silent, permanently
+```
+
+The rationale for the fix is already written, in this repo, three lines above
+the offending call: the `rollbackPreserved` exemption's own comment says
+stamping a preserved file "would destroy the very evidence that said so, making
+the next run misreport the same rollback as a local edit." That was written for
+ticket 0279 and applies identically here; it was simply never extended.
+
+Because of this, 0283 deliberately does NOT tell the user to run `erg init` to
+resolve the condition -- `assetStamplessSignal` says to compare against the
+shipped copy first, and `update.go`'s follow-up line sends the reader to
+`erg check`. **Both wordings should be revisited when this ticket lands**, and
+`assetStamplessSignal` is a cross-version literal by then, so it may be
+extended at the END only, never rewritten.
+
+## Defect 2 — `erg init`'s chained check is unreachable, so channel 2 of 0283's
+exit criterion 1 is unmet
+
+0283's exit criterion names three channels: `erg check`, `erg init`'s chained
+post-init check, and `erg update`'s post-swap hint. The chained check cannot
+fire for ANY asset warning, before or after 0283:
+
+- `init.go` returns 2 at `if skipped > 0` on **both** the dry-run and the real
+  leg, several lines above the chained `corpusWarnings` block. A stampless
+  store with a diverged asset always skips, so it always takes the early return.
+- On the non-skipping leg, `installAssets` has already written the manifest, so
+  the store is no longer stampless by the time the chained check runs.
+
+Independently verified by three reviewers. The observable consequence is 0283's
+own motivating reproduction, unchanged: `erg init -n` prints
+`would preserve (local edits)` with no warning anywhere.
+
+Related and worth fixing in the same pass: `init.go:212` flatly asserts
+`has local edits` for a preserved file. With no stamp there is no basis for that
+claim -- it is precisely the attribution `assetStamplessSignal` exists to
+refuse, and the same false-reason class ticket 0279 already fixed on the
+rollback leg.
+
+Two candidate shapes, and choosing between them is the architectural decision
+this ticket carries:
+
+- move the chained check above the early return (changes init's output ordering
+  for every exit-2 run), or
+- give `installAssets` a third preserve reason -- "differs, no stamp, reason
+  unknown" -- alongside the existing local-edit and rollback ones, and let the
+  per-file line carry it.
+
+The second is closer to what 0279 established and does not disturb exit
+ordering; the first is what the exit criterion's literal wording asks for.
+
+## Defect 3 — a PARTIAL manifest reproduces the identical silence 0283 closed
+
+`assetDriftWarnings`' stamped branch skips any asset with no entry
+(`if !ok || stamp == "" { continue }`) and does not fall back to
+`stamplessWarnings`; `parseManifest` returns non-nil as soon as *one* line
+parses. So a manifest that stamps `.ergrc` but not `AGENTS.md` silences
+AGENTS.md divergence completely -- not drift-warned (no stamp for it), not
+stampless-warned (the manifest is not nil).
+
+Repro: `erg init`, delete the `AGENTS.md` line from `.erg-assets`, diverge
+`AGENTS.md` on disk, `erg check` -> `PASS`, zero warnings.
+
+Same defect class as 0283's, one level down: the gate is "a manifest exists"
+where it should be "this asset is stamped". The fix is per-asset rather than
+per-store -- route an unstamped asset through the stampless path even when the
+manifest is present.
+
+## Relevant files
+
+- `src/go/init.go` — `installAssets` (the `writeManifest` call and the
+  `rollbackPreserved` exemption above it), the preserve-reason strings around
+  line 212, and `cmdInit`'s `if skipped > 0 { return 2 }` on both legs
+- `src/go/manifest.go` — `buildManifest` (hashes embedded, not disk),
+  `assetDriftWarnings`' per-asset skip, `stamplessWarnings`,
+  `assetStamplessSignal`
+- `src/go/manifest_test.go` — `TestAssetDriftWarningsReportsStamplessDivergence`
+  and the `stamplessFixture` helper are the idiom to extend
+- `tests/test_check.sh` — the `stampless` / `stampmatch` fixtures
+- `tests/test_init.sh` — where defect 2's channel assertion belongs
+
+## Test
+
+Red step first, and it must assert on state AFTER the recommended action --
+that is the whole gap 0283's suite has, where every arm asserts the state
+immediately following `check` or `update`:
+
+- `TestInitDoesNotStampAPreservedLocalEdit` — stampless fixture with a diverged
+  `.ergrc`, run `installAssets` with `refuseDiverged=true`, then assert the
+  written manifest has NO entry for `.ergrc` (or none at all), and that a
+  following `assetDriftWarnings` still reports the divergence. Today the second
+  assertion fails: the condition goes silent.
+- Positive control in the same test: a clean-upgrade or unchanged asset IS
+  stamped, so the fix does not simply stop writing manifests.
+- `tests/test_check.sh` — partial-manifest fixture for defect 3, with the
+  matching-content sibling as its silent control.
+- `tests/test_init.sh` — defect 2's channel: a stampless diverged store must
+  report its condition through `erg init` (and through `erg init -n`), not only
+  through `erg check`.
+
+## Invariants
+
+- No change to the overwrite/preserve DECISION. All three defects are about
+  what is recorded and what is said, never about which bytes win.
+- `erg init` on a pristine current asset stays a silent no-op.
+- `assetDriftSignal` and `assetRollbackSignal` are cross-version literals:
+  extend at the END only. `assetStamplessSignal` joins them once 0283 ships.
+- A store that never adopted erg's asset management is still never nagged.
+
+## Exit criteria
+
+- A locally-edited asset preserved by `erg init` is not stamped as if shipped,
+  and the condition remains reportable on the next `erg check`
+- `erg init` (and `erg init -n`) reports a stampless store's condition, closing
+  channel 2 of ticket 0283's exit criterion 1
+- A preserved file's stated reason is one the code can justify from what it
+  observed
+- An asset missing from an otherwise-valid manifest is reported, not silently
+  skipped
+- `make check` passes
+
+## Related
+
+- 0283 — made the condition visible on `erg check` and `erg update`; this
+  ticket is the `erg init` half, filed from PR #348's review panel
+- 0279 — established "don't stamp what you didn't touch" for the rollback case;
+  defect 1 is that rule not extended to the local-edit case
+- 0281 — the historical hash table, closed wontfix. Out of scope here: none of
+  these defects need one, and a wrong entry in such a table destroys a genuine
+  local edit
+- 0278 — tracker for the asset-machinery defect class

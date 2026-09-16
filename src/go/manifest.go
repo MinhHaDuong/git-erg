@@ -47,11 +47,28 @@ const assetRollbackSignal = "is older than the .erg-assets stamp (this binary pr
 // `erg check` output for this literal (see update.go), so producer and consumer
 // share it and it may be extended at the END only, never rewritten.
 //
-// Note what it does NOT say: nothing here claims a direction or a version.
-// Establishing those would need a table of historically shipped hashes, which
-// is ticket 0281's territory and closed wontfix -- this branch compares only
-// against the single currently embedded copy.
-const assetStamplessSignal = "no .erg-assets stamp -- cannot tell whether this is a clean upgrade or a local edit; run 'erg init' to find out (existing edits are never overwritten without --force)"
+// Note what it does NOT say, in three directions:
+//
+// No direction or version. Establishing those would need a table of
+// historically shipped hashes, which is ticket 0281's territory and closed
+// wontfix -- this branch compares only against the single currently embedded
+// copy.
+//
+// No promise that `erg init` resolves anything. It does not, today: init
+// preserves a locally-edited file (good) and then writes a manifest stamping it
+// with the EMBEDDED hash (bad), so from the next run on, the stamped branch
+// compares embedded against embedded, finds them equal, and this condition goes
+// permanently silent with the divergence still on disk and still unrecorded.
+// Ticket 0292 tracks extending 0279's "don't stamp what you didn't touch"
+// exemption to that case. Until it lands, the honest advice is to look before
+// running init, which is what this wording says.
+//
+// The cross-version extend-at-the-END rule binds from the first RELEASED
+// binary that prints this literal. It was rewritten once during review of 0283
+// (before any release carried it) precisely because "run 'erg init' to find
+// out" promised the resolution described above; after 0283 ships, this text is
+// frozen at the front like its two siblings.
+const assetStamplessSignal = "no .erg-assets stamp -- cannot tell whether this is a clean upgrade or a local edit; compare it against the shipped copy before running 'erg init', which preserves the file but stamps it as if shipped"
 
 // sha256hex returns the hex-encoded SHA-256 of b.
 func sha256hex(b []byte) string {
@@ -351,10 +368,16 @@ func isCleanUpgrade(diskHash, stampedHash string, known []string, stampDate, run
 // reading is what left a store with no provenance silent on every channel:
 // there IS something to compare, the on-disk bytes against the embedded copy.
 // What the absence of a stamp really costs is the ability to say WHICH side
-// moved, so the stampless report claims no direction. The derisque property
-// survives unchanged, just gated on the right thing: a hand-maintained store
-// that never ran the asset-managed init is still never nagged, because the
-// gate is real divergence, not the absence of a manifest.
+// moved, so the stampless report claims no direction.
+//
+// Be precise about what survives of the derisque property, because it is
+// narrower than "never nagged": a store with no managed asset on disk at all is
+// still never nagged, and so is one whose assets are byte-identical to what
+// this binary ships. A store that CUSTOMISED .ergrc and never stamped it now
+// gets a NOTE on every erg check -- and customising .ergrc is the documented,
+// encouraged case (AGENTS.md sends readers there to define Label: values), not
+// an anomaly. That population is the deliberate cost of the fix: its silence
+// was the bug. The gate is real divergence, not the absence of a manifest.
 //
 // The hash comparison establishes THAT the two differ, never which is newer, so
 // the message is chosen by the stamp's recorded date instead (ticket 0279): the
@@ -417,10 +440,19 @@ func stamplessWarnings(dir string) []string {
 		}
 		onDisk, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
-			// Absent, or unreadable: either way there is nothing to compare.
+			// Absent, or present but unreadable. The two are not the same
+			// thing, and folding them together means a chmod-000 asset with
+			// real divergence stays quiet -- in a function whose whole subject
+			// is not staying quiet. It is nonetheless the convention every
+			// sibling here already follows (readManifestFile, installAssets'
+			// `exists := readErr == nil`), so the fold is deliberate: breaking
+			// ranks in one function would be the surprising move.
 			continue
 		}
-		if sha256hex(onDisk) == sha256hex([]byte(content)) {
+		// Direct comparison, not sha256 of both sides: this is an equality
+		// test, both operands are already in memory, and the sibling that asks
+		// the same question next door (installAssets) spells it this way.
+		if string(onDisk) == content {
 			continue
 		}
 		notes = append(notes, fmt.Sprintf("NOTE %s: %s", name, assetStamplessSignal))

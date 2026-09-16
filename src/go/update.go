@@ -241,7 +241,12 @@ func cmdUpdate(args []string) int {
 			fmt.Println("erg: deployed assets are from an earlier rev -- run 'erg init' to refresh them.")
 		}
 		if strings.Contains(string(out), assetStamplessSignal) {
-			fmt.Println("erg: deployed assets carry no .erg-assets stamp -- run 'erg init' to establish provenance.")
+			// Deliberately does NOT say "run erg init to establish provenance".
+			// Today init would stamp a preserved local edit with the embedded
+			// hash and silence the condition for good (ticket 0292), so this
+			// sends the reader to erg check, which names the assets and says
+			// what to compare, rather than to a command that resolves nothing.
+			fmt.Println("erg: deployed assets carry no .erg-assets stamp -- run 'erg check' to see which, and compare them before 'erg init'.")
 		}
 	}
 	return 0

@@ -302,7 +302,7 @@ if echo "$OUTND" | grep -q "run 'erg init' to refresh"; then
 else
     pass "post-update: no manifest -> no drift hint"
 fi
-if echo "$OUTND" | grep -q "establish provenance"; then
+if echo "$OUTND" | grep -qF "carry no .erg-assets stamp"; then
     fail "post-update: stampless hint fired with no assets on disk (should not)"
 else
     pass "post-update: no manifest and no assets -> no stampless hint"
@@ -324,7 +324,7 @@ if [ -f "$WORKSL/tickets/.erg-assets" ]; then
     fail "post-update: stampless fixture carries a manifest (test would not exercise 0283)"
 else
     OUTSL=$(cd "$WORKSL" && ERG_TICKET_DIR="$WORKSL/tickets" ./tickets/erg update 2>&1 || true)
-    if echo "$OUTSL" | grep -q "erg: updated" && echo "$OUTSL" | grep -q "establish provenance"; then
+    if echo "$OUTSL" | grep -q "erg: updated" && echo "$OUTSL" | grep -qF "carry no .erg-assets stamp"; then
         pass "post-update: stampless hint fires when a diverged asset has no stamp"
     else
         fail "post-update: expected the stampless provenance hint (got: $OUTSL)"

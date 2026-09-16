@@ -836,7 +836,7 @@ if echo "$out" | grep -q "differs from the .erg-assets stamp"; then
 else
     pass "drift: no manifest -> no drift warning"
 fi
-if echo "$out" | grep -q "no .erg-assets stamp"; then
+if echo "$out" | grep -qF "no .erg-assets stamp"; then
     fail "stampless: reported a store with no assets on disk at all (should not)"
 else
     pass "stampless: no manifest and no assets -> silent"
@@ -851,18 +851,21 @@ mkdir -p "$STAMPLESS"
 cp "$DRIFTDIR/9001-x.erg" "$STAMPLESS/"
 printf '# an .ergrc that is not what this binary embeds\nlabels = whatever\n' > "$STAMPLESS/.ergrc"
 rc=0; out=$($ERG check "$STAMPLESS" 2>&1) || rc=$?
-if [ "$rc" -eq 0 ] && echo "$out" | grep -q "no .erg-assets stamp"; then
+if [ "$rc" -eq 0 ] && echo "$out" | grep -qF "no .erg-assets stamp"; then
     pass "stampless: diverged asset with no manifest is reported (non-fatal)"
 else
     fail "stampless: expected a non-fatal stampless report (rc=$rc, got: $out)"
 fi
-if echo "$out" | grep -q "erg init"; then
-    pass "stampless: the report names the remedy"
+# A bare "erg init" grep would also be satisfied by assetRollbackSignal, which
+# ends "...then 'erg init'". Assert the stampless advice specifically: look
+# BEFORE you init, because init stamps the file as if shipped (ticket 0292).
+if echo "$out" | grep -qF "compare it against the shipped copy before running 'erg init'"; then
+    pass "stampless: the report names the remedy, and names it as look-first"
 else
-    fail "stampless: the report must name 'erg init' (got: $out)"
+    fail "stampless: the report must advise comparing before 'erg init' (got: $out)"
 fi
 # Guard: no stamp exists here, so no stamp-relative claim may be made.
-if echo "$out" | grep -q "differs from the .erg-assets stamp"; then
+if echo "$out" | grep -qF "differs from the .erg-assets stamp"; then
     fail "stampless: claimed a stamp comparison with no stamp on disk (got: $out)"
 else
     pass "stampless: makes no stamp-relative claim"
@@ -885,7 +888,7 @@ if [ ! -f "$STAMPMATCH/tickets/.ergrc" ] || [ -f "$STAMPMATCH/tickets/.erg-asset
     fail "stampless control: fixture is not a stampless store with assets present (test would be vacuous)"
 else
     rc=0; out=$($ERG check "$STAMPMATCH/tickets" 2>&1) || rc=$?
-    if [ "$rc" -eq 0 ] && ! echo "$out" | grep -q "no .erg-assets stamp"; then
+    if [ "$rc" -eq 0 ] && ! echo "$out" | grep -qF "no .erg-assets stamp"; then
         pass "stampless: assets matching the embedded copy exactly stay silent"
     else
         fail "stampless: an exact match must not be nagged (rc=$rc, got: $out)"
