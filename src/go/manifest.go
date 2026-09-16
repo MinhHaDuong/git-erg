@@ -190,6 +190,13 @@ const buildDateLayout = "0000-00-00T00:00:00Z"
 // digit, so an unguarded compare reads every garbage stamp as "newer than the
 // binary", i.e. as a rollback.) The ticket is explicit that an unparseable
 // stamp must degrade to the prior behaviour, never to a refusal.
+//
+// So do not "simplify" isRollback back into a bare comparison. This guard is
+// not defensive padding around the compare; it is the half of the compare that
+// time.Parse would have supplied, and dropping it costs a whole capability
+// silently -- no error, no warning, just a store whose assets can never be
+// refreshed again. tests/test_check.sh's drift fixture stamps "date: y" and is
+// the standing positive control for exactly that.
 func looksLikeBuildDate(s string) bool {
 	if len(s) != len(buildDateLayout) {
 		return false
