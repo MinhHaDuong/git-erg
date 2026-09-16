@@ -2,6 +2,7 @@
 Title: make check aborts when an empty .git sits above the temp directory
 Created: 2026-09-16
 Author: MinhHaDuong
+Closed: merged via PR #346
 
 --- log ---
 2026-09-16T10:30Z MinhHaDuong created
@@ -14,6 +15,7 @@ Author: MinhHaDuong
 2026-09-16T10:33Z claude note Executed. Two arms, not one: arm 1 keeps the pre-existing ambient-environment assertion, arm 2 manufactures an empty .git at $WORK/neg-offline-stray one level above its own throwaway module, so the adversarial condition is built by the test instead of borrowed from the host. Deviation from the Plan pass, deliberate: the plan said mkdir $WORK/.git, but $NEG is a direct child of $WORK, so that would have poisoned the clean-host arm too and collapsed the two arms into one. A sibling subtree gives both arms honestly. Red step watched fail before the flag was added. Four-way control matrix on /dev/shm (the one filesystem on this host with no stray ancestor): clean+no-flag FOUND, stray+no-flag NOT-FOUND, stray+flag FOUND, clean+flag FOUND -- so the manufactured stray alone causes the red, and the flag alone clears it. Whole suite under TMPDIR=/dev/shm confirms the point the ticket cared about: on a stray-free host arm 1 passes with or without the fix (no teeth there, which is why CI never saw this), while arm 2 fails without it and passes with it. make check now exits 0 end to end, 0 FAIL across 37 suites; the host strays /tmp/.git and /scratch/tmp/.git are both present and regrown, and no longer matter. Action 2 deliberately not folded in -- it is ticket 0290.
 2026-09-16T11:05Z claude note Round 3 closed the third and last door. Verified against a deliberately reverted copy of the fix, eight cases: arm 2 PASSes under the fix in a plain environment, under an exported GOFLAGS=-buildvcs=false, and under the go env config file (exercised through a throwaway GOENV path, so the author's own go env was never written -- confirmed empty before and after); it FAILs in all three of those under the reverted copy; and it SKIPs, never passes, with git absent from PATH. The review's round-2 dissent is recorded and unresolved, an author call: correctness held that a machine carrying an ambient GOFLAGS cannot suffer the underlying defect either, so skipping there was defensible. Pinning the environment makes the question moot -- the arm now measures the code rather than the machine. CI was never at risk in any of the three variants.
 
+2026-09-16T11:32Z MinhHaDuong closed — merged via PR #346
 --- body ---
 ## Context
 
