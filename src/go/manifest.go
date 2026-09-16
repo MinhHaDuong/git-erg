@@ -733,3 +733,96 @@ func stamplessNote(dir, rel string) (string, bool) {
 	}
 	return fmt.Sprintf("NOTE %s: %s", name, assetStamplessSignal), true
 }
+
+// enforcedAssetPaths is the subset of initAssetPaths whose local editing is
+// FORBIDDEN rather than merely reported (ticket 0277's decision, landed by
+// 0289). It is deliberately not initAssetPaths.
+//
+// tickets/.ergrc must never be added to it. Customising .ergrc is the
+// documented, encouraged case -- the shipped AGENTS.md sends readers there to
+// define their own Label: values -- so enforcing over the whole managed set
+// would fail `erg check` in every store that took erg's own advice. AGENTS.md
+// is the opposite: it is agent operating instructions that must track the
+// binary, which is the same premise the charter decision in 0224 rests on when
+// it lets `erg migrate` force-overwrite this one file and not the other.
+var enforcedAssetPaths = []string{"tickets/AGENTS.md"}
+
+// assetLocalEditSignal is what `erg check` prints when an enforced asset has
+// been edited away from the stamp that records what `erg init` wrote. Unlike
+// assetDriftSignal and assetStamplessSignal this literal has NO cross-version
+// consumer -- update.go greps for those two and not for this one -- so it is
+// free to be reworded later. Note precisely what that freedom rests on, because
+// ticket 0292 recorded the reading that fails: the absence of a grepping
+// consumer, which is visible in the source, never the literal being unreleased,
+// which is not. Add a grep for it in update.go and the freedom ends.
+//
+// The message names a destination rather than only refusing, which is why this
+// ticket was blocked on 0288: before that, the only honest advice was "put it
+// somewhere else" with no somewhere else to name. Both halves of the escape
+// hatch are named -- tickets/LOCAL.md, the file erg never touches, and `erg
+// integration`, which prints the long-form conventions the moved content will
+// sit beside -- because an adopter who edited AGENTS.md was usually reaching for
+// one of the two and has no way to tell which from a bare refusal.
+const assetLocalEditSignal = "differs from the .erg-assets stamp of what 'erg init' wrote -- this file is shipped and upgraded by erg, so a local edit is overwritten at the next init and is not supported; move the local content to tickets/LOCAL.md, which erg never touches, and run 'erg integration' for the long-form conventions it belongs beside ('erg init --show AGENTS.md' prints the shipped copy to diff against)"
+
+// assetLocalEditViolations reports each enforced asset that a stamp proves was
+// edited locally. These are ERRORS, not warnings: cmdCheck appends them to the
+// violation list and fails (ticket 0289). Everything about this function is
+// about firing on exactly one state and no neighbouring one.
+//
+// The evidence is the STAMP, never the currently embedded hash, and the
+// difference is the whole ticket. With a stamp present the question "is this
+// file what erg last wrote here" is answered entirely by the stamp; what the
+// running binary happens to embed today is a different question, and
+// managedAssetWarnings already answers it with the drift WARN that says a
+// re-init would refresh you. Keying enforcement on the embedded hash instead
+// would turn every adopter who has simply not re-inited since the last release
+// into a violator -- which on 2026-09-16, at enforcement time, was every known
+// adopter and every single one of them pristine.
+//
+// Silent wherever the evidence is absent rather than exculpatory:
+//
+//   - No manifest, or no usable stamp for THIS asset. There is no recorded
+//     provenance to have departed from, so the divergence is unattributable and
+//     belongs to 0283's stampless report, which says exactly that. Accusing
+//     such a store of editing would tell it to migrate content it never wrote.
+//     looksLikeAssetHash is the gate, matching the three readers ticket 0292
+//     had to bring into agreement -- a stamp that is not a hash is not evidence.
+//   - The asset is absent or unreadable. Following readManifestFile,
+//     installAssets and stamplessNote; breaking ranks here would be the
+//     surprise.
+//
+// isCleanUpgrade is called rather than a fresh `diskHash != stamp` so that the
+// question "is this content attributable to the stamp" has one expression in
+// the codebase and not two. The dates are passed empty on purpose: the rollback
+// branch inside isCleanUpgrade answers a DIRECTION question, and a rollback
+// store -- binary older than the stamp, file pristine against it -- is a
+// legitimate state that already has its own warning. Feeding the real dates
+// here would make that store a violator on the strength of its clock.
+func assetLocalEditViolations(dir string) []string {
+	// No early return for a nil map, deliberately. readManifestFile returns nil
+	// for an absent or unparseable manifest, and a nil map reads as "" for
+	// every key -- which the looksLikeAssetHash gate below already rejects. A
+	// `if stamps == nil { return nil }` guard here is therefore an EQUIVALENT
+	// branch: no fixture can make it change the answer, so no test can pin it,
+	// and an unpinnable branch is the kind that later grows a second meaning
+	// unnoticed. One gate, one reader.
+	stamps := readManifestFile(filepath.Join(dir, manifestName))
+	var violations []string
+	for _, rel := range enforcedAssetPaths {
+		name := strings.TrimPrefix(rel, "tickets/")
+		stamp := stamps[name]
+		if !looksLikeAssetHash(stamp) {
+			continue
+		}
+		onDisk, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			continue
+		}
+		if isCleanUpgrade(sha256hex(onDisk), stamp, nil, "", "") {
+			continue
+		}
+		violations = append(violations, fmt.Sprintf("%s %s", name, assetLocalEditSignal))
+	}
+	return violations
+}

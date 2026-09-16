@@ -2,6 +2,7 @@
 Title: Make an unrecognized AGENTS.md hash a hard error in erg check
 Created: 2026-09-16
 Author: MinhHaDuong
+Closed: autoclosed — PR #364
 
 --- log ---
 2026-09-16T10:13Z MinhHaDuong created
@@ -10,6 +11,11 @@ Author: MinhHaDuong
 2026-09-16T11:27Z MinhHaDuong note blocker 0288 closed — Blocked-by removed.
 2026-09-16T12:55Z claude note Design constraint surfaced by the harness session at its 0906 merge, verified here against isCleanUpgrade (manifest.go:391) rather than reasoned about. The hard error must fire on an UNRECOGNIZED hash and must NOT fire on a stamp that is merely behind the running binary. These are different states and the machinery already tells them apart: with a stamp present, isCleanUpgrade tests diskHash == stampedHash and never consults the currently-embedded hash, so a store whose file matches its own stamp is a clean upgrade whatever the binary now ships; only a stampless store falls back to the known-hash list. Separately, managedAssetWarnings compares the STAMP against the embedded version and warns when the binary has moved past it -- that warning means 'a re-init would refresh you', it is the designed nudge, and turning it into an error would fail every adopter who has simply not re-inited since the last release. Worked case that prompted this: ImperialDragonHarness restored its AGENTS.md to the 2356-byte asset its vendored binary embeds, with a committed manifest; git-erg main now ships 2393. That repo must stay green, and under the rule above it does -- its file matches its stamp. If the enforcement had keyed on the embedded hash instead, it would have gone red on a file made pristine an hour earlier.
 2026-09-16T13:05Z MinhHaDuong note Author proposes installing the shipped AGENTS.md read-only (mode 0444) alongside the hard error. Accepted and written into the body. Verified before accepting: git ls-files -s shows this repo's assets at 100644/100755, so git carries only the executable bit and a read-only mode cannot be committed or survive a clone. It is therefore friction at the moment of the edit, for adopters who ran erg init, and not a substitute for Action 1's enforcement, which has to work on a fresh clone too.
+2026-09-16T15:07Z coordinator note RE-SURVEY (Action 3), taken by the coordinator at enforcement time, 2026-09-16, and recorded here verbatim. ImperialDragonHarness (~/.claude): disk sha256 8aa91454..., 2356 bytes; manifest stamp AGENTS.md sha256:8aa91454... (rev 7c83710, 2026-09-16T12:38:30Z). Disk == stamp. chemin-de-voix: disk 07c11767..., 1862 bytes; stamp 07c11767... (rev 9c23c37, 2026-06-03). Disk == stamp. AEDIST-technical-report: disk 07c11767..., 1862 bytes; stamp 07c11767... (rev 8331a94, 2026-06-05). Disk == stamp. Shipped asset on main: 73bf452c..., 2393 bytes. Conclusion: every known adopter matches its own stamp; none is locally edited; all three are merely behind the running binary. Under this ticket's own rule the ban fires on nobody today -- enforcement is prospective, there is no migration to perform and no content at risk. The three stores' state is the regression fixture for the failure mode this ticket must avoid: keying enforcement on the EMBEDDED hash instead of the stamp would turn all three red.
+2026-09-16T15:07Z coordinator note Author's read-only 0444 proposal WITHDRAWN by the author, 2026-09-16 -- not deferred, not held. The body section stays as the record of what was considered and why it was dropped; a withdrawn proposal with its reasoning is worth more to the next reader than a silent absence. Both halves of the trade. What it would have bought: friction at the moment of the edit, but only where erg init ran locally -- git carries just the executable bit (there is no 100444), so the mode does not survive a clone or a git checkout, and chmod +w defeats it in one command. What it would have cost: erg init obliged to open a NEW write path that can fail on permissions or ownership -- a real failure mode in the install path -- purchased for a population of offending editors that today's re-survey measured at zero. Not implemented here: no chmod path in init, no mode assertions, no documentation of it.
+2026-09-16T15:07Z MinhHaDuong note Actions 1 and 2 landed. Enforcement keys on the STAMP via isCleanUpgrade, never on the embedded hash, so the behind-the-binary nudge stays the WARN managedAssetWarnings already emits. Scoped to enforcedAssetPaths (tickets/AGENTS.md alone), NOT initAssetPaths: customising .ergrc is documented and encouraged, and enforcing over the whole managed set would fail erg check in every store that took erg's own advice. No second hash-comparison path -- check.go appends assetLocalEditViolations(dir) to the violation list and the comparison stays in manifest.go. assetLocalEditSignal has no cross-version grepping consumer in update.go, so it is free to be reworded later; that freedom rests on the absence of the consumer, not on the literal being unreleased.
+2026-09-16T15:18Z MinhHaDuong note PR review fix, same PR: cmdCheck returned 0 on 'No .erg files found.' before the asset check ran, so a fresh adopter with an edited AGENTS.md and no tickets yet passed silently -- and the end-to-end fixture's withTicket helper stepped around the hole, which made it invisible. assetLocalEditViolations now runs BEFORE the empty-corpus early return; an empty store that is otherwise fine keeps its exit 0. Both arms pinned: edited+no-tickets reddened against the prior tip and went green; empty+pristine kills the mutant that fails the branch unconditionally.
+2026-09-16T15:21Z MinhHaDuong closed — autoclosed — PR #364
 --- body ---
 ## Context
 
@@ -68,13 +74,13 @@ passing arm's silence.
 
 ## Verification
 
-- [ ] `erg check` fails on a locally-edited `tickets/AGENTS.md`, and the message
+- [x] `erg check` fails on a locally-edited `tickets/AGENTS.md`, and the message
       names where the content should go
-- [ ] `erg check` stays silent on every hash recognized through the stamp path
-- [ ] a stampless store still gets 0283's stampless report, NOT this ticket's
+- [x] `erg check` stays silent on every hash recognized through the stamp path
+- [x] a stampless store still gets 0283's stampless report, NOT this ticket's
       edit error — the two causes stay distinguishable
-- [ ] the re-survey is taken at enforcement time and recorded in the log
-- [ ] `make check` passes
+- [x] the re-survey is taken at enforcement time and recorded in the log
+- [x] `make check` passes
 
 ## Author's proposal: install the asset read-only
 
