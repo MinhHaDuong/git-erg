@@ -1,0 +1,93 @@
+%erg 0.1
+Title: The integration.md adopter-lore tripwire catches one spelling of two shapes
+Created: 2026-09-16
+Author: MinhHaDuong
+
+--- log ---
+2026-09-16T11:20Z MinhHaDuong created
+2026-09-16T11:22Z claude note Filed from PR #347's round-2 red team (findings 2 and 3) after verify-gate bounced that PR for recording the disposition without executing it. Both halves were dispositioned "follow-up, not a merge condition" and that judgement stands -- this is a documentation-quality guard on a doc-migration ticket, below the severity floor for blocking a merge. What was missing was the artifact.
+
+--- body ---
+## Context
+
+`tests/test_integration.sh` guards `src/go/assets/integration.md` against
+re-accumulating adopter-specific lore. It has two arms: a literal blocklist of
+known adopter strings, and two structural greps meant to catch the realistic
+recurrence -- one adopter's war story paraphrased into the shared guide, which
+carries a date and a ticket number even when the names are gone.
+
+The round-2 red team on PR #347 measured what those greps actually cover, by
+planting content and watching the suite stay green at 22/0:
+
+- **Dates**: only ISO `YYYY-MM-DD` is caught. `July 2026`, `2026/07/22` and
+  `22 July 2026` all pass.
+- **Ticket numbers**: only the phrase `ticket NNNN` is caught.
+- **Names and paths**: an unlisted repo name (`acme-widgets-monorepo`) in pure
+  narrative passes, as does a renamed harness path or marker
+  (`scripts/gh-collision-scan.sh`, `dragon-extension-point`). The listed job
+  names catch some path variants only by accidental substring overlap, not by
+  design.
+
+So the guard raises the cost of a careless paraphrase and does nothing to a
+careful one. PR #347's comment claiming the two shapes were "banned
+structurally" has been corrected to say what the greps do; this ticket is
+about whether to do more.
+
+## The other half: a demonstrated false-positive risk
+
+The same pass produced two real `FAIL`s from content that carries no
+adopter-specific material at all:
+
+- a generic illustrative log line, `2024-01-15T09:00Z agent created`, in the
+  same style `src/go/assets/AGENTS.md` itself ships;
+- a generic cross-reference example, `ticket 0007`.
+
+This matters more than the coverage gap. The guard is one plausible
+documentation edit away from a false failure, and the cheapest response to a
+false failure is to loosen the grep -- at which point the guard's real coverage
+goes to zero without anyone deciding that it should.
+
+## Why this is one ticket and not two
+
+The coverage gap and the false-positive risk are the same fact seen from two
+sides: a regex over prose cannot separate "this document is about an incident"
+from "this document mentions a date". Widening it worsens the false positives;
+narrowing it worsens the coverage. Any fix has to change the *kind* of check,
+not its aperture.
+
+## Options, none yet chosen
+
+1. **Accept and document.** Keep the tripwire, state its limits in the test
+   comment (done in #347), and rely on review for the careful paraphrase. Cost:
+   nothing. Risk: the guard is later mistaken for a real ban.
+2. **Scope the greps to where incidents actually land.** A date inside a
+   fenced example block is fine; a date in running prose is the tell. Cheaper
+   than it sounds, and it removes both demonstrated false positives.
+3. **Drop the structural greps, keep the literal blocklist.** Honest about what
+   is mechanizable. The blocklist still stops the wholesale copy, which is the
+   recurrence that actually happened.
+4. **Move the boundary out of grep entirely** -- e.g. a size ceiling on
+   `integration.md` plus review, on the theory that accumulated lore shows up
+   as growth before it shows up as a matchable token.
+
+Option 3 deserves a fair hearing: a guard that is honest about catching
+copy-paste may be worth more than one that implies it catches paraphrase.
+
+## Invariants
+
+- Whatever is chosen, the test comment must describe what the check does, not
+  what it aspires to. That is the defect this ticket was filed out of.
+- Do not widen a grep to close the coverage gap without first checking it
+  against the two false positives recorded above.
+
+## Exit criteria
+
+The guard's aperture is a decision on the record rather than an accident of
+which regex was written first, and the demonstrated false positives either
+cannot fire or are accepted in writing.
+
+## Related
+
+- 0288 — the migration this guard protects; PR #347
+- 0277 — the tracker; the ban in 0289 assumes adopter lore has a home worth
+  keeping clean

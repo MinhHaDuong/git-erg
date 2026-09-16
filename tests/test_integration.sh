@@ -189,8 +189,13 @@ fi
 # A literal blocklist only stops copy-paste. The realistic recurrence is one
 # adopter's war story paraphrased into the shared guide, and those carry two
 # shapes a literal list cannot enumerate: the date it happened and the ticket
-# it happened in. Both are banned structurally in the on-demand guide. (Not in
-# AGENTS.md: its worked example is a dated ticket, by design.)
+# it happened in. The two greps below catch one spelling of each -- an ISO
+# date and the phrase "ticket NNNN". That is a tripwire, not a structural ban:
+# "July 2026", "2026/07/22", a spaced job name or a digitless narrative all
+# pass it, as the round-2 red team demonstrated. It raises the cost of the
+# careless paraphrase; it does not make the careful one impossible, and no
+# grep could. (Applied to integration.md only, not AGENTS.md: that file's
+# worked example is a dated ticket, by design.)
 
 if grep -qE '[0-9]{4}-[0-9]{2}-[0-9]{2}' "$ROOT/src/go/assets/integration.md"; then
     fail "integration.md carries a calendar date -- generic guidance has no incident dates"
