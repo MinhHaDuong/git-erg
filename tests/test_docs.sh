@@ -63,6 +63,17 @@ else
     fail "check.go emits a folderClosure violation the spec does not document"
 fi
 
+# The path test is bounded to the store: 0285 made closure read the path BELOW
+# the directory erg was given, so a store under an ancestor named *-closed is
+# read like any other. The spec stated the component rule without ever saying
+# where the path starts, which is the gap that let the unbounded walk look
+# correct for four years (drift guard for 0285).
+if grep -q 'below the directory .erg. was given' src/go/assets/spec-erg-v1.md; then
+    pass "spec says which path the closure component test is applied to"
+else
+    fail "spec states the closure component rule without saying where the path starts"
+fi
+
 # README must not show `erg validate <ID>` — validate takes file paths, not IDs
 # (regression guard for 0161; the broken example was `tickets/erg validate 01`).
 if grep -Eq 'erg validate [0-9]+( |$)' README.md; then

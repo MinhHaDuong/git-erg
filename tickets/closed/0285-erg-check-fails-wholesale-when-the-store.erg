@@ -1,0 +1,182 @@
+%erg 0.1
+Title: erg check fails wholesale when the store path has a closed component
+Created: 2026-09-16
+Author: MinhHaDuong
+Closed: merged via PR #349
+
+--- log ---
+2026-09-16T00:00Z MinhHaDuong created
+2026-09-16T00:00Z MinhHaDuong note Surfaced by the PR 343 review panel (ticket 0256). Pre-existing, traces to 0241; reproduced live on both the 0256 branch binary and a pre-0256 binary, so it is not caused by that change.
+2026-09-16T01:00Z claude note Imagine pass: read erg.go:36-67 and check.go:19-48 directly, confirmed loadErgs (erg.go:695) walks the caller-given dir via filepath.WalkDir and stores that dir-prefixed path verbatim as t.Path, so pathIsClosed's unbounded component walk sees OS ancestors above the store whenever the caller addresses it absolutely -- the defect is real and matches the ticket's account. Recommended minimal fix is Option 1: add a Root field to Erg, set once in loadErgs to the dir argument, and relativize t.Path against it (filepath.Rel) before feeding pathIsClosed at the three corpus-closure call sites -- IsClosed() (erg.go:36) and both folderClosure calls (check.go:23,40) -- falling back to today's behaviour only when Root is empty (bare single-file parse with no store context); pathIsClosed's own component-walk algorithm is correct for nested closed/ subdirectories within a store and needs no change, only what is fed into it. Two other pathIsClosed call sites (erg.go:502's rule-14 grandfather check, new.go:47's synthetic-slug check) share the same class of exposure but are single-ticket self-checks outside this ticket's stated exit criteria; flagging rather than folding into this fix to avoid scope creep. Antipattern check: no generalized path-parsing abstraction needed -- a single string field plus filepath.Rel at the few affected call sites is the whole change; rewriting pathIsClosed's algorithm or adding configurable ancestor-depth would be over-engineering this narrow defect.
+2026-09-16T17:25Z claude note Plan pass: no ## Test section existed in this ticket's body -- added one. Red step is two new subtests inside the existing TestFolderClosure table in src/go/erg_test.go, sharing one fixture: a store built under t.TempDir()/"dossier-closed"/tickets (an ancestor component ending in "-closed", matching the ticket's own reproduction), loaded via loadErgs on the absolute path. Arm 1 (currently NOISY, must go SILENT): two well-formed open tickets with no Closed: header must produce zero folderClosure warnings and both t.IsClosed() == false; today both wrongly report "open ticket in closed/ directory" and IsClosed()==true because pathIsClosed(filepath.Dir(t.Path)) and pathIsClosed(t.Path) walk the OS ancestor, covering erg.go:36 and check.go:23 in one fixture. Arm 2 (currently SILENT, must go NOISY): a third ticket 0003-work-closed.erg (basename reads closed, no header) in the same tripped store must produce the 0256 basename violation; today it is masked because inClosedDir is wrongly true, gating basenameClosed off, covering check.go:40. Both arms are required together -- a fix that just flips inClosedDir's polarity everywhere would pass arm 1 alone by accident but is caught by requiring arm 2 to newly fire in the identical fixture. Control found and added: validate.go:294 and rm.go:124 call parseErg() directly on a bare file path with no directory/Root context, so a third subtest confirms the Root-empty fallback still applies today's (pre-fix) absolute-path pathIsClosed behaviour to a single file addressed under a closed-like ancestor -- otherwise the fix could silently disable closure detection for the single-file validate/rm path instead of merely scoping it correctly. No tautology found: all three assertions exercise loadErgs+folderClosure/IsClosed end to end against real fixtures, never a restatement of pathIsClosed's own logic.
+
+2026-09-16T10:33Z claude note Execute pass: implemented Option 1. Added Erg.Root (ergspecv1.go), set once in loadErgs to the dir argument as spelled by the caller, and added Erg.StorePath() (erg.go) relativizing Path against Root via filepath.Rel with a whole-path fallback when Root is empty. The three corpus-closure call sites now feed StorePath(): IsClosed() and folderClosure's inClosedDir and basenameClosed. pathIsClosed itself is unchanged -- only its input is bounded. Red step watched first: arms 1 and 2 both failed for the predicted reasons (arm 1: two spurious 'open ticket in closed/ directory' violations plus IsClosed()==true on both tickets; arm 2: three spurious placement violations and the 0256 basename violation for 0003-work-closed.erg absent, i.e. masked). Both green after the fix; 506 package tests pass. Live binary check on a dossier-closed/tickets fixture: relative and absolute addressing now give identical check/list/ready output, a well-formed store under a tripped ancestor PASSES absolutely, and nested closed/ detection is intact in both directions. Out of scope by the ticket's own framing and left alone: erg.go's rule-14 title grandfather check and new.go's synthetic-slug check, both single-ticket self-checks with the same class of exposure. Flagged, not edited: assets/spec-erg-v1.md's path test says 'a path component' without saying where the path starts -- this change settles that as store-relative, matching both of the spec's own examples, so the spec is narrowed rather than contradicted; a one-sentence clarification there is a follow-up outside this ticket's exit criteria.
+2026-09-16T10:50Z claude note Adherence round 1 found three real defects in the first cut; all fixed, each with a red step watched. (1) Rule 14's grandfather (erg.go) also read the unbounded path, so exit criterion 1 was falsifiable: a Title ending in 'ready' was flagged relatively and grandfathered absolutely. Fixed in erg.go alone by adding parseErgIn/parseErgBytesIn -- thin rooted entry points that leave the six external parseErgBytes callers untouched -- so loadErgs threads the store root in at parse time. This corrects the previous log note and the Imagine pass: rule 14 is NOT separable from this ticket, because its exposure is the very criterion the ticket leads with. (2) resolvePathRef (list.go) parses a cross-module Blocked-by target outside any store walk; under a tripped ancestor every such blocker resolved as closed and erg ready offered a genuinely blocked ticket for work -- silently, which is worse than the loud corpus-wide failure this ticket started from. Fixed by rooting that parse at the sibling's own store. (3) Relativizing the store root away was itself a regression: erg check STORE/closed reported every correctly archived ticket as misfiled (measured pre-fix PASS, post-fix FAIL). StorePath now keeps the root's OWN basename and drops only what is above it, which also makes the ordinary relative invocation byte-identical to pre-0285 behaviour -- absolute addressing is brought into line with relative rather than both moving. Also corrected: new.go's stripClosedSuffix does NOT share the exposure, contrary to the earlier note -- it passes a synthetic single-component string with no ancestor. New guards: TestStorePath (table, six cases), TestRule14GrandfatherIsAddressingIndependent (asserts the EQUALITY of the two verdicts, with a positive control so it is not two silences compared), TestResolvePathRefUnderTrippedAncestor (untripped fixture as its own positive control), and a folderClosure subtest for the archive-as-store-root case. 516 package tests pass.
+2026-09-16T11:06Z claude note Adherence round 2 found one more real defect, now fixed: rooting only the store walk left erg validate FILE (what the pre-commit hook runs) more lenient than erg check DIR (what CI runs) on the identical file -- rule 14 grandfathered a title under a tripped ancestor in validate but not in check. A divergence that did not exist before this branch, since both were unbounded and both were wrong. validate.go now parses through parseErgIn with the file's own directory as the root; the dir it needs was already computed nine lines below, so the hoist is the whole change. Guarded by TestSingleFileParseAgreesWithStoreWalk, which asserts the two entry points return the same errors and runs the tripped and untripped ancestors as each other's control -- red step watched, the untripped arm correctly stayed green while the tripped arm failed. Also corrected the parseErgBytesIn doc comment, which claimed none of the bytes-holding callers has a root to pass while list.go passes one in this same commit. Filed 0291 for the remaining item: the spec still does not say where a ticket path starts, so this rule is guarded without being written down. Kept separate because this branch touches no src/go/assets/ file and PR 348 (ticket 0283) was open on assets throughout. make check green end to end, 519 package tests.
+2026-09-16T11:41Z claude note Review round 1 (PR 349) found two blockers, both reproduced and fixed. (1) Keeping the store root's own basename in the tested path only moved the defect one level up and made it INCONSISTENT: erg check /path/dossier-closed still failed wholesale, and two relative spellings of that same store disagreed -- erg check . from inside PASSED while erg check dossier-closed from the parent FAILED, because filepath.Base('.') is '.' and Join discards it. Exit criteria 1 and 2 were falsifiable on a well-formed store. Switched to the ticket's own option 2, 'test only the components erg itself walked', i.e. strictly below the root. Every spelling of every store now agrees. The price, accepted knowingly and documented on StorePath: naming a store AT its archive subdir makes its header-closed tickets top-level tickets of that store, so they draw the closed-not-in-closed rule. That is what the argument says, and one wrong answer on a degenerate invocation beats a rule whose result depends on how you spell the path. Reverses the previous log note, which defended the inclusive form on the strength of that one case while missing the two it broke. (2) TestSingleFileParseAgreesWithStoreWalk was a tautology: it called parseErgIn directly, so reverting validate.go's hunk left all 519 tests green. Replaced by TestValidateAgreesWithCheck, which drives cmdValidate and cmdCheck themselves and compares exit codes; reverting the hunk now fails it, with the untripped ancestor staying green as its control. Also fixed: parseErgIn's doc comment no longer claims loadErgs is the only rooted caller, and 0291 was corrected -- tickets/spec-erg-v1.md does not exist and make regen-assets does not touch the spec, so those steps are gone and a ## Verification section is in. New guard TestStoreVerdictIsIndependentOfSpelling states exit criterion 1 as the property it is: one store, four spellings, one verdict, with a fixture that produces a real violation so the comparison is not four silences. 522 package tests pass.
+2026-09-16T12:03Z claude note Review round 2 (PR 349) confirmed both round-1 blockers fixed by revert-and-watch-red, and left one finding, which is about the RECORD not the design. The previous log note and StorePath's comment both called the archive-as-store-root case 'a degenerate invocation'. That was wrong and I had not measured it: cd tickets/closed && erg check reaches it with NO argument, because erg auto-discovers the store and looksLikeTicketStore accepts any directory holding .erg files. It is also a genuine regression against pre-0285 main, which passed that case, and the message it emits tells the user to run erg close or erg archive on a ticket that is already both. Corrected the comment and filed 0294, which owns the design question: telling tickets/closed from dossier-closed needs a store-root marker (.ergrc, already read by loadConfig) rather than a judgement about a directory name, and that changes what every command treats as the store, so it is not 0285's to make. Recorded there too is why the obvious shortcut fails -- letting the root's name excuse rather than accuse also suppresses the open-ticket-in-closed rule, which main correctly catches inside tickets/closed. What stays true is that exclusion is the better of the two available answers: the inclusive form left the ticket's own bug alive one level up AND made two spellings of one store disagree. No code change this round.
+2026-09-16T12:17Z MinhHaDuong closed — merged via PR #349
+--- body ---
+## Problem
+
+`pathIsClosed` (`src/go/erg.go:46-67`) splits the path it is given and tests
+**every** component. `folderClosure` (`src/go/check.go:21`) calls it as
+`pathIsClosed(filepath.Dir(t.Path))`. So when a ticket's path contains any
+ancestor component that equals `closed`, starts with `closed-`/`closed.`, or
+ends with `-closed`, `inClosedDir` is true for every ticket in the store.
+
+The first branch of `folderClosure` then fires `open ticket in closed/
+directory` for **every open ticket**, and `erg check` exits 1 wholesale. The
+store is well-formed; only its location is unusual.
+
+This is invisible from this repo, whose own path contains no such component.
+
+## Reproduction
+
+The trigger is not where the store *lives*, it is **how the store is
+addressed** -- `t.Path` is built from the directory argument as given, so a
+relative argument never exposes the offending ancestor.
+
+```
+$ mkdir -p /tmp/dossier-closed/tickets
+$ # ... two perfectly normal open tickets, no Closed: header ...
+
+$ cd /tmp/dossier-closed && erg check tickets/      # relative: fine
+ERG CHECK: PASS (2 tickets)                          # exit 0
+
+$ erg check /tmp/dossier-closed/tickets             # absolute: wholesale failure
+ERG CHECK FAILED (2 errors):
+  VIOLATION 0001-normal-open-ticket.erg: open ticket in closed/ directory -- move it out or remove the Closed: header
+  VIOLATION 0002-another-open-one.erg: open ticket in closed/ directory -- move it out or remove the Closed: header
+                                                     # exit 1
+```
+
+Identical output from a binary built before ticket 0256, which is what
+establishes this as pre-existing rather than a regression from that change.
+
+The addressing dependence is the part most likely to confuse a report: the
+same store passes or fails depending on the argument, so an adopter can hit it
+only from a script that resolves paths, or only from a CI job, and not
+interactively.
+
+## Second effect: it masks the 0256 basename check
+
+Ticket 0256 added a third `folderClosure` violation, guarded by
+`basenameClosed := !inClosedDir && pathIsClosed(t.Path)`. In a tripped store
+`inClosedDir` is true for reasons having nothing to do with a `closed/`
+folder, so that guard silently **disables** the new check rather than scoping
+it. Verified on the same fixture, with a `0003-work-closed.erg` open ticket
+added:
+
+- addressed relatively (untripped): `VIOLATION 0003-work-closed.erg: filename
+  reads as closed but there is no Closed: header` -- the rule fires.
+- addressed absolutely (tripped): the basename violation is **not** reported
+  at all; only the two spurious placement violations are.
+
+The comment on that guard in `check.go` says it keeps the rule off tickets
+already reported by the first branch. That is true in a normal store and true
+of the intent, but in a tripped store the suppression is unintended. Whatever
+fix lands here should revisit that comment so it does not read as a guarantee
+it cannot make.
+
+## Severity
+
+Clears the floor: `erg check` is the corpus gate, run in CI via `make
+validate`. For an adopter whose checkout path trips the rule, the gate fails
+on every ticket with a message that names a directory the tickets are not in,
+and the suggested remedy ("move it out") is impossible to follow.
+
+## Relevant files
+
+- `src/go/erg.go` (`pathIsClosed`, L46-67) -- the component walk
+- `src/go/check.go` (`folderClosure`, L17+) -- the `filepath.Dir` caller and all three violation branches
+- `src/go/assets/spec-erg-v1.md` -- "Closed / not-closed criterion" defines the path test; whether it is meant to apply to ancestors *above the store root* is exactly the undecided question
+
+## Design question to settle first
+
+The spec's path test is written for paths *within* a store. It does not say
+where a path starts. Candidate answers, to be chosen before coding:
+
+1. **Relativize to the store root.** Test only components at or below the
+   directory `erg` was given. Most faithful to intent; makes behaviour
+   independent of how the store is addressed, which is the property the
+   reproduction above shows is missing.
+2. **Test only the components `erg` itself walked** during discovery --
+   equivalent in practice to 1, cheaper to implement if the walk already
+   tracks relative paths.
+3. **Leave `pathIsClosed` alone; relativize at the `folderClosure` call site.**
+   Narrowest diff, but leaves the same trap for the next caller, and
+   `IsClosed()` (`erg.go:36`) has the identical exposure.
+
+Option 1 or 2 is likely right. Note that `IsClosed()` shares the defect, so a
+call-site-only fix is partial: a ticket in a tripped store also reads as
+*closed* to `erg list` and `erg ready`.
+
+## Test
+
+**Red step** — two new `t.Run` subtests inside the existing `TestFolderClosure`
+table in `src/go/erg_test.go`, sharing one fixture: build a store under
+`t.TempDir()/"dossier-closed"/tickets` (an ancestor component ending in
+`-closed`, matching the reproduction above) and load it via `loadErgs` on the
+**absolute** path.
+
+- Arm 1, "well-formed tickets under a tripped ancestor stay silent": two open
+  tickets with no `Closed:` header must produce zero `folderClosure` warnings
+  and `t.IsClosed() == false` for both. Today both fail: `pathIsClosed` walks
+  every OS ancestor component, so `dossier-closed` trips `inClosedDir` (and
+  `IsClosed()`) for every ticket regardless of its real placement. Covers
+  `erg.go:36` and `check.go:23`.
+- Arm 2, "the 0256 basename check still fires in a tripped store": add
+  `0003-work-closed.erg` (basename reads closed, no header) to the same
+  fixture; `erg check` must report the basename violation. Today it is
+  masked — `!inClosedDir` gates `basenameClosed` off because `inClosedDir` is
+  (wrongly) true for every ticket in a tripped store. Covers `check.go:40`.
+
+Both arms are required in the same fixture: a fix that only flips
+`inClosedDir`'s polarity everywhere would pass arm 1 by accident while still
+failing arm 2 (or vice versa) — only the pair proves the fix discriminates
+real closure state from ancestor-path artifacts.
+
+**Fallback control** — `validate.go:294` and `rm.go:124` call `parseErg`
+directly on a bare file path outside any store walk, so `Erg.Root` is empty
+there. Add a subtest constructing an `Erg` (or calling `parseErg`) on a single
+file addressed under a `*-closed` ancestor with no `Root`, and assert
+`pathIsClosed`/`IsClosed()` still apply today's absolute-path behaviour. This
+guards against the fix silently disabling closure detection for the
+single-file `validate`/`rm` path instead of merely scoping it correctly.
+
+## Exit criteria
+
+- [x] `erg check` on a well-formed store gives the same verdict whether the store is addressed by a relative or an absolute path
+- [x] A store under a directory named `*-closed` / `closed` / `closed-*` / `closed.*` passes `erg check` when its tickets are well-formed
+- [x] The 0256 basename violation still fires in such a store (it is currently masked)
+- [x] `IsClosed()` is audited for the same exposure, and `erg list`/`erg ready` are covered by a test in a tripped store
+- [x] Regression test builds its fixture under a `*-closed` ancestor and addresses it by absolute path -- a relative-path test cannot fail and would be vacuous
+- [x] The `!inClosedDir` comment in `check.go` no longer claims a scoping property the guard does not have
+- [x] `make check` passes and `erg check tickets/` still passes on the live corpus
+
+## Declared non-goal: naming a store at its own archive
+
+Bounding the path test to the store root has one wrong answer, and it is
+accepted rather than defended. Addressing a store **at** its `closed/`
+subdirectory -- `erg check tickets/closed`, or a bare `erg check` run from
+inside it -- reports every correctly archived ticket there as misfiled. The
+error is two-sided, and both halves are the same fact: in that position a
+genuinely misfiled open ticket is also missed. An unsupported invocation gives
+wrong answers in both directions; that is what unsupported means here, and it
+is why the remedy is to say so rather than to harden each direction in turn.
+The
+archive is not a store; nothing in the toolchain addresses it as one
+(`integration.md`, the `Makefile`, `erg archive` and `erg close` all load the
+parent), and `erg list`/`erg ready` are unaffected because archived tickets
+carry a `Closed:` header.
+
+The alternative was measured and is worse: keeping the root's own name in the
+test breaks two *legitimate* spellings of a well-formed store (`erg check .`
+and `erg check dossier-closed`). One wrong answer on an invocation nobody
+documents beats two on invocations people use.
+
+This is recorded here, and in the spec and `StorePath`'s doc comment, so the
+next person who hits it finds a decision instead of a puzzle. It is not a
+defect to be hardened against, and the review rounds that proposed doing so
+were declined (MOE, 2026-09-16).

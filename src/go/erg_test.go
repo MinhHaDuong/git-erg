@@ -982,6 +982,317 @@ func TestFolderClosure(t *testing.T) {
 			t.Errorf("expected the placement error, got: %v", errs)
 		}
 	})
+
+	// Ticket 0285, arm 1 (currently NOISY, must go SILENT). The store is
+	// addressed by its ABSOLUTE path under an ancestor component ending in
+	// "-closed". Those components sit ABOVE the store root, so they are not
+	// part of the store's own layout and the v1 closure path test must not
+	// see them. A relative-path fixture cannot fail here and would be vacuous.
+	// Covers IsClosed() (erg.go) and folderClosure's inClosedDir (check.go).
+	t.Run("well-formed tickets under a tripped ancestor stay silent", func(t *testing.T) {
+		store := filepath.Join(t.TempDir(), "dossier-closed", "tickets")
+		if err := os.MkdirAll(store, 0755); err != nil {
+			t.Fatal(err)
+		}
+		writeErg(t, store, "0001-normal-open-ticket.erg",
+			"%erg 0.1\nTitle: Normal\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		writeErg(t, store, "0002-another-open-one.erg",
+			"%erg 0.1\nTitle: Another\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		if !filepath.IsAbs(store) {
+			t.Fatalf("fixture must be addressed absolutely, got %q", store)
+		}
+		tickets, _ := loadErgs(store)
+		if len(tickets) != 2 {
+			t.Fatalf("expected 2 tickets, got %d", len(tickets))
+		}
+		if errs := folderClosure(tickets); len(errs) != 0 {
+			t.Errorf("expected no violations for well-formed tickets under a tripped ancestor, got: %v", errs)
+		}
+		for i := range tickets {
+			if tickets[i].IsClosed() {
+				t.Errorf("%s: IsClosed() must be false -- the tripped component is above the store root",
+					tickets[i].Filename())
+			}
+		}
+	})
+
+	// Ticket 0285, arm 2 (currently SILENT, must go NOISY). Same tripped
+	// store, plus a basename that reads as closed. The defect masks the 0256
+	// check: inClosedDir is wrongly true, and !inClosedDir gates
+	// basenameClosed off. Required together with arm 1 -- a fix that merely
+	// flipped inClosedDir's polarity would pass one arm and fail the other.
+	t.Run("the 0256 basename check still fires under a tripped ancestor", func(t *testing.T) {
+		store := filepath.Join(t.TempDir(), "dossier-closed", "tickets")
+		if err := os.MkdirAll(store, 0755); err != nil {
+			t.Fatal(err)
+		}
+		writeErg(t, store, "0001-normal-open-ticket.erg",
+			"%erg 0.1\nTitle: Normal\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		writeErg(t, store, "0002-another-open-one.erg",
+			"%erg 0.1\nTitle: Another\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		writeErg(t, store, "0003-work-closed.erg",
+			"%erg 0.1\nTitle: Work\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		tickets, _ := loadErgs(store)
+		errs := folderClosure(tickets)
+		if len(errs) != 1 {
+			t.Fatalf("expected exactly one violation (the basename one), got %d: %v", len(errs), errs)
+		}
+		if !strings.Contains(errs[0], "filename reads as closed") {
+			t.Errorf("expected the 0256 basename violation, got: %v", errs)
+		}
+		if !strings.Contains(errs[0], "0003-work-closed.erg") {
+			t.Errorf("expected the violation to name 0003-work-closed.erg, got: %v", errs)
+		}
+	})
+
+	// Ticket 0285, the level the first fix missed: the tripped component is
+	// the store root ITSELF, not an ancestor above it. Exit criterion 2 says
+	// a store under a *-closed directory passes, and `erg check
+	// /path/dossier-closed` is that store addressed one level up. Keeping the
+	// root's own name in the tested path leaves this case failing.
+	t.Run("a store whose own directory is tripped stays silent", func(t *testing.T) {
+		store := filepath.Join(t.TempDir(), "dossier-closed")
+		if err := os.MkdirAll(store, 0755); err != nil {
+			t.Fatal(err)
+		}
+		writeErg(t, store, "0001-normal-open-ticket.erg",
+			"%erg 0.1\nTitle: Normal\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+		tickets, _ := loadErgs(store)
+		if errs := folderClosure(tickets); len(errs) != 0 {
+			t.Errorf("expected no violations, got: %v", errs)
+		}
+		if tickets[0].IsClosed() {
+			t.Error("the store root's own name is not a placement decision the store made")
+		}
+	})
+}
+
+// TestStoreVerdictIsIndependentOfSpelling is exit criterion 1 stated as the
+// property it actually is: one store, every way of naming it, one verdict.
+// The criterion says "relative or absolute", but the seam that matters is
+// finer -- two RELATIVE spellings disagreed under a fix that kept the store
+// root's basename, because filepath.Base(".") is "." and carries no name.
+// Asserting the criterion only across the rel/abs pair would have missed it.
+func TestStoreVerdictIsIndependentOfSpelling(t *testing.T) {
+	base := t.TempDir()
+	store := filepath.Join(base, "dossier-closed")
+	if err := os.MkdirAll(store, 0755); err != nil {
+		t.Fatal(err)
+	}
+	writeErg(t, store, "0001-normal-open-ticket.erg",
+		"%erg 0.1\nTitle: Normal\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+	writeErg(t, store, "0002-work-closed.erg",
+		"%erg 0.1\nTitle: Work\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+
+	verdict := func(t *testing.T, chdir, arg string) []string {
+		t.Helper()
+		if err := os.Chdir(chdir); err != nil {
+			t.Fatal(err)
+		}
+		tickets, _ := loadErgs(arg)
+		if len(tickets) != 2 {
+			t.Fatalf("%s from %s: expected 2 tickets, got %d", arg, chdir, len(tickets))
+		}
+		return folderClosure(tickets)
+	}
+
+	spellings := []struct{ chdir, arg string }{
+		{store, "."},                // from inside the store
+		{base, "dossier-closed"},    // from its parent, by name
+		{base, "./dossier-closed/"}, // the same, dressed up
+		{cwd, store},                // absolute
+	}
+	want := verdict(t, spellings[0].chdir, spellings[0].arg)
+	// Positive control: the fixture must produce a real verdict to compare.
+	// Without 0002 every spelling would agree on silence and prove nothing.
+	if len(want) != 1 || !strings.Contains(want[0], "filename reads as closed") {
+		t.Fatalf("control: expected exactly the basename violation, got: %v", want)
+	}
+	for _, s := range spellings[1:] {
+		got := verdict(t, s.chdir, s.arg)
+		if len(got) != len(want) {
+			t.Errorf("%q from %q: verdict %v, want %v -- one store must give one verdict",
+				s.arg, s.chdir, got, want)
+			continue
+		}
+		for i := range got {
+			if got[i] != want[i] {
+				t.Errorf("%q from %q: verdict %v, want %v", s.arg, s.chdir, got, want)
+				break
+			}
+		}
+	}
+}
+
+// TestStorePath exercises Erg.StorePath, the boundary ticket 0285 introduced
+// between the store's view of a ticket path and the machine's. Table-driven
+// because the interesting cases are all about WHERE the tested path starts,
+// and that is a property of the (Root, Path) pair alone.
+func TestStorePath(t *testing.T) {
+	tests := []struct {
+		name string
+		root string
+		path string
+		want string
+	}{
+		{
+			name: "ancestors above the root are dropped",
+			root: "/home/u/dossier-closed/tickets",
+			path: "/home/u/dossier-closed/tickets/0001-x.erg",
+			want: "0001-x.erg",
+		},
+		{
+			// Kept explicit because it is the price of the rule: a store
+			// addressed AT its archive has those tickets at its top level.
+			// Ticket 0294 owns the consequence.
+			name: "the root's own name is excluded, archive or not",
+			root: "/home/u/tickets/closed",
+			path: "/home/u/tickets/closed/0001-x.erg",
+			want: "0001-x.erg",
+		},
+		{
+			name: "a nested closed/ inside the store survives",
+			root: "/home/u/tickets",
+			path: "/home/u/tickets/closed/0001-x.erg",
+			want: "closed/0001-x.erg",
+		},
+		{
+			// The three spellings below name one store and must agree. "."
+			// is the one that breaks a rule built on the root's basename.
+			name: "spelled as . from inside the store",
+			root: ".",
+			path: "0001-x.erg",
+			want: "0001-x.erg",
+		},
+		{
+			name: "spelled by name from the parent",
+			root: "dossier-closed",
+			path: "dossier-closed/0001-x.erg",
+			want: "0001-x.erg",
+		},
+		{
+			name: "spelled absolutely",
+			root: "/home/u/dossier-closed",
+			path: "/home/u/dossier-closed/0001-x.erg",
+			want: "0001-x.erg",
+		},
+		{
+			name: "no root means no store context, so the whole path is kept",
+			root: "",
+			path: "/home/u/dossier-closed/tickets/0001-x.erg",
+			want: "/home/u/dossier-closed/tickets/0001-x.erg",
+		},
+		{
+			name: "an empty path stays empty",
+			root: "/home/u/tickets",
+			path: "",
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := Erg{Path: tt.path, Root: tt.root}
+			if got := e.StorePath(); got != tt.want {
+				t.Errorf("StorePath() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestRule14GrandfatherIsAddressingIndependent pins ticket 0285's headline
+// exit criterion on the one parse-time rule that also consults the path.
+// Rule 14 (Title must not end in a status word) grandfathers closed tickets,
+// and read the whole absolute path to decide: under a "*-closed" ancestor the
+// same store was clean addressed absolutely and in violation addressed
+// relatively. The assertion is the EQUALITY of the two verdicts, not either
+// verdict on its own -- that is the criterion, and it is what a fix confined
+// to folderClosure would leave unmet.
+func TestRule14GrandfatherIsAddressingIndependent(t *testing.T) {
+	base := t.TempDir()
+	store := filepath.Join(base, "dossier-closed", "tickets")
+	if err := os.MkdirAll(store, 0755); err != nil {
+		t.Fatal(err)
+	}
+	writeErg(t, store, "0001-make-the-store.erg",
+		"%erg 0.1\nTitle: Make the store ready\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+
+	_, absErrs := loadErgs(store)
+
+	// The relative arm reproduces the ticket exactly: stand inside
+	// dossier-closed and name the store "tickets", so the tripped component
+	// never appears in the path the walk builds.
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(filepath.Join(base, "dossier-closed")); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+	_, relErrs := loadErgs("tickets")
+
+	if len(absErrs) != 1 || len(relErrs) != 1 {
+		t.Fatalf("expected one ticket from each load, got abs=%d rel=%d", len(absErrs), len(relErrs))
+	}
+	if len(absErrs[0]) != len(relErrs[0]) {
+		t.Fatalf("verdict depends on how the store was addressed: abs=%v rel=%v", absErrs[0], relErrs[0])
+	}
+	// Positive control: the rule must actually fire here, or the equality
+	// above is two silences compared with each other.
+	if !errsContain(relErrs[0], "status word 'ready'") {
+		t.Errorf("expected rule 14 to fire on the title, got: %v", relErrs[0])
+	}
+	if !errsContain(absErrs[0], "status word 'ready'") {
+		t.Errorf("rule 14 was grandfathered away by an ancestor above the store root: %v", absErrs[0])
+	}
+}
+
+// TestValidateAgreesWithCheck pins `erg validate FILE` to `erg check DIR` on
+// the same file. Rule 14 consults the path in both, so rooting only the store
+// walk left the pre-commit hook (which runs validate) more lenient than CI
+// (which runs check) on identical content -- a divergence that did not exist
+// before ticket 0285, when both were unbounded and both were wrong.
+//
+// It drives the two cmd* entry points rather than the parse helpers they call.
+// A guard written at the helper level restates the fix instead of exercising
+// it: reverting validate.go's hunk left such a version green.
+func TestValidateAgreesWithCheck(t *testing.T) {
+	for _, ancestor := range []string{"dossier-closed", "dossier-ok"} {
+		t.Run(ancestor, func(t *testing.T) {
+			store := filepath.Join(t.TempDir(), ancestor, "tickets")
+			if err := os.MkdirAll(store, 0755); err != nil {
+				t.Fatal(err)
+			}
+			path := writeErg(t, store, "0001-make-the-store.erg",
+				"%erg 0.1\nTitle: Make the store ready\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+
+			var validateRC, checkRC int
+			outText, errText := captureOutput(t, func() { validateRC = cmdValidate([]string{path}) })
+			validateOut := outText + errText
+			captureOutput(t, func() { checkRC = cmdCheck([]string{store}) })
+
+			if validateRC != checkRC {
+				t.Errorf("erg validate FILE exited %d, erg check DIR exited %d on the same file",
+					validateRC, checkRC)
+			}
+			// Positive control: rule 14 must actually fire under BOTH
+			// ancestors. Without it the equality above compares two
+			// successes and would hold however the grandfather is scoped.
+			if validateRC != 1 {
+				t.Errorf("expected rule 14 to fail validation, got exit %d and output:\n%s",
+					validateRC, validateOut)
+			}
+			if !strings.Contains(validateOut, "status word 'ready'") {
+				t.Errorf("expected the rule 14 message, got:\n%s", validateOut)
+			}
+		})
+	}
 }
 
 // TestStrayGoSource exercises strayGoSource (check.go:68).
