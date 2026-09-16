@@ -56,15 +56,23 @@ func (t *Erg) IsClosed() bool {
 // ticket's own option 2, "test only the components erg itself walked", has no
 // such seam.
 //
-// The cost is real and is tracked as ticket 0294: a store addressed AT its
-// archive has header-closed tickets at its top level, so they draw the
-// "closed ticket not in closed/ directory" rule. It is not a degenerate
-// invocation -- `cd tickets/closed && erg check` reaches it with no argument
-// at all, since the store is auto-discovered and any directory holding .erg
-// files qualifies -- and it is a regression against the pre-0285 behaviour.
-// It is accepted here only because the alternative was worse, and because
-// telling the two cases apart needs a store-root marker rather than a
-// judgement about a directory name. 0294 carries that design question.
+// The cost is a DECLARED NON-GOAL, not an open defect: naming a store at its
+// own closed/ archive is out of scope, arbitrated on ticket 0285 and recorded
+// there. It runs both ways, and the second half is the easier to miss:
+// addressed that way, the store has no closed/ component left in view, so its
+// correctly archived tickets draw the "closed ticket not in closed/ directory"
+// rule AND a genuinely misfiled OPEN ticket sitting there draws nothing -- the
+// same store checked from above reports it.
+//
+// It is not a degenerate invocation: `cd tickets/closed && erg check` reaches
+// it with no argument at all, since the store is auto-discovered and any
+// directory holding .erg files qualifies. It is accepted because the
+// alternative was worse and because telling `tickets/closed` from
+// `dossier-closed` needs a store-root marker rather than a judgement about a
+// directory name. That the two halves pull in opposite directions is the
+// evidence for that last point: suppressing the rules under a closed-reading
+// root fixes the first half and does nothing for the second, which needs that
+// same name to accuse.
 //
 // With no Root there is no store context -- a bare parseErg on one file --
 // so the whole path stays under test. Scoping the check must not disable it.
@@ -286,10 +294,15 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 
 // parseErgBytesIn is parseErgBytes with the store root, threaded so rule 14's
 // closed-ticket grandfather reads the store-relative path. Kept as a separate
-// entry point rather than a wider signature so the callers that have no root
-// to give -- atomicwrite, close and label, each rewriting one file it was
-// handed -- keep the two-argument form. list.go does have one (the sibling
-// module's store) and passes it.
+// entry point rather than a wider signature, so the bytes-holding callers keep
+// the two-argument form. list.go passes a root (the sibling module's store);
+// close and label rewrite one file they were handed and have none.
+//
+// writeTicketAtomic DOES have one in scope -- its own storeRoot parameter,
+// used three lines above the parse -- and deliberately stays unrooted anyway:
+// that parse is the validate-before-replace rail, and widening what the rail
+// counts as an error can refuse a mutation it accepts today. Threading it is a
+// safety-rail decision, so it belongs to whoever revisits that rail.
 func parseErgBytesIn(data []byte, root, path string) (Erg, []string) {
 	parseCount++
 	var errs []string
