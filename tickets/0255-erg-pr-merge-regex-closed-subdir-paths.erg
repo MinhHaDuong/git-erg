@@ -114,3 +114,180 @@ land as a direct edit to `tickets/erg-github`, not a new helper or config
 knob. Recommend the ticket's title and exit criteria be corrected to name
 `tickets/erg-github` (not `erg-pr-merge`) and the portable `grep -iE` + `sed`
 pair (not `grep -oiP`) before this moves to Plan.
+
+## Plan
+
+### Actions
+
+1. `tickets/erg-github`, lines 76-78 (inside `cmd_verify()`). Before:
+
+   ```sh
+   	ids=$(printf '%s\n' "$body" |
+   		grep -iE '^[*]{0,2}ticket:?[*]{0,2}:? *tickets/[0-9]{4}' 2>/dev/null |
+   		sed 's/.*tickets\/\([0-9][0-9][0-9][0-9]\).*/\1/' || true)
+   ```
+
+   After:
+
+   ```sh
+   	ids=$(printf '%s\n' "$body" |
+   		grep -iE '^[*]{0,2}ticket:?[*]{0,2}:? *tickets/(closed/)?[0-9]{4}' 2>/dev/null |
+   		sed 's/.*tickets\/\(closed\/\)\{0,1\}\([0-9][0-9][0-9][0-9]\).*/\2/' || true)
+   ```
+
+   Two changes, both required together (the sed group-index shift is not
+   optional once the grep group is added):
+   - `grep -iE`: insert `(closed/)?` between `tickets/` and `[0-9]{4}`. Plain
+     ERE group + `?` — `grep -E` supports both natively, no portability
+     concern (the file's `-oP` ban is about PCRE-only `-P`/`\K`, not ERE
+     groups).
+   - `sed` (BRE, no `-E`): insert `\(closed\/\)\{0,1\}` as a new *first*
+     capture group before the digit group, and bump the back-reference from
+     `\1` to `\2` since the digit group is now the second group. `\{0,1\}` is
+     the POSIX BRE interval for optional-one, portable where GNU's `\?`
+     shorthand is not — matches the reasoning already recorded in this
+     ticket's Imagine pass and empirically verified there.
+
+   Confirmed empirically in this Plan pass (worktree shell, not just the
+   Imagine pass's copy):
+   ```
+   $ printf '**Ticket:** tickets/closed/0237-foo.erg\n' | grep -iE '...(closed/)?[0-9]{4}' | sed '...\2/'
+   0237
+   $ printf '**Ticket:** tickets/0237-foo.erg\n' | grep -iE '...(closed/)?[0-9]{4}' | sed '...\2/'
+   0237
+   $ printf '**Ticket:** tickets/bogus/0237-foo.erg\n' | grep -iE '...(closed/)?[0-9]{4}' | sed '...\2/'
+   (empty — a subdirectory that is not literally "closed/" still does not match; see antipattern scan below)
+   ```
+
+2. Optional, same edit hunk: the comment at lines 73-75 ("Extract every
+   Ticket: reference... Portable (grep -iE + BRE sed; never GNU-only
+   grep -oP)") does not mention the closed/ tolerance. Add one clause, e.g.
+   "...tolerates an optional tickets/closed/ prefix (ticket 0255)." Not
+   exit-criteria-bearing, but cheap and keeps the comment accurate for the
+   next reader. Do not touch the `skills/merge/erg-pr-merge` cross-reference
+   in that comment — out of scope per the Scope decision above (0282).
+
+3. No other call site reads this pattern. `ticket_is_closed()` (lines 44-58)
+   already globs `tickets/closed/"$id"-*.erg` directly and needs no change —
+   confirmed by reading it in this Plan pass, matching the Imagine pass's
+   note that it "already handles the closed/ subdirectory correctly."
+
+### First test (red step)
+
+Extend the existing harness — `tests/test_erg_github.sh` — do not create a
+new file. It already has the exact fixture this needs: a fake `gh` that
+emits `$GH_FAKE_BODY`, a `mk_ticket` helper, and a `run_verify` wrapper (see
+lines 57-97). `erg_github` is already in the Makefile's `TEST_SUITES` (line
+19 of `Makefile`), so no Makefile change is needed.
+
+`mk_ticket()` (lines 72-84) only ever writes to `$REPO/tickets/$1-x.erg`
+(top-level) — it has no mode for writing into `tickets/closed/`. Add a
+second helper (or a `closed` flag on the existing one) that writes into
+`$REPO/tickets/closed/`, e.g.:
+
+```sh
+mk_closed_ticket() { # id  -- writes into tickets/closed/, no Closed: header needed
+    mkdir -p "$REPO/tickets/closed"
+    f="$REPO/tickets/closed/$1-x.erg"
+    {
+        echo "%erg 0.1"
+        echo "Title: X"
+        echo "Created: 2026-06-02"
+        echo "Author: t"
+        echo ""
+        echo "--- log ---"
+        echo "--- body ---"
+    } > "$f"
+}
+```
+
+Insert after the existing "verify: closed ticket -> PASS" block (after line
+97), before the "open ticket" block:
+
+```sh
+# --- verify: PR body references tickets/closed/NNNN -> PASS via the real
+# ticket_is_closed() check, not the escape hatch (ticket 0255) ---
+mk_closed_ticket 0044
+out=$(run_verify x "**Ticket:** tickets/closed/0044-x.erg" "" 7) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -q "ticket 0044 is closed" && ! echo "$out" | grep -qi "escape hatch"; then
+    pass "verify: tickets/closed/NNNN in PR body resolves via ticket_is_closed, not escape hatch"
+else
+    fail "verify: tickets/closed/NNNN should PASS via ticket_is_closed, not the escape hatch (rc=$rc, out: $out)"
+fi
+```
+
+Against today's code (pre-fix) this fails exactly as the bug predicts: the
+grep on line 77 does not match `tickets/closed/0044` (no digits directly
+after `tickets/`), `$ids` comes back empty, `cmd_verify` takes the
+escape-hatch branch, and the run emits `PASS -- no ticket referenced (escape
+hatch invoked)` — exit 0, but the assertion `grep -q "ticket 0044 is
+closed"` fails and `grep -qi "escape hatch"` succeeds (negated), so the `if`
+is false and the test reports FAIL. That is the red step: it fails today for
+the right reason (escape-hatch misclassification), not for an unrelated one
+(confirmed by re-running the existing suite's untouched assertions mentally
+against the current file — they are unaffected).
+
+### Dependencies
+
+None. This is a self-contained edit to one file plus its own test file; no
+other ticket needs to land first (matches the ticket's own "(expected:
+none)" framing).
+
+### Antipattern scan — tautological tests
+
+- **The new red test above (`tickets/closed/0044` -> PASS via
+  `ticket_is_closed`, not escape hatch).** Catches a wrong implementation:
+  it fails against today's code (regex doesn't match `closed/`), and it
+  would also fail against a naive fix that merely suppresses the
+  escape-hatch message without actually running `ticket_is_closed` (the
+  `grep -q "ticket 0044 is closed"` assertion pins the real PASS message,
+  not just "not escape hatch"). It would NOT fail against a wrong regex
+  that matches *any* subdirectory name, e.g. `tickets/[a-z]+/[0-9]{4}` —
+  that broader pattern also extracts `0044` from `tickets/closed/0044` and
+  passes this test. That gap is real and is closed by the second test below,
+  not by this one alone.
+
+- **Second test, needed to close the gap above: a non-"closed" subdirectory
+  must NOT resolve to a ticket ID.** Add, in the same block:
+
+  ```sh
+  # --- verify: a non-"closed" subdirectory segment does not confuse the
+  # ticket-id extraction (scope check: only closed/ is special, ticket 0255) ---
+  out=$(run_verify x "**Ticket:** tickets/bogus/0044-x.erg" "" 7) && rc=0 || rc=$?
+  if [ "$rc" -eq 0 ] && echo "$out" | grep -qi "escape hatch"; then
+      pass "verify: tickets/bogus/NNNN does not spuriously resolve (falls to escape hatch)"
+  else
+      fail "verify: tickets/bogus/NNNN should fall to escape hatch, not resolve as a ticket ref (rc=$rc, out: $out)"
+  fi
+  ```
+
+  This one PASSES today (unaffected by the bug — `tickets/bogus/0044` never
+  matched the old regex either, so it already falls to the escape hatch) and
+  must keep PASSING after the fix. It is a regression guard, not a red
+  step, but it is exactly what makes the first test non-tautological: a
+  fix scoped to `(closed/)?` specifically (as specified in the Actions
+  above) passes both; a fix that generalizes to any subdirectory
+  (`tickets/[^/]+/[0-9]{4}`) passes the first test but fails this one.
+  Verified empirically in this Plan pass (see the three-way `printf` check
+  under Actions item 1): the proposed `(closed/)?` regex already returns
+  empty for `tickets/bogus/0237`, confirming the fix as specified clears
+  this guard.
+
+- **Existing suite's four untouched assertions (closed top-level, open
+  top-level, no-ref escape hatch, multiple refs)** are regression guards
+  for behavior the fix must not disturb, not new coverage for this bug —
+  correctly not claimed as the red step.
+
+### Docs / other-suite impact
+
+- `tests/test_docs.sh`: grepped for `erg-github`/`erg_github` — no hits.
+  It does not enumerate `cmd_verify` internals or section-count anything
+  tied to this script; no update needed.
+- `README.md` lines 103-111 (`## Forge layer: erg-github`) describe the two
+  verbs at the interface level ("fails a PR that references a still-open
+  ticket") and do not describe the regex internals or the `closed/`
+  subdirectory case; no update needed — the external contract is unchanged,
+  only a previously-misclassified input now resolves correctly.
+- `Makefile` `TEST_SUITES` (line 19): `erg_github` is already listed: no
+  new entry needed since the fix extends `tests/test_erg_github.sh` in
+  place rather than adding a new test file.

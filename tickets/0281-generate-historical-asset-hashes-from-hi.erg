@@ -216,3 +216,188 @@ Recommendation: keep Actions 1, 3, 4; narrow Action 2 to `.ergrc` +
 `AGENTS.md` only, with a one-line note on why `spec-erg-v1.md` /
 `integration.md` are out of scope (orphan-only, no install/upgrade path
 exists for them today).
+
+## Plan
+
+### Actions (Action 3 first — it is the load-bearing deliverable)
+
+1. **`src/go/manifest.go:184` `assetDriftWarnings`** — stop returning `nil`
+   outright when `stamps == nil` (manifest absent or malformed). Instead, for
+   each `rel` in `initAssetPaths` (`init.go:10-13`, i.e. `.ergrc`/`AGENTS.md`
+   only — the same two-asset scope 0278's Imagine pass already narrowed
+   Action 2 to): read the on-disk file; if it exists and its SHA-256 differs
+   from the currently embedded content, append one warning naming the asset
+   and a new constant `assetStamplessSignal`. If the file is absent, or its
+   content matches the embedded copy exactly, emit nothing for that asset —
+   this preserves the existing "a hand-maintained store that never touched
+   erg's asset management is never nagged" property the current doc comment
+   states (a store with no divergence, or no file at all, has nothing to
+   report). This is the root-cause fix: `assetDriftWarnings` is the single
+   function `corpusWarnings` (`check.go:173`) calls, and `corpusWarnings` is
+   itself called from both `cmdCheck` (`check.go:251`) and `cmdInit`'s
+   chained post-init check (`init.go:262`) — fixing it here covers both
+   channels at once.
+2. **New constant, alongside `assetDriftSignal` (`manifest.go:24`)** —
+   `assetStamplessSignal`, a stable substring (matching the existing
+   producer/consumer-share-a-literal pattern documented on
+   `assetDriftSignal`) such as `"no provenance manifest -- cannot tell
+   upgrade from local edit"`. Message wording should point at the remedy:
+   `"NOTE %s: no .erg-assets stamp -- cannot tell whether this is a clean
+   upgrade or a local edit; run 'erg init' to find out (existing edits are
+   never overwritten without --force)"`.
+3. **`src/go/update.go:226`** — the post-swap hint's `os.Stat(manifestName)`
+   gate currently skips the re-exec'd `erg check` entirely when no manifest
+   exists, so the third silent channel never even asks. Drop the `os.Stat`
+   pre-check (or loosen it to "ticketDir exists") and always re-exec `self
+   check ticketDir` after a binary swap; then check the combined output for
+   *either* `assetDriftSignal` or `assetStamplessSignal` (two `strings.
+   Contains` checks, two distinct follow-up print lines — "run erg init to
+   refresh" for drift, "run erg init to establish provenance" for
+   stampless). This makes `erg update` share the exact same detection logic
+   as `erg check` instead of re-deciding visibility with its own gate.
+4. **`src/go/manifest.go:132-141`** (dormancy note above
+   `extraHistoricalHashes`) — rewrite once Actions 5-6 below land: state that
+   the table is now load-bearing for stampless stores at a known shipped
+   hash (chemin-de-voix's case), that it is generated from git history (not
+   hand-typed), and restate the existing cost-of-a-wrong-entry warning
+   unchanged (that hazard is created by populating the table, not removed by
+   it — Priority note in this ticket's body).
+5. **`src/go/manifest.go:142-144` `extraHistoricalHashes`** — populate from
+   git history for `.ergrc` and `AGENTS.md` only (per the Imagine pass's
+   Action 2 narrowing — `spec-erg-v1.md`/`integration.md` are
+   `orphanAssetPaths`, `init.go:28`, and never reach `isCleanUpgrade`). Do
+   this by writing the generation *test* (below), not a hand-typed literal —
+   run it, take its diff as the committed table content, commit the result.
+6. **New Go test, sibling to `manifest_test.go`** — a
+   `TestExtraHistoricalHashesMatchesHistory` that shells out to `git log
+   --follow -- src/go/assets/.ergrc` and `src/go/assets/AGENTS.md`, computes
+   `sha256hex` of `git show <rev>:<path>` for each revision, and fails with
+   a diff against the committed `extraHistoricalHashes` map when a shipped
+   revision is missing (path A: real coverage gap) or when a committed entry
+   matches no real revision (path C: a fabricated/typo'd hash — the exact
+   defect Action 5 must never introduce). This is the "computed target,
+   committed literal, CI-verified drift" shape of `regen-assets` +
+   `test_selfcoherence.sh`, applied to a table instead of a file copy — no
+   new `go:generate` convention, `git` is already a CI/dev-checkout
+   dependency (`test_selfcoherence.sh` assumes the same).
+
+### First test (red step)
+
+New test in `src/go/manifest_test.go`:
+`TestAssetDriftWarningsReportsStamplessDivergence`.
+
+- Build a `t.TempDir()` with `tickets/.ergrc` containing content that is
+  **not** the current embedded content (e.g. `"OLD SHIPPED ERGRC -- a
+  pristine prior release\n"`, following the existing fixture idiom in
+  `TestInstallAssetsHistoricalUpgrade`) and deliberately write **no**
+  `.erg-assets` manifest.
+- Call `assetDriftWarnings(dir)` directly (same call pattern as the existing
+  unit tests — no shell-out needed for the red step).
+- Assert on **message content**, not a count or exit code:
+  ```go
+  found := false
+  for _, w := range warnings {
+      if strings.Contains(w, "no .erg-assets stamp") { // assetStamplessSignal substring
+          found = true
+      }
+  }
+  if !found {
+      t.Errorf("expected a stampless-store warning naming .ergrc, got %v", warnings)
+  }
+  ```
+- **Today this fails** because `assetDriftWarnings` (`manifest.go:184-208`)
+  returns `nil` the moment `stamps == nil` (line ~193-195) — `warnings` is
+  empty, the loop never finds the substring, `t.Errorf` fires. This is the
+  silence the ticket is about: exit code / return value is `nil` either way
+  before and after a broken fix, so only a content assertion catches the
+  regression the ticket cares about.
+
+A second, integration-level test extends `tests/test_check.sh` (existing
+suite in `TEST_SUITES`, no new suite name needed) with a fixture repo whose
+`tickets/.ergrc` is old-shipped-content with no `.erg-assets`, asserting
+`erg check`'s stderr contains the same substring — this is the end-to-end
+proof the unit test's fix actually surfaces on the CLI channel a human or
+agent reads, but the unit test above is the one to write and watch fail
+first.
+
+### Dependencies on 0279
+
+0279 changes `isCleanUpgrade`'s signature (adding a stamp-date-vs-build-date
+direction check) and extends `parseManifest`/`readManifestFile` to expose the
+stamp's `rev:`/`date:` header fields, not just the `sha256:` asset lines
+(0279's own Imagine pass: "`parseManifest`... only extracts lines matching
+the `sha256:` asset pattern — the `rev:`/`date:` header lines are silently
+skipped today"). This ticket's plan assumes:
+
+- `readManifestFile`/`readManifest` will return *something* that is `nil` (or
+  equivalently absent) exactly when today's manifest-missing-or-malformed
+  case holds — Action 1 above keys off that nil-ness to decide when to run
+  the stampless scan. If 0279 wraps the return in a struct (`{Hashes
+  map[string]string; Date string}` or similar) instead of returning a bare
+  map, Action 1's `stamps == nil` check becomes `stamps == nil` on the
+  wrapper or a field check on it — mechanical, not a redesign.
+- `isCleanUpgrade`'s added date parameter does not change Action 1's logic at
+  all: Action 1 only needs "does a stamp exist," never calls `isCleanUpgrade`
+  itself, and only compares on-disk-vs-embedded hashes directly. It stays
+  robust to 0279's exact new parameter list.
+- If 0279's shape differs enough that `assetDriftWarnings`'s existing
+  `stamps := readManifestFile(...)` call site no longer compiles as-is, that
+  is expected and mechanical to fix at rebase time — not a reason to
+  resequence.
+
+### Antipattern scan — tautological tests
+
+- **`TestAssetDriftWarningsReportsStamplessDivergence` (Action 1's test):**
+  catches a WRONG implementation. A no-op or partial fix (e.g. one that
+  fixes `erg check`'s direct call but forgets `corpusWarnings` is also
+  chained from `cmdInit`, or one that emits the warning unconditionally
+  rather than gating on actual divergence) is caught because the assertion
+  is on the literal substring, not on warning count — a implementation that
+  emits a differently-worded message, or none at all, fails the test exactly
+  as today's code does.
+- **Required positive control, confirmed included:** a sibling case in the
+  same test function (or an adjacent `t.Run`) asserts the negative —
+  `.ergrc` on disk **exactly matching** the current embedded content, still
+  no manifest, must produce **zero** stampless warnings for `.ergrc`. Without
+  this arm, a broken fix that warns unconditionally on "no manifest" (ignoring
+  divergence entirely) would pass the red-step test and prove nothing about
+  gating on real drift — this is the same shape of tautology risk the ticket
+  itself calls out for the table ("a fixture at a known shipped hash with no
+  stamp must currently fail to upgrade; if it upgrades, the test is not
+  exercising the fallback and proves nothing"). Applied to the table
+  (Action 6's `TestInstallAssetsHistoricalUpgrade`-style fixture once
+  `extraHistoricalHashes` is populated): a fixture at a **known shipped**
+  historical hash with no stamp must upgrade cleanly (`erg init` refreshes,
+  exit 0) — run this against **pre-Action-5 code** (empty table) first and
+  confirm it currently fails to upgrade (falls to "preserve", exit 2); only
+  then does populating the table and watching it flip to a clean upgrade
+  prove the table (not some other code path) did the work. Both controls are
+  planned, not optional.
+- **`TestExtraHistoricalHashesMatchesHistory` (Action 6):** catches both path
+  A (missing revision) and path C (fabricated entry) by construction, since
+  it diffs the committed table against independently recomputed hashes from
+  `git log` — it cannot be satisfied by an implementation that merely
+  "looks right"; it requires the table to be exactly the recomputed set.
+
+### Scope recommendation (flagged for the raid orchestrator, not decided here)
+
+Given the priority inversion already settled in this ticket's Priority
+note — Action 3 is load-bearing, Actions 1-2/5-6 (the table) are the
+optional, lower-value-but-cheap part — **recommend splitting**: land Action
+3 (stampless visibility: manifest.go's `assetDriftWarnings` change, the new
+constant, update.go's shared-detection change, plus the two tests in
+"First test") as its own PR first, closing this ticket's most urgent
+exit-criterion ("a store with no manifest is told so"). Move Actions 1-2/4-6
+(the generated table + dormancy-note rewrite) to a child ticket, since they
+are independently shippable, carry their own dedicated test
+(`TestExtraHistoricalHashesMatchesHistory`), and — per the Priority note —
+are the part that *creates* path C's hazard rather than removing an existing
+one, so they benefit from separate review attention rather than being
+reviewed in the shadow of the visibility fix. Trade-off: two PRs means two
+rebase/CI cycles instead of one, and the dormancy-note rewrite (Action 4)
+reads slightly awkwardly if written before the table exists to describe —
+acceptable, since Action 4 can note "once Action 1/2 lands" and be finished
+in the second PR. Keeping it whole avoids that awkwardness and the extra
+PR-cycle cost, at the price of bundling a load-bearing fix with a
+lower-priority one in the same review. The raid orchestrator should decide;
+this plan is written so either split point works without rework.

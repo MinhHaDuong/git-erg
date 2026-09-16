@@ -224,3 +224,317 @@ Verdict: **LIVE**, and the ticket's own repro (fixture rev `8331a94`
 the code does: `isCleanUpgrade` returns true on hash equality alone, so the
 older binary's embedded copy overwrites the newer on-disk asset, and
 `assetDriftWarnings`/`init.go:187` narrate it as an upgrade throughout.
+
+## Plan
+
+### Actions
+
+1. **`manifest.go`, new manifest-date reader (sibling accessor, per the
+   Imagine finding — `parseManifest` today only extracts `" sha256:"` lines
+   and silently drops `rev:`/`date:`).** Add, near `parseManifest`
+   (manifest.go:105-126):
+   ```go
+   // parseManifestDate extracts the "date: " header line from manifest bytes,
+   // mirroring parseManifest's line-scan style. Returns "" when absent —
+   // including a manifest from an erg predating the date: field.
+   func parseManifestDate(data []byte) string {
+       const prefix = "date:"
+       for _, line := range strings.Split(string(data), "\n") {
+           line = strings.TrimSpace(line)
+           if strings.HasPrefix(line, prefix) {
+               return strings.TrimSpace(strings.TrimPrefix(line, prefix))
+           }
+       }
+       return ""
+   }
+
+   // manifestDateFile reads the date: field from the manifest at path ("" if
+   // absent/unreadable). Sibling of readManifestFile, same absence contract.
+   func manifestDateFile(path string) string {
+       data, err := os.ReadFile(path)
+       if err != nil {
+           return ""
+       }
+       return parseManifestDate(data)
+   }
+
+   // manifestDate reads root's tickets/.erg-assets date: field. Sibling of
+   // readManifest.
+   func manifestDate(root string) string {
+       return manifestDateFile(filepath.Join(root, "tickets", manifestName))
+   }
+   ```
+   This is additive — `parseManifest`, `readManifest`, `readManifestFile` and
+   their existing callers/tests (manifest_test.go `TestReadManifest`) are
+   untouched. `buildManifest` (manifest.go:57-59) writes the literal string
+   `"unknown"` when `buildDate` is empty, so `manifestDate` can return
+   `"unknown"` — treat that as "no date" everywhere below (Action 5).
+
+2. **`manifest.go`, new direction predicate.** Add next to `isCleanUpgrade`:
+   ```go
+   // isRollback reports whether stampDate is strictly newer than
+   // runningDate — the running binary predates the last init. Plain lexical
+   // comparison on the ISO-8601 buildDate format (version.go:237 precedent,
+   // Makefile:35 `date -u +%Y-%m-%dT%H:%M:%SZ`) — no time.Parse. Either side
+   // missing or "unknown" means no provenance to compare, so it is NOT a
+   // rollback: falls through to today's behaviour (ticket's dateless-stamp
+   // invariant).
+   func isRollback(stampDate, runningDate string) bool {
+       if stampDate == "" || stampDate == "unknown" || runningDate == "" {
+           return false
+       }
+       return stampDate > runningDate
+   }
+   ```
+
+3. **`manifest.go:163-173`, `isCleanUpgrade` signature/logic change.** Add
+   two string params and consult `isRollback` only on the stamp-match branch
+   (history-hash branch is untouched — it already requires exact equality to
+   a *known shipped* hash, so a rollback there would need a `known` entry
+   from a genuinely newer release, out of scope for this stamp-based fix):
+   ```go
+   func isCleanUpgrade(diskHash, stampedHash string, known []string, stampDate, runningDate string) bool {
+       if stampedHash != "" {
+           if diskHash != stampedHash {
+               return false
+           }
+           return !isRollback(stampDate, runningDate)
+       }
+       for _, h := range known {
+           if diskHash == h {
+               return true
+           }
+       }
+       return false
+   }
+   ```
+   Call site `init.go:150`:
+   ```go
+   if !isCleanUpgrade(diskHash, stamps[name], knownAssetHashes(rel), manifestDate(root), buildDate) {
+       preserve = true
+   }
+   ```
+   This changes `isCleanUpgrade`'s signature, so every existing call in
+   `manifest_test.go` `TestIsCleanUpgrade` (6 cases, lines 29-36) needs the
+   two new trailing args — pass `("", "")` for all of them (no date recorded
+   ⇒ behaviour must be byte-identical to today, which is itself a regression
+   assertion worth keeping explicit rather than silently satisfied).
+
+4. **`manifest.go:24`, `assetDriftSignal` direction split.** Keep the
+   existing constant (its exact string is `update.go:228`'s grep target —
+   do not change it) and add a sibling:
+   ```go
+   const assetDriftSignal = "differs from the .erg-assets stamp (binary upgraded since last init) -- run 'erg init' to refresh"
+   const assetRollbackSignal = "differs from the .erg-assets stamp (this binary predates the last init) -- run 'erg update' first, then 'erg init'"
+   ```
+   `assetDriftWarnings` (manifest.go:184-208): compute `stampDate :=
+   manifestDateFile(filepath.Join(dir, manifestName))` once, then per asset:
+   ```go
+   if stamp != sha256hex([]byte(content)) {
+       signal := assetDriftSignal
+       if isRollback(stampDate, buildDate) {
+           signal = assetRollbackSignal
+       }
+       warnings = append(warnings, fmt.Sprintf("WARN %s: embedded version %s", name, signal))
+   }
+   ```
+   (The `-- run 'erg init' to refresh` suffix moves inside each constant so
+   the rollback message can name its own remedy — Action 3 of the ticket's
+   own Actions section.)
+
+5. **`init.go:160`, the preserve-time stderr message.** Today it
+   unconditionally says `"has local edits -- preserving (run with --force to
+   overwrite)"`, which is false for a rollback (nothing was locally edited).
+   Branch it on the same `isRollback` call used in step 3's `preserve`
+   decision — reuse the boolean rather than recomputing:
+   ```go
+   if preserve {
+       skipped++
+       msg := "has local edits -- preserving (run with --force to overwrite)"
+       if isRollback(stampDate, buildDate) {
+           msg = "is newer than this binary -- preserving (run 'erg update' first, then 'erg init' --force to override)"
+       }
+       ...
+       fmt.Fprintf(os.Stderr, "init: %s %s\n", rel, msg)
+       continue
+   }
+   ```
+   Requires hoisting `stampDate := manifestDate(root)` once near
+   `installAssets`'s existing `stamps := readManifest(root)` (init.go:117),
+   not per-asset.
+
+6. **`init.go:165-188`, `installAssets` "downgraded" vs "refreshed" label
+   (ticket Action 4, the `--force` path).** When `refuseDiverged` is false
+   (`erg init --force`, `erg migrate`), `preserve` is never set, so a
+   rollback silently overwrites today. Label the outcome using the same
+   `isRollback(stampDate, buildDate)`:
+   ```go
+   if exists {
+       refreshed++
+   } else {
+       created++
+   }
+   verb, pastVerb := "would refresh", "refreshed"
+   if exists && isRollback(stampDate, buildDate) {
+       verb, pastVerb = "would downgrade", "downgraded"
+   }
+   if dryRun {
+       v := "would create "
+       if exists {
+           v = verb
+       }
+       fmt.Printf("  %s  %s\n", v, rel)
+       continue
+   }
+   ...
+   if exists {
+       fmt.Fprintf(os.Stderr, "init: %s %s (git restore -- %s to undo)\n", pastVerb, rel, rel)
+   }
+   ```
+   `migrateAssetPaths`'s caller (`erg migrate`) is unaffected in practice —
+   `AGENTS.md` there is force-overwritten unconditionally by design
+   (init.go:16-19 comment), and if its stamp is ever a rollback the label
+   now correctly says `downgraded` instead of misreporting `refreshed`; no
+   behaviour change, only the printed verb.
+   `stampDate` here is the *one* value read at the top of `installAssets`
+   (step 5), reused for both the preserve-message branch and this label —
+   not recomputed per asset.
+
+7. **Dateless-stamp fallback (ticket Action 5).** No dedicated code path
+   needed — it falls out of `isRollback`'s guard clause (`stampDate == "" ||
+   stampDate == "unknown"`) added in step 2. Call out explicitly in review:
+   a manifest from a pre-`date:` erg, or one whose `date:` line is absent for
+   any other reason, makes `manifestDate`/`manifestDateFile` return `""`,
+   which routes every call site back to the pre-fix behaviour.
+
+### First test (red step)
+
+All new/changed tests live in `src/go/manifest_test.go` (existing convention
+— `installAssets`/`isCleanUpgrade` are tested there; there is no
+`init_test.go` and none should be added for this).
+
+Add a new test function, e.g. `TestInstallAssetsRollbackPreserved`, built the
+same way as the existing `TestInstallAssetsHistoricalUpgrade` /
+`TestInstallAssetsUnknownPreserved` (t.TempDir, write a `.erg-assets`
+manifest via `writeManifestFile`, write a matching on-disk asset, call
+`installAssets` directly), covering four sub-cases as `t.Run` arms:
+
+- **`t.Run("newer stamp -> preserved", ...)` — THE RED STEP.** Fixture:
+  `.erg-assets` with `date: 2099-01-01T00:00:00Z` (or any date lexically
+  greater than the test binary's `buildDate`, which in `go test` is `""` —
+  so set `buildDate = "2020-01-01T00:00:00Z"` for the test, `t.Cleanup` to
+  restore `""`) and an asset hash matching the stamped hash exactly. Call
+  `installAssets(root, initAssetPaths, true, false)` and assert `skipped ==
+  1` and the on-disk content is **unchanged** (still the "old" content, not
+  overwritten with the embedded one). **Against today's code this fails**:
+  `isCleanUpgrade` ignores date entirely, sees `diskHash == stampedHash`,
+  returns `true`, `installAssets` overwrites and reports `refreshed == 1`,
+  `skipped == 0` — run this test before touching `manifest.go`/`init.go` and
+  confirm the failure, per the ticket's own instruction ("run it and watch
+  it fail before the fix, or it proves nothing"). This is the literal
+  `installAssets`-level proxy for `cmdInit`'s `skipped > 0 => return 2`
+  (init.go:251-253) — `cmdInit` itself is not separately tested anywhere in
+  the codebase today (grep confirms no `init_test.go`, no exec-the-binary
+  exit-code test exists for `init`), so testing at the `installAssets`
+  return-value level matches existing convention rather than introducing a
+  new test shape.
+- **`t.Run("older stamp -> upgraded", ...)` — the positive control (see
+  Antipattern scan below).** Same fixture shape, `date:` lexically *older*
+  than `buildDate` (e.g. stamp `"2020-01-01T00:00:00Z"`, binary
+  `"2026-01-01T00:00:00Z"`), disk asset matching the stamped hash. Assert
+  `refreshed == 1`, `skipped == 0`, on-disk content becomes the embedded
+  content. Must pass both before and after the fix.
+- **`t.Run("dateless stamp -> unchanged behaviour", ...)`.** Manifest with no
+  `date:` line at all (or a manifest written by the pre-existing
+  `writeManifestFile` helper with only `assets:` lines). Assert the outcome
+  is identical to `TestInstallAssetsHistoricalUpgrade`'s existing case
+  (clean upgrade proceeds) — this is a straight regression guard, not new
+  behaviour.
+- **`t.Run("rollback message names the remedy, not upgraded", ...)`** — this
+  one asserts the *text*, not counts, so it needs `installAssets` (or, more
+  directly, `assetDriftWarnings`) to be driven with stderr captured, or
+  simpler: add a narrow `TestAssetDriftWarningsRollbackDirection` calling
+  `assetDriftWarnings(dir)` directly on a fixture with a newer stamp than
+  `buildDate` and asserting the returned warning string contains
+  `"erg update"` and does **not** contain the substring `"upgraded"`. This
+  is the ticket's fourth arm ("message rather than exit code") and is
+  invisible to any exit-code-only assertion — keep it as its own test, not
+  folded into the counts-based `installAssets` cases.
+
+A fifth, smaller test worth adding directly in the same file:
+`TestIsRollback` (pure-function table test, same style as
+`TestIsCleanUpgrade`) covering: newer/older/equal dates, empty stamp date,
+empty running date, and `stampDate == "unknown"` — this is the cheapest
+place to lock in the lexical-compare contract before wiring it into
+`isCleanUpgrade`/`assetDriftWarnings`/`installAssets`.
+
+### Dependencies
+
+None — this is wave 1. The fix is confined to `manifest.go` + `init.go` (one
+new call-site argument in each of `installAssets` and `assetDriftWarnings`)
+and does not touch `update.go` beyond relying on `assetDriftSignal`'s string
+value staying fixed (confirmed unchanged in Action 4 above). No ordering
+constraint against 0255, 0256, 0278 in this raid wave.
+
+### Antipattern scan — tautological tests
+
+- **"newer stamp -> preserved" (the red step):** catches a WRONG
+  implementation (today's direction-blind `isCleanUpgrade`) — confirmed
+  failing pre-fix by construction (traced above). It would **not** by itself
+  catch an implementation that refuses *all* upgrades regardless of
+  direction (e.g. `isCleanUpgrade` returns `false` whenever both a stamp
+  date and a running date are present) — that broken implementation would
+  make this test pass for the wrong reason.
+- **"older stamp -> upgraded" (the positive control) is therefore
+  load-bearing, exactly as the ticket says**, and it is present in the plan
+  above as its own `t.Run` arm. Verified it would actually fail against an
+  inverted or over-eager direction check: if someone flips `isRollback`'s
+  comparison operator (`<` instead of `>`) or drops the guard and refuses on
+  *any* date mismatch, the older-stamp case now (wrongly) sets `preserve =
+  true`, so `skipped` becomes `1` instead of `0` and the assertion
+  `skipped == 0` fails. Confirmed load-bearing, not decorative.
+- **"dateless stamp -> unchanged"** catches a DIFFERENT-implementation risk
+  more than a wrong one on its own (an implementation that treats
+  `stampDate == ""` as "very old" or "very new" instead of "unknown" would
+  fail it, which is the correct thing for it to catch) — kept as a named
+  arm because Action 5 is explicit ticket-level scope, not because it is a
+  strong discriminator by itself.
+- **"message names the remedy, not upgraded"** catches a WRONG
+  implementation that gets the exit code right (arm 1 passes) but leaves
+  `assetDriftSignal`'s text unchanged — this is precisely defect 1 from the
+  ticket's Context (the warning asserting a direction it never checked), and
+  no count-based assertion anywhere else in this plan would catch a
+  regression here. Necessary, not redundant with arm 1.
+- **`TestIsRollback`** is a pure-function unit test of a two-line
+  comparison; by itself it is nearly tautological (it will pass for any
+  implementation that literally does `stampDate > runningDate` with the
+  stated guards) but it is not redundant: it isolates the lexical-compare
+  contract from the three call sites that consume it, so a future edit to
+  `isRollback` alone gets a fast, precise failure instead of only a
+  downstream symptom in `installAssets`.
+
+### Exit-code contract check
+
+`grep -n "return 2" src/go/*.go` finds exactly two occurrences, both in
+`init.go` (`cmdInit`, lines 245 and 252), both gated on `skipped > 0` from
+`installAssets`'s return values, and both documented identically: "2 local
+edits were preserved and skipped" (init.go:88-90, and `helpInit`'s
+user-facing text). No other command in the codebase returns 2 (`check.go`
+explicitly documents "check never returns 2"; `validate.go` only returns 0/1).
+
+**Exit 2 is the right code for the rollback-preserve case, and no new code
+is needed to wire it** — this plan's step 3 makes `isCleanUpgrade` return
+`false` for a rollback, which routes through the *existing* `preserve = true`
+→ `skipped++` → `cmdInit`'s `skipped > 0 => return 2` path unchanged. The
+only correctness question is semantic, not mechanical: exit 2 is currently
+documented as "local edits were preserved," and a rollback-preserve is not a
+local edit. Recommend leaving the exit code at 2 (it is already the
+"something needs your attention before this can proceed automatically, rerun
+with --force to override" code, which is exactly the rollback case too) but
+tightening `helpInit`'s exit-code prose (init.go:88-90) to cover both reasons
+a file can be preserved, e.g. "2 a file was preserved because it either has
+local edits or is newer than this binary (rerun with --force to override)" —
+a doc-only change, not a new exit code, and in scope for this PR since the
+ticket's exit criteria list "No message asserts an ordering the code has not
+established" and the current doc string implicitly does (it names only the
+local-edit reason).

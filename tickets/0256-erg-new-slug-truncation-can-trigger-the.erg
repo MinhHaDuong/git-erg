@@ -117,3 +117,198 @@ splitting would add ticket-admin overhead disproportionate to the work. If
 executor time is constrained, (a) is the part that must not slip; (b) is the
 part that could safely become a fast-follow without leaving the original
 defect unfixed.
+
+## Plan
+
+**Premise reconfirmed.** `nextID` always yields a 4-digit numeric prefix
+(`erg new`'s `filename := fmt.Sprintf("%s-%s.erg", id, slug)`, `new.go:159`),
+so a generated basename component is always `digits-slug`. `pathIsClosed`
+(`erg.go:46-67`) needs a component to *start* with `closed` for the
+equality/prefix branches; a digit prefix forecloses both. Only
+`strings.HasSuffix(lower, "-closed")` is reachable from `erg new`. Confirmed
+live, not assumed.
+
+### Actions
+
+**(a) `src/go/new.go`**
+
+1. Replace the body of `slugify` (`new.go:18-30`) to call a new helper after
+   the existing truncate+trim, before the `s == ""` fallback:
+
+   ```go
+   func slugify(title string) string {
+       s := strings.ToLower(title)
+       s = nonAlphaNum.ReplaceAllString(s, "-")
+       s = strings.Trim(s, "-")
+       if len(s) > 40 {
+           s = s[:40]
+           s = strings.TrimRight(s, "-")
+       }
+       s = stripClosedSuffix(s)
+       if s == "" {
+           s = "untitled"
+       }
+       return s
+   }
+
+   // stripClosedSuffix repeatedly drops the trailing hyphen-segment of s as
+   // long as a generated "NNNN-"+s basename would trip pathIsClosed's path
+   // component test (spec-erg-v1.md "Closed / not-closed criterion"). Only
+   // the trailing "-closed" suffix branch is reachable from a generated
+   // slug -- the numeric ID prefix forecloses the equality and
+   // "closed-"/"closed." prefix branches (ticket 0256) -- but this calls
+   // the real predicate rather than hardcoding the suffix string, so it
+   // stays correct if pathIsClosed's rule set ever changes.
+   func stripClosedSuffix(s string) string {
+       for s != "" && pathIsClosed("0000-"+s+".erg") {
+           idx := strings.LastIndex(s, "-")
+           if idx < 0 {
+               return ""
+           }
+           s = strings.TrimRight(s[:idx], "-")
+       }
+       return s
+   }
+   ```
+
+   Placed in `new.go` (not `erg.go`) since it is `erg new`-specific
+   slug-shaping, not a general path predicate.
+
+**(b) `src/go/check.go`**
+
+2. Extend `folderClosure` (`check.go:17-34`) with a third check inside the
+   existing per-ticket loop, after the two existing `if` blocks:
+
+   ```go
+   // Basename-only closure (ticket 0256): a ticket whose basename alone
+   // trips pathIsClosed (hand-crafted or truncation-produced
+   // NNNN-*-closed.erg) but carries no Closed: header disagrees exactly
+   // the way the placement/header check above forbids -- same class of
+   // hard violation, at error level (spec-erg-v1.md "Closed / not-closed
+   // criterion"; author decision 2026-09-16, ticket 0256 Severity
+   // decision). inClosedDir already covers every directory-closed ticket
+   // (any depth, since pathIsClosed walks all components of
+   // filepath.Dir(t.Path)), so basenameClosed can only be true when
+   // pathIsClosed(t.Path) fires SOLELY because of the basename.
+   basenameClosed := !inClosedDir && pathIsClosed(t.Path)
+   if basenameClosed && !hasClosed {
+       errs = append(errs, fmt.Sprintf(
+           "%s: filename matches the closed-ticket pattern (spec 'Closed / not-closed criterion') but has no Closed: header -- rename the file or add 'Closed: <reason>'",
+           t.Filename()))
+   }
+   ```
+
+   `basenameClosed && hasClosed` needs no new branch: it is already caught
+   by the existing `!inClosedDir && hasClosed` error two lines above
+   ("closed ticket not in closed/ directory"), so no double-reporting.
+   `folderClosure`'s return already feeds `errors` (not `corpusWarnings`)
+   via `validateCorpus` (`validate.go:120`), so this lands at error/exit-1
+   automatically -- no change needed to `validate.go` or `cmdCheck`.
+
+3. Optional doc hygiene (non-blocking): extend the "Folder/header closure"
+   bullet in `helpCheck` (`check.go:193-195`) to mention the basename-only
+   case explicitly, so `erg check --help` matches the new behavior.
+
+### First test (red step)
+
+**(a) `src/go/new_test.go`**
+
+- Add to `TestSlugify`'s table (the historical live case from this ticket's
+  Problem section):
+  `{"erg-pr-merge regex misses tickets/closed/NNNN paths", "erg-pr-merge-regex-misses-tickets"}`.
+  Today: `slugify` returns `"erg-pr-merge-regex-misses-tickets-closed"` (40
+  chars, unmodified) -- test fails, red.
+- Add `TestSlugifyNeverProducesClosedBasename(t *testing.T)`: a table of
+  adversarial titles including (i) the historical case above and (ii) a
+  constructed exact-boundary case, `strings.Repeat("x", 32) + "-closed-extra-words-here-padding-more"`
+  (kebab-cases to itself; 40-char truncation lands on `x*32 + "-closed"`
+  after `TrimRight`, mirroring the original 0255 mechanism exactly rather
+  than pinning one hardcoded string). For each title, assert
+  `!pathIsClosed("0000-" + slugify(title) + ".erg")`. Today: both cases fail
+  (pathIsClosed is true), red.
+
+**(b) `src/go/erg_test.go`** (in `TestFolderClosure`, alongside the existing
+subtests, using the `writeErg` helper already in that file)
+
+- `"basename-only closed ticket without header errors"`: top-level file
+  `0001-work-closed.erg`, headers with no `Closed:` line. Assert
+  `folderClosure` returns a non-empty slice whose message contains
+  `"closed-ticket pattern"`. Today: `folderClosure` returns `nil` -- red.
+- `"basename-only closed ticket WITH header does not double-report"`:
+  top-level file `0001-work-closed.erg` WITH `Closed: done`. Assert exactly
+  one error and that it is the existing "closed ticket not in closed/
+  directory" message, not two errors. (Passes today only by accident,
+  since neither branch exists yet for the new message -- becomes a real
+  assertion once (b) lands.)
+
+### Dependencies
+
+None. (a) and (b) touch disjoint files (`new.go`+`new_test.go` vs.
+`check.go`+`erg_test.go`) and share no state; either can be implemented and
+tested independently, in either order, inside this one ticket.
+
+### Antipattern scan -- tautological tests
+
+- **(a):** Would the test pass against a `slugify` that just truncates to 39
+  chars instead of guarding? No. Traced by hand: the historical case's
+  40-char slug is `...-closed` with the final `d` at position 40; cutting at
+  39 drops only that `d`, producing `...-close` (fails to end in
+  `-closed`, so it would *accidentally* look fixed) -- but the constructed
+  boundary case is built precisely to defeat that accident: `x*32 +
+  "-closed"` is only 39 characters long, so a 39-char cut still keeps the
+  whole `-closed` suffix intact. A truncate-to-39 impl still fails
+  `TestSlugifyNeverProducesClosedBasename`. Not tautological.
+  Additionally, asserting through `pathIsClosed` itself (not a literal
+  `strings.HasSuffix(s, "-closed")` string check in the test) means the
+  test verifies the real semantic property, not an implementation detail --
+  it would also catch a future regression if `pathIsClosed`'s rule set
+  changes.
+- **(b):** Would the test pass against a check that flags EVERY basename
+  containing "closed" (`disclosed`, `enclosed` included)? Need a negative
+  control to prove it does not: add
+  `"disclosed/enclosed basenames do not trigger the pattern check"` --
+  top-level files `0001-not-disclosed.erg` and `0002-fully-enclosed.erg`,
+  no `Closed:` header. Assert `folderClosure` returns `nil`. This passes
+  today (no code exists) and MUST still pass after (b) lands, because the
+  implementation reuses `pathIsClosed` verbatim rather than a substring
+  match -- `pathIsClosed` requires a hyphen-delimited `closed` component
+  (equality, `closed-`/`closed.` prefix, or `-closed` suffix), and
+  `disclosed`/`enclosed` satisfy none of those (spec-erg-v1.md line 162:
+  "Rules out `disclosed`, `enclosed`"). This is the discriminating test
+  the antipattern scan asks for -- without it, a naive `strings.Contains(s,
+  "closed")` reimplementation would pass the positive test above and go
+  undetected.
+
+### Corpus-safety check
+
+Ran `/tmp/erg check tickets/` (built from this worktree's `src/go`) against
+the live corpus:
+
+```
+ERG CHECK: PASS (268 tickets)
+```
+
+Zero errors, zero warnings today. Scanned for existing basename-positive
+files with `find tickets -iname "*-closed.erg" -o -iname "closed.erg" -o
+-iname "closed-*.erg"`:
+
+- **Top-level (outside `closed/`): zero matches anywhere in the tree.**
+  Nothing in the current corpus would newly trip the (b) rule.
+- **Inside `tickets/closed/` (256 archived tickets): exactly one basename
+  match**, `0109-migrate-merge-archive-into-closed.erg`. Traced by hand:
+  its `t.Path` is `tickets/closed/0109-migrate-merge-archive-into-closed.erg`;
+  `filepath.Dir(t.Path)` is `tickets/closed`, whose `closed` component
+  trips `pathIsClosed` by *equality* regardless of the basename, so
+  `inClosedDir == true`. The new guard is `basenameClosed := !inClosedDir
+  && pathIsClosed(t.Path)` -- the `!inClosedDir` term is `false` here, so
+  `basenameClosed` is `false` unconditionally. This holds for every ticket
+  under `closed/` at any depth, not just this one: `pathIsClosed` walks
+  *every* path component of `filepath.Dir(t.Path)`, so any ancestor
+  directory literally named (or `closed-`/`closed.`/`-closed`-matching)
+  `closed` forces `inClosedDir = true` and the new branch off, independent
+  of what the basename itself looks like. **Directory-closed and
+  basename-closed are distinguished by construction (the `!inClosedDir`
+  guard), not by inspecting the basename differently** -- so switching (b)
+  to ERROR introduces zero new failures against the current 268-ticket
+  corpus, confirmed by both the full `erg check` PASS and the direct
+  `find` scan.
