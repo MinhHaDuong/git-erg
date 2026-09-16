@@ -278,6 +278,22 @@ violation. The value 1 is a hard failure here, consistent with the shared exit-c
 table (see "Exit codes" in erg --help --all); check never returns 2.
 `
 
+// printViolations writes the failure header and one VIOLATION line per entry to
+// stderr. Extracted because cmdCheck now reports from two places -- the
+// empty-corpus early return and the main path -- and two copies of a
+// user-facing format drift apart in exactly the way a reader cannot see from
+// either one of them.
+func printViolations(errs []string) {
+	errWord := "errors"
+	if len(errs) == 1 {
+		errWord = "error"
+	}
+	fmt.Fprintf(os.Stderr, "ERG CHECK FAILED (%d %s):\n", len(errs), errWord)
+	for _, e := range errs {
+		fmt.Fprintf(os.Stderr, "  VIOLATION %s\n", e)
+	}
+}
+
 // cmdCheck implements `erg check [dir]`. See helpCheck for the user-facing summary.
 func cmdCheck(args []string) int {
 	var positional []string
@@ -302,10 +318,26 @@ func cmdCheck(args []string) int {
 		return 1
 	}
 
+	// Computed BEFORE the empty-corpus early return, because it is the one
+	// check here that is not about the tickets: it reads the store's
+	// .erg-assets stamp and the asset on disk, and a store with no .erg files
+	// can be just as edited as any other. The population that early return was
+	// silencing is the fresh adopter who ran `erg init`, is reading AGENTS.md
+	// for the first time and has not filed a ticket yet -- i.e. the one most
+	// likely to edit it (ticket 0289, PR review).
+	assetViolations := assetLocalEditViolations(dir)
+
 	tickets, parseErrs := loadErgs(dir)
 	if len(tickets) == 0 {
 		fmt.Println("No .erg files found.")
-		return 0
+		// An empty store that is otherwise fine keeps its exit 0: the absence
+		// of tickets is a legitimate state and always was. Only the asset
+		// violation changes the verdict here.
+		if len(assetViolations) == 0 {
+			return 0
+		}
+		printViolations(assetViolations)
+		return 1
 	}
 
 	cfg, cfgErr := loadConfig(dir)
@@ -321,19 +353,12 @@ func cmdCheck(args []string) int {
 	// either: that function is about the loaded tickets and takes no dir. The
 	// comparison itself stays in manifest.go beside the machinery it reuses --
 	// growing a second one here is what ticket 0289 names as the antipattern.
-	errors = append(errors, assetLocalEditViolations(dir)...)
+	errors = append(errors, assetViolations...)
 	warnings := corpusWarnings(tickets, dir)
 
 	hasErrors := len(errors) > 0
 	if hasErrors {
-		errWord := "errors"
-		if len(errors) == 1 {
-			errWord = "error"
-		}
-		fmt.Fprintf(os.Stderr, "ERG CHECK FAILED (%d %s):\n", len(errors), errWord)
-		for _, e := range errors {
-			fmt.Fprintf(os.Stderr, "  VIOLATION %s\n", e)
-		}
+		printViolations(errors)
 	}
 	for _, w := range warnings {
 		fmt.Fprintf(os.Stderr, "  %s\n", w)

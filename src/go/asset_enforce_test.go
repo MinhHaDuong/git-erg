@@ -253,6 +253,30 @@ func TestCheckFailsOnLocallyEditedAgentsMd(t *testing.T) {
 		}
 	})
 
+	t.Run("noisy arm: exit 1 with an edited AGENTS.md and NO tickets at all", func(t *testing.T) {
+		// The population most likely to trip this rule: a fresh adopter who ran
+		// erg init, is reading AGENTS.md for the first time, and has not filed a
+		// ticket yet. cmdCheck's empty-corpus early return used to hand them a
+		// silent exit 0, and the withTicket helper above stepped around the hole
+		// rather than exposing it -- which made the gap invisible and is the
+		// worse half of the defect. No withTicket call here, deliberately.
+		dir := stampedStore(t, ergrc, agents+"\nlocal edit\n", sha256hex([]byte(ergrc)), sha256hex([]byte(agents)))
+		if code := cmdCheck([]string{dir}); code != 1 {
+			t.Fatalf("an edited AGENTS.md must fail erg check even with an empty corpus, got exit %d", code)
+		}
+	})
+
+	t.Run("silent control: an empty corpus with a PRISTINE store still exits 0", func(t *testing.T) {
+		// The other half of the fix: a store that is genuinely fine keeps its
+		// "No .erg files found." exit 0. Without this arm, an implementation
+		// that simply deletes the early return passes the case above and
+		// changes the exit semantics for every empty store.
+		dir := stampedStore(t, ergrc, agents, sha256hex([]byte(ergrc)), sha256hex([]byte(agents)))
+		if code := cmdCheck([]string{dir}); code != 0 {
+			t.Fatalf("an empty but pristine store must still exit 0, got exit %d", code)
+		}
+	})
+
 	t.Run("silent control: exit 0 on the same store, pristine", func(t *testing.T) {
 		// Same fixture shape, same ticket, different bytes in one file. An
 		// implementation that fails whenever a manifest is present passes the

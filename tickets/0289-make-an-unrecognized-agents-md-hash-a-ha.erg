@@ -13,6 +13,7 @@ Author: MinhHaDuong
 2026-09-16T15:07Z coordinator note RE-SURVEY (Action 3), taken by the coordinator at enforcement time, 2026-09-16, and recorded here verbatim. ImperialDragonHarness (~/.claude): disk sha256 8aa91454..., 2356 bytes; manifest stamp AGENTS.md sha256:8aa91454... (rev 7c83710, 2026-09-16T12:38:30Z). Disk == stamp. chemin-de-voix: disk 07c11767..., 1862 bytes; stamp 07c11767... (rev 9c23c37, 2026-06-03). Disk == stamp. AEDIST-technical-report: disk 07c11767..., 1862 bytes; stamp 07c11767... (rev 8331a94, 2026-06-05). Disk == stamp. Shipped asset on main: 73bf452c..., 2393 bytes. Conclusion: every known adopter matches its own stamp; none is locally edited; all three are merely behind the running binary. Under this ticket's own rule the ban fires on nobody today -- enforcement is prospective, there is no migration to perform and no content at risk. The three stores' state is the regression fixture for the failure mode this ticket must avoid: keying enforcement on the EMBEDDED hash instead of the stamp would turn all three red.
 2026-09-16T15:07Z coordinator note Author's read-only 0444 proposal WITHDRAWN by the author, 2026-09-16 -- not deferred, not held. The body section stays as the record of what was considered and why it was dropped; a withdrawn proposal with its reasoning is worth more to the next reader than a silent absence. Both halves of the trade. What it would have bought: friction at the moment of the edit, but only where erg init ran locally -- git carries just the executable bit (there is no 100444), so the mode does not survive a clone or a git checkout, and chmod +w defeats it in one command. What it would have cost: erg init obliged to open a NEW write path that can fail on permissions or ownership -- a real failure mode in the install path -- purchased for a population of offending editors that today's re-survey measured at zero. Not implemented here: no chmod path in init, no mode assertions, no documentation of it.
 2026-09-16T15:07Z MinhHaDuong note Actions 1 and 2 landed. Enforcement keys on the STAMP via isCleanUpgrade, never on the embedded hash, so the behind-the-binary nudge stays the WARN managedAssetWarnings already emits. Scoped to enforcedAssetPaths (tickets/AGENTS.md alone), NOT initAssetPaths: customising .ergrc is documented and encouraged, and enforcing over the whole managed set would fail erg check in every store that took erg's own advice. No second hash-comparison path -- check.go appends assetLocalEditViolations(dir) to the violation list and the comparison stays in manifest.go. assetLocalEditSignal has no cross-version grepping consumer in update.go, so it is free to be reworded later; that freedom rests on the absence of the consumer, not on the literal being unreleased.
+2026-09-16T15:18Z MinhHaDuong note PR review fix, same PR: cmdCheck returned 0 on 'No .erg files found.' before the asset check ran, so a fresh adopter with an edited AGENTS.md and no tickets yet passed silently -- and the end-to-end fixture's withTicket helper stepped around the hole, which made it invisible. assetLocalEditViolations now runs BEFORE the empty-corpus early return; an empty store that is otherwise fine keeps its exit 0. Both arms pinned: edited+no-tickets reddened against the prior tip and went green; empty+pristine kills the mutant that fails the branch unconditionally.
 --- body ---
 ## Context
 
@@ -71,13 +72,13 @@ passing arm's silence.
 
 ## Verification
 
-- [ ] `erg check` fails on a locally-edited `tickets/AGENTS.md`, and the message
+- [x] `erg check` fails on a locally-edited `tickets/AGENTS.md`, and the message
       names where the content should go
-- [ ] `erg check` stays silent on every hash recognized through the stamp path
-- [ ] a stampless store still gets 0283's stampless report, NOT this ticket's
+- [x] `erg check` stays silent on every hash recognized through the stamp path
+- [x] a stampless store still gets 0283's stampless report, NOT this ticket's
       edit error — the two causes stay distinguishable
-- [ ] the re-survey is taken at enforcement time and recorded in the log
-- [ ] `make check` passes
+- [x] the re-survey is taken at enforcement time and recorded in the log
+- [x] `make check` passes
 
 ## Author's proposal: install the asset read-only
 
