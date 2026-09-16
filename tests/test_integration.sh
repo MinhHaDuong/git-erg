@@ -122,7 +122,7 @@ fi
 # above. These names are one adopter's own CI wiring and incident history; they
 # have no place in an asset shipped to every repo.
 
-ADOPTER_STRINGS="climate-finance-het search-works-for-zotero scripts/check-cross-pr-ticket-collision.sh harness-extension-point erg-pr-merge"
+ADOPTER_STRINGS="climate-finance-het search-works-for-zotero scripts/check-cross-pr-ticket-collision.sh harness-extension-point erg-pr-merge voice-alignment-vision cross-pr-ticket-collision validate-tickets"
 for f in "$ROOT/src/go/assets/integration.md" "$ROOT/src/go/assets/AGENTS.md"; do
     leaked=""
     for s in $ADOPTER_STRINGS; do
@@ -184,6 +184,40 @@ if [ -n "$probe_leaked" ]; then
     pass "negative control: a planted adopter-specific string is detected"
 else
     fail "negative control: a planted adopter-specific string was NOT detected"
+fi
+
+# A literal blocklist only stops copy-paste. The realistic recurrence is one
+# adopter's war story paraphrased into the shared guide, and those carry two
+# shapes a literal list cannot enumerate: the date it happened and the ticket
+# it happened in. Both are banned structurally in the on-demand guide. (Not in
+# AGENTS.md: its worked example is a dated ticket, by design.)
+
+if grep -qE '[0-9]{4}-[0-9]{2}-[0-9]{2}' "$ROOT/src/go/assets/integration.md"; then
+    fail "integration.md carries a calendar date -- generic guidance has no incident dates"
+else
+    pass "integration.md carries no calendar date"
+fi
+
+if grep -qiE 'ticket +[0-9]{3,4}' "$ROOT/src/go/assets/integration.md"; then
+    fail "integration.md cites a ticket number -- generic guidance names no adopter's tickets"
+else
+    pass "integration.md cites no ticket number"
+fi
+
+# Negative controls for both structural guards.
+DATEPROBE=$(mktemp)
+trap 'rm -f "$LEAKPROBE" "$DATEPROBE"' EXIT
+cp "$ROOT/src/go/assets/integration.md" "$DATEPROBE"
+printf 'seen in one repo on 2026-07-22, filed as ticket 0243\n' >> "$DATEPROBE"
+if grep -qE '[0-9]{4}-[0-9]{2}-[0-9]{2}' "$DATEPROBE"; then
+    pass "negative control: a planted incident date is detected"
+else
+    fail "negative control: a planted incident date was NOT detected"
+fi
+if grep -qiE 'ticket +[0-9]{3,4}' "$DATEPROBE"; then
+    pass "negative control: a planted ticket citation is detected"
+else
+    fail "negative control: a planted ticket citation was NOT detected"
 fi
 
 echo ""
