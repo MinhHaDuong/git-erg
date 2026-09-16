@@ -1,0 +1,83 @@
+%erg 0.1
+Title: Spec does not say where a ticket path starts
+Created: 2026-09-16
+Author: claude
+
+--- log ---
+2026-09-16T11:06Z claude created
+
+--- body ---
+## Context
+
+`spec-erg-v1.md` "Closed / not-closed criterion", case 1:
+
+> **Path test.** A path component (directory name or basename without
+> extension) equals `closed` (case-insensitive), starts with `closed-` or
+> `closed.`, or ends with `-closed`.
+
+It never says where the path *starts*. Ticket 0285 is what that omission cost:
+the implementation tested every component it was handed, so a checkout sitting
+under a directory named `*-closed` made `erg check` fail on every ticket in the
+store -- but only when the store was addressed by an absolute path.
+
+0285 settled the question in code: the tested path is the part below the
+directory `erg` was given -- the components the store walk itself descended
+through, the ticket's own option 2. That is a narrowing, not a reversal --
+both examples the spec gives (`tickets/closed/`, `0001-foo-closed.erg`) are
+already store-relative -- and `TestStorePath` now enforces it. But the normative
+document served by `erg spec` still does not state it, so the rule is guarded
+without being written down. A reimplementation from the spec alone would
+reproduce the 0285 defect exactly.
+
+This is the "guarded-without-statement" case FOUNDATIONS-PROCESS.md names, and
+its trigger (a change to a contract surface) was met by 0285.
+
+Deliberately NOT folded into 0285: that branch touches no `src/go/assets/`
+file, and a sibling PR (0283, assets) was open across its whole life. An asset
+edit also owes the dogfood regeneration, which is a second reason to land it
+on its own.
+
+## Relevant files
+
+- `src/go/assets/spec-erg-v1.md` -- the spec, embedded in the binary and served
+  by `erg spec`. It is the only copy: `make regen-assets` covers `.ergrc` and
+  `AGENTS.md`, not this file, so nothing needs regenerating here.
+- `src/go/erg.go` (`StorePath`) -- the behaviour to describe; its doc comment is
+  the draft
+- `tests/test_docs.sh:60` -- the sibling guard for ticket 0256 ("spec documents
+  the basename-only closure violation erg check emits"), the pattern to copy
+
+## Actions
+
+1. Add one sentence to case 1 saying which path is tested: the one below the
+   directory `erg` was given, never the directories at or above it.
+2. Add the doc guard next to the 0256 one in `tests/test_docs.sh`.
+
+## Test
+
+Red step in `tests/test_docs.sh`, modelled on the existing 0256 guard: assert
+the spec's closure-criterion section says where the path begins (e.g. a grep
+for `store root` within that section). It must fail against today's spec before
+the sentence is added -- run it first and watch it fail, since a grep that
+matches somewhere else in the file would pass vacuously.
+
+## Verification
+
+- [ ] `tests/test_docs.sh` fails on the pre-sentence spec and passes after
+- [ ] `erg spec` on the rebuilt binary shows the sentence -- the embedded copy
+      is what users read, so checking the source file alone would not prove it
+      shipped
+- [ ] The diff touches only the spec and `tests/test_docs.sh`
+
+## Invariants
+
+- No behaviour change. This ticket only writes down what 0285 already enforces;
+  if a sentence seems to require a code change, the sentence is wrong.
+- `make check` stays green, selfcoherence included.
+
+## Exit criteria
+
+- [ ] `spec-erg-v1.md` case 1 states where the tested path starts
+- [ ] A doc guard fails without the sentence and passes with it
+- [ ] `erg spec` on the rebuilt binary shows the sentence
+- [ ] `make check` passes

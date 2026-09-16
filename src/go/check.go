@@ -20,7 +20,12 @@ func folderClosure(tickets []Erg) []string {
 	var errs []string
 	for i := range tickets {
 		t := &tickets[i]
-		inClosedDir := pathIsClosed(filepath.Dir(t.Path))
+		// Both tests run on the store-relative path: a "closed" component in
+		// the checkout's own ancestry is not a placement decision the store
+		// made, and reading it as one failed every ticket in the store
+		// whenever it was addressed absolutely (ticket 0285).
+		storePath := t.StorePath()
+		inClosedDir := pathIsClosed(filepath.Dir(storePath))
 		hasClosed := t.Closed != ""
 
 		if inClosedDir && !hasClosed {
@@ -34,10 +39,18 @@ func folderClosure(tickets []Erg) []string {
 
 		// Basename-only closure: same placement/header disagreement as above,
 		// reached through the filename instead of the directory (ticket 0256;
-		// spec-erg-v1.md "Closed / not-closed criterion", case 3). !inClosedDir
-		// keeps this off tickets already reported by the first branch, so one
-		// defect yields one message.
-		basenameClosed := !inClosedDir && pathIsClosed(t.Path)
+		// spec-erg-v1.md "Closed / not-closed criterion", case 3). The spec
+		// scopes case 3 by PLACEMENT, and !inClosedDir is how that scoping is
+		// implemented: a ticket under closed/ is already reported by the first
+		// branch, so one defect yields one message.
+		//
+		// The guard is only ever as good as inClosedDir, though -- it silences
+		// this rule wherever inClosedDir is true, for whatever reason. That is
+		// why inClosedDir must come from the store's view of the path: with the
+		// machine's directory layout in scope it went true corpus-wide and
+		// disabled case 3 outright, which is placement scoping in name only
+		// (ticket 0285).
+		basenameClosed := !inClosedDir && pathIsClosed(storePath)
 		if basenameClosed && !hasClosed {
 			errs = append(errs, fmt.Sprintf(
 				"%s: filename reads as closed but there is no Closed: header -- rename the file or run 'erg close ID'",

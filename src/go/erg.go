@@ -33,10 +33,54 @@ func idExists(allIDs map[string]bool, id string) bool {
 // either a path component test fires, or a `Closed:` preamble header is
 // present with a non-empty value.
 func (t *Erg) IsClosed() bool {
-	if pathIsClosed(t.Path) {
+	if pathIsClosed(t.StorePath()) {
 		return true
 	}
 	return t.Closed != ""
+}
+
+// StorePath returns the part of Path that lies BELOW Root -- exactly the
+// components the store walk itself descended through. That is the portion the
+// v1 closure path test is written for. Everything at or above the root says
+// where the checkout happens to sit on this machine, and letting it decide
+// closure made the same well-formed store pass or fail depending on how it
+// was addressed (ticket 0285).
+//
+// The root's own name is excluded, which is what makes every spelling of one
+// store agree. Keeping it looks attractive -- it would let `erg check
+// <store>/closed`, a store addressed at its archive subdirectory, still see
+// the "closed" component -- but it only moves the defect one level up and
+// makes it inconsistent: `erg check .` from inside a "dossier-closed"
+// directory would pass while `erg check dossier-closed` from its parent
+// failed, because filepath.Base(".") is "." and carries no name at all. The
+// ticket's own option 2, "test only the components erg itself walked", has no
+// such seam.
+//
+// The cost is real, has two halves, and is tracked as ticket 0294. A store
+// addressed AT its archive has no closed/ component left in view, so its
+// header-closed tickets draw the "closed ticket not in closed/ directory"
+// rule (a false positive), AND a genuinely misfiled open ticket sitting there
+// draws nothing (a silent miss -- the same store checked from above reports
+// it). The second half is the worse one and is the easier to overlook.
+//
+// It is not a degenerate invocation: `cd tickets/closed && erg check` reaches
+// it with no argument at all, since the store is auto-discovered and any
+// directory holding .erg files qualifies. It is a regression against pre-0285
+// behaviour, accepted here only because the alternative was worse, and
+// because telling the two cases apart needs a store-root marker rather than a
+// judgement about a directory name. 0294 carries that design question.
+//
+// With no Root there is no store context -- a bare parseErg on one file --
+// so the whole path stays under test. Scoping the check must not disable it.
+func (t *Erg) StorePath() string {
+	if t.Root == "" || t.Path == "" {
+		return t.Path
+	}
+	rel, err := filepath.Rel(t.Root, t.Path)
+	if err != nil {
+		return t.Path
+	}
+	return rel
 }
 
 // pathIsClosed implements the path component test from tickets/spec-erg-v1.md:
@@ -212,11 +256,21 @@ func parseHeaderLine(line string) (string, string, bool) {
 // Corpus-level rules (rule 10 ref resolution, rule 13 cycles, duplicate
 // IDs) live in validateCorpus.
 func parseErg(path string) (Erg, []string) {
+	return parseErgIn("", path)
+}
+
+// parseErgIn is parseErg with the store root the file was read under, so the
+// parse-time rules that consult the path (rule 14's grandfather) see the
+// store's view of it rather than the machine's. loadErgs passes the directory
+// it walked; validate passes the file's own directory, which is what makes
+// `erg validate FILE` agree with `erg check DIR`. parseErg itself remains the
+// rootless form for callers with no store behind the file.
+func parseErgIn(root, path string) (Erg, []string) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return Erg{Path: path}, nil
+		return Erg{Path: path, Root: root}, nil
 	}
-	return parseErgBytes(data, path)
+	return parseErgBytesIn(data, root, path)
 }
 
 // parseErgBytes parses raw .erg file content into an Erg plus parse-time
@@ -231,6 +285,20 @@ func parseErg(path string) (Erg, []string) {
 // as a separator only on first sighting; later occurrences inside the
 // body are body text (rule 12 relaxation, ticket 0116).
 func parseErgBytes(data []byte, path string) (Erg, []string) {
+	return parseErgBytesIn(data, "", path)
+}
+
+// parseErgBytesIn is parseErgBytes with the store root, threaded so rule 14's
+// closed-ticket grandfather reads the store-relative path. Kept as a separate
+// entry point rather than a wider signature, so the bytes-holding callers keep
+// the two-argument form. list.go passes a root (the sibling module's store).
+// close and label rewrite one file they were handed and have none.
+// writeTicketAtomic DOES have one in scope -- its own storeRoot parameter --
+// and deliberately still parses unrooted: its parse is the
+// validate-before-replace rail, and widening what that rail counts as an error
+// can refuse a mutation it accepts today. Threading it is a change to a safety
+// rail, so it belongs to whoever revisits that rail, not to ticket 0285.
+func parseErgBytesIn(data []byte, root, path string) (Erg, []string) {
 	parseCount++
 	var errs []string
 	// Strip UTF-8 BOM if present
@@ -499,7 +567,13 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 	// ticket itself rather than as a reference to the command or concept being
 	// changed (ticket 0145). Closed tickets are grandfathered: the rule is
 	// enforced on open + new only, so existing closed history is never broken.
-	if title != "" && !(pathIsClosed(path) || closed != "") {
+	// The grandfather reads the STORE's view of the path (ticket 0285): with
+	// the machine's directory layout in scope, a checkout under a "*-closed"
+	// directory grandfathered every ticket in the corpus when the store was
+	// addressed absolutely and none of them when it was addressed relatively,
+	// so `erg check` returned a different verdict for the same store.
+	grandfathered := (&Erg{Path: path, Root: root}).StorePath()
+	if title != "" && !(pathIsClosed(grandfathered) || closed != "") {
 		if msg, bad := titleStatusWordMessage(title); bad {
 			errs = append(errs, fmt.Sprintf("%s:%d: %s", name, titleLine, msg))
 		}
@@ -542,6 +616,7 @@ func parseErgBytes(data []byte, path string) (Erg, []string) {
 
 	return Erg{
 		Path:          path,
+		Root:          root,
 		Title:         title,
 		Created:       created,
 		Author:        author,
@@ -705,7 +780,12 @@ func loadErgs(dir string) ([]Erg, [][]string) {
 		if d.IsDir() || !strings.HasSuffix(path, ".erg") {
 			return nil
 		}
-		t, e := parseErg(path)
+		// The walk's paths are dir-prefixed exactly as the caller spelled
+		// dir, so handing dir down is what lets StorePath strip the part of
+		// the path that belongs to the machine rather than the store. It goes
+		// in at parse time, not after, because rule 14 consults the path
+		// while parsing.
+		t, e := parseErgIn(dir, path)
 		pairs = append(pairs, pair{t, e})
 		return nil
 	})

@@ -1,0 +1,130 @@
+%erg 0.1
+Title: erg check inside the archive reports every archived ticket as misfiled
+Created: 2026-09-16
+Author: claude
+
+--- log ---
+2026-09-16T12:02Z claude created
+
+--- body ---
+## Context
+
+Ticket 0285 bounded the v1 closure path test to the store: `StorePath()` tests
+only the components below the directory `erg` was given. That fixed a store
+failing wholesale because of a `*-closed` directory somewhere above it, and it
+made every spelling of one store agree.
+
+It also introduced this, measured pre- and post-0285 on built binaries:
+
+```
+$ cd tickets/closed && erg check
+ERG CHECK FAILED (1 error):
+  VIOLATION 0001-archived.erg: closed ticket not in closed/ directory -- run 'erg close ID' or 'erg archive' to file it
+```
+
+`erg check` with no argument auto-discovers the store (`findTicketsDir`), and
+`looksLikeTicketStore` accepts any directory holding `.erg` files -- so from
+inside the archive, the archive IS the store. There is then no `closed`
+component left in view at all, and BOTH placement rules read the wrong answer:
+
+- **False positive.** The archived tickets are top-level tickets carrying a
+  `Closed:` header, which is exactly what the closed-not-in-closed rule
+  forbids. Shown above.
+- **Silent miss, and this is the worse half.** A genuinely misfiled OPEN
+  ticket sitting in `tickets/closed/` draws nothing. Measured on the same
+  fixture: from inside, `0005-misfiled.erg` is not mentioned; from above,
+  `erg check tickets/` reports "open ticket in closed/ directory". `main`
+  reports it from either side. An error you can see is a nuisance; a violation
+  that disappears depending on your cwd is a hole in the gate.
+
+On `main` before 0285 both were correct, because the absolute path still
+carried the `closed` component.
+
+Three things make this worth its own ticket rather than a footnote:
+
+- **It needs no unusual argument.** 0285's log first called it "a degenerate
+  invocation"; that was wrong. A bare `erg check` from a directory a user has
+  every reason to `cd` into reaches it.
+- **The remedy is self-defeating.** It tells the user to run `erg close` or
+  `erg archive` on a ticket that is already closed and already archived -- the
+  same class of message PR #348 fixed elsewhere.
+- **One half of it is silent.** The false positive announces itself; the missed
+  open ticket does not. `erg check` is the corpus gate, and a gate that answers
+  differently depending on the caller's cwd, without saying so, is the failure
+  mode this repo keeps writing rules about.
+
+## Why 0285 did not fix it
+
+The information `StorePath()` has cannot tell `tickets/closed` (a store's
+archive, addressed directly) from `dossier-closed` (a store that merely lives
+in a directory whose name trips the rule). Both are "the store root's basename
+reads as closed".
+
+0285 tried the other branch first -- keep the root's own basename in the tested
+path -- and it was worse: `erg check /path/dossier-closed` still failed
+wholesale, and two relative spellings of that store disagreed, because
+`filepath.Base(".")` is `"."` and carries no name. Excluding the root is the
+better of the two available answers, and this ticket is its cost.
+
+Note that the root's name cannot simply be allowed to *excuse* rather than
+*accuse*, either. Suppressing the closed-not-in-closed rule wherever the root
+reads as closed would silence the false positive, but it does nothing for the
+silent miss above -- the open-ticket-in-closed rule needs the root's name to
+*accuse*, and letting it accuse is precisely what 0285 had to stop doing for
+`dossier-closed`. The two halves pull in opposite directions, which is the
+evidence that no rule over the root's *name* can settle this.
+
+## Candidate fix
+
+Anchor the store root on a marker rather than on the argument. `.ergrc` already
+lives at the store root and `loadConfig` (`src/go/config.go:21`) already reads
+it, so `erg` could walk up from the given directory to the nearest `.ergrc` and
+treat THAT as the root -- making `tickets/closed` resolve to `tickets/`, where
+the archived ticket is correctly placed and an open one is correctly flagged.
+
+That is a change to what every command considers the store, not a local repair,
+which is why it is not folded into 0285. It also needs a decision for stores
+with no `.ergrc`, since the file is optional: falling back to today's behaviour
+is the obvious answer but should be stated, not assumed.
+
+## Relevant files
+
+- `src/go/erg.go` (`StorePath`) -- its doc comment states the cost this ticket owns
+- `src/go/main.go` (`findTicketsDir`, `looksLikeTicketStore`, `resolveDir`) -- where the store root is decided
+- `src/go/config.go` (`loadConfig`) -- already reads `.ergrc` from the store root
+- `src/go/check.go` (`folderClosure`) -- the three placement rules and their remedies
+
+## Test
+
+**Two red steps, in one fixture, both failing today.** Neither is a control --
+that is the trap this ticket's first draft fell into, asserting the open ticket
+"is still reported" when it is not.
+
+Build `tickets/closed/` holding `0001-archived.erg` (with a `Closed:` header,
+correctly filed) and `0005-misfiled.erg` (open, header-less, genuinely in the
+wrong place). Resolve the store from inside that directory the way `cmdCheck`
+does, then assert `folderClosure`:
+
+1. does **not** report `0001-archived.erg`. Today it reports
+   closed-not-in-closed. Red.
+2. **does** report `0005-misfiled.erg` as an open ticket in a closed
+   directory. Today it says nothing. Red.
+
+Run both and watch both fail before touching code. A fix that only suppresses
+the rules under a closed-reading root passes 1 and still fails 2, which is the
+whole point of running them together.
+
+Control, to keep the fix from being a blanket suppression: the same two
+assertions against the store addressed from ABOVE (`erg check tickets/`) must
+keep today's answers -- silence on `0001`, a violation on `0005`. Those pass
+today and must still pass after.
+
+## Exit criteria
+
+- [ ] `cd tickets/closed && erg check` passes on a well-formed archive
+- [ ] An open ticket misfiled into `tickets/closed/` is reported when the store is addressed from INSIDE that directory -- it is not today, and this is the half that matters most
+- [ ] The same ticket is still reported when the store is addressed from above (unchanged; a blanket suppression would break this)
+- [ ] Every spelling of one store still yields one verdict (0285's `TestStoreVerdictIsIndependentOfSpelling` stays green)
+- [ ] The behaviour with no `.ergrc` present is decided and stated in the spec
+- [ ] No placement message recommends an action the user has already taken
+- [ ] `make check` passes

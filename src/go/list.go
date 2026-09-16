@@ -353,7 +353,13 @@ func resolvePathRef(dir string, ref Ref) refStatus {
 	if err != nil {
 		return refUnresolved
 	}
-	t, _ := parseErgBytes(data, matches[0])
+	// base is the sibling module's store, so it is the root its closure state
+	// must be read against. Without it the whole absolute path is tested and a
+	// checkout under a "*-closed" directory made every cross-module blocker
+	// resolve as closed -- `erg ready` then offered a genuinely blocked ticket
+	// for work, which is worse than the loud corpus-wide failure of ticket
+	// 0285 because nothing in the output says anything is wrong.
+	t, _ := parseErgBytesIn(data, base, matches[0])
 	if t.IsClosed() {
 		return refClosed
 	}
