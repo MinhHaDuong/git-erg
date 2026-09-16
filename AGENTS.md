@@ -121,34 +121,7 @@ Never perform unattended:
 
 If a ticket requires any of the above: mark `not-picked` with reason and continue.
 
-### 3) Change-scope gate (file allowlist)
-
-Unattended edits are allowed only in these paths:
-
-- `tickets/*.erg`
-- `tickets/**/*.erg`
-- `src/go/*.go`
-- `tests/*.sh`
-- `README.md`
-- `Makefile`
-- `AGENTS.md`
-- `docs/erg-manual.md`
-
-Any required edit outside this set: open PR as draft and stop merge for that ticket.
-
-`docs/erg-manual.md` is on the list because it is **generated and
-drift-tested**: `make docs` writes it from `erg --help --all`, and
-`tests/test_docs.sh` fails CI when the committed copy diverges. An agent
-cannot put arbitrary content there — the only edit it can land is the one
-the build produces, which is the same edit CI demands. Without the entry,
-any ticket changing help text was unsatisfiable: regenerate and this gate
-stops the merge, or leave it stale and CI goes red (ticket 0284).
-
-That reasoning does not extend by analogy. Add a generated, drift-tested
-artifact if one appears; do not widen this to `docs/*.md`, where the
-hand-written files have no such guard.
-
-### 4) Verification gate (must pass before merge)
+### 3) Verification gate (must pass before merge)
 
 For each ticket PR, require:
 
@@ -161,23 +134,22 @@ For each ticket PR, require:
 
 On failure: do not merge; record failure; continue sweep with next ticket.
 
-### 5) Merge gate (prevents shy-wont-merge and risky-merge)
+### 4) Merge gate (prevents shy-wont-merge and risky-merge)
 
 Auto-merge only when all are true:
 
 - ticket exit criteria satisfied
 - verification gate fully green
-- diff remains inside allowlist
 - no unresolved review findings
 
 Otherwise: leave PR open with explicit blocker note and continue next ticket.
 
-### 6) Throughput rule (avoid full-run stop)
+### 5) Throughput rule (avoid full-run stop)
 
 When one ticket is blocked/unclear/risky, skip it and proceed to the next ready ticket.
 Unattended run should stop only when no safe ready ticket remains.
 
-### 7) Shell test binary rule
+### 6) Shell test binary rule
 
 Shell integration tests under `tests/*.sh` must default:
 

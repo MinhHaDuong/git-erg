@@ -1,0 +1,95 @@
+%erg 0.1
+Title: Remove the change-scope allowlist; PR review is the real gate
+Created: 2026-09-16
+Author: MinhHaDuong
+Closed: 2026-09-16 removed in the same PR
+
+--- log ---
+2026-09-16T10:30Z MinhHaDuong created
+2026-09-16T10:30Z MinhHaDuong note Author call after the gate fired four times in one raid, three of them wrong. The earlier repair (0284, which added docs/erg-manual.md to the list) treated one instance; this removes the mechanism.
+2026-09-16T10:30Z MinhHaDuong closed removed in the same PR
+
+--- body ---
+## Context
+
+`AGENTS.md` section 3 lists the paths an unattended run may edit and says any
+edit outside the set must open the PR as a draft and stop the merge. In one
+raid (`/raid 255 256 278 279`) it fired four times:
+
+| ticket | file | verdict |
+|--------|------|---------|
+| 0279 | `docs/erg-manual.md` | **wrong** — the file is generated, and `tests/test_docs.sh` *fails CI* if it is stale. No ticket touching help text could satisfy both rules. |
+| 0279 | `src/go/assets/integration.md` | **right** — hand-written prose shipped to adopters. Author read the diff and approved. |
+| 0255 | `CHANGELOG.md`, `CONTRIBUTING.md` | **wrong** — repo-internal docs the project's own conventions require updating for exactly this class of change. `README.md`, the same kind of file, is already on the list. |
+| 0255 | `tickets/erg-github` | **wrong** — the list has `tickets/*.erg`, which does not match an extensionless helper. Every ticket touching the forge layer hits this. |
+
+Three of the four were false positives, and each arose the same way: the
+project's own conventions require an edit the list forbids.
+
+## Why removal rather than a wider list
+
+**Nothing enforces it.** `CI.yml` runs `make test` and `make validate`; no job
+reads the allowlist. It is unexecuted prose, so its only effect is on an agent
+that reads and obeys it — which means it slows down the careful and does
+nothing about the careless.
+
+**Its remedy is already the default.** Section 3's answer to an
+out-of-allowlist edit is "a human reads the diff before merging". That is what
+a pull request is. The gate adds a second, weaker copy of review, gated on a
+path list that nobody keeps current.
+
+**Growing the list does not converge.** 0284 added `docs/erg-manual.md` and the
+gate fired twice more the same day on different files. The membership was never
+the problem: any list that must anticipate every file a convention-following
+change touches will keep being wrong, and each miss costs an author decision.
+
+**The one true positive needed no list.** `integration.md` is shipped prose,
+and it got a human ruling — through the PR, which is where that judgement
+belongs. Nothing about that outcome required a path allowlist to exist.
+
+`rules/workflow.md` states the general form: in a tooling repo, when a guard
+misfires, prefer deleting the guard and its tests over growing them.
+
+## Actions
+
+1. Delete `AGENTS.md` section 3 and renumber the sections that follow (4-7
+   become 3-6).
+2. Remove the `diff remains inside allowlist` bullet from the merge gate.
+3. Remove `CONTRIBUTING.md`'s "Keep the diff inside the change-scope allowlist"
+   line.
+4. Leave the safety gate (section 2, hard no-go for unattended work: secrets,
+   infra, permissions) untouched. That gate names *kinds of action* that are
+   genuinely unsafe unattended, not a path list, and it has not misfired.
+
+## Test
+
+No test to add: there was never a test. That is part of the finding — the gate
+was prose, so its removal cannot break a check, and its presence never
+guaranteed one. `make check` must still pass, which verifies only that nothing
+else referenced it.
+
+## Verification
+
+- [x] `grep -rn "allowlist\|change-scope"` finds no live reference outside
+      historical ticket bodies
+- [x] Section numbering is contiguous after the removal
+- [x] `make check` passes
+
+## Invariants
+
+- The safety gate stays. Removing a path list is not removing the rule against
+  unattended secret handling, infra changes, or permission-model edits.
+- PR review remains mandatory. This ticket removes a redundant second gate, not
+  the first one.
+
+## Exit criteria
+
+- The change-scope allowlist no longer exists in `AGENTS.md` or `CONTRIBUTING.md`
+- No section references it
+
+## Related
+
+- 0284 — added `docs/erg-manual.md` to the list. It fixed a real
+  unsatisfiable-rule collision, but treated the instance; this ticket treats
+  the class. 0284's reasoning about generated-and-drift-tested files is
+  superseded, not contradicted.

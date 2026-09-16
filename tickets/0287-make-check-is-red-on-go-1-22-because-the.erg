@@ -1,0 +1,113 @@
+%erg 0.1
+Title: make check is not runnable on Go 1.22+
+Created: 2026-09-16
+Author: MinhHaDuong
+
+--- log ---
+2026-09-16T10:30Z MinhHaDuong created
+2026-09-16T10:40Z MinhHaDuong note Scope widened after measuring: -buildvcs=false clears the contract probe and the run then fails on verify (committed binary not reproducible under Go 1.22.2 vs CI's 1.21). Two stacked toolchain failures, so the ticket is about make check being runnable, not about one probe.
+2026-09-16T10:30Z MinhHaDuong note Surfaced repeatedly during /raid 255 256 278 279 -- three separate reviewers and the orchestrator each rediscovered it and each had to re-diagnose it from scratch. Filed as a bundled follow-up, not fixed here.
+
+--- body ---
+## Context
+
+`make check` fails on a clean checkout for anyone running Go 1.22 or newer:
+
+```
+FAIL: offline (neg control): detector failed to flag net/http
+contract: 16 passed, 1 failed, 0 warned, 1 skipped
+make: *** [Makefile:56 : test-contract] Erreur 1
+```
+
+`tests/test_contract.sh`'s offline probe shells out to `go list -deps`, which
+under Go 1.22+ aborts with `error obtaining VCS status: exit status 128` unless
+`-buildvcs=false` is passed. Reproduced on clean `origin/main` and on a
+throwaway module in a temp directory, so it is neither branch-specific nor
+corpus-specific. `GOFLAGS=-buildvcs=false` makes that probe pass. CI pins Go 1.21
+(`.github/workflows/CI.yml`) and is green, so none of this is visible to the
+forge.
+
+**But the workaround only advances the failure.** With
+`GOFLAGS=-buildvcs=false` the contract suite clears and the run reaches the
+next target, which then fails for the same underlying reason:
+
+```
+verify: FAIL -- committed binary is NOT reproducible
+make: *** [Makefile:56 : test-verify] Erreur 1
+```
+
+The committed binary was built by CI's Go 1.21; a local Go 1.22.2 produces a
+different one. So there are at least two toolchain-coupled failures stacked
+behind each other, and fixing only the first reveals the second rather than
+delivering a green run. That is why this ticket's title asks whether `make
+check` is runnable at all on a current toolchain, rather than naming one
+probe.
+
+## Why it clears the severity floor
+
+Two reasons, and the second matters more than the first.
+
+**It is the negative control that fails.** The probe that fires is the one
+asserting the detector *can see* a violation. When it fails, the adjacent
+`offline` PASS is not evidence of anything — it reports that the detector said
+nothing, which is exactly what a blind detector does. So the failure does not
+merely add noise; it voids the result next to it.
+
+**It halts the suite cascade.** `make` stops at the failing target, so the
+suites ordered after `test-contract` never run at all. A contributor on Go 1.22
+who reports "make check passed" has run a strict subset of the suite without
+being told which part. During this raid, that subset was reported as
+verification more than once, including by me.
+
+## Relevant files
+
+- `tests/test_contract.sh` — the offline probe and its negative control
+- `Makefile:56` — the `test-contract` target where the cascade stops
+- `.github/workflows/CI.yml` — pins Go 1.21, which is why CI never sees it
+
+## Actions
+
+1. Decide the contract first, because everything else follows from it: is the
+   supported toolchain 1.21 only, or 1.21+? If 1.21 only, say so in
+   CONTRIBUTING.md and have `make check` fail fast with that message instead
+   of an obscure probe error. If 1.21+, both the offline probe and the
+   reproducible-binary check have to work across the range, and the committed
+   binary's reproducibility claim needs a toolchain pin to be meaningful.
+2. Most likely fix: pass `-buildvcs=false` where the probe invokes `go list`.
+   Confirm it does not weaken what the probe detects — the flag suppresses VCS
+   stamping, not dependency resolution, but verify rather than assume, since
+   this is a negative control and a weakened one is worse than a red one.
+3. Consider whether `make check` should continue past a failing suite, or at
+   least name which suites did not run. A cascade that stops silently turns a
+   local red into an unreliable green for everything downstream of it.
+
+## Test
+
+Red step: on Go 1.22+, `bash tests/test_contract.sh` currently fails the
+`offline (neg control)` assertion. After the fix it must pass on both 1.21 and
+1.22+. Do not settle for "passes on my machine" — the whole defect is a
+toolchain difference, so the fix needs checking on both sides of it.
+
+## Verification
+
+- [ ] `make check` green on Go 1.22+ from a clean checkout, end to end --
+      not merely past the first failing target
+- [ ] Still green on Go 1.21, matching CI
+- [ ] The offline negative control still fires when given a genuinely
+      network-importing fixture, on both toolchains
+
+## Invariants
+
+- The offline probe must keep detecting a real `net/http` import. A fix that
+  makes the control pass by weakening what it inspects is a regression wearing
+  a green check.
+
+## Exit criteria
+
+- A contributor on a current Go toolchain gets a truthful `make check`, or an
+  explicit statement of the supported toolchain range
+
+## Related
+
+- 0285 — also surfaced by review during the same raid, also pre-existing, also
+  invisible from this repo's own happy path.
