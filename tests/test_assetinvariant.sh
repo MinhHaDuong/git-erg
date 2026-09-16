@@ -15,13 +15,26 @@
 # three commands over ONE store in ONE provenance state, which is where a
 # composition defect would live: init writes the stamp that update reads and
 # migrate rewrites, so each command changes the state the next one judges by.
-# This file is the cross-command tier -- it does not re-test any child's
-# function-level logic (see tests/README.md § Testing layers).
+# This file covers what tests/README.md § Testing layers already calls out as
+# shell-integration territory: "cross-command interactions".
+#
+# It is NOT free of overlap with the per-child suites, and saying otherwise
+# would overstate it. Four assertions repeat single-command post-conditions the
+# children already lock down -- clean/init against test_init.sh:98,
+# edited/init's preserve-and-exit-2 against test_init.sh:96-125, clean/update
+# against test_update.sh:343-357, stampless/update against
+# test_update.sh:327-330. They are kept deliberately: each is the guard that
+# proves its own composition arm reached the code path at all. Drop
+# "erg: updated" from an update arm and the arm still passes when no swap
+# happened, on an assertion about a report that never ran. The cost is that
+# four grep literals now live in two files; all four are prefixes of the
+# cross-version constants in manifest.go/update.go, which may be extended at
+# the END only (ticket 0292), so a wording change is already governed.
 #
 # THE TRAP THIS SUITE IS BUILT AROUND. `erg migrate` overwrites a diverged
 # tickets/AGENTS.md unconditionally. That is a SETTLED CHARTER DECISION (ticket
 # 0224, PR #275, docs/erg-imagine-charter.md L122-127), already guarded by
-# src/go/migrate_test.go:446 and tests/test_migrate.sh:389: agent operating
+# src/go/migrate_test.go:448 and tests/test_migrate.sh:389: agent operating
 # instructions must track the binary. It is the WANTED outcome, and a naive
 # reading of "no tracked file is ever overwritten" would flag it as a regression
 # and reopen a closed decision. What the invariant forbids is an overwrite that
@@ -56,6 +69,10 @@
 #      "unchanged, and not claimed otherwise" assertions flipped to FAIL, across
 #      all three states and all three commands. Both halves are therefore wired
 #      to a reachable failure, not just the one the trap lives in.
+#   4. The coverage pin got one too: commenting out a single audit_step call
+#      dropped the run to 40 assertions, which `[ "$FAIL" -eq 0 ]` reports as a
+#      clean pass. With the pin, that run exits 1 and names the shortfall. An
+#      all-clear indistinguishable from "I never ran" is not a check.
 #
 # Note for anyone extending the announcement grep: `erg migrate` ALWAYS prints
 # the summary line "migrate: AGENTS.md refreshed (N created, N refreshed, N
@@ -77,14 +94,29 @@ FAIL=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
+# Coverage pin. `[ "$FAIL" -eq 0 ]` alone cannot see an assertion that stopped
+# running: comment out one audit_step call and this file exits 0 with two fewer
+# audits and no other signal. Ticket 0278's log cites the count as evidence, so
+# the count is asserted. Bump it deliberately when adding an arm -- a surprise
+# here means coverage moved without anyone deciding it should.
+EXPECTED_ASSERTIONS=42
+
 # Local-path git remotes drive the `erg update` arms (update fetches the
 # committed binary via git, never HTTP). Hardened hosts set
 # protocol.file.allow=never globally; inject the override via env so it reaches
-# both our git calls and the child git that erg itself spawns.
+# both our git calls and the child git that erg itself spawns. The override is
+# unconditional, not additive -- it would clobber an outer GIT_CONFIG_COUNT
+# scheme (an insteadOf proxy rule, say) for this process tree. That is the form
+# test_update.sh established and CI sets no such vars; breaking ranks in one
+# suite would be the surprising move.
 export GIT_CONFIG_COUNT=1
 export GIT_CONFIG_KEY_0=protocol.file.allow
 export GIT_CONFIG_VALUE_0=always
 
+# Scratch space. mktemp honours TMPDIR, so point TMPDIR at a real filesystem if
+# /tmp is small or full: the git clones below are real binaries, and an ENOSPC
+# here aborts with a git error that reads like an invariant failure until you
+# look. The trap fires on that abort too.
 WORKROOT=$(mktemp -d)
 trap 'rm -rf "$WORKROOT"' EXIT
 
@@ -417,4 +449,9 @@ fi
 
 echo ""
 echo "=== $PASS passed, $FAIL failed ==="
+RAN=$((PASS + FAIL))
+if [ "$RAN" -ne "$EXPECTED_ASSERTIONS" ]; then
+    echo "  FAIL: coverage pin: ran $RAN assertions, expected $EXPECTED_ASSERTIONS" >&2
+    exit 1
+fi
 [ "$FAIL" -eq 0 ] || exit 1
