@@ -149,7 +149,7 @@ func TestParseManifestDate(t *testing.T) {
 
 	t.Run("readManifestDate round-trips what buildManifest writes", func(t *testing.T) {
 		setBuildDate(t, "2026-06-29T10:00:00Z")
-		body, err := buildManifest()
+		body, err := buildManifest(nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -781,7 +781,7 @@ func vendoredFixture(t *testing.T, ergGithub string, withManifest bool) string {
 		}
 	}
 	if withManifest {
-		body, err := buildManifest()
+		body, err := buildManifest(nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -897,4 +897,586 @@ func TestAssetDriftWarningsReportsVendoredStaleness(t *testing.T) {
 			t.Errorf("embedded erg-github does not look like the forge helper (len=%d)", len(embedded))
 		}
 	})
+}
+
+// captureStdout is captureStderr's sibling for the channels that go to stdout:
+// installAssets' dry-run preview lines and `erg init --show`. Kept separate
+// rather than generalised into one helper taking a **os.File, because the two
+// call sites read better named after the stream they are about and the saving
+// would be three lines.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "stdout")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prev := os.Stdout
+	os.Stdout = f
+	defer func() {
+		os.Stdout = prev
+		f.Close()
+	}()
+	fn()
+	f.Close()
+	out, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out)
+}
+
+// TestInitDoesNotStampAPreservedLocalEdit is ticket 0292 defect 1's red step,
+// and it is the state-corrupting one: `erg init` preserved a locally-edited
+// asset (right) and then wrote a manifest stamping it with the EMBEDDED hash
+// (wrong), so the manifest certified a customised file as byte-identical to
+// what the binary ships. From the next run on, the stamped branch compared
+// embedded against embedded, found them equal, and the condition went
+// permanently silent with the divergence still on disk.
+//
+// The assertion is on the manifest CONTENT and on the message that follows,
+// never on a count or an exit code: installAssets returns skipped=1 before and
+// after the fix, and `erg check` exits 0 in both worlds. Only reading what was
+// recorded, and what the next check says, can see the difference.
+//
+// Arm order is deliberate. The pre-init probe is the positive control for the
+// whole test: it must be shown to FIRE before the post-init probe's persistence
+// means anything, since a build that never reports at all would satisfy a
+// post-init assertion phrased as "still reports" only by accident of the
+// substring never appearing.
+func TestInitDoesNotStampAPreservedLocalEdit(t *testing.T) {
+	embedded, ok := bootstrapAsset("tickets/.ergrc")
+	if !ok {
+		t.Fatal("embedded .ergrc missing")
+	}
+	agents, ok := bootstrapAsset("tickets/AGENTS.md")
+	if !ok {
+		t.Fatal("embedded AGENTS.md missing")
+	}
+	// The documented, encouraged case: a store that customised .ergrc (AGENTS.md
+	// sends readers there to define Label: values) and never stamped it.
+	const customised = "# locally customised .ergrc -- never shipped by any erg\nlabels = deferred\n"
+	if customised == embedded {
+		t.Fatal("test fixture collides with embedded content")
+	}
+
+	t.Run("a preserved local edit is not stamped, and stays reportable", func(t *testing.T) {
+		root := stamplessFixture(t, customised)
+		ticketsDir := filepath.Join(root, "tickets")
+
+		// Positive control, first: the condition is reported BEFORE init.
+		before := strings.Join(assetDriftWarnings(ticketsDir), "\n")
+		if !strings.Contains(before, assetStamplessSignal) {
+			t.Fatalf("control: the stampless divergence must be reported before init\n got: %q\nwant substring: %q", before, assetStamplessSignal)
+		}
+
+		if _, _, skipped, _, err := installAssets(root, initAssetPaths, true, false); err != nil {
+			t.Fatalf("installAssets: %v", err)
+		} else if skipped != 1 {
+			t.Fatalf("fixture guard: expected .ergrc to be preserved (skipped=1), got %d", skipped)
+		}
+
+		// The customisation is still on disk -- init's DECISION is not what
+		// this ticket changes, and an arm that lost it would be testing a
+		// clobber, not a stamp.
+		if onDisk, _ := os.ReadFile(filepath.Join(ticketsDir, ".ergrc")); string(onDisk) != customised {
+			t.Fatalf("fixture guard: init overwrote the customised .ergrc")
+		}
+
+		stamps := readManifest(root)
+		if got, present := stamps[".ergrc"]; present {
+			t.Errorf("init stamped a file it preserved: .ergrc recorded as %q, embedded hash is %q", got, sha256hex([]byte(embedded)))
+		}
+
+		after := strings.Join(assetDriftWarnings(ticketsDir), "\n")
+		if !strings.Contains(after, assetStamplessSignal) {
+			t.Errorf("following the advice erg check prints silenced the condition\n got: %q\nwant substring: %q", after, assetStamplessSignal)
+		}
+		if !strings.Contains(after, ".ergrc") {
+			t.Errorf("the surviving report must still name the asset: %q", after)
+		}
+	})
+
+	t.Run("positive control: an asset init did lay down IS stamped", func(t *testing.T) {
+		// Without this arm, "stop writing manifests at all" passes the arm
+		// above. AGENTS.md here is byte-identical to the embedded copy, so
+		// init verified it this run and the manifest may say so.
+		root := stamplessFixture(t, customised)
+		if _, _, _, _, err := installAssets(root, initAssetPaths, true, false); err != nil {
+			t.Fatalf("installAssets: %v", err)
+		}
+		stamps := readManifest(root)
+		if got := stamps["AGENTS.md"]; got != sha256hex([]byte(agents)) {
+			t.Errorf("AGENTS.md was installed this run and must be stamped: got %q, want %q", got, sha256hex([]byte(agents)))
+		}
+	})
+
+	t.Run("a prior stamp for a preserved file is carried, not dropped", func(t *testing.T) {
+		// "Don't stamp what you didn't touch" cuts both ways. The previous
+		// manifest's entry is evidence about a PAST install -- it is what lets
+		// the next run say "has local edits" and mean it. Dropping it would
+		// swap one false record for a lost one, and the run after a re-init
+		// would downgrade its own verdict to "reason unknown".
+		older := "ERGRC FROM AN EARLIER RELEASE -- pristine, not a local edit\n"
+		priorStamp := sha256hex([]byte(older))
+		// The stamp records the earlier release; the disk now holds a local
+		// edit, so the two differ and the file is preserved.
+		root := stampFixture(t, manifestWith(t, "", priorStamp), customised)
+
+		if _, _, skipped, _, err := installAssets(root, initAssetPaths, true, false); err != nil {
+			t.Fatalf("installAssets: %v", err)
+		} else if skipped != 1 {
+			t.Fatalf("fixture guard: expected .ergrc preserved, got skipped=%d", skipped)
+		}
+		if got := readManifest(root)[".ergrc"]; got != priorStamp {
+			t.Errorf("the preserving run rewrote the prior stamp: got %q, want the carried %q", got, priorStamp)
+		}
+		stderr := captureStderr(t, func() {
+			if _, _, _, _, err := installAssets(root, initAssetPaths, true, false); err != nil {
+				t.Fatalf("second installAssets: %v", err)
+			}
+		})
+		if !strings.Contains(stderr, "local edits") {
+			t.Errorf("the second run lost the evidence for its own verdict: %q", stderr)
+		}
+	})
+}
+
+// TestAssetDriftWarningsGatesPerAssetNotPerStore is ticket 0292 defect 3's red
+// step: the same silence 0283 closed, one level down. The stamped branch skipped
+// any asset with no entry (`if !ok || stamp == "" { continue }`) and did not fall
+// back to the stampless compare, while parseManifest returns non-nil as soon as
+// ONE line parses. So a manifest stamping .ergrc but not AGENTS.md silenced
+// AGENTS.md divergence completely: not drift-warned (no stamp for it), not
+// stampless-warned (the manifest is not nil).
+//
+// The gate under test is "is THIS asset stamped", not "does a manifest exist",
+// so the fixture must carry a manifest that parses -- otherwise the assertion
+// routes through the stampless branch and proves nothing about the stamped one.
+func TestAssetDriftWarningsGatesPerAssetNotPerStore(t *testing.T) {
+	ergrc, ok := bootstrapAsset("tickets/.ergrc")
+	if !ok {
+		t.Fatal("embedded .ergrc missing")
+	}
+	agentsEmbedded, ok := bootstrapAsset("tickets/AGENTS.md")
+	if !ok {
+		t.Fatal("embedded AGENTS.md missing")
+	}
+
+	// A manifest that stamps .ergrc at its embedded hash and says nothing at
+	// all about AGENTS.md. This is what `erg init` itself now writes when it
+	// preserved AGENTS.md, so the shape is reachable, not contrived.
+	partial := "# erg provenance manifest -- do not edit\nrev: fixture\nassets:\n" +
+		"  .ergrc sha256:" + sha256hex([]byte(ergrc)) + "\n"
+
+	// build lays down a store with the partial manifest, a pristine .ergrc and
+	// the caller's AGENTS.md.
+	build := func(t *testing.T, agentsContent string) string {
+		t.Helper()
+		root := t.TempDir()
+		ticketsDir := filepath.Join(root, "tickets")
+		if err := os.MkdirAll(ticketsDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(ticketsDir, ".ergrc"), []byte(ergrc), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(ticketsDir, "AGENTS.md"), []byte(agentsContent), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(ticketsDir, manifestName), []byte(partial), 0644); err != nil {
+			t.Fatal(err)
+		}
+		// Fixture guard: the manifest must PARSE, or every assertion below
+		// silently reroutes into the stampless branch and this test stops
+		// being about the stamped one.
+		stamps := readManifestFile(filepath.Join(ticketsDir, manifestName))
+		if stamps == nil {
+			t.Fatal("fixture guard: the partial manifest does not parse, so the stamped branch is never reached")
+		}
+		if _, present := stamps["AGENTS.md"]; present {
+			t.Fatal("fixture guard: the partial manifest is not partial -- AGENTS.md is stamped")
+		}
+		return root
+	}
+
+	t.Run("noisy arm: an unstamped asset in a stamped store is reported", func(t *testing.T) {
+		diverged := "# AGENTS.md, locally rewritten, never stamped\n"
+		if diverged == agentsEmbedded {
+			t.Fatal("test fixture collides with embedded content")
+		}
+		root := build(t, diverged)
+		got := strings.Join(assetDriftWarnings(filepath.Join(root, "tickets")), "\n")
+		if !strings.Contains(got, assetStamplessSignal) {
+			t.Fatalf("an asset missing from an otherwise-valid manifest must be reported\n got: %q\nwant substring: %q", got, assetStamplessSignal)
+		}
+		if !strings.Contains(got, "AGENTS.md") {
+			t.Errorf("the report must name the unstamped asset: %q", got)
+		}
+	})
+
+	t.Run("silent control: the same partial manifest, matching content", func(t *testing.T) {
+		// The sibling that keeps the noisy arm honest. Identical fixture
+		// shape, identical gate, different bytes on disk -- so an
+		// implementation that reports on "unstamped" rather than on
+		// "unstamped AND diverged" fails here and passes above.
+		root := build(t, agentsEmbedded)
+		for _, w := range assetDriftWarnings(filepath.Join(root, "tickets")) {
+			if strings.Contains(w, assetStamplessSignal) {
+				t.Errorf("an unstamped asset matching the embedded copy must stay silent: %q", w)
+			}
+		}
+	})
+
+	t.Run("the stamped asset alongside it keeps its own branch", func(t *testing.T) {
+		// .ergrc is stamped at the embedded hash, so it has nothing to say --
+		// through EITHER branch. A fix that routed every asset through the
+		// stampless compare would still be silent here (disk matches
+		// embedded), so this arm is about the drift signal staying unclaimed.
+		root := build(t, agentsEmbedded)
+		got := strings.Join(assetDriftWarnings(filepath.Join(root, "tickets")), "\n")
+		if strings.Contains(got, assetDriftSignal) || strings.Contains(got, assetRollbackSignal) {
+			t.Errorf("a current stamp must raise no drift claim: %q", got)
+		}
+	})
+}
+
+// TestInstallAssetsPreserveReasonIsObserved is ticket 0292 defect 2's second
+// half: `init: tickets/.ergrc has local edits -- preserving` was printed flatly
+// for every preserved file, including one whose provenance the code never
+// observed. With no stamp for the asset, all the compare established is that
+// the bytes differ from what this binary ships -- "you edited it" is an
+// attribution, and it is exactly the attribution assetStamplessSignal exists to
+// refuse. It is also channel 2 of ticket 0283's exit criterion 1: this per-file
+// line is how `erg init` and `erg init -n` report a stampless store's condition.
+//
+// The stamped arm is the control. Without it, a fix that simply deleted the
+// "local edits" wording everywhere would pass the unstamped arm, and the
+// justified verdict -- the file differs from the stamp recording what init
+// itself last wrote -- would be lost with the unjustified one.
+func TestInstallAssetsPreserveReasonIsObserved(t *testing.T) {
+	const customised = "# locally customised .ergrc -- never shipped by any erg\nlabels = deferred\n"
+	embedded, ok := bootstrapAsset("tickets/.ergrc")
+	if !ok {
+		t.Fatal("embedded .ergrc missing")
+	}
+	if customised == embedded {
+		t.Fatal("test fixture collides with embedded content")
+	}
+
+	t.Run("no stamp for the asset: no attribution is claimed", func(t *testing.T) {
+		root := stamplessFixture(t, customised)
+		stderr := captureStderr(t, func() {
+			if _, _, skipped, _, err := installAssets(root, initAssetPaths, true, false); err != nil {
+				t.Fatalf("installAssets: %v", err)
+			} else if skipped != 1 {
+				t.Fatalf("fixture guard: expected .ergrc preserved, got skipped=%d", skipped)
+			}
+		})
+		if strings.Contains(stderr, "local edits") {
+			t.Errorf("init asserted an edit it never observed: %q", stderr)
+		}
+		if !strings.Contains(stderr, ".ergrc") {
+			t.Errorf("the per-file line must name the asset: %q", stderr)
+		}
+		if !strings.Contains(stderr, "no usable .erg-assets stamp") {
+			t.Errorf("init must report the condition it actually observed: %q", stderr)
+		}
+	})
+
+	t.Run("dry run reports the same condition on stdout", func(t *testing.T) {
+		// Channel 2 of 0283's criterion covers `erg init -n` too, and the
+		// dry-run leg prints its own short label from a separate string.
+		root := stamplessFixture(t, customised)
+		stdout := captureStdout(t, func() {
+			if _, _, _, _, err := installAssets(root, initAssetPaths, true, true); err != nil {
+				t.Fatalf("installAssets: %v", err)
+			}
+		})
+		if !strings.Contains(stdout, "would preserve") || !strings.Contains(stdout, ".ergrc") {
+			t.Fatalf("the dry run must still preview the preservation: %q", stdout)
+		}
+		if strings.Contains(stdout, "(local edits)") {
+			t.Errorf("the dry-run label claims an edit no stamp attests: %q", stdout)
+		}
+		if !strings.Contains(stdout, "no usable stamp") {
+			t.Errorf("the dry-run label must name the observed condition: %q", stdout)
+		}
+	})
+
+	t.Run("control: a stamp DOES justify the local-edit verdict", func(t *testing.T) {
+		older := "ERGRC FROM AN EARLIER RELEASE -- pristine, not a local edit\n"
+		root := stampFixture(t, manifestWith(t, "", sha256hex([]byte(older))), customised)
+		stderr := captureStderr(t, func() {
+			if _, _, skipped, _, err := installAssets(root, initAssetPaths, true, false); err != nil {
+				t.Fatalf("installAssets: %v", err)
+			} else if skipped != 1 {
+				t.Fatalf("fixture guard: expected .ergrc preserved, got skipped=%d", skipped)
+			}
+		})
+		if !strings.Contains(stderr, "local edits") {
+			t.Errorf("a file differing from its own stamp IS a local edit and must be named one: %q", stderr)
+		}
+	})
+}
+
+// TestInitShowPrintsTheEmbeddedAsset is ticket 0292 defect 4's red step. The
+// stampless NOTE tells a reader their asset differs from the copy the binary
+// ships, and until now no erg subcommand could show them that copy: `erg init
+// -n` reports only THAT a file differs, and spec/integration dump different
+// embedded files entirely. The message therefore pointed at the store's version
+// control, which a directory under none -- a shape erg check accepts -- does not
+// have, and which an untracked asset does not have either.
+//
+// The assertion is byte equality against bootstrapAsset, not a substring: the
+// whole use of the flag is piping it into a diff or a checksum, and a trailing
+// banner or a missing final newline breaks that while looking fine on screen.
+func TestInitShowPrintsTheEmbeddedAsset(t *testing.T) {
+	for _, rel := range showableAssetPaths() {
+		name := strings.TrimPrefix(rel, "tickets/")
+		t.Run(name, func(t *testing.T) {
+			want, ok := bootstrapAsset(rel)
+			if !ok {
+				t.Fatalf("embedded asset missing: %s", rel)
+			}
+			var rc int
+			got := captureStdout(t, func() { rc = cmdInit([]string{"--show", name}) })
+			if rc != 0 {
+				t.Fatalf("erg init --show %s exited %d", name, rc)
+			}
+			if got != want {
+				t.Errorf("--show %s is not byte-identical to the embedded copy: got %d bytes, want %d", name, len(got), len(want))
+			}
+		})
+	}
+
+	t.Run("the asset name is not read as DIR", func(t *testing.T) {
+		// `erg init --show .ergrc` must never be parsed as an init of ./.ergrc.
+		// The flag consumes its argument; a parser that let it fall through to
+		// positional would try to initialise a directory named .ergrc, and the
+		// only visible symptom would be a "binary not found" that looks like
+		// an unrelated environment problem. The --show=NAME spelling is the
+		// same contract written the other way and must agree.
+		want, _ := bootstrapAsset("tickets/.ergrc")
+		for _, args := range [][]string{{"--show", ".ergrc"}, {"--show=.ergrc"}, {"--show", "tickets/.ergrc"}} {
+			var rc int
+			got := captureStdout(t, func() { rc = cmdInit(args) })
+			if rc != 0 || got != want {
+				t.Errorf("%v: rc=%d, %d bytes, want 0 and %d bytes", args, rc, len(got), len(want))
+			}
+		}
+	})
+
+	t.Run("an unknown asset name is an error naming what is available", func(t *testing.T) {
+		var rc int
+		stderr := captureStderr(t, func() {
+			captureStdout(t, func() { rc = cmdInit([]string{"--show", "no-such-asset"}) })
+		})
+		if rc == 0 {
+			t.Errorf("--show with an unknown name must not report success")
+		}
+		if !strings.Contains(stderr, ".ergrc") || !strings.Contains(stderr, "AGENTS.md") {
+			t.Errorf("the error must name the assets this binary can show: %q", stderr)
+		}
+	})
+
+	t.Run("--show with no name is an error, not an init", func(t *testing.T) {
+		var rc int
+		stderr := captureStderr(t, func() {
+			captureStdout(t, func() { rc = cmdInit([]string{"--show"}) })
+		})
+		if rc == 0 {
+			t.Errorf("a bare --show must not fall through to an init of the current directory")
+		}
+		if !strings.Contains(stderr, "--show") {
+			t.Errorf("the error must name the flag it is about: %q", stderr)
+		}
+	})
+}
+
+// TestAssetStamplessSignalKeepsItsShippedPrefix pins the cross-version contract
+// by BYTES, against a hardcoded snapshot, because every other assertion in this
+// package compares assetStamplessSignal with itself and is therefore invariant
+// under any rewording -- self-referential, zero protection (PR #360 round 1).
+//
+// The premise is measured, not assumed: this exact text is inside the committed
+// bootstrap binary, so a store that ran erg update carries an OLD binary that
+// greps update.go's copy of it against a NEW binary's `erg check` output. Reword
+// the front and the old side stops recognising its own signal, with no error
+// anywhere. Extending the END is always safe; that is what HasPrefix allows.
+//
+// tests/test_check.sh guards the same contract from the other side, but by two
+// PROSE ANCHORS inside the string -- a mid-string reword that respects both
+// would pass there and still break the real grep. This test closes that gap:
+// it is a byte comparison over the whole historical prefix.
+//
+// If this test fails, do not update the constant below to match. The constant
+// below is the record of what shipped; the code is what must be repaired.
+func TestAssetStamplessSignalKeepsItsShippedPrefix(t *testing.T) {
+	// Verbatim from the binary committed at origin/main before ticket 0292.
+	const shipped = "no .erg-assets stamp -- cannot tell whether this is a clean upgrade or a local edit; its git history can, and 'erg init' preserves the file either way but stamps it as if shipped"
+
+	if !strings.HasPrefix(assetStamplessSignal, shipped) {
+		t.Fatalf("assetStamplessSignal no longer starts with the text an already-shipped binary greps for.\n got: %q\nwant prefix: %q", assetStamplessSignal, shipped)
+	}
+	// And the printed line must carry it too -- a constant kept intact while
+	// the format string around it drops or reflows it would pass the check
+	// above and still break the grep.
+	root := stamplessFixture(t, "# a .ergrc this binary does not ship\n")
+	got := strings.Join(assetDriftWarnings(filepath.Join(root, "tickets")), "\n")
+	if !strings.Contains(got, shipped) {
+		t.Errorf("the PRINTED line dropped the shipped prefix: %q", got)
+	}
+}
+
+// TestInstallAssetsRejectsAStampThatIsNotAHash is PR #360 round 1's red-team
+// finding, turned into a guard. Carrying a preserved asset's prior stamp
+// forward (ticket 0292, defect 1) replaced an unconditional restamp, and that
+// restamp had been self-healing a case nobody had noticed: a manifest entry
+// that parses but is not a SHA-256 -- truncated mid-line, or hand-edited.
+//
+// Before the fix, such an entry was carried verbatim into every later manifest,
+// FOREVER, and because installAssets read stamp presence as the evidence for
+// "has local edits", every subsequent run asserted an edit nothing had observed
+// -- the exact false-reason class this ticket set out to remove, reached
+// through a different door. The trade was a wrong-attribution defect for a
+// never-self-heals one.
+//
+// Both halves are asserted, because fixing either alone leaves the other: the
+// garbage must not survive the run, AND the verdict must not rest on it.
+func TestInstallAssetsRejectsAStampThatIsNotAHash(t *testing.T) {
+	const customised = "# locally customised .ergrc -- never shipped by any erg\nlabels = deferred\n"
+
+	t.Run("a truncated stamp is dropped, not carried forward", func(t *testing.T) {
+		truncated := sha256hex([]byte(customised))[:20]
+		root := stampFixture(t, manifestWith(t, "", truncated), customised)
+		// Fixture guard: the entry must PARSE, or this exercises the
+		// no-manifest path and proves nothing about carry-forward.
+		if got := readManifest(root)[".ergrc"]; got != truncated {
+			t.Fatalf("fixture guard: the truncated stamp did not parse (got %q)", got)
+		}
+
+		stderr := captureStderr(t, func() {
+			if _, _, skipped, _, err := installAssets(root, initAssetPaths, true, false); err != nil {
+				t.Fatalf("installAssets: %v", err)
+			} else if skipped != 1 {
+				t.Fatalf("fixture guard: expected .ergrc preserved, got skipped=%d", skipped)
+			}
+		})
+		if got, present := readManifest(root)[".ergrc"]; present {
+			t.Errorf("a stamp that is not a hash survived the run: %q", got)
+		}
+		if strings.Contains(stderr, "has local edits") {
+			t.Errorf("the verdict rested on a stamp that is not evidence: %q", stderr)
+		}
+		if !strings.Contains(stderr, "no usable .erg-assets stamp") {
+			t.Errorf("init must name the condition it observed: %q", stderr)
+		}
+	})
+
+	t.Run("control: a well-formed stamp is still carried and still believed", func(t *testing.T) {
+		// Without this arm, "drop every carried stamp" passes above and
+		// silently deletes the evidence defect 1's fix exists to keep.
+		older := "ERGRC FROM AN EARLIER RELEASE -- pristine, not a local edit\n"
+		good := sha256hex([]byte(older))
+		root := stampFixture(t, manifestWith(t, "", good), customised)
+
+		stderr := captureStderr(t, func() {
+			if _, _, _, _, err := installAssets(root, initAssetPaths, true, false); err != nil {
+				t.Fatalf("installAssets: %v", err)
+			}
+		})
+		if got := readManifest(root)[".ergrc"]; got != good {
+			t.Errorf("a well-formed prior stamp was dropped: got %q, want %q", got, good)
+		}
+		if !strings.Contains(stderr, "has local edits") {
+			t.Errorf("a file differing from a real stamp is a local edit: %q", stderr)
+		}
+	})
+
+	t.Run("looksLikeAssetHash: the shapes it must separate", func(t *testing.T) {
+		real := sha256hex([]byte("anything"))
+		for _, ok := range []string{real, strings.Repeat("0", 64), strings.Repeat("f", 64)} {
+			if !looksLikeAssetHash(ok) {
+				t.Errorf("rejected a valid hash shape: %q", ok)
+			}
+		}
+		bad := []string{
+			"",
+			real[:63],               // one short
+			real + "0",              // one long
+			strings.ToUpper(real),   // uppercase: sha256hex never emits it
+			strings.Repeat("g", 64), // right length, not hex
+			real[:62] + "zz",        // right length, tail not hex
+			"sha256:" + real[:57],   // a prefix pasted in with its label
+		}
+		for _, s := range bad {
+			if looksLikeAssetHash(s) {
+				t.Errorf("accepted something that is not a hash: %q", s)
+			}
+		}
+	})
+}
+
+// TestStampNotAHashIsReadTheSameWayEverywhere is PR #360 round 2's blocker,
+// turned into the guard the round-1 fix should have shipped with. Round 1 wired
+// looksLikeAssetHash into two readers of "is this stamp evidence" and a comment
+// claimed that was all of them. There was a third: managedAssetWarnings still
+// gated on `stamp == ""`, so a manifest holding a non-hash stamp sent it into
+// the STAMPED branch, where the stamp cannot equal the embedded hash -- and
+// `erg check` printed a confident directional "binary upgraded since last init
+// -- run 'erg init' to refresh" about a file `erg init`, on the same store,
+// refuses to attribute and refuses to refresh.
+//
+// Two commands contradicting each other on one store is worse than either
+// being wrong alone, so the assertion is on AGREEMENT, not on either message in
+// isolation: whatever the reading, check and init must reach it together. That
+// is also what makes this test survive a future change of wording.
+//
+// Fixture note, recorded because the first attempt at this repro produced a
+// clean-looking false negative: the manifest separator is the literal
+// " sha256:" (see parseManifest). A line written as "name hash" does not parse,
+// the store falls through to the no-manifest branch, and the benign stampless
+// NOTE appears instead of the WARN -- which reads exactly like "no defect
+// here". The fixture guard below is what refuses that reading.
+func TestStampNotAHashIsReadTheSameWayEverywhere(t *testing.T) {
+	const customised = "# locally customised .ergrc -- never shipped by any erg\nlabels = deferred\n"
+	// Non-empty, parses as an entry, is not a SHA-256: a manifest truncated
+	// mid-line, or edited by hand.
+	const notAHash = "c6c529c913c76291ab93"
+
+	root := stampFixture(t, manifestWith(t, "", notAHash), customised)
+	ticketsDir := filepath.Join(root, "tickets")
+
+	// Fixture guard: the entry must PARSE and the manifest must be read as
+	// present. Without this the test silently exercises the no-manifest path
+	// and proves nothing about the stamped branch.
+	stamps := readManifestFile(filepath.Join(ticketsDir, manifestName))
+	if stamps == nil {
+		t.Fatal("fixture guard: the manifest does not parse, so the stamped branch is never reached")
+	}
+	if stamps[".ergrc"] != notAHash {
+		t.Fatalf("fixture guard: the malformed stamp did not survive the parse (got %q)", stamps[".ergrc"])
+	}
+
+	got := strings.Join(assetDriftWarnings(ticketsDir), "\n")
+	if strings.Contains(got, assetDriftSignal) || strings.Contains(got, assetRollbackSignal) {
+		t.Errorf("erg check made a directional stamp claim on a stamp that is not a hash: %q", got)
+	}
+	if !strings.Contains(got, assetStamplessSignal) {
+		t.Errorf("the divergence must still be reported, through the honest channel: %q", got)
+	}
+
+	stderr := captureStderr(t, func() {
+		if _, _, _, _, err := installAssets(root, initAssetPaths, true, false); err != nil {
+			t.Fatalf("installAssets: %v", err)
+		}
+	})
+	// The agreement assertion: check declined to attribute, so init must too.
+	if strings.Contains(stderr, "has local edits") {
+		t.Errorf("erg init attributed what erg check declined to attribute: %q", stderr)
+	}
+	if !strings.Contains(stderr, "no usable .erg-assets stamp") {
+		t.Errorf("init must name the same condition check named: %q", stderr)
+	}
 }

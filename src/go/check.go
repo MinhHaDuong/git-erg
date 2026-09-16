@@ -239,15 +239,21 @@ Additionally emits warnings (non-fatal) for:
       - this binary is OLDER than the stamp (it predates the last init):
         refreshing would REVERT the deployed assets; run 'erg update' first,
         then 'erg init'.
-    Requires a .erg-assets manifest: the comparison is stamp against embedded.
-    A store with no manifest gets the stampless NOTE below instead. A stamp with
+    Requires a stamp FOR THAT ASSET: the comparison is stamp against embedded.
+    An asset no stamp covers gets the stampless NOTE below instead. A stamp with
     no comparable date carries no direction and is reported as the upgrade case,
     which is the pre-0279 behaviour.
-  - Stampless asset (NOTE, not WARN): there is NO .erg-assets manifest at all,
-    yet an asset on disk differs from this binary's embedded copy. The
-    difference is real but unattributable -- with no stamp, nothing records
-    whether it is an upgrade this store never stamped or a deliberate local
-    edit -- so no direction is claimed and no overwrite is prescribed. Silent
+  - Stampless asset (NOTE, not WARN): no .erg-assets entry usably stamps this
+    asset -- the store has no manifest at all, or the manifest it has says
+    nothing about this file, or it carries an entry that is not a usable hash
+    (truncated mid-line, hand-edited) -- yet the asset on disk differs from this
+    binary's embedded copy. A manifest that covers only some assets is a normal
+    state, not a corrupted one: erg init stamps what it installed and leaves
+    an asset it preserved alone, so a store with one customised asset ends up
+    exactly there. The difference is real but unattributable -- with no stamp, nothing
+    records whether it is an upgrade this store never stamped or a deliberate
+    local edit -- so no direction is claimed and no overwrite is prescribed.
+    Run 'erg init --show NAME' to see the copy this binary ships. Silent
     when the asset is absent (a store that never adopted erg's asset management
     is not nagged) and silent when it matches the embedded copy exactly.
     NOTE marks the weaker class: a condition reported, not a repair advised.

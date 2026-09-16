@@ -375,7 +375,7 @@ UP="$TDIR/dpkg-upgrade"
 mkdir -p "$UP/tickets"; touch "$UP/tickets/erg"
 printf 'OLD PRISTINE ERGRC\n' > "$UP/tickets/.ergrc"
 oldhash=$(printf 'OLD PRISTINE ERGRC\n' | sha256sum | cut -d' ' -f1)
-printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:%s\n  AGENTS.md sha256:deadbeef\n' "$oldhash" > "$UP/tickets/.erg-assets"
+printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:%s\n  AGENTS.md sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n' "$oldhash" > "$UP/tickets/.erg-assets"
 OUT_UP=$($ERG init "$UP" 2>&1) && rc=$? || rc=$?
 if ! grep -q 'OLD PRISTINE ERGRC' "$UP/tickets/.ergrc"; then
     pass "dpkg row2: on-disk==stamp!=embedded is a clean upgrade (overwritten)"
@@ -445,6 +445,134 @@ else
     fail "dpkg: unchanged file not named per-file in normal mode (got: $OUT_UC)"
 fi
 
+# --- channel 2 of ticket 0283's criterion 1: erg init reports a stampless
+# --- store's condition (ticket 0292, defect 2)
+#
+# 0283 named three channels for an unstamped divergence -- erg check, erg
+# init's chained post-init check, erg update's post-swap hint -- and the middle
+# one could not fire for any asset warning. A stampless store with a diverged
+# asset always skips, and `if skipped > 0 { return 2 }` sits several lines above
+# the chained corpusWarnings block on both legs; on the non-skipping leg the
+# manifest has already been written, so the store is no longer stampless by the
+# time the check runs. The channel was closed by giving installAssets a third
+# preserve reason carried on the per-file line, rather than by moving the
+# chained check -- that keeps init's exit ordering and, in the same stroke,
+# stops the run asserting an edit it never observed.
+SL="$TDIR/stampless"
+mkdir -p "$SL/tickets"
+touch "$SL/tickets/erg"
+printf '# an .ergrc that is not what this binary embeds\nlabels = whatever\n' > "$SL/tickets/.ergrc"
+# Guard: the store must really be stampless, or this exercises the stamped
+# branch and the "local edits" verdict would be the correct one.
+if [ -f "$SL/tickets/.erg-assets" ]; then
+    fail "stampless init: fixture carries a manifest (test would prove nothing)"
+else
+    OUT_SL=$($ERG init "$SL" 2>&1 || true)
+    if echo "$OUT_SL" | grep -qF "has no usable .erg-assets stamp -- preserving"; then
+        pass "stampless init: erg init reports the condition itself (0283 channel 2)"
+    else
+        fail "stampless init: no channel-2 report from erg init (got: $OUT_SL)"
+    fi
+    if echo "$OUT_SL" | grep -q "has local edits"; then
+        fail "stampless init: claimed an edit no stamp attests (got: $OUT_SL)"
+    else
+        pass "stampless init: no local-edit attribution without a stamp to support it"
+    fi
+    if echo "$OUT_SL" | grep -qF "erg init --show .ergrc"; then
+        pass "stampless init: the report names the command that answers the question"
+    else
+        fail "stampless init: the report leaves the reader with no next step (got: $OUT_SL)"
+    fi
+fi
+
+# The same channel through the dry run, which prints its own short label from a
+# separate string and so can regress on its own.
+SLN="$TDIR/stampless-dryrun"
+mkdir -p "$SLN/tickets"
+touch "$SLN/tickets/erg"
+printf '# an .ergrc that is not what this binary embeds\nlabels = whatever\n' > "$SLN/tickets/.ergrc"
+OUT_SLN=$($ERG init -n "$SLN" 2>&1 || true)
+if echo "$OUT_SLN" | grep -qF "would preserve (differs, no usable stamp, reason unknown)"; then
+    pass "stampless init -n: the dry run reports the condition too"
+else
+    fail "stampless init -n: dry run gave no reason, or the wrong one (got: $OUT_SLN)"
+fi
+# Control for the two arms above: with a stamp on disk that the file no longer
+# matches, "local edits" is a verdict the record supports and must survive.
+# Without this arm, deleting the wording everywhere passes both.
+SLC="$TDIR/stamped-edit"
+mkdir -p "$SLC/tickets"
+touch "$SLC/tickets/erg"
+$ERG init "$SLC" >/dev/null 2>&1 || true
+printf '# user edit\n' >> "$SLC/tickets/.ergrc"
+OUT_SLC=$($ERG init "$SLC" 2>&1 || true)
+if echo "$OUT_SLC" | grep -q "has local edits"; then
+    pass "stamped edit: a file differing from its own stamp is still named a local edit"
+else
+    fail "stamped edit: the justified verdict was lost with the unjustified one (got: $OUT_SLC)"
+fi
+
+# --- erg init --show NAME prints the embedded copy (ticket 0292, defect 4) ---
+# Every asset report tells a reader their file differs from the copy the binary
+# ships, and no subcommand could show them that copy: init -n reports only THAT
+# it differs, spec and integration dump different embedded files. So the
+# messages pointed at the store's version-control history, which a directory
+# under no version control does not have at all and an untracked asset does not
+# have for that file. Byte identity is the contract -- the output is meant for
+# diff and sha256sum -- so it is compared against the file a clean init wrote,
+# not greped for a substring.
+SHOWDIR="$TDIR/show"
+mkdir -p "$SHOWDIR/tickets"
+touch "$SHOWDIR/tickets/erg"
+$ERG init "$SHOWDIR" >/dev/null 2>&1 || true
+$ERG init --show .ergrc > "$TDIR/shown-ergrc" 2>"$TDIR/shown-err" || true
+if [ -s "$TDIR/shown-ergrc" ] && cmp -s "$TDIR/shown-ergrc" "$SHOWDIR/tickets/.ergrc"; then
+    pass "--show: prints the embedded .ergrc byte-identical to what init lays down"
+else
+    fail "--show: output differs from the installed asset (stderr: $(cat "$TDIR/shown-err"))"
+fi
+# The manifest is the independent witness: init stamped .ergrc with the SHA-256
+# of the embedded copy, so --show piped through sha256sum must reproduce it.
+# This is the check the ticket's verification list names, and it closes the loop
+# without trusting either side of the comparison above on its own.
+SHOWN_SUM=$($ERG init --show .ergrc | sha256sum | cut -d' ' -f1)
+STAMPED_SUM=$(grep "^  \.ergrc sha256:" "$SHOWDIR/tickets/.erg-assets" | sed 's/.*sha256://')
+if [ -n "$STAMPED_SUM" ] && [ "$SHOWN_SUM" = "$STAMPED_SUM" ]; then
+    pass "--show: the printed bytes hash to the stamp a clean init recorded"
+else
+    fail "--show: hash mismatch against the manifest (shown=$SHOWN_SUM stamped=$STAMPED_SUM)"
+fi
+# The vendored helper is showable too: erg never writes tickets/erg-github, so
+# README's re-vendor-by-hand recipe had no offline source for the shipped copy.
+$ERG init --show erg-github > "$TDIR/shown-gh" 2>/dev/null || true
+if [ -s "$TDIR/shown-gh" ] && cmp -s "$TDIR/shown-gh" src/go/assets/erg-github; then
+    pass "--show: the vendored erg-github is showable, so re-vendoring has a source"
+else
+    fail "--show: erg-github does not match the embedded reference"
+fi
+# `erg init --show .ergrc` must never be read as an init of ./.ergrc. The flag
+# consumes its argument; a parser that let it fall through to the positional
+# DIR would report "binary not found", which reads like an unrelated
+# environment problem rather than a parsing bug.
+if $ERG init --show no-such-asset >/dev/null 2>"$TDIR/show-unknown"; then
+    fail "--show with an unknown name must not report success"
+else
+    if grep -q "\.ergrc" "$TDIR/show-unknown" && grep -q "AGENTS\.md" "$TDIR/show-unknown"; then
+        pass "--show: an unknown name errors and names what this binary ships"
+    else
+        fail "--show: the error names no alternative (got: $(cat "$TDIR/show-unknown"))"
+    fi
+fi
+# --show needs no project: it reads nothing from disk. Run it from a directory
+# with no tickets/ at all and it must still answer.
+ERG_ABS_SHOW=$(readlink -f "$ERG")
+EMPTYDIR="$TDIR/nostore"
+mkdir -p "$EMPTYDIR"
+if (cd "$EMPTYDIR" && "$ERG_ABS_SHOW" init --show .ergrc >/dev/null 2>&1); then
+    pass "--show: answers without a project or a tickets/ directory"
+else
+    fail "--show: refused to print an embedded asset for want of a store"
+fi
 
 # --- Flags help: --force acknowledges the downgrade case ---
 # "local edits are replaced" is no longer the whole story: on a rollback the

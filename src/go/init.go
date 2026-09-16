@@ -45,6 +45,24 @@ var vendoredAssetPaths = []string{
 	"tickets/erg-github",
 }
 
+// showableAssetPaths is every embedded file `erg init --show NAME` can print:
+// the managed assets init writes, plus the vendored reference copy it only
+// ships. Derived from the two lists rather than spelled out again, so a new
+// asset becomes showable by being added where it belongs.
+//
+// The union is deliberate even though the two populations are governed
+// differently. --show answers one question -- "what does this binary ship at
+// this path" -- and that question is exactly as answerable, and exactly as
+// useful, for a vendored file the adopter must re-vendor by hand as for a
+// managed one erg would overwrite. Excluding the vendored copy would leave
+// README's re-vendor recipe with no offline source (ticket 0292, defect 4).
+func showableAssetPaths() []string {
+	out := make([]string, 0, len(initAssetPaths)+len(vendoredAssetPaths))
+	out = append(out, initAssetPaths...)
+	out = append(out, vendoredAssetPaths...)
+	return out
+}
+
 // orphanAssetPaths lists assets that older erg versions deposited during init
 // but are now served on demand via erg spec / erg integration. If a file at
 // one of these paths matches the current embedded content exactly, init
@@ -56,7 +74,7 @@ var orphanAssetPaths = []string{
 
 const summaryInit = "Unpack .ergrc and AGENTS.md into tickets/"
 
-const helpInit = `## erg init [DIR] [-n|--dry-run] [--force]
+const helpInit = `## erg init [DIR] [-n|--dry-run] [--force] [--show NAME]
 
 Unpack embedded bootstrap assets into the project.
 
@@ -86,6 +104,17 @@ clean upgrade -- erg never touched it, so it is overwritten and a
 is a local edit: it is preserved and the command exits 2 (local edits are never
 overwritten without --force).
 
+A preserved file is not stamped. The manifest records what init INSTALLED, so
+an asset init declined to touch keeps whatever the previous manifest said about
+it and gains no new entry -- stamping it with the embedded hash would certify a
+customised file as identical to the shipped default and silence every later
+report about it. An asset with no entry is compared against the embedded copy
+directly, and erg check says so without claiming a direction.
+
+When no stamp attests the difference, init says exactly that rather than
+"local edits": with no recorded provenance, nothing distinguishes your own edit
+from an upgrade the store never stamped, and --show is how you find out.
+
 The stamp also records which binary wrote it, and init compares that date with
 its own. If this binary is the OLDER one -- an erg from before the last init --
 then refreshing would revert the deployed assets, not upgrade them. Such a file
@@ -106,6 +135,17 @@ Flags:
                   there was locally edited, the file is being reverted to an
                   older release. Run 'erg update' first if that is not what you
                   want.
+  --show NAME     Print this binary's embedded copy of NAME on stdout and exit,
+                  writing nothing. NAME is .ergrc, AGENTS.md or erg-github
+                  (with or without the "tickets/" prefix). The output is byte-
+                  identical to what the asset compare uses, so it pipes into
+                  diff or sha256sum and settles what an asset report cannot:
+                  whether a copy differs because it was edited locally or
+                  because the binary moved on.
+
+                    erg init --show .ergrc | diff - tickets/.ergrc
+
+                  Needs no project and no tickets/ directory.
 
 If tickets/spec-erg-v1.md or tickets/integration.md exist from a previous init
 and match the current embedded content, they are removed as orphaned assets.
@@ -169,6 +209,12 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 	// Set when an asset was preserved BECAUSE of the rollback, which suppresses
 	// the provenance rewrite at the end of the run (see there).
 	rollbackPreserved := false
+	// Every asset this run PRESERVED, mapped to what the previous manifest
+	// recorded for it ("" when it recorded nothing). Handed to writeManifest so
+	// the manifest never claims to have installed a file it declined to touch
+	// (ticket 0292, defect 1); see buildManifest for why a prior entry is
+	// carried rather than dropped.
+	preserved := map[string]string{}
 	for _, rel := range paths {
 		content, ok := bootstrapAsset(rel)
 		if !ok {
@@ -231,10 +277,41 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 
 		if preserve {
 			skipped++
-			// Name the actual reason. "has local edits" is false for a rollback
-			// (nothing was edited here), and the remedy is a different command.
+			preserved[name] = stamps[name]
+			// Name the actual reason, and only a reason this run OBSERVED.
+			// Three states, not two:
+			//
+			//   - a stamp exists for this asset and the bytes differ from it:
+			//     the file is not what init last wrote, so "local edits" is a
+			//     verdict the stamp supports;
+			//   - the stamp is NEWER than this binary: nothing was edited here
+			//     at all, and the remedy is a different command (ticket 0279);
+			//   - no stamp for this asset: the compare established only that
+			//     the bytes differ from what this binary ships. Calling that a
+			//     local edit is an attribution nothing here observed -- the
+			//     same false-reason class 0279 fixed on the rollback leg, and
+			//     precisely the attribution assetStamplessSignal exists to
+			//     refuse (ticket 0292, defect 2).
+			//
+			// This per-file line is also how `erg init` and `erg init -n`
+			// report a stampless store's condition at all: the chained corpus
+			// check below cannot, because a preserved asset means skipped > 0
+			// and the run returns 2 several lines above it.
+			// The predicate is looksLikeAssetHash, not `!= ""`: a stamp that is
+			// not a hash -- a manifest truncated mid-line, or hand-edited --
+			// is not evidence of anything, and reading it as one reinstates
+			// the false attribution on every run (PR #360 round 1). It is the
+			// same predicate buildManifest uses to decide what may be carried
+			// forward, which is what keeps the verdict and the record agreeing.
 			reason := "has local edits -- preserving (run with --force to overwrite)"
 			short := "local edits"
+			if !looksLikeAssetHash(stamps[name]) {
+				// "no usable stamp", not "no stamp": the manifest may hold a
+				// line for this asset that is not a hash, and saying it holds
+				// nothing would be its own unobserved claim.
+				reason = "differs from the copy this binary ships and has no usable .erg-assets stamp -- preserving; nothing here records whether that is your edit or an unstamped upgrade (run 'erg init --show " + name + "' to see the shipped copy, --force to overwrite)"
+				short = "differs, no usable stamp, reason unknown"
+			}
 			if preserveRollback {
 				rollbackPreserved = true
 				reason = "is newer than this binary -- preserving (run 'erg update' first, then 'erg init')"
@@ -297,15 +374,26 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 	// asset hashes for this binary. Written by both erg init and erg migrate
 	// (the two callers of installAssets). Skipped in dry-run.
 	//
-	// Not written when an asset was preserved because this binary predates the
-	// stamp (ticket 0279): the run declined to touch the deployed assets, so
-	// stamping them with this older binary's rev/date would record a state that
-	// never happened -- and would destroy the very evidence that said so, making
-	// the next run misreport the same rollback as a local edit.
+	// Not written AT ALL when an asset was preserved because this binary
+	// predates the stamp (ticket 0279): the run declined to touch the deployed
+	// assets, so stamping them with this older binary's rev/date would record a
+	// state that never happened -- and would destroy the very evidence that
+	// said so, making the next run misreport the same rollback as a local edit.
+	// The whole file is skipped here, not just the one entry, because the
+	// evidence at stake is the manifest's own date: header, which is a property
+	// of the file and not of any asset in it.
+	//
+	// For every OTHER preserved file the same rule applies per entry, which is
+	// what `preserved` carries (ticket 0292, defect 1): init records what it
+	// installed and stays silent about what it declined to touch, rather than
+	// stamping a customised file with the embedded hash and certifying it as
+	// shipped. That was the state corruption -- it silenced the drift report
+	// and the stampless report for that file permanently, and following the
+	// advice `erg check` printed is what triggered it.
 	if rollbackPreserved {
 		return created, refreshed, skipped, unchanged, nil
 	}
-	if err := writeManifest(root, dryRun); err != nil {
+	if err := writeManifest(root, dryRun, preserved); err != nil {
 		return created, refreshed, skipped, unchanged, fmt.Errorf("cannot write provenance manifest: %w", err)
 	}
 	return created, refreshed, skipped, unchanged, nil
@@ -319,19 +407,45 @@ func cmdInit(args []string) int {
 	var positional []string
 	dryRun := false
 	force := false
-	for _, a := range args {
-		switch a {
-		case "-n", "--dry-run":
+	show := ""
+	showAsked := false
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "-n" || a == "--dry-run":
 			dryRun = true
-		case "--force":
+		case a == "--force":
 			force = true
-		default:
-			if strings.HasPrefix(a, "-") {
-				fmt.Fprintf(os.Stderr, "init: unknown flag %q\nUsage: erg init [DIR] [-n|--dry-run] [--force]\n", a)
+		case a == "--show":
+			// The asset name is the NEXT token, and consuming it here is what
+			// keeps it out of positional: `erg init --show .ergrc` must never
+			// be read as an init of ./.ergrc, whose only symptom would be a
+			// "binary not found" that looks like an unrelated environment
+			// problem.
+			showAsked = true
+			if i+1 >= len(args) {
+				fmt.Fprintf(os.Stderr, "init: --show needs an asset name -- this binary ships: %s\n", strings.Join(showableAssetNames(), ", "))
 				return 1
 			}
+			i++
+			show = args[i]
+		case strings.HasPrefix(a, "--show="):
+			showAsked = true
+			show = strings.TrimPrefix(a, "--show=")
+		case strings.HasPrefix(a, "-"):
+			fmt.Fprintf(os.Stderr, "init: unknown flag %q\nUsage: erg init [DIR] [-n|--dry-run] [--force] [--show NAME]\n", a)
+			return 1
+		default:
 			positional = append(positional, a)
 		}
+	}
+
+	// --show is a read-only dump, handled before every other check: it does not
+	// need a project, a tickets/ directory or the erg binary in place, and
+	// refusing it for a missing store would withhold the one thing that answers
+	// "what does this binary ship" from a reader who has no store yet.
+	if showAsked {
+		return showEmbeddedAsset(show)
 	}
 	root := "."
 	if len(positional) > 0 {
@@ -384,6 +498,57 @@ func cmdInit(args []string) int {
 
 	fmt.Println("Next: erg install --hooks to set up pre-commit and pre-push hooks.")
 	return 0
+}
+
+// showableAssetNames is showableAssetPaths as the user spells them: the bare
+// file names, in list order, for the help text and the error messages.
+func showableAssetNames() []string {
+	var names []string
+	for _, rel := range showableAssetPaths() {
+		names = append(names, strings.TrimPrefix(rel, "tickets/"))
+	}
+	return names
+}
+
+// showEmbeddedAsset prints the embedded copy of the named asset on stdout and
+// nothing else, so the output pipes into diff, sha256sum or a file. It is the
+// answer to a question erg could not previously answer about itself (ticket
+// 0292, defect 4): every asset report -- the stampless NOTE, the vendored NOTE,
+// init's own preserve line -- tells a reader their file differs from the copy
+// this binary ships, and no subcommand could show them that copy. `erg init -n`
+// reports only THAT a file differs; erg spec and erg integration dump different
+// embedded files entirely. The only route was a second store, a copy of the
+// binary, an init and a manual diff.
+//
+// It is the erg-side answer that lets those messages stop pointing at the
+// store's version-control history, which a directory under no version control
+// does not have at all, and an untracked asset does not have for that file.
+//
+// Both spellings of the name are accepted -- ".ergrc" and "tickets/.ergrc" --
+// because the messages that send a reader here print the bare name while the
+// asset lists spell the path.
+func showEmbeddedAsset(name string) int {
+	want := strings.TrimPrefix(name, "tickets/")
+	for _, rel := range showableAssetPaths() {
+		if strings.TrimPrefix(rel, "tickets/") != want {
+			continue
+		}
+		content, ok := bootstrapAsset(rel)
+		if !ok {
+			// Unreachable while the lists and the embed set agree; reported
+			// rather than ignored so a future asset added to one and not the
+			// other fails loudly instead of printing nothing and exiting 0.
+			fmt.Fprintf(os.Stderr, "init: this binary ships no copy of %s\n", want)
+			return 1
+		}
+		// Bare content, no banner and no added newline: the contract is byte
+		// identity with what the compare uses, and a cosmetic trailer would
+		// break every checksum while looking fine on screen.
+		fmt.Print(content)
+		return 0
+	}
+	fmt.Fprintf(os.Stderr, "init: unknown asset %q -- this binary ships: %s\n", name, strings.Join(showableAssetNames(), ", "))
+	return 1
 }
 
 // cleanOrphanAssets removes assets that older erg versions deposited but are

@@ -280,7 +280,7 @@ WORKD="$WORKROOT/work-drift"
 git clone -q "$REMOTE" "$WORKD"
 cp "$ERG_ABS" "$WORKD/tickets/erg"
 # A manifest whose stamps will NOT match the swapped binary's embedded assets.
-printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:000000\n  AGENTS.md sha256:111111\n' > "$WORKD/tickets/.erg-assets"
+printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:0000000000000000000000000000000000000000000000000000000000000000\n  AGENTS.md sha256:1111111111111111111111111111111111111111111111111111111111111111\n' > "$WORKD/tickets/.erg-assets"
 OUTD=$(cd "$WORKD" && ERG_TICKET_DIR="$WORKD/tickets" ./tickets/erg update 2>&1 || true)
 if echo "$OUTD" | grep -q "run 'erg init' to refresh"; then
     pass "post-update: drift hint fires when a stamped asset differs from the new embedded"

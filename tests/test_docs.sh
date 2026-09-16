@@ -133,6 +133,39 @@ else
     fail "helpUpdate missing 'erg init' reference (ticket 0223 regression)"
 fi
 
+# helpCheck must not describe the stampless NOTE as a whole-store condition
+# (ticket 0292, defect 3). The gate is per asset: a manifest that stamps some
+# assets and not others is what `erg init` writes whenever it preserves one, and
+# the NOTE fires for the unstamped asset in that store. The pre-0292 wording --
+# "there is NO .erg-assets manifest at all" -- told a reader the opposite of
+# what tests/test_check.sh's PARTIAL fixture asserts, and nothing caught it
+# because check.go was untouched by the change that invalidated it.
+# Two clauses, not one. Pinning only the per-asset phrasing let the bullet go
+# stale a second time: round 2 added a THIRD cause (an entry that parses but is
+# not a usable hash) and the single-clause guard passed on a bullet that still
+# enumerated two. A guard that pins the opening of a sentence cannot see the
+# middle of it -- the same shape as test_check.sh's two prose anchors, fixed
+# there by pinning the byte prefix.
+CHECKHELP=$("$ERG" check --help 2>&1) || true
+if echo "$CHECKHELP" | grep -qF 'entry usably stamps this' \
+    && echo "$CHECKHELP" | grep -qF 'not a usable hash'; then
+    pass "helpCheck describes the stampless NOTE as per-asset, and names all three causes"
+else
+    fail "helpCheck still ties the stampless NOTE to a whole missing manifest, or omits the unusable-entry cause"
+fi
+
+# README's re-vendor recipe must name the offline route (ticket 0292).
+# `erg init --show erg-github` exists partly to give that recipe a source that
+# needs neither the network nor a clone -- and init.go's own comment cites the
+# recipe as the reason. A code justification pointing at documentation that
+# never mentions it is the drift this check closes.
+if sed -n '/^## Forge layer/,/^## Install into a project/p' README.md |
+    grep -qF 'init --show erg-github'; then
+    pass "README: the re-vendor recipe names the offline source"
+else
+    fail "README: the re-vendor recipe offers only network/clone routes (ticket 0292)"
+fi
+
 # integration.md must contain the 'Keeping a store current' subsection.
 INTEG_SRC="${INTEG_SRC:-src/go/assets/integration.md}"
 if [ -f "$INTEG_SRC" ] && grep -qF 'Keeping a store current' "$INTEG_SRC"; then

@@ -157,6 +157,21 @@ tickets/erg-github` does the same. Pulling from `main` instead works too, but
 if your binary is older the note will simply change sides -- helper and binary
 are shipped as one vintage, so upgrade both together.
 
+Offline, with neither network nor clone, the binary already holds the copy the
+note is comparing against:
+
+```bash
+erg init --show erg-github > tickets/erg-github && chmod +x tickets/erg-github
+```
+
+`--show` prints an embedded asset and nothing else, so it also serves the step
+this section asks for -- reading the diff before you commit it:
+`erg init --show erg-github | diff - tickets/erg-github`. It is byte-identical
+to what the compare uses, by construction, so a clean diff and a silent `erg
+check` are the same statement. The `chmod` is not decoration: the compare sees
+content only, so a copy with the right bytes and mode 0644 is silent here and
+still fails in CI with "permission denied".
+
 Maintainers: the reference copy is `src/go/assets/erg-github`. Edit that one
 and run `make regen-assets`; `tests/test_selfcoherence.sh` fails CI if the
 deployed `tickets/erg-github` drifts from it.
