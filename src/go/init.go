@@ -76,7 +76,12 @@ Flags:
                   unchanged without writing or removing any file.
   --force         Overwrite files that differ from the embedded version
                   instead of skipping them. Use with care: local edits are
-                  replaced.
+                  replaced. On a rollback (the .erg-assets stamp is newer than
+                  this binary) a forced overwrite of a file still matching that
+                  stamp is reported as "downgraded", not "refreshed": nothing
+                  there was locally edited, the file is being reverted to an
+                  older release. Run 'erg update' first if that is not what you
+                  want.
 
 If tickets/spec-erg-v1.md or tickets/integration.md exist from a previous init
 and match the current embedded content, they are removed as orphaned assets.
@@ -135,7 +140,7 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 	// property of the manifest, so read once, not per asset. rollback is false
 	// whenever the provenance is missing or unparseable -- see isRollback
 	// (ticket 0279).
-	stampDate := manifestDate(root)
+	stampDate := readManifestDate(root)
 	rollback := isRollback(stampDate, buildDate)
 	// Set when an asset was preserved BECAUSE of the rollback, which suppresses
 	// the provenance rewrite at the end of the run (see there).
@@ -176,8 +181,15 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 		// matches nothing known) from a rollback (on-disk matches a stamp this
 		// binary predates). Both preserve; they do not say the same thing.
 		preserveRollback := false
+		// Computed for every existing file, on BOTH legs. Scoping it inside the
+		// refuseDiverged branch left the --force / migrate leg with no per-file
+		// evidence at all, which is how the downgrade label below came to be
+		// asserted for files no stamp ever ordered.
+		diskHash := ""
+		if exists {
+			diskHash = sha256hex(existing)
+		}
 		if exists && refuseDiverged {
-			diskHash := sha256hex(existing)
 			if !isCleanUpgrade(diskHash, stamps[name], knownAssetHashes(rel), stampDate, buildDate) {
 				preserve = true
 				preserveRollback = rollback && stamps[name] != "" && diskHash == stamps[name]
@@ -211,7 +223,16 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 		// A --force overwrite while the stamp is newer is a deliberate
 		// downgrade. It is still performed -- --force means what it says -- but
 		// the log must not call a revert a refresh (ticket 0279, defect 3).
-		downgrade := exists && rollback
+		//
+		// "This store is a rollback" is a property of the MANIFEST; "this file
+		// is being reverted" is a property of the FILE. Only a file whose bytes
+		// on disk match the newer stamp is demonstrably an older-for-newer
+		// swap. A file with an ordinary local edit, or with no stamp entry at
+		// all, has no established version ordering -- calling its overwrite a
+		// downgrade asserts a history never observed, which is the same defect
+		// this label exists to fix, pointed the other way. Same predicate as
+		// preserveRollback above; the two must stay in step.
+		downgrade := exists && rollback && stamps[name] != "" && diskHash == stamps[name]
 		if dryRun {
 			verb := "would create "
 			if exists {

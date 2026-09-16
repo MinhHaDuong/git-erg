@@ -95,6 +95,21 @@ func TestIsRollback(t *testing.T) {
 		{"stamp missing the trailing Z -> not a rollback", "2099-01-01T10:00:00", "2026-06-05T10:00:00Z", false},
 		{"stamp with letters in the digit positions -> not a rollback", "yyyy-mm-ddThh:mm:ssZ", "2026-06-05T10:00:00Z", false},
 		{"running date malformed -> not a rollback", "2099-01-01T10:00:00Z", "whenever", false},
+		// Right byte shape, impossible calendar value. A digit-vs-literal shape
+		// check alone passes these, and each sorts ABOVE any real stamp, so an
+		// unguarded compare reads a hand-mangled manifest as a rollback and
+		// freezes the store. "Not comparable" is the correct verdict -- the same
+		// outcome as the "y" garbage row above, which must stay green.
+		{"all-nines impossible calendar -> not a rollback", "9999-99-99T99:99:99Z", "2026-06-05T10:00:00Z", false},
+		{"month 13 -> not a rollback", "2099-13-01T10:00:00Z", "2026-06-05T10:00:00Z", false},
+		{"month 00 -> not a rollback", "2099-00-01T10:00:00Z", "2026-06-05T10:00:00Z", false},
+		{"day 32 -> not a rollback", "2099-01-32T10:00:00Z", "2026-06-05T10:00:00Z", false},
+		{"day 00 -> not a rollback", "2099-01-00T10:00:00Z", "2026-06-05T10:00:00Z", false},
+		{"hour 24 -> not a rollback", "2099-01-01T24:00:00Z", "2026-06-05T10:00:00Z", false},
+		{"minute 60 -> not a rollback", "2099-01-01T10:60:00Z", "2026-06-05T10:00:00Z", false},
+		{"second 61 -> not a rollback", "2099-01-01T10:00:61Z", "2026-06-05T10:00:00Z", false},
+		// Leap second: a legal value the stamper can emit, so it stays comparable.
+		{"leap second 60 -> comparable, and newer", "2099-12-31T23:59:60Z", "2026-06-05T10:00:00Z", true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -126,13 +141,13 @@ func TestParseManifestDate(t *testing.T) {
 		})
 	}
 
-	t.Run("manifestDate on an absent file -> empty", func(t *testing.T) {
-		if got := manifestDate(t.TempDir()); got != "" {
+	t.Run("readManifestDate on an absent file -> empty", func(t *testing.T) {
+		if got := readManifestDate(t.TempDir()); got != "" {
 			t.Errorf("expected %q for an absent manifest, got %q", "", got)
 		}
 	})
 
-	t.Run("manifestDate round-trips what buildManifest writes", func(t *testing.T) {
+	t.Run("readManifestDate round-trips what buildManifest writes", func(t *testing.T) {
 		setBuildDate(t, "2026-06-29T10:00:00Z")
 		body, err := buildManifest()
 		if err != nil {
@@ -380,7 +395,7 @@ func TestInstallAssetsRollbackPreserved(t *testing.T) {
 		if _, _, _, _, err := installAssets(root, initAssetPaths, true, false); err != nil {
 			t.Fatalf("installAssets: %v", err)
 		}
-		if got := manifestDate(root); got != stamped {
+		if got := readManifestDate(root); got != stamped {
 			t.Errorf("the preserving run overwrote the provenance stamp: %q, want %q", got, stamped)
 		}
 
@@ -523,7 +538,7 @@ func TestInstallAssetsForceDowngradeLabel(t *testing.T) {
 		t.Errorf("a forced revert was narrated as a refresh: %q", stderr)
 	}
 	// The assets really were replaced, so the stamp must now say so.
-	if got := manifestDate(root); got != "2026-01-01T00:00:00Z" {
+	if got := readManifestDate(root); got != "2026-01-01T00:00:00Z" {
 		t.Errorf("a completed --force downgrade must restamp the store, got date %q", got)
 	}
 }
@@ -569,4 +584,65 @@ func TestAssetDriftWarningsDirection(t *testing.T) {
 			t.Errorf("upgrade-direction warning lost the cross-version grep target\n got: %q\nwant substring: %q", warnings[0], historical)
 		}
 	})
+}
+
+// TestInstallAssetsForceDowngradeLabelOnlyForStampedFile pins the per-file half
+// of the direction rule on the --force / erg migrate leg (refuseDiverged ==
+// false). "This store is a rollback" is a property of the MANIFEST; "this file
+// is being reverted" is a property of the FILE. Only a file whose on-disk bytes
+// match the newer stamp is demonstrably being reverted to an older version. A
+// file with an ordinary local edit and no stamp entry at all has no established
+// version ordering, so calling its overwrite a "downgrade" asserts a history the
+// code never observed -- the same defect class as the ticket's defect 3, on the
+// other leg. Its sibling three lines up (preserveRollback) already gets this
+// right; this test is what keeps the two in step.
+func TestInstallAssetsForceDowngradeLabelOnlyForStampedFile(t *testing.T) {
+	setBuildDate(t, "2026-01-01T00:00:00Z")
+
+	// .ergrc: pristine content from a LATER release, recorded in the stamp.
+	// Overwriting it genuinely reverts it -- "downgraded" is true here.
+	newer := "ERGRC FROM A LATER RELEASE -- pristine, not a local edit\n"
+	// AGENTS.md: an ordinary local edit, with NO stamp entry. Nothing orders it
+	// against the embedded copy, so "downgraded" would be an invention.
+	edited := "AGENTS.MD WITH AN ORDINARY LOCAL EDIT -- never stamped\n"
+
+	embedded, ok := bootstrapAsset("tickets/.ergrc")
+	if !ok {
+		t.Fatal("embedded .ergrc missing")
+	}
+	embeddedAgents, ok := bootstrapAsset("tickets/AGENTS.md")
+	if !ok {
+		t.Fatal("embedded AGENTS.md missing")
+	}
+	if newer == embedded || edited == embeddedAgents {
+		t.Fatal("test fixture collides with embedded content")
+	}
+
+	// A manifest that stamps .ergrc ONLY: AGENTS.md is deliberately absent.
+	manifest := "# erg provenance manifest -- do not edit\nrev: fixture\n" +
+		"date: 2099-01-01T00:00:00Z\n" +
+		"assets:\n" +
+		"  .ergrc sha256:" + sha256hex([]byte(newer)) + "\n"
+
+	root := stampFixture(t, manifest, newer)
+	if err := os.WriteFile(filepath.Join(root, "tickets", "AGENTS.md"), []byte(edited), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stderr := captureStderr(t, func() {
+		// refuseDiverged == false: the erg init --force / erg migrate leg.
+		if _, _, _, _, err := installAssets(root, initAssetPaths, false, false); err != nil {
+			t.Fatalf("installAssets: %v", err)
+		}
+	})
+
+	if !strings.Contains(stderr, "downgraded tickets/.ergrc") {
+		t.Errorf("a stamped file that IS being reverted lost its downgrade label: %q", stderr)
+	}
+	if strings.Contains(stderr, "downgraded tickets/AGENTS.md") {
+		t.Errorf("an unstamped local edit was narrated as a version downgrade: %q", stderr)
+	}
+	if !strings.Contains(stderr, "refreshed tickets/AGENTS.md") {
+		t.Errorf("an unstamped local edit must be reported as a refresh: %q", stderr)
+	}
 }

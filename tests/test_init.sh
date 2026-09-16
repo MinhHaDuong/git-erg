@@ -446,5 +446,17 @@ else
 fi
 
 
+# --- Flags help: --force acknowledges the downgrade case ---
+# "local edits are replaced" is no longer the whole story: on a rollback the
+# overwrite is reported as "downgraded", and nothing there was locally edited.
+# A user reading only the flag description would misread that line as a warning
+# about their own edits.
+HELPOUT=$($ERG init --help 2>&1) || true
+if echo "$HELPOUT" | grep -q "downgrad"; then
+    pass "help: --force description acknowledges the downgrade case"
+else
+    fail "help: --force description never mentions the downgrade case (got: $HELPOUT)"
+fi
+
 echo "init: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

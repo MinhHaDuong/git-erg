@@ -157,10 +157,10 @@ func parseManifestDate(data []byte) string {
 	return ""
 }
 
-// manifestDateFile reads the date: field of the manifest AT path (the file
+// readManifestDateFile reads the date: field of the manifest AT path (the file
 // itself, not its parent). Sibling of readManifestFile, same absence contract:
 // unreadable reads as absent.
-func manifestDateFile(path string) string {
+func readManifestDateFile(path string) string {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
@@ -168,10 +168,10 @@ func manifestDateFile(path string) string {
 	return parseManifestDate(data)
 }
 
-// manifestDate reads the date: field of <root>/tickets/.erg-assets. Sibling of
+// readManifestDate reads the date: field of <root>/tickets/.erg-assets. Sibling of
 // readManifest.
-func manifestDate(root string) string {
-	return manifestDateFile(filepath.Join(root, "tickets", manifestName))
+func readManifestDate(root string) string {
+	return readManifestDateFile(filepath.Join(root, "tickets", manifestName))
 }
 
 // buildDateLayout is the exact fixed-width shape the Makefile stamps into the
@@ -179,7 +179,8 @@ func manifestDate(root string) string {
 // Digits are written as '0' here; every other byte must match literally.
 const buildDateLayout = "0000-00-00T00:00:00Z"
 
-// looksLikeBuildDate reports whether s has exactly buildDateLayout's shape.
+// looksLikeBuildDate reports whether s has exactly buildDateLayout's shape AND
+// denotes a possible calendar instant.
 //
 // This is the guard that makes lexical comparison legitimate rather than merely
 // convenient: only same-shape, same-zone, fixed-width ISO-8601 sorts
@@ -210,7 +211,29 @@ func looksLikeBuildDate(s string) bool {
 			return false
 		}
 	}
-	return true
+	// Byte shape alone is not enough. "9999-99-99T99:99:99Z" has the right
+	// shape, and sorts above every real stamp, so a shape-only guard hands the
+	// lexical compare a value that means nothing and it answers "rollback" --
+	// freezing the store exactly as an unguarded compare would. Range-check the
+	// groups so an impossible calendar value lands in the same not-comparable
+	// bucket as "y": no direction, fall through to pre-0279 behaviour.
+	//
+	// Ranges only -- no month-length or leap-year arithmetic. Lexical ordering
+	// is unaffected by whether February had 30 days, and a calendar library is
+	// exactly the dependency this compare avoids. Second 60 is admitted: it is
+	// a legal leap second the stamper can emit.
+	return inRange(s[5:7], 1, 12) && // month
+		inRange(s[8:10], 1, 31) && // day
+		inRange(s[11:13], 0, 23) && // hour
+		inRange(s[14:16], 0, 59) && // minute
+		inRange(s[17:19], 0, 60) // second (60 = leap second)
+}
+
+// inRange reports whether the two-digit group g, known to be digits already,
+// denotes a value within [lo, hi].
+func inRange(g string, lo, hi int) bool {
+	v := int(g[0]-'0')*10 + int(g[1]-'0')
+	return v >= lo && v <= hi
 }
 
 // isRollback reports whether stampDate is strictly newer than runningDate: the
@@ -324,7 +347,7 @@ func assetDriftWarnings(dir string) []string {
 	}
 	// Which side is newer. Read once: the date is a property of the manifest,
 	// not of any one asset in it.
-	rollback := isRollback(manifestDateFile(filepath.Join(dir, manifestName)), buildDate)
+	rollback := isRollback(readManifestDateFile(filepath.Join(dir, manifestName)), buildDate)
 	var warnings []string
 	for _, rel := range initAssetPaths {
 		name := strings.TrimPrefix(rel, "tickets/")
