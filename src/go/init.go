@@ -259,8 +259,9 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 }
 
 // cmdInit implements `erg init [dir] [-n|--dry-run] [--force]`. See helpInit
-// for the user-facing summary. Exit codes: 0 success; 1 hard error; 2 local
-// edits skipped.
+// for the user-facing summary. Exit codes: 0 success; 1 hard error; 2 a file
+// was preserved and skipped, having either local edits or a stamp newer than
+// this binary.
 func cmdInit(args []string) int {
 	var positional []string
 	dryRun := false
