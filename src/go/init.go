@@ -252,12 +252,34 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 		name := strings.TrimPrefix(rel, "tickets/")
 		unwritten[name] = stamps[name]
 		// The same question the loop below asks about a file it preserves,
-		// asked here about a file this run will not even open. Reading it is
-		// the only way to know whether the manifest's direction has anything
-		// on disk still standing behind it.
+		// asked here about a file this run will not otherwise open. Only under
+		// a rollback does the answer change anything -- with no direction
+		// recorded there is nothing for this file to stand behind -- so the
+		// read happens only there, and costs nothing on every other run.
+		if !rollback {
+			continue
+		}
 		outOfScopeHash := ""
-		if b, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel))); readErr == nil {
+		b, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+		switch {
+		case readErr == nil:
 			outOfScopeHash = sha256hex(b)
+		case !os.IsNotExist(readErr):
+			// Could not look, which is not the same as looked and found
+			// nothing. An ABSENT file is real evidence -- nothing on disk
+			// stands behind the stamp. An UNREADABLE one is evidence of
+			// nothing, and reading it as the former would let a chmod-000
+			// file license exactly the rewrite this gate exists to refuse,
+			// destroying the record on the way past.
+			//
+			// The sibling readers next door fold the two deliberately
+			// (stamplessNote, and `exists := readErr == nil` below). There
+			// the fold costs a report; here it would cost the record, so
+			// this one breaks ranks -- loudly, because a run that could not
+			// establish something and said nothing is the precise failure
+			// this whole ticket is about (PR #363, round 2).
+			rollbackEvidence = true
+			fmt.Fprintf(os.Stderr, "init: cannot read %s (%v) -- leaving tickets/%s as it stands\n", rel, readErr, manifestName)
 		}
 		if isStampedByNewer(rollback, outOfScopeHash, stamps[name]) {
 			rollbackEvidence = true

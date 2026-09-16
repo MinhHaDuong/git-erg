@@ -1637,4 +1637,46 @@ func TestInstallAssetsDoesNotStampOutsideItsScope(t *testing.T) {
 			t.Errorf("the preserved file was stamped after all: %q", got)
 		}
 	})
+
+	t.Run("an unreadable out-of-scope asset is not read as an absent one", func(t *testing.T) {
+		// PR #363, round 2. The evidence read must not swallow its own error:
+		// "could not look" and "looked and found nothing" are different
+		// answers, and folding them lets a chmod-000 .ergrc license the very
+		// rewrite the gate refuses -- silently, which is the failure mode this
+		// ticket is about.
+		if os.Geteuid() == 0 {
+			t.Skip("running as root: mode 000 does not deny a read")
+		}
+		setBuildDate(t, "2026-01-01T00:00:00Z")
+		manifest := "# erg provenance manifest -- do not edit\nrev: future\n" +
+			"date: 2099-01-01T00:00:00Z\nassets:\n" +
+			"  .ergrc sha256:" + sha256hex([]byte(edited)) + "\n" +
+			"  AGENTS.md sha256:" + sha256hex([]byte(embeddedAgents)) + "\n"
+		root := stampFixture(t, manifest, edited)
+		ergrcPath := filepath.Join(root, "tickets", ".ergrc")
+		if err := os.Chmod(ergrcPath, 0000); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(ergrcPath, 0644) })
+		// Non-vacuity at the step: the fixture must really deny the read.
+		if _, err := os.ReadFile(ergrcPath); err == nil {
+			t.Skip("filesystem does not enforce mode 000 for this user")
+		}
+
+		stderr := captureStderr(t, func() {
+			if _, _, _, _, err := installAssets(root, migrateAssetPaths, false, false); err != nil {
+				t.Fatalf("installAssets: %v", err)
+			}
+		})
+		got, err := os.ReadFile(filepath.Join(root, "tickets", manifestName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != manifest {
+			t.Errorf("an unreadable asset was read as no evidence, and the record went with it:\ngot  %q\nwant %q", got, manifest)
+		}
+		if !strings.Contains(stderr, "cannot read tickets/.ergrc") {
+			t.Errorf("the run could not look and did not say so: %q", stderr)
+		}
+	})
 }
