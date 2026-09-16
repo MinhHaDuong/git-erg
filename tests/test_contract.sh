@@ -82,6 +82,40 @@ else
 fi
 
 # --- 2. offline: no networking anywhere (0148 removed the last exception) ----
+# Helpers for the offline negative control below. Defined at top level, beside
+# pass/fail/skip, rather than nested inside the guard that uses them.
+neg_offline_module() {  # $1 = module directory to create
+    mkdir -p "$1"
+    printf 'module negoffline\ngo 1.21\n' > "$1/go.mod"
+    printf 'package main\nimport _ "net/http"\nfunc main() {}\n' > "$1/main.go"
+}
+# `-buildvcs=false` is load-bearing, not tidying (0287). Go's buildvcs walks
+# *upward* from the module directory hunting for a VCS root; an empty `.git`
+# directory anywhere above $TMPDIR — hosts grow them — makes git exit 128,
+# `go list` print nothing, and this control announce a blind detector. The flag
+# suppresses VCS *stamping* only; import resolution is untouched, so the control
+# keeps its teeth. Arm 2 below proves both halves of that claim.
+neg_offline_detects() {  # $1 = module directory; true when net/http is seen
+    (cd "$1" && go list -buildvcs=false -deps . 2>/dev/null) | grep -qE '^net/http$'
+}
+# The same probe with the flag taken away — used only to confirm the adversarial
+# condition really bites before arm 2 credits the flag for surviving it.
+neg_offline_detects_unflagged() {  # $1 = module directory
+    (cd "$1" && go list -deps . 2>/dev/null) | grep -qE '^net/http$'
+}
+# Arm 2's environment. Go can be handed `-buildvcs=false` through three doors,
+# and a test that leaves two of them open is measuring the machine rather than
+# the code: the explicit argument above, an exported `GOFLAGS`, and `go env -w`,
+# which an empty-but-set `GOFLAGS` silently falls through to. Someone hitting
+# this very bug would plausibly set either of the latter two as a workaround —
+# and then arm 2 passes, and keeps passing after the fix is reverted. Shut both
+# ambient doors so the explicit argument is the only flag in play.
+neg_offline_pin_env() {
+    GOFLAGS=
+    GOENV=off
+    export GOFLAGS GOENV
+}
+
 if [ "$DEPS_OK" = yes ]; then
     if printf '%s\n' "$DEPS" | grep -qE '^net($|/)'; then
         NETPKGS=$(printf '%s\n' "$DEPS" | grep -E '^net($|/)' | tr '\n' ' ')
@@ -89,16 +123,39 @@ if [ "$DEPS_OK" = yes ]; then
     else
         pass "offline: no net / net-* package in the dependency graph"
     fi
-    # Negative control: a throwaway package importing net/http must be flagged by
-    # the very same go-list check — proves the detector has teeth (offline build).
+    # Negative control, arm 1 — a throwaway package importing net/http must be
+    # flagged by the very same go-list check, under the ambient environment,
+    # whatever that happens to be. Proves the detector has teeth (offline build).
     NEG="$WORK/neg-offline"
-    mkdir -p "$NEG"
-    printf 'module negoffline\ngo 1.21\n' > "$NEG/go.mod"
-    printf 'package main\nimport _ "net/http"\nfunc main() {}\n' > "$NEG/main.go"
-    if (cd "$NEG" && go list -deps . 2>/dev/null) | grep -qE '^net/http$'; then
+    neg_offline_module "$NEG"
+    if neg_offline_detects "$NEG"; then
         pass "offline (neg control): go-list check detects an injected net/http import"
     else
         fail "offline (neg control): detector failed to flag net/http"
+    fi
+
+    # Arm 2 — the same assertion with a stray VCS directory above the build dir,
+    # manufactured here rather than borrowed from whatever the host carries, so
+    # the regression is caught on any machine (0287).
+    NEG_STRAY="$WORK/neg-offline-stray"
+    mkdir -p "$NEG_STRAY/.git"   # an empty directory, not a repository
+    neg_offline_module "$NEG_STRAY/mod"
+    # Red control first. buildvcs only trips when Go can actually shell out to
+    # git — with no git on PATH it skips stamping silently — so without this the
+    # arm would go green with or without the flag, an all-clear indistinguishable
+    # from "I could not look", which is the shape this suite exists to refuse.
+    # Prove the unflagged probe really is blinded before crediting the flagged
+    # one, and name no cause: the point is that the arm was not exercised, and
+    # guessing why in the message is how a skip starts lying.
+    # Both calls run under neg_offline_pin_env, in a subshell so the pinning does
+    # not leak to arm 1 or to the rest of the suite. They call the very same
+    # detector arm 1 does, so stripping the flag there is caught here.
+    if ( neg_offline_pin_env; neg_offline_detects_unflagged "$NEG_STRAY/mod" ); then
+        skip "offline (neg control): stray .git did not blind an unflagged go list — arm not exercised"
+    elif ( neg_offline_pin_env; neg_offline_detects "$NEG_STRAY/mod" ); then
+        pass "offline (neg control): detects net/http despite a stray .git above the build dir"
+    else
+        fail "offline (neg control): a stray .git above the build dir blinded the detector"
     fi
 elif [ "$HAVE_GO" = no ]; then
     skip "offline: Go toolchain absent — dependency-graph check skipped"
