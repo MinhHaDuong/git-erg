@@ -751,4 +751,7 @@ NEWER erg wrote is preserved too, so an init run from a stale binary reports the
 situation instead of reverting the store. Running erg sync alone is never
 sufficient to absorb new defaults.
 
-The old command name 'erg update' is a compatibility alias for 'erg sync'.
+Compatibility spellings: 'erg update' is an alias for 'erg sync' (it prints a notice),
+and ERG_UPDATE_URL and the .ergrc [update] section keep the old verb. All three remain
+accepted and will be removed together in a future major version; the environment
+variable and the config key have no new spelling yet, so keep using them.

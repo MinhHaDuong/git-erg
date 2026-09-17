@@ -248,7 +248,7 @@ close ID REASON` clears them from dependents automatically (otherwise you edit
 the lines out by hand). Full semantics: `erg close --help` or
 `docs/erg-manual.md`.
 
-## Updating
+## Syncing
 
 `erg sync` aligns a clone with the binary vendored in the current project's
 `origin`; it does not check the git-erg project for a newer version. To import
