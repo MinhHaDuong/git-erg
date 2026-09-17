@@ -149,6 +149,7 @@ cp "$ERG_ABS" "$UPSTREAM/tickets/erg"
 printf 'UPSTREAM' >> "$UPSTREAM/tickets/erg"   # distinct from both $ERG and origin
 git -C "$UPSTREAM" add -A
 git -C "$UPSTREAM" commit -qm upstream
+UPSTREAM_TIP=$(git -C "$UPSTREAM" rev-parse HEAD)
 UPSTREAM_URL="file://$UPSTREAM"
 UPSTREAM_HASH=$(sha256sum "$UPSTREAM/tickets/erg" | cut -c1-12)
 if [ "$UPSTREAM_HASH" != "$REMOTE_HASH" ]; then
@@ -163,7 +164,22 @@ fi
 WORKUP="$WORKROOT/work-upstream"
 git clone -q "$REMOTE" "$WORKUP"
 cp "$ERG_ABS" "$WORKUP/tickets/erg"
+REAL_GIT=$(command -v git)
+GIT_WRAPPER_DIR="$WORKROOT/git-wrapper"
+GIT_SHALLOW_OBSERVED="$WORKROOT/git-shallow-observed"
+mkdir "$GIT_WRAPPER_DIR"
+cat > "$GIT_WRAPPER_DIR/git" <<'EOF'
+#!/bin/sh
+if [ "$1" = "-C" ] && [ "$3" = "cat-file" ] && [ -n "${ERG_TEST_GIT_OBSERVE:-}" ]; then
+    "$ERG_REAL_GIT" -C "$2" rev-parse --is-shallow-repository > "$ERG_TEST_GIT_OBSERVE"
+fi
+exec "$ERG_REAL_GIT" "$@"
+EOF
+chmod +x "$GIT_WRAPPER_DIR/git"
 OUT=$(cd "$WORKUP" && \
+    PATH="$GIT_WRAPPER_DIR:$PATH" \
+    ERG_REAL_GIT="$REAL_GIT" \
+    ERG_TEST_GIT_OBSERVE="$GIT_SHALLOW_OBSERVED" \
     GIT_CONFIG_COUNT=2 \
     GIT_CONFIG_KEY_1="url.$UPSTREAM_URL.insteadOf" \
     GIT_CONFIG_VALUE_1="https://github.com/MinhHaDuong/git-erg.git" \
@@ -176,10 +192,30 @@ if [ "$WORKUP_HASH" = "$UPSTREAM_HASH" ] && echo "$OUT" | grep -q "git-erg upstr
 else
     fail "--upstream selected the wrong source: after=$WORKUP_HASH want=$UPSTREAM_HASH ($OUT)"
 fi
+if [ -f "$GIT_SHALLOW_OBSERVED" ] && [ "$(cat "$GIT_SHALLOW_OBSERVED")" = "true" ]; then
+    pass "--upstream fetch repository itself is shallow"
+else
+    fail "--upstream fetch repository was not observed shallow"
+fi
 if git -C "$WORKUP" cat-file -e "$UPSTREAM_PARENT^{commit}" 2>/dev/null; then
     fail "--upstream imported history older than the fetched tip"
 else
     pass "--upstream fetch is shallow and does not import git-erg history"
+fi
+if git -C "$WORKUP" cat-file -e "$UPSTREAM_TIP^{commit}" 2>/dev/null; then
+    fail "--upstream imported the fetched tip into the adopter repository"
+else
+    pass "--upstream leaves its fetched tip out of the adopter object store"
+fi
+if [ "$(git -C "$WORKUP" rev-parse --is-shallow-repository)" = "true" ]; then
+    fail "--upstream left the adopter repository shallow"
+else
+    pass "--upstream left the adopter repository unshallow"
+fi
+if find "$WORKUP/tickets" -maxdepth 1 -type d -name '.erg-sync-*' | grep -q .; then
+    fail "--upstream left its temporary git repository in the ticket store"
+else
+    pass "--upstream removes its temporary git repository after success"
 fi
 
 # An explicit upstream import crosses a review boundary. The fetched bytes must
@@ -333,6 +369,56 @@ if [ "$MISSING_RC" -ne 0 ] && echo "$OUT" | grep -q "could not read the committe
     pass "reachable source missing tickets/erg is reported as a hard error"
 else
     fail "missing source blob was silent or exited 0 (rc=$MISSING_RC, out: $OUT)"
+fi
+
+# The explicit upstream path has the same hard missing-blob contract and must
+# clean its private temporary repository on this error path too.
+MISSING_URL="file://$MISSING"
+WORKUPMISSING="$WORKROOT/work-upstream-missing"
+git clone -q "$REMOTE" "$WORKUPMISSING"
+cp "$ERG_ABS" "$WORKUPMISSING/tickets/erg"
+set +e
+OUT=$(cd "$WORKUPMISSING" && \
+    GIT_CONFIG_COUNT=2 \
+    GIT_CONFIG_KEY_1="url.$MISSING_URL.insteadOf" \
+    GIT_CONFIG_VALUE_1="https://github.com/MinhHaDuong/git-erg.git" \
+    ERG_TICKET_DIR="$WORKUPMISSING/tickets" \
+    ./tickets/erg sync --upstream 2>&1)
+UPSTREAM_MISSING_RC=$?
+set -e
+if [ "$UPSTREAM_MISSING_RC" -ne 0 ] && echo "$OUT" | grep -q "could not read the committed vendored binary"; then
+    pass "upstream missing tickets/erg is reported as a hard error"
+else
+    fail "missing upstream blob was silent or exited 0 (rc=$UPSTREAM_MISSING_RC, out: $OUT)"
+fi
+if find "$WORKUPMISSING/tickets" -maxdepth 1 -type d -name '.erg-sync-*' | grep -q .; then
+    fail "failed upstream sync left its temporary git repository in the ticket store"
+else
+    pass "failed upstream sync removes its temporary git repository"
+fi
+
+# A trusted project origin can legitimately omit the local store-relative
+# binary (for example while it is gitignored or before its first commit). Keep
+# the diagnostic, but preserve sync's offline-friendly exit contract.
+ORIGIN_MISSING="$WORKROOT/origin-missing"
+git_init "$ORIGIN_MISSING"
+mkdir "$ORIGIN_MISSING/tickets"
+printf 'tracked store marker\n' > "$ORIGIN_MISSING/tickets/0001-normal.erg"
+git -C "$ORIGIN_MISSING" add -A
+git -C "$ORIGIN_MISSING" commit -qm missing-vendored-binary
+WORKORIGINMISSING="$WORKROOT/work-origin-missing"
+git clone -q "$ORIGIN_MISSING" "$WORKORIGINMISSING"
+cp "$ERG_ABS" "$WORKORIGINMISSING/tickets/erg"
+set +e
+OUT=$(cd "$WORKORIGINMISSING" && \
+    ERG_TICKET_DIR="$WORKORIGINMISSING/tickets" \
+    ./tickets/erg sync 2>&1)
+ORIGIN_MISSING_RC=$?
+set -e
+if [ "$ORIGIN_MISSING_RC" -eq 0 ] && echo "$OUT" | grep -q "could not read the committed vendored binary"; then
+    pass "project origin missing its vendored binary warns and exits 0"
+else
+    fail "project origin missing its binary was silent or failed (rc=$ORIGIN_MISSING_RC, out: $OUT)"
 fi
 
 # Git includes a failed fetch URL in stderr. sync must suppress that raw

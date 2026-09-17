@@ -687,10 +687,13 @@ repository layout is independent of the adopter's local store name. Upstream fet
 only the source tip needed for that blob rather than importing git-erg's full history.
 
 Sync uses git (already a dependency of git-erg) -- never an embedded network client --
-so the binary carries no network code. It runs 'git fetch <source> HEAD' in the ticket
-store's repository, extracts the committed binary at that source's default branch,
-and compares its hash to the vendored binary at <ticket store>/erg. The executable used
-to invoke sync is never replaced, so a system-native erg remains intact.
+so the binary carries no network code. Project-origin and configured-source fetches run
+in the ticket store's repository. The shallow upstream fetch runs in a private throwaway
+bare repository under the ticket store, so all writes stay confined there while it
+neither imports git-erg objects nor marks the adopter repository as shallow. Sync
+extracts the committed binary at the source's default branch and compares its hash to
+the vendored binary at <ticket store>/erg. The executable used to invoke sync is never
+replaced, so a system-native erg remains intact.
 
 Messages name the resolved source, sanitizing configured URLs and suppressing git's
 raw diagnostics so credentials cannot be echoed. If the hash differs, sync replaces
@@ -698,19 +701,22 @@ the vendored binary atomically (exclusive temp file, fsync, then rename).
 
 Transport errors exit 0 so that 'erg sync && erg validate' chains do not fail in
 offline or isolated environments (no remote configured, no network, not a git repo).
-A reachable source whose fetched commit lacks the expected vendored binary is a hard
-error instead. If no ticket store is found, sync does nothing and exits 0 -- it never
-pulls the binary from an unrelated repository you happen to be standing in.
+If the trusted project origin lacks its store-relative binary, sync warns and also exits
+0: the file may simply be gitignored or not committed yet. A configured source or the
+explicit upstream missing canonical tickets/erg is a hard error instead. If no ticket
+store is found, sync does nothing and exits 0 -- it never pulls the binary from an
+unrelated repository you happen to be standing in.
 
 After a successful project-origin sync, checks whether any .erg files in the ticket store
 still carry legacy Status: headers. If found, prints explicit migration guidance:
 'erg migrate DIR', 'git diff tickets/', 'git commit'. The sync command never mutates
 ticket files itself -- migration is a separate, reviewable step.
 
-erg sync replaces the binary only -- it never writes or modifies any store file
-(.ergrc, AGENTS.md, or tickets). Embedded-asset changes and new default label vocabulary
-are delivered by a follow-up 'erg init'. On Linux x86-64, invoke the vendored binary
-for that follow-up so init uses the bytes just synchronized:
+erg sync replaces the binary only -- it never writes or modifies any managed store file
+(.ergrc, AGENTS.md, or tickets). Its private temporary git directory is removed after
+the upstream fetch. Embedded-asset changes and new default label vocabulary are
+delivered by a follow-up 'erg init'. On Linux x86-64, invoke the vendored binary for
+that follow-up so init uses the bytes just synchronized:
 
   erg sync
   tickets/erg init

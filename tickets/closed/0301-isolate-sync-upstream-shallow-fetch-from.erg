@@ -1,0 +1,44 @@
+%erg 0.1
+Title: Isolate sync upstream shallow fetch from adopter repository
+Created: 2026-09-17
+Author: Codex
+Closed: fixed: isolate shallow upstream fetch and preserve adopter git state
+
+--- log ---
+2026-09-17T08:51Z Codex created
+
+2026-09-17T09:03Z Codex closed — fixed: isolate shallow upstream fetch and preserve adopter git state
+--- body ---
+
+## Context
+
+Fable's post-merge review of PR #370 measured that `erg sync --upstream`
+runs `git fetch --depth=1` inside the adopter repository. Git consequently
+leaves a durable `.git/shallow` graft there. The test proves that old upstream
+history is absent but cannot see this cost.
+
+The same review found that a missing blob at the trusted project origin now
+fails a chain that is intended to remain offline-tolerant.
+
+Review: https://github.com/MinhHaDuong/git-erg/pull/370#pullrequestreview-5233295500
+
+## Exit criteria
+
+- [ ] `sync --upstream` fetches shallowly in a throwaway repository confined
+      to the ticket store and leaves the adopter repository non-shallow without
+      importing upstream history
+- [ ] focused integration coverage proves both halves of that property
+- [ ] a reachable trusted project origin missing its store-relative binary
+      warns but exits 0; explicit custom/upstream sources still fail hard
+- [ ] help text describes where each fetch runs
+- [ ] `make test`, `make validate`, and the ticket DAG pass
+- [ ] external verification has no unresolved findings
+
+## Review disposition
+
+Fable also suggested hand-adding the predecessor `.ergrc` hash. That is not
+part of this fix: 0281 already measured zero beneficiaries, closed the table
+as wontfix, and records that it must never be hand-typed because a false hash
+can silently clobber a local edit. The existing preserve + exit 2 degradation
+is deliberately safer until empirical need justifies the generated-history
+design specified there.
