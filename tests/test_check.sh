@@ -844,15 +844,15 @@ fi
 
 # --- asset drift DIRECTION (ticket 0279) ---
 # Same drift condition, opposite direction: a stamp this binary predates. The
-# warning must not claim an upgrade, and must name 'erg update' -- running
+# warning must not claim an upgrade, and must name 'erg sync' -- running
 # 'erg init' here would REVERT the deployed assets, not refresh them.
 ROLLDIR="$FIXTURES/rollback"
 mkdir -p "$ROLLDIR"
 cp "$DRIFTDIR/9001-x.erg" "$ROLLDIR/"
 printf '# erg provenance manifest -- do not edit\nrev: x\ndate: 2099-01-01T00:00:00Z\nassets:\n  .ergrc sha256:0000000000000000000000000000000000000000000000000000000000000000\n  AGENTS.md sha256:1111111111111111111111111111111111111111111111111111111111111111\n' > "$ROLLDIR/.erg-assets"
 rc=0; out=$($ERG check "$ROLLDIR" 2>&1) || rc=$?
-if [ "$rc" -eq 0 ] && echo "$out" | grep -q "run 'erg update' first"; then
-    pass "drift: stamp newer than the binary names 'erg update'"
+if [ "$rc" -eq 0 ] && echo "$out" | grep -q "run 'erg sync' first"; then
+    pass "drift: stamp newer than the binary names 'erg sync'"
 else
     fail "drift: expected the rollback remedy (rc=$rc, got: $out)"
 fi
@@ -906,7 +906,7 @@ fi
 if echo "$out" | grep -qF "its git history can" && echo "$out" | grep -qF "stamps it as if shipped"; then
     pass "stampless: the historical prefix of the cross-version literal is intact"
 else
-    fail "stampless: the shipped prefix was reworded, which breaks erg update's grep (got: $out)"
+    fail "stampless: the shipped prefix was reworded, which breaks erg sync's grep (got: $out)"
 fi
 if echo "$out" | grep -qF "erg init --show NAME" && echo "$out" | grep -qF "no longer stamps a file it preserved"; then
     pass "stampless: the report names the erg command that shows the shipped copy"
@@ -1120,7 +1120,7 @@ fi
 # which is exactly the false-direction claim ticket 0279 removes from the code.
 # Static help is a place that claim can be reintroduced; this test closes it.
 HELPOUT=$($ERG check --help 2>&1) || true
-if echo "$HELPOUT" | grep -q "run 'erg init'" && echo "$HELPOUT" | grep -q "run 'erg update' first"; then
+if echo "$HELPOUT" | grep -q "run 'erg init'" && echo "$HELPOUT" | grep -q "run 'erg sync' first"; then
     pass "help: asset-drift bullet names both directions"
 else
     fail "help: asset-drift bullet documents only one direction (got: $HELPOUT)"

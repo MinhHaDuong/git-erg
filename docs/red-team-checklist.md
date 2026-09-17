@@ -8,7 +8,7 @@ A repeatable, AI-assisted red-team procedure for the surfaces in
 delegate to the existing CI suites — so run it often.
 
 **Cadence.** Per release (before tagging) and per change to the parser, the
-update path, or path/ID resolution. **Process:** an agent runs every item and
+sync path, or path/ID resolution. **Process:** an agent runs every item and
 records results in a dated run-log section below; a human reviews findings and
 assigns severity; any high-severity finding becomes its own fix ticket. Do not
 treat a green checklist as "done forever" — the value is in the re-run.
@@ -30,11 +30,11 @@ Run the binary under test with `make build` (`build/erg`), never the committed
 ### S2 — Update channel
 
 - **S2.1 Hijack refusal + offline no-op.** Covered by `tests/test_update.sh`:
-  `update` with no discoverable ticket store refuses (no cwd-repo hijack);
-  `update` offline exits 0 and leaves the binary untouched. *Expected:* both
+  `sync` with no discoverable ticket store refuses (no cwd-repo hijack);
+  `sync` offline exits 0 and leaves the binary untouched. *Expected:* both
   pass. **Reference the suite — do not stand up a network sandbox by hand.**
 - **S2.2 No network code.** `tests/test_update.sh` asserts the source carries
-  no `net/http` / `crypto/tls` (the offline invariant; update is git-transport
+  no `net/http` / `crypto/tls` (the offline invariant; sync is git-transport
   only). *Expected:* pass.
 
 ### S3 — Parser / input DoS
@@ -77,7 +77,7 @@ Binary under test: `build/erg`, revision `286de8e`, `linux/amd64`. Committed
 |---|---|---|
 | S1.1 Reproducible rebuild | PASS | `make verify` → `verify: PASS`; committed == rebuilt == `9a80…9f64`, toolchain go1.21.13 |
 | S1.2 Tamper check | PASS | `sha256sum tickets/erg` = `9a80…9f64` = the `sha256:` line from `tickets/erg version` |
-| S2.1 Hijack refusal + offline no-op | PASS | `tests/test_update.sh`: "update refuses when no ticket store is found", "update offline exits 0 and leaves binary untouched" (14/14 passed) |
+| S2.1 Hijack refusal + offline no-op | PASS | `tests/test_update.sh`: "sync refuses when no ticket store is found", "sync offline exits 0 and leaves binary untouched" |
 | S2.2 No network code | PASS | `tests/test_update.sh`: "no net/http or crypto/tls in source (offline invariant)" |
 | S3.1 Bounded parse | PASS | `tests/test_security.sh` Group 6: 10 MB body, 100k-line log, 10k-char title slug truncated to 40 — all within budget (26/26 passed) |
 | S4.1 Traversal + embedded-separator IDs | PASS | `tests/test_security.sh` Groups 1/1b: traversal and embedded-separator IDs refused; negative controls succeed |
@@ -86,7 +86,7 @@ Binary under test: `build/erg`, revision `286de8e`, `linux/amd64`. Committed
 | S5.1 No env-secret leak | PASS | Ran `version`/`list`/`list --json`/`ready`/`check`/`new`/`--help --all` with three canary env secrets set; grep of all output and the created ticket found zero canary occurrences |
 
 **Findings:** none. All surfaces behaved as specified; both CI suites are green
-(security 26/26, update 14/14) and `make verify` reports PASS. No high-severity
+(security 26/26, sync suite green) and `make verify` reports PASS. No high-severity
 items, so no fix tickets are filed from this run. The signed-release-tag control
 (threat model, deferred-human) remains the one outstanding item, tracked on
 ticket 0151 and out of scope for an automated run.

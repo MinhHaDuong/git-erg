@@ -125,12 +125,12 @@ else
     fail "Makefile: check is not declared .PHONY"
 fi
 
-# helpUpdate must mention 'erg init' as the asset/defaults delivery step
-# (regression guard for 0223: update-only is not enough to absorb new defaults).
-if "$ERG" update --help 2>/dev/null | grep -qF 'erg init'; then
-    pass "helpUpdate names 'erg init' as the asset/defaults delivery step"
+# helpSync must mention 'erg init' as the asset/defaults delivery step
+# (regression guard for 0223: sync-only is not enough to absorb new defaults).
+if "$ERG" sync --help 2>/dev/null | grep -qF 'erg init'; then
+    pass "helpSync names 'erg init' as the asset/defaults delivery step"
 else
-    fail "helpUpdate missing 'erg init' reference (ticket 0223 regression)"
+    fail "helpSync missing 'erg init' reference (ticket 0223 regression)"
 fi
 
 # helpCheck must not describe the stampless NOTE as a whole-store condition

@@ -14,11 +14,11 @@
 #            explicit opt-in flags --hooks and --inject-agents). Excluding it
 #            IS the invariant -- not an exception to it.
 #
-# Note on update: update replaces the running binary (tickets/erg in normal
+# Note on sync: sync replaces the running binary (tickets/erg in normal
 # use). In this test the binary is build/erg, outside the scratch repo. But
 # when the scratch repo has no git remote configured, 'git fetch' fails and
-# update exits 0 without writing anything. The scope check therefore passes
-# for update, and the binary outside the scratch repo is unaffected.
+# sync exits 0 without writing anything. The scope check therefore passes
+# for sync, and the binary outside the scratch repo is unaffected.
 set -eu
 
 ERG="${ERG_BIN:-build/erg}"
@@ -83,7 +83,7 @@ snapshot() {
 
 # run_cmd <repo> <cmd>: run erg <cmd> with arguments appropriate to the scratch
 # repo. Exit codes are ignored -- scope confinement is about side effects, not
-# success. Commands that need to be run from within the repo (update) use a
+# success. Commands that need to be run from within the repo (sync) use a
 # subshell cd so the store auto-discovery finds the scratch tickets/ dir.
 run_cmd() {
     repo="$1"; cmd="$2"; tickets="$repo/tickets"
@@ -105,7 +105,7 @@ run_cmd() {
     spec)        "$ERG_ABS" spec >/dev/null 2>&1 || true ;;
     integration) "$ERG_ABS" integration >/dev/null 2>&1 || true ;;
     version)     "$ERG_ABS" version >/dev/null 2>&1 || true ;;
-    update)      (cd "$repo" && "$ERG_ABS" update >/dev/null 2>&1) || true ;;
+    sync)        (cd "$repo" && "$ERG_ABS" sync >/dev/null 2>&1) || true ;;
     esac
 }
 
@@ -116,7 +116,7 @@ run_cmd() {
 
 # CMDS: every registry command except install (the one command explicitly
 # allowed to write outside tickets/ behind explicit opt-in flags).
-CMDS="validate check list ready next-id new close log label unlabel archive rm migrate init spec integration version update"
+CMDS="validate check list ready next-id new close log label unlabel archive rm migrate init spec integration version sync"
 
 for cmd in $CMDS; do
     REPO=$(new_repo "$cmd")

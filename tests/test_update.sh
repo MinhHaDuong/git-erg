@@ -1,7 +1,7 @@
 #!/bin/sh
-# Integration tests for: erg version, erg update
+# Integration tests for: erg version, erg sync
 #
-# erg update fetches the committed binary via git (no embedded network client),
+# erg sync fetches the committed binary via git (no embedded network client),
 # so these tests build local git remote fixtures rather than an HTTP server.
 set -eu
 
@@ -22,7 +22,7 @@ export GIT_CONFIG_VALUE_0=always
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
-echo "=== erg update/version ==="
+echo "=== erg sync/version ==="
 
 # git_init DIR — create a repo with signing/identity that works unattended,
 # independent of the caller's global git config (which may force commit signing).
@@ -41,7 +41,7 @@ else
     fail "version output: $VER"
 fi
 
-# --- git-fetch-based update tests ---
+# --- git-fetch-based sync tests ---
 
 WORKROOT=$(mktemp -d)
 cleanup() { rm -rf "$WORKROOT"; }
@@ -68,11 +68,11 @@ git -C "$REMOTE" add -A
 git -C "$REMOTE" commit -qm init
 REMOTE_HASH=$(sha256sum "$REMOTE/tickets/erg" | cut -c1-12)
 
-# Clone it; overwrite the checked-out binary with $ERG so update has work to do.
+# Clone it; overwrite the checked-out binary with $ERG so sync has work to do.
 WORK="$WORKROOT/work"
 git clone -q "$REMOTE" "$WORK"
 cp "$ERG_ABS" "$WORK/tickets/erg"
-# A legacy Status: ticket so the post-update migration hint fires.
+# A legacy Status: ticket so the post-sync migration hint fires.
 cat > "$WORK/tickets/0002-legacy.erg" <<'ERGEOF'
 %erg 0.1
 Title: Legacy ticket
@@ -87,41 +87,54 @@ Status: open
 ERGEOF
 LEGACY_BEFORE=$(cat "$WORK/tickets/0002-legacy.erg")
 
-# Test: update from origin replaces the stale binary with the committed one.
-OUT=$(cd "$WORK" && ERG_TICKET_DIR="$WORK/tickets" ./tickets/erg update 2>&1 || true)
+# Test: sync from project origin replaces the stale binary with the committed one.
+OUT=$(cd "$WORK" && ERG_TICKET_DIR="$WORK/tickets" ./tickets/erg sync 2>&1 || true)
 AFTER_HASH=$(sha256sum "$WORK/tickets/erg" | cut -c1-12)
 if [ "$AFTER_HASH" = "$REMOTE_HASH" ]; then
-    pass "update replaces stale binary with origin's committed binary"
+    pass "sync replaces stale binary with origin's committed binary"
 else
-    fail "update did not replace binary: after=$AFTER_HASH want=$REMOTE_HASH ($OUT)"
+    fail "sync did not replace binary: after=$AFTER_HASH want=$REMOTE_HASH ($OUT)"
+fi
+if echo "$OUT" | grep -q "project origin"; then
+    pass "default sync names project origin as its source"
+else
+    fail "default sync did not identify project origin: $OUT"
 fi
 
-# Test: update emits the migrate hint for legacy Status: tickets...
-if echo "$OUT" | grep -q "erg migrate"; then
-    pass "update emits migrate hint"
+# Test: sync emits the migrate hint for legacy Status: tickets...
+if echo "$OUT" | grep -q "' migrate '"; then
+    pass "sync emits migrate hint"
 else
-    fail "update missing migrate hint: $OUT"
+    fail "sync missing migrate hint: $OUT"
 fi
 # ...but never rewrites ticket files itself.
 if [ "$(cat "$WORK/tickets/0002-legacy.erg")" = "$LEGACY_BEFORE" ]; then
-    pass "update does not rewrite ticket files"
+    pass "sync does not rewrite ticket files"
 else
-    fail "update rewrote ticket files"
+    fail "sync rewrote ticket files"
 fi
 
-# Test: running update again is a no-op (hash now matches origin).
-OUT=$(cd "$WORK" && ERG_TICKET_DIR="$WORK/tickets" ./tickets/erg update 2>&1 || true)
-if echo "$OUT" | grep -q "already up to date"; then
-    pass "update on hash match is a no-op"
+# Test: running sync again is a no-op (hash now matches origin).
+OUT=$(cd "$WORK" && ERG_TICKET_DIR="$WORK/tickets" ./tickets/erg sync 2>&1 || true)
+if echo "$OUT" | grep -q "already synchronized with project origin"; then
+    pass "sync on hash match is a no-op"
 else
-    fail "update should report already up to date: $OUT"
+    fail "sync should name project origin in the no-op result: $OUT"
+fi
+
+# Test: the old name remains a loud compatibility alias, not a second meaning.
+OUT=$(cd "$WORK" && ERG_TICKET_DIR="$WORK/tickets" ./tickets/erg update 2>&1 || true)
+if echo "$OUT" | grep -q "'update' is now 'sync'" && echo "$OUT" | grep -q "project origin"; then
+    pass "update compatibility alias points to sync and preserves source semantics"
+else
+    fail "update alias was silent or changed source semantics: $OUT"
 fi
 
 # Test: git fetch only touches the binary — working-tree assets stay put.
 if [ "$(cat "$WORK/tickets/0001-normal.erg")" = "$(cat "$REMOTE/tickets/0001-normal.erg")" ]; then
-    pass "update does not rewrite managed assets"
+    pass "sync does not rewrite managed assets"
 else
-    fail "update altered a working-tree asset"
+    fail "sync altered a working-tree asset"
 fi
 
 # Test: ERG_UPDATE_URL overrides origin — fetch upstream's binary instead.
@@ -133,16 +146,124 @@ printf 'UPSTREAM' >> "$UPSTREAM/tickets/erg"   # distinct from both $ERG and ori
 git -C "$UPSTREAM" add -A
 git -C "$UPSTREAM" commit -qm upstream
 UPSTREAM_HASH=$(sha256sum "$UPSTREAM/tickets/erg" | cut -c1-12)
+if [ "$UPSTREAM_HASH" != "$REMOTE_HASH" ]; then
+    pass "source-selection fixture gives origin and upstream distinct hashes"
+else
+    fail "source-selection fixture is vacuous: origin and upstream hashes match"
+fi
+
+# Test: --upstream selects the canonical git-erg source even when the custom
+# environment override points elsewhere. Git rewrites the canonical URL to the
+# local fixture, keeping the test disconnected while exercising the real URL.
+WORKUP="$WORKROOT/work-upstream"
+git clone -q "$REMOTE" "$WORKUP"
+cp "$ERG_ABS" "$WORKUP/tickets/erg"
+OUT=$(cd "$WORKUP" && \
+    GIT_CONFIG_COUNT=2 \
+    GIT_CONFIG_KEY_1="url.$UPSTREAM.insteadOf" \
+    GIT_CONFIG_VALUE_1="https://github.com/MinhHaDuong/git-erg.git" \
+    ERG_UPDATE_URL="$REMOTE" \
+    ERG_TICKET_DIR="$WORKUP/tickets" \
+    ./tickets/erg sync --upstream 2>&1 || true)
+WORKUP_HASH=$(sha256sum "$WORKUP/tickets/erg" | cut -c1-12)
+if [ "$WORKUP_HASH" = "$UPSTREAM_HASH" ] && echo "$OUT" | grep -q "git-erg upstream"; then
+    pass "--upstream selects and names git-erg ahead of custom-source overrides"
+else
+    fail "--upstream selected the wrong source: after=$WORKUP_HASH want=$UPSTREAM_HASH ($OUT)"
+fi
+
+# An explicit upstream import crosses a review boundary. The fetched bytes must
+# be installed but never executed by the old process before the operator can
+# inspect them.
+EVIL_UPSTREAM="$WORKROOT/evil-upstream"
+git_init "$EVIL_UPSTREAM"
+mkdir "$EVIL_UPSTREAM/tickets"
+EVIL_SENTINEL="$WORKROOT/import-was-executed"
+printf '#!/bin/sh\ntouch "%s"\n' "$EVIL_SENTINEL" > "$EVIL_UPSTREAM/tickets/erg"
+chmod +x "$EVIL_UPSTREAM/tickets/erg"
+git -C "$EVIL_UPSTREAM" add -A
+git -C "$EVIL_UPSTREAM" commit -qm malicious-fixture
+WORKREVIEW="$WORKROOT/work-review"
+git clone -q "$REMOTE" "$WORKREVIEW"
+cp "$ERG_ABS" "$WORKREVIEW/tickets/erg"
+OUT=$(cd "$WORKREVIEW" && \
+    GIT_CONFIG_COUNT=2 \
+    GIT_CONFIG_KEY_1="url.$EVIL_UPSTREAM.insteadOf" \
+    GIT_CONFIG_VALUE_1="https://github.com/MinhHaDuong/git-erg.git" \
+    ERG_TICKET_DIR="$WORKREVIEW/tickets" \
+    ./tickets/erg sync --upstream 2>&1 || true)
+if [ ! -e "$EVIL_SENTINEL" ] && echo "$OUT" | grep -q "without executing it"; then
+    pass "upstream import is not executed before review"
+else
+    fail "upstream import executed unreviewed bytes or omitted its review warning: $OUT"
+fi
+
+# --upstream always reads git-erg's canonical tickets/erg, even when the
+# adopter keeps its own store under another repo-relative directory.
+WORKLAYOUT="$WORKROOT/work-layout"
+git clone -q "$REMOTE" "$WORKLAYOUT"
+mkdir "$WORKLAYOUT/issues"
+cp "$ERG_ABS" "$WORKLAYOUT/issues/erg"
+OUT=$(cd "$WORKLAYOUT" && \
+    GIT_CONFIG_COUNT=2 \
+    GIT_CONFIG_KEY_1="url.$UPSTREAM.insteadOf" \
+    GIT_CONFIG_VALUE_1="https://github.com/MinhHaDuong/git-erg.git" \
+    ERG_TICKET_DIR="$WORKLAYOUT/issues" \
+    ./issues/erg sync --upstream 2>&1 || true)
+LAYOUT_HASH=$(sha256sum "$WORKLAYOUT/issues/erg" | cut -c1-12)
+if [ "$LAYOUT_HASH" = "$UPSTREAM_HASH" ]; then
+    pass "upstream import uses canonical tickets/erg with a noncanonical local store"
+else
+    fail "upstream import derived its source path from the adopter layout: $OUT"
+fi
+
+# sync targets the project's vendored binary, not whichever system/PATH copy
+# happened to invoke it.
+WORKPATH="$WORKROOT/work-path"
+git clone -q "$REMOTE" "$WORKPATH"
+cp "$ERG_ABS" "$WORKPATH/tickets/erg"
+mkdir "$WORKROOT/bin"
+cp "$ERG_ABS" "$WORKROOT/bin/erg"
+LAUNCHER_BEFORE=$(sha256sum "$WORKROOT/bin/erg" | cut -c1-12)
+OUT=$(cd "$WORKPATH" && ERG_TICKET_DIR="$WORKPATH/tickets" "$WORKROOT/bin/erg" sync 2>&1 || true)
+LAUNCHER_AFTER=$(sha256sum "$WORKROOT/bin/erg" | cut -c1-12)
+PATH_TARGET_HASH=$(sha256sum "$WORKPATH/tickets/erg" | cut -c1-12)
+if [ "$LAUNCHER_BEFORE" = "$LAUNCHER_AFTER" ] && [ "$PATH_TARGET_HASH" = "$REMOTE_HASH" ]; then
+    pass "sync updates the vendored binary without replacing its launcher"
+else
+    fail "sync replaced its launcher or missed the vendored target: $OUT"
+fi
+
+# A predictable legacy temp name may already be a symlink. Atomic replacement
+# must neither follow it nor truncate its target.
+WORKTMP="$WORKROOT/work-temp"
+git clone -q "$REMOTE" "$WORKTMP"
+cp "$ERG_ABS" "$WORKTMP/tickets/erg"
+TMP_SENTINEL="$WORKROOT/outside-temp-target"
+printf 'must survive\n' > "$TMP_SENTINEL"
+ln -s "$TMP_SENTINEL" "$WORKTMP/tickets/erg.tmp"
+OUT=$(cd "$WORKTMP" && ERG_TICKET_DIR="$WORKTMP/tickets" ./tickets/erg sync 2>&1 || true)
+if [ "$(cat "$TMP_SENTINEL")" = "must survive" ] && \
+    [ "$(sha256sum "$WORKTMP/tickets/erg" | cut -c1-12)" = "$REMOTE_HASH" ]; then
+    pass "sync uses an exclusive temp and cannot follow a planted erg.tmp symlink"
+else
+    fail "sync followed a planted temp symlink or failed atomic replacement: $OUT"
+fi
 
 WORK2="$WORKROOT/work2"
 git clone -q "$REMOTE" "$WORK2"
 cp "$ERG_ABS" "$WORK2/tickets/erg"
-OUT=$(cd "$WORK2" && ERG_TICKET_DIR="$WORK2/tickets" ERG_UPDATE_URL="$UPSTREAM" ./tickets/erg update 2>&1 || true)
+OUT=$(cd "$WORK2" && ERG_TICKET_DIR="$WORK2/tickets" ERG_UPDATE_URL="$UPSTREAM" ./tickets/erg sync 2>&1 || true)
 WORK2_HASH=$(sha256sum "$WORK2/tickets/erg" | cut -c1-12)
 if [ "$WORK2_HASH" = "$UPSTREAM_HASH" ]; then
     pass "ERG_UPDATE_URL override fetches from the given remote, not origin"
 else
     fail "override ignored: after=$WORK2_HASH want=$UPSTREAM_HASH ($OUT)"
+fi
+if echo "$OUT" | grep -q "configured source (ERG_UPDATE_URL: local path, id " && ! echo "$OUT" | grep -qF "$UPSTREAM"; then
+    pass "environment source is identified without echoing its URL"
+else
+    fail "environment source label is absent or leaked its URL: $OUT"
 fi
 
 # Test: .ergrc [update] url override is honored when the env var is unset.
@@ -150,12 +271,34 @@ WORK3="$WORKROOT/work3"
 git clone -q "$REMOTE" "$WORK3"
 cp "$ERG_ABS" "$WORK3/tickets/erg"
 printf '[update]\nurl = %s\n' "$UPSTREAM" > "$WORK3/tickets/.ergrc"
-OUT=$(cd "$WORK3" && ERG_TICKET_DIR="$WORK3/tickets" ./tickets/erg update 2>&1 || true)
+OUT=$(cd "$WORK3" && ERG_TICKET_DIR="$WORK3/tickets" ./tickets/erg sync 2>&1 || true)
 WORK3_HASH=$(sha256sum "$WORK3/tickets/erg" | cut -c1-12)
 if [ "$WORK3_HASH" = "$UPSTREAM_HASH" ]; then
     pass ".ergrc [update] url override is honored"
 else
     fail ".ergrc override ignored: after=$WORK3_HASH want=$UPSTREAM_HASH ($OUT)"
+fi
+if echo "$OUT" | grep -q "configured source (tickets/.ergrc: local path, id " && ! echo "$OUT" | grep -qF "$UPSTREAM"; then
+    pass "config source is identified without echoing its URL"
+else
+    fail "config source label is absent or leaked its URL: $OUT"
+fi
+
+# Git includes a failed fetch URL in stderr. sync must suppress that raw
+# diagnostic and print only its sanitized source identity.
+WORKSECRET="$WORKROOT/work-secret"
+git clone -q "$REMOTE" "$WORKSECRET"
+cp "$ERG_ABS" "$WORKSECRET/tickets/erg"
+SECRET_URL='https://user:TOPSECRET@127.0.0.1:1/TOPSECRET/repo.git?access_token=TOPSECRET'
+OUT=$(cd "$WORKSECRET" && \
+    GIT_TERMINAL_PROMPT=0 \
+    ERG_TICKET_DIR="$WORKSECRET/tickets" \
+    ERG_UPDATE_URL="$SECRET_URL" \
+    ./tickets/erg sync 2>&1 || true)
+if echo "$OUT" | grep -q "host 127.0.0.1:1, id " && ! echo "$OUT" | grep -q "TOPSECRET"; then
+    pass "failed custom fetch identifies its source without leaking credentials"
+else
+    fail "failed custom fetch omitted its safe identity or leaked credentials: $OUT"
 fi
 
 # Test: offline / no reachable remote exits 0 and leaves the binary untouched.
@@ -164,18 +307,18 @@ mkdir -p "$OFFLINE/tickets"
 cp "$ERG_ABS" "$OFFLINE/tickets/erg"
 cp "$WORK/tickets/0001-normal.erg" "$OFFLINE/tickets/0001-normal.erg"
 OFFLINE_BEFORE=$(sha256sum "$OFFLINE/tickets/erg" | cut -c1-12)
-if (cd "$OFFLINE" && ERG_TICKET_DIR="$OFFLINE/tickets" ./tickets/erg update >/dev/null 2>&1); then
+if (cd "$OFFLINE" && ERG_TICKET_DIR="$OFFLINE/tickets" ./tickets/erg sync >/dev/null 2>&1); then
     OFFLINE_AFTER=$(sha256sum "$OFFLINE/tickets/erg" | cut -c1-12)
     if [ "$OFFLINE_BEFORE" = "$OFFLINE_AFTER" ]; then
-        pass "update offline exits 0 and leaves binary untouched"
+        pass "sync offline exits 0 and leaves binary untouched"
     else
-        fail "update offline changed the binary"
+        fail "sync offline changed the binary"
     fi
 else
-    fail "update offline should exit 0"
+    fail "sync offline should exit 0"
 fi
 
-# Test: with no discoverable ticket store, update refuses rather than pulling
+# Test: with no discoverable ticket store, sync refuses rather than pulling
 # the binary from whatever unrelated repo the user happens to be standing in.
 # The hijack remote commits a (distinct) tickets/erg blob; the work repo wires
 # it as origin but has NO checked-out tickets/ dir and NO .erg files, so store
@@ -195,15 +338,15 @@ git -C "$HJ_WORK" remote add origin "$HJ_REMOTE"   # origin wired, nothing check
 mkdir "$HJ_WORK/run"
 cp "$ERG_ABS" "$HJ_WORK/run/erg"
 HJ_BEFORE=$(sha256sum "$HJ_WORK/run/erg" | cut -c1-12)
-OUT=$(cd "$HJ_WORK" && ERG_TICKET_DIR= ./run/erg update 2>&1 || true)
+OUT=$(cd "$HJ_WORK" && ERG_TICKET_DIR= ./run/erg sync 2>&1 || true)
 HJ_AFTER=$(sha256sum "$HJ_WORK/run/erg" | cut -c1-12)
 if [ "$HJ_BEFORE" = "$HJ_AFTER" ] && echo "$OUT" | grep -q "no git-erg ticket store"; then
-    pass "update refuses when no ticket store is found (no cwd-repo hijack)"
+    pass "sync refuses when no ticket store is found (no cwd-repo hijack)"
 else
-    fail "update without a store changed the binary or gave no warning: $OUT"
+    fail "sync without a store changed the binary or gave no warning: $OUT"
 fi
 
-# Test: the binary carries no embedded network/TLS client. `erg update` now
+# Test: the binary carries no embedded network/TLS client. `erg sync` now
 # shells out to git, so the offline invariant holds everywhere — guard it.
 if grep -rEn --include='*.go' 'net/http|crypto/tls' src/go/ >/dev/null 2>&1; then
     fail "source imports net/http or crypto/tls — erg must carry no network code"
@@ -273,19 +416,19 @@ else
 fi
 rm -rf "$VERSION_TMPDIR2"
 
-# --- post-update asset-drift hint (ticket 0212) ---
-# After the swap, update re-execs the NEW binary's `erg check`; if a stamped
+# --- post-sync asset-drift hint (ticket 0212) ---
+# After the swap, sync re-execs the NEW binary's `erg check`; if a stamped
 # asset differs from the new binary's embedded version, it nudges `erg init`.
 WORKD="$WORKROOT/work-drift"
 git clone -q "$REMOTE" "$WORKD"
 cp "$ERG_ABS" "$WORKD/tickets/erg"
 # A manifest whose stamps will NOT match the swapped binary's embedded assets.
 printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:0000000000000000000000000000000000000000000000000000000000000000\n  AGENTS.md sha256:1111111111111111111111111111111111111111111111111111111111111111\n' > "$WORKD/tickets/.erg-assets"
-OUTD=$(cd "$WORKD" && ERG_TICKET_DIR="$WORKD/tickets" ./tickets/erg update 2>&1 || true)
-if echo "$OUTD" | grep -q "run 'erg init' to refresh"; then
-    pass "post-update: drift hint fires when a stamped asset differs from the new embedded"
+OUTD=$(cd "$WORKD" && ERG_TICKET_DIR="$WORKD/tickets" ./tickets/erg sync 2>&1 || true)
+if echo "$OUTD" | grep -q "init to refresh"; then
+    pass "post-sync: drift hint fires when a stamped asset differs from the new embedded"
 else
-    fail "post-update: expected the erg init drift hint (got: $OUTD)"
+    fail "post-sync: expected the erg init drift hint (got: $OUTD)"
 fi
 
 # No manifest -> no drift hint. The remote fixture never writes tickets/.ergrc
@@ -296,19 +439,19 @@ fi
 WORKND="$WORKROOT/work-nodrift"
 git clone -q "$REMOTE" "$WORKND"
 cp "$ERG_ABS" "$WORKND/tickets/erg"
-OUTND=$(cd "$WORKND" && ERG_TICKET_DIR="$WORKND/tickets" ./tickets/erg update 2>&1 || true)
-if echo "$OUTND" | grep -q "run 'erg init' to refresh"; then
-    fail "post-update: drift hint fired without a manifest (should not)"
+OUTND=$(cd "$WORKND" && ERG_TICKET_DIR="$WORKND/tickets" ./tickets/erg sync 2>&1 || true)
+if echo "$OUTND" | grep -q "init to refresh"; then
+    fail "post-sync: drift hint fired without a manifest (should not)"
 else
-    pass "post-update: no manifest -> no drift hint"
+    pass "post-sync: no manifest -> no drift hint"
 fi
 if echo "$OUTND" | grep -qF "carry no .erg-assets stamp"; then
-    fail "post-update: stampless hint fired with no assets on disk (should not)"
+    fail "post-sync: stampless hint fired with no assets on disk (should not)"
 else
-    pass "post-update: no manifest and no assets -> no stampless hint"
+    pass "post-sync: no manifest and no assets -> no stampless hint"
 fi
 
-# --- post-update stampless hint (ticket 0283) ---
+# --- post-sync stampless hint (ticket 0283) ---
 # No manifest, but an on-disk asset that differs from the swapped-in binary's
 # embedded copy. The pre-0283 os.Stat(manifestName) gate skipped the re-exec'd
 # check entirely here, so this condition could not be reported however loudly
@@ -321,18 +464,18 @@ cp "$ERG_ABS" "$WORKSL/tickets/erg"
 printf '# an .ergrc that is not what this binary embeds\nlabels = whatever\n' > "$WORKSL/tickets/.ergrc"
 # Guard: a stamp here would reroute the run into the drift branch.
 if [ -f "$WORKSL/tickets/.erg-assets" ]; then
-    fail "post-update: stampless fixture carries a manifest (test would not exercise 0283)"
+    fail "post-sync: stampless fixture carries a manifest (test would not exercise 0283)"
 else
-    OUTSL=$(cd "$WORKSL" && ERG_TICKET_DIR="$WORKSL/tickets" ./tickets/erg update 2>&1 || true)
-    if echo "$OUTSL" | grep -q "erg: updated" && echo "$OUTSL" | grep -qF "carry no .erg-assets stamp"; then
-        pass "post-update: stampless hint fires when a diverged asset has no stamp"
+    OUTSL=$(cd "$WORKSL" && ERG_TICKET_DIR="$WORKSL/tickets" ./tickets/erg sync 2>&1 || true)
+    if echo "$OUTSL" | grep -q "erg: synchronized" && echo "$OUTSL" | grep -qF "carry no .erg-assets stamp"; then
+        pass "post-sync: stampless hint fires when a diverged asset has no stamp"
     else
-        fail "post-update: expected the stampless provenance hint (got: $OUTSL)"
+        fail "post-sync: expected the stampless provenance hint (got: $OUTSL)"
     fi
-    if echo "$OUTSL" | grep -q "run 'erg init' to refresh"; then
-        fail "post-update: no stamp exists, yet the drift hint fired (got: $OUTSL)"
+    if echo "$OUTSL" | grep -q "init to refresh"; then
+        fail "post-sync: no stamp exists, yet the drift hint fired (got: $OUTSL)"
     else
-        pass "post-update: stampless store makes no stamp-relative claim"
+        pass "post-sync: stampless store makes no stamp-relative claim"
     fi
 fi
 
@@ -348,23 +491,23 @@ $ERG init "$WORKM" >/dev/null 2>&1
 # actually stamped a matching manifest. Without the guard a silently-missing
 # manifest would let the test pass via the os.Stat gate, not the matching path.
 if ! grep -q "sha256:[0-9a-f]" "$WORKM/tickets/.erg-assets" 2>/dev/null; then
-    fail "post-update: matching fixture: init wrote no stamped manifest (test would be vacuous)"
+    fail "post-sync: matching fixture: init wrote no stamped manifest (test would be vacuous)"
 else
-    OUTM=$(cd "$WORKM" && ERG_TICKET_DIR="$WORKM/tickets" ./tickets/erg update 2>&1 || true)
-    if echo "$OUTM" | grep -q "erg: updated" && ! echo "$OUTM" | grep -q "run 'erg init' to refresh"; then
-        pass "post-update: up-to-date manifest -> swap happens but no drift hint"
+    OUTM=$(cd "$WORKM" && ERG_TICKET_DIR="$WORKM/tickets" ./tickets/erg sync 2>&1 || true)
+    if echo "$OUTM" | grep -q "erg: synchronized" && ! echo "$OUTM" | grep -q "init to refresh"; then
+        pass "post-sync: up-to-date manifest -> swap happens but no drift hint"
     else
-        fail "post-update: matching manifest should swap without a drift hint (got: $OUTM)"
+        fail "post-sync: matching manifest should swap without a drift hint (got: $OUTM)"
     fi
 fi
 
 # unknown flag rejection (ticket 0185)
-out=$($ERG update --bogus 2>&1) || rc=$?
+out=$($ERG sync --bogus 2>&1) || rc=$?
 if [ "${rc:-0}" -ne 0 ] && echo "$out" | grep -q "unknown flag"; then
     pass "unknown flag rejected with usage message"
 else
     fail "unknown flag not rejected (rc=${rc:-0}, got: $out)"
 fi
 
-echo "update: $PASS passed, $FAIL failed"
+echo "sync: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

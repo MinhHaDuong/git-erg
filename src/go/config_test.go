@@ -214,19 +214,22 @@ func TestUpdateURL_EnvVarOverridesConfig(t *testing.T) {
 		t.Fatalf("config URL not loaded: %q", cfg.UpdateURL)
 	}
 
-	const def = "origin"
 	envURL := "https://from-env.example.com/erg"
 
 	// Env var set -> wins over both config and default.
-	if got := resolveUpdateRemote(envURL, cfg.UpdateURL, def); got != envURL {
-		t.Errorf("env var should override config: got %q, want %q", got, envURL)
+	if got := resolveSyncSource(false, envURL, cfg.UpdateURL); got.remote != envURL {
+		t.Errorf("env var should override config: got %q, want %q", got.remote, envURL)
 	}
 	// Env var unset -> config wins over default.
-	if got := resolveUpdateRemote("", cfg.UpdateURL, def); got != cfg.UpdateURL {
-		t.Errorf("config should override default when env unset: got %q, want %q", got, cfg.UpdateURL)
+	if got := resolveSyncSource(false, "", cfg.UpdateURL); got.remote != cfg.UpdateURL {
+		t.Errorf("config should override default when env unset: got %q, want %q", got.remote, cfg.UpdateURL)
 	}
 	// Env and config unset -> compiled-in default.
-	if got := resolveUpdateRemote("", "", def); got != def {
-		t.Errorf("default should apply when env and config unset: got %q, want %q", got, def)
+	if got := resolveSyncSource(false, "", ""); got.remote != syncRemote {
+		t.Errorf("default should apply when env and config unset: got %q, want %q", got.remote, syncRemote)
+	}
+	// Explicit upstream wins over both custom-source mechanisms.
+	if got := resolveSyncSource(true, envURL, cfg.UpdateURL); got.remote != gitErgUpstream {
+		t.Errorf("--upstream should override env and config: got %q, want %q", got.remote, gitErgUpstream)
 	}
 }

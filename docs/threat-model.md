@@ -30,8 +30,8 @@ are in place. The repeatable verification procedure is
 - **Malicious PR author** — anyone can open a PR adding or editing a `.erg`
   file; hooks and CI parse it. A crafted ticket can attempt path traversal,
   resource exhaustion, or ref injection without ever being merged.
-- **Compromised update channel** — an attacker who can intercept or impersonate
-  the update source tries to get `erg update` to install a hostile binary, or
+- **Compromised sync channel** — an attacker who can intercept or impersonate
+  the selected sync source tries to get `erg sync` to install a hostile binary, or
   to silently downgrade a patched one.
 
 ## Attack surfaces
@@ -42,7 +42,7 @@ are in place. The repeatable verification procedure is
    from `src/go/` and confirm the committed blob matches. An unverifiable
    committed binary *is* the liability; reproducibility is what earns the right
    to ship one.
-2. **Update channel.** `erg update` (git transport, 0148) must not be coercible
+2. **Sync channel.** `erg sync` (git transport, 0148) must not be coercible
    into installing an attacker binary — no untrusted origin, no silent
    downgrade, no install from a hijacked working-directory repo.
 3. **Parser / mass code-execution.** `erg` parses untrusted `.erg` input in

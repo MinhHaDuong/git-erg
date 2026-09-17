@@ -109,7 +109,7 @@ Additionally emits warnings (non-fatal) for:
       - this binary is NEWER than the stamp (upgraded since the last init):
         refreshing is an upgrade; run 'erg init' to refresh.
       - this binary is OLDER than the stamp (it predates the last init):
-        refreshing would REVERT the deployed assets; run 'erg update' first,
+        refreshing would REVERT the deployed assets; run 'erg sync' first,
         then 'erg init'.
     Requires a stamp FOR THAT ASSET: the comparison is stamp against embedded.
     An asset no stamp covers gets the stampless NOTE below instead. A stamp with
@@ -437,7 +437,7 @@ When DIR is named "tickets" (the canonical layout), also performs a one-time
 project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
 renames archive/ to closed/ if archive/ exists and closed/ does not, refreshes
 tickets/AGENTS.md (force-overwrite, no prompt -- agent docs track the binary;
-.ergrc is configuration, delivered by 'erg init', so run 'erg update && erg
+.ergrc is configuration, delivered by 'erg init', so run 'erg sync && erg
 init' to refresh it with the dpkg 3-state rule, which preserves a file for
 either of two reasons: it has local edits, or it matches an .erg-assets stamp
 newer than this binary -- see 'erg init --help'). Because .ergrc is outside
@@ -448,7 +448,8 @@ a NEWER binary's stamp records, the manifest is left entirely as it stands, so
 it. The price is that such a sweep records nothing about the AGENTS.md it did
 write, so erg check reports that file as ahead too when it is no longer: one
 header cannot date two assets separately, and the write was announced with an
-undo hint when it happened. Run 'erg update && erg init' to clear it. It also
+undo hint when it happened. Run sync, then init from the corresponding updated
+traveling or native binary, to clear it. It also
 rewrites .git/hooks/pre-commit if it references
 the legacy tickets/tools/go/erg path or the legacy 'validate tickets/' CLI
 form. The hook rewrite is content-based and idempotent; hooks without legacy
@@ -520,10 +521,11 @@ from an upgrade the store never stamped, and --show is how you find out.
 The stamp also records which binary wrote it, and init compares that date with
 its own. If this binary is the OLDER one -- an erg from before the last init --
 then refreshing would revert the deployed assets, not upgrade them. Such a file
-is preserved too, and init says so and points at 'erg update' rather than
+is preserved too, and init says so and points at 'erg sync' rather than
 claiming a local edit. A stamp with no date (written by an erg predating the
 field) carries no direction and is treated exactly as before. This is what makes
-'erg update && erg init' a pair the code enforces and not merely a convention.
+sync followed by init from the corresponding updated binary an order the code
+enforces and not merely a convention.
 
 Flags:
 
@@ -535,7 +537,7 @@ Flags:
                   this binary) a forced overwrite of a file still matching that
                   stamp is reported as "downgraded", not "refreshed": nothing
                   there was locally edited, the file is being reverted to an
-                  older release. Run 'erg update' first if that is not what you
+                  older release. Run 'erg sync' first if that is not what you
                   want.
   --show NAME     Print this binary's embedded copy of NAME on stdout and exit,
                   writing nothing. NAME is .ergrc, AGENTS.md or erg-github
@@ -557,12 +559,14 @@ After a successful run (not in dry-run), init chains a read-only corpus check
 and prints any warnings, but its exit code reflects the init outcome only --
 the chained warnings never change it.
 
-Canonical keep-current sequence: 'erg update && erg init'. erg update replaces the
-binary; erg init delivers embedded-asset changes and refreshes the default label
-vocabulary. The default vocabulary is frozen-by-copy into .ergrc at init time -- a
+Canonical keep-current sequence: run 'erg sync', then run init from the newly
+synchronized tickets/erg on Linux x86-64, or from a native system erg rebuilt from
+the same reviewed revision on other platforms. Sync replaces the traveling binary;
+init delivers embedded-asset changes and refreshes the default label vocabulary.
+The default vocabulary is frozen-by-copy into .ergrc at init time -- a
 new default added later to the binary is shadowed by the existing file and never takes
 effect until erg init overwrites the file (clean upgrade) or the user opts in with
---force (local edit). erg update alone cannot un-shadow a frozen vocabulary.
+--force (local edit). erg sync alone cannot un-shadow a frozen vocabulary.
 
 Exit codes: 0 success; 1 a hard error (bad flag, missing binary, write
 failure); 2 a file was preserved and skipped -- either it has local edits, or
@@ -658,46 +662,75 @@ Prints the following fields for the running binary:
 After printing the running binary info, `erg version` discovers other erg binaries
 in well-known locations (./build/erg, ./tickets/erg, ~/.local/bin/erg, and PATH
 entries), compares VCS revisions and build dates against each discovered copy, and
-prints the update command for any outdated copy it finds.
+prints the sync command for any outdated copy it finds.
 
 Set ERG_VERSION_NO_DISCOVER=1 to suppress discovery (used internally by version
 comparison to avoid recursion).
 
-## erg update
+## erg sync [--upstream]
 
-Fetch the committed binary from your git remote and replace this executable atomically.
+Synchronize this project's vendored binary with a committed binary fetched through git.
 
-Uses git (already a dependency of git-erg) -- never an embedded network client -- so
-the binary carries no network code at all. It runs 'git fetch <remote> HEAD' in the
-ticket store's repository, extracts the committed binary at that remote's default
-branch, and compares its hash to the running binary.
+By default, sync reads tickets/erg from the current PROJECT'S origin. It aligns clones
+with the version vendored and reviewed by that project. It does NOT check whether the
+git-erg project has published a newer binary.
 
-The remote defaults to 'origin' (you update from where you cloned). Override it with
-the ERG_UPDATE_URL environment variable or the .ergrc [update] url key -- the value is
-a git remote name or URL, so a fork can point it at upstream to track upstream's binary.
+Use --upstream to import tickets/erg explicitly from the git-erg project. Review and
+commit the resulting binary in the adopter project so its other clones can use the
+default project-origin mode. ERG_UPDATE_URL and the .ergrc [update] url key remain
+custom-source overrides when --upstream is absent; the environment wins over config.
+The explicit --upstream flag wins over both overrides.
 
-If the fetched hash matches the running binary, prints "already up to date" and exits 0.
-Otherwise replaces the binary via an atomic rename (write to .tmp, then rename over self).
+Sync uses git (already a dependency of git-erg) -- never an embedded network client --
+so the binary carries no network code. It runs 'git fetch <source> HEAD' in the ticket
+store's repository, extracts the committed binary at that source's default branch,
+and compares its hash to the vendored binary at <ticket store>/erg. The executable used
+to invoke sync is never replaced, so a system-native erg remains intact.
 
-Fetch errors exit 0 so that 'erg update && erg validate' chains do not fail in offline
+Messages name the resolved source, sanitizing configured URLs and suppressing git's
+raw diagnostics so credentials cannot be echoed. If the hash differs, sync replaces
+the vendored binary atomically (exclusive temp file, fsync, then rename).
+
+Fetch errors exit 0 so that 'erg sync && erg validate' chains do not fail in offline
 or isolated environments (no remote configured, no network, not a git repo). If no
-ticket store is found, update does nothing and exits 0 -- it never pulls the binary from
+ticket store is found, sync does nothing and exits 0 -- it never pulls the binary from
 an unrelated repository you happen to be standing in.
 
-After a successful update, checks whether any .erg files in the ticket store still carry
+After a successful sync, checks whether any .erg files in the ticket store still carry
 legacy Status: headers. If found, prints explicit migration guidance: 'erg migrate DIR',
-'git diff tickets/', 'git commit'. The update command never mutates ticket files itself --
+'git diff tickets/', 'git commit'. The sync command never mutates ticket files itself --
 migration is a separate, reviewable step.
 
-erg update replaces the binary only -- it never writes or modifies any store file
+erg sync replaces the binary only -- it never writes or modifies any store file
 (.ergrc, AGENTS.md, or tickets). Embedded-asset changes and new default label vocabulary
-are delivered by a follow-up 'erg init'. The canonical sequence after an update is:
+are delivered by a follow-up 'erg init'. On Linux x86-64, invoke the vendored binary
+for that follow-up so init uses the bytes just synchronized:
 
-  erg update && erg init
+  erg sync
+  tickets/erg init
+
+The explicit import sequence keeps review ahead of first execution:
+
+  erg sync --upstream
+  git diff -- tickets/erg
+  # review or verify the imported binary here
+  tickets/erg init
+  git diff -- tickets/
+  git commit
+
+An upstream or configured-source import is not executed automatically. Review it first,
+then run '<ticket store>/erg check' before init. Project-origin sync may run that check
+automatically because those bytes are the project's already-reviewed vendored version.
+
+The vendored binary is always Linux x86-64. On macOS, Windows, or another architecture,
+'erg sync' still updates that project/CI artifact but you must update or rebuild your
+native system erg from the same reviewed git-erg revision before running 'erg init'.
 
 erg init applies the dpkg-style 3-state rule: byte-identical files are left untouched;
 a file that matches the previously recorded stock hash is a clean upgrade and is
 overwritten; a locally-edited file is preserved (exit 2). A file the stamp says a
 NEWER erg wrote is preserved too, so an init run from a stale binary reports the
-situation instead of reverting the store. Running erg update alone is never
+situation instead of reverting the store. Running erg sync alone is never
 sufficient to absorb new defaults.
+
+The old command name 'erg update' is a compatibility alias for 'erg sync'.

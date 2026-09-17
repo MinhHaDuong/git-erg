@@ -566,12 +566,12 @@ func TestMutatingCommandsCMDSCoverage(t *testing.T) {
 		// test_strictwrite.sh's "Excluded by design" notes (near the CMDS=
 		// line) deliberately omit them: rm deletes a file so there is nothing
 		// to re-validate (covered by test_datasafety.sh Guard 6); init touches
-		// non-.erg files (.ergrc); install/update touch the installed binary,
+		// non-.erg files (.ergrc); install/sync touch the installed binary,
 		// not tickets.
 		"rm":      true,
 		"init":    true,
 		"install": true,
-		"update":  true,
+		"sync":    true,
 		// read-only: inspect or validate, never write
 		"validate":    false,
 		"check":       false,
@@ -586,7 +586,7 @@ func TestMutatingCommandsCMDSCoverage(t *testing.T) {
 	// The four documented exclusions: mutating commands intentionally absent
 	// from CMDS because the strict-write round-trip cannot drive them.
 	exclusions := map[string]bool{
-		"rm": true, "init": true, "install": true, "update": true,
+		"rm": true, "init": true, "install": true, "sync": true,
 	}
 
 	// 2. Totality loop (anti-tautology core): every registry command must be
@@ -708,7 +708,7 @@ func TestScopeConfinementCoverage(t *testing.T) {
 		"spec":        true,
 		"integration": true,
 		"version":     true,
-		"update":      true,
+		"sync":        true,
 		// Excluded: install is the one command explicitly permitted to write
 		// outside tickets/ (behind --hooks and --inject-agents, which default
 		// to off). Marking it false records the deliberate exemption rather

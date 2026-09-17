@@ -243,7 +243,7 @@ Additionally emits warnings (non-fatal) for:
       - this binary is NEWER than the stamp (upgraded since the last init):
         refreshing is an upgrade; run 'erg init' to refresh.
       - this binary is OLDER than the stamp (it predates the last init):
-        refreshing would REVERT the deployed assets; run 'erg update' first,
+        refreshing would REVERT the deployed assets; run 'erg sync' first,
         then 'erg init'.
     Requires a stamp FOR THAT ASSET: the comparison is stamp against embedded.
     An asset no stamp covers gets the stampless NOTE below instead. A stamp with

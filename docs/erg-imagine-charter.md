@@ -34,7 +34,7 @@
 
 | Couche | Quoi | Forge-aware | Present ou |
 |---|---|---|---|
-| **erg core** (binaire Go) | validate/check/list/new/close/archive/init/**install**/spec/integration/update + hooks git | **non** -- offline, local | partout, y compris Claude web |
+| **erg core** (binaire Go) | validate/check/list/new/close/archive/init/**install**/spec/integration/sync + hooks git | **non** -- offline, local | partout, y compris Claude web |
 | **erg-github** (script commite dans le repo) | `install` (pose le check CI) + `verify` (discover forge -> pass/fail) | oui, par forge | accelerateur optionnel |
 | **AGENTS.md** (instructions) | "lance `erg close`" | n/a | plancher universel |
 
@@ -206,7 +206,7 @@ Deux axes distincts a garder : **format** (`%erg 0.1` / spec `v1`) vs
   verifications distinctes -- `--dry-run` previsualise l'install d'assets ;
   `check` verifie la sante du *corpus* de tickets. Les fusionner surchargerait
   `check`. Le versionnage ordonne (plus ancien/recent) du binaire reste a
-  `update`, pas a init.
+  `sync`, pas a init.
 - **`erg init --force`** : exposer `installAssets(root, false)` (deja interne).
 - **Codes de sortie (derisque) :** si on adopte 0/1/2, documenter un **petit jeu
   stable** sur une surface partagee (preambule manuel `main.go` ou spec) couvrant
@@ -303,7 +303,7 @@ Deux axes distincts a garder : **format** (`%erg 0.1` / spec `v1`) vs
    - **4a** manifeste `.erg-assets` (format + statut commit) ;
    - **4b** compare 3-etats dpkg + **defaut sur sans-manifeste** (historique de
      hashes baked) + **sortie loud** ;
-   - **4c** drift dans `check` + indice post-`update` ;
+   - **4c** drift dans `check` + indice post-`sync` ;
    - **4d** garde-fou CI reframe + cible Makefile regen + reconcilier la
      divergence dogfood. *(§4, §9, blocker #3)*
 5. `init -n`/`--force` + reecriture parse de flags + chainage check documente +

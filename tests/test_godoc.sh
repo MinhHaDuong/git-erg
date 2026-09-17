@@ -92,9 +92,9 @@ doc_contains helpNextID "optimistic" "helpNextID optimistic allocation"
 doc_contains helpVersion "hash" "helpVersion hash field"
 doc_contains helpVersion "ERG_VERSION_NO_DISCOVER" "helpVersion no-discover env"
 
-# helpUpdate: offline-safe exit code
-doc_contains helpUpdate "offline" "helpUpdate offline safety"
-doc_contains helpUpdate "migration" "helpUpdate migration hint"
+# helpSync: offline-safe exit code and migration guidance
+doc_contains helpSync "offline" "helpSync offline safety"
+doc_contains helpSync "migration" "helpSync migration hint"
 
 # Format constant doc comments. RequiredHeaders/SingletonHeaders/
 # ValidHeaders were removed in ticket 0116; ticket 0117 then merged

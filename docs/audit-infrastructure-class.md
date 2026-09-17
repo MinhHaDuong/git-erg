@@ -79,7 +79,7 @@ The open question is whether the *premise* is right-sized.
   is far smaller than "binary running in every hook and CI" implies — the
   supply-chain exposure is opt-in and removable.
 - **Near-zero transitive surface.** Zero third-party deps; the only network
-  call has been removed (0148, closed — `erg update` now uses git transport, so
+  call has been removed (0148, closed — `erg sync` now uses git transport, so
   the binary carries no network code). git-erg is a *potential* supply-chain
   *source*, but barely a *consumer* of one — it lacks the deep dependency tree
   that makes most infrastructure dangerous.
@@ -137,7 +137,7 @@ hooks/CI on untrusted code); by itself that is "normal dev tool," not
 infrastructure class. Bonus: it kills the rubber-stamped-blob vector (the
 git log is full of unreviewed `chore: rebuild bootstrap binary [skip ci]`
 commits — source diffs are reviewable, blob diffs are not). (`update.go`'s
-network code is already gone independently — 0148 moved `erg update` to git
+network code is already gone independently — 0148 moved `erg sync` to git
 transport.)
 
 **The one thing it trades away is the exact thing the committed binary was

@@ -19,7 +19,7 @@ import (
 const manifestName = ".erg-assets"
 
 // assetDriftSignal is the stable substring of the asset-drift warning emitted by
-// assetDriftWarnings. erg update greps the re-exec'd new binary's `erg check`
+// assetDriftWarnings. erg sync greps the re-exec'd new binary's `erg check`
 // output for it (ticket 0212), so producer and consumer share this one literal.
 // Producer and consumer are DIFFERENT binaries (the new one prints, the old one
 // greps), so this literal is a cross-version contract: it may be extended at the
@@ -32,10 +32,10 @@ const assetDriftSignal = "differs from the .erg-assets stamp (binary upgraded si
 // assetRollbackSignal is the opposite direction: the stamp is NEWER than the
 // running binary, so the deployed assets are ahead of what this binary embeds
 // and `erg init` would REVERT them (ticket 0279). It has no cross-version
-// consumer -- erg update only ever re-execs a strictly newer binary, which is by
+// consumer -- erg sync only ever re-execs a strictly newer binary, which is by
 // construction the assetDriftSignal direction -- so it is free to say what it
 // means and to name its own remedy.
-const assetRollbackSignal = "is older than the .erg-assets stamp (this binary predates the last init) -- run 'erg update' first, then 'erg init'"
+const assetRollbackSignal = "is older than the .erg-assets stamp (this binary predates the last init) -- run 'erg sync' first, then 'erg init'"
 
 // assetStamplessSignal is the third condition: no .erg-assets entry stamps this
 // asset -- either the store has no manifest at all, or the manifest it has says
@@ -44,7 +44,7 @@ const assetRollbackSignal = "is older than the .erg-assets stamp (this binary pr
 // so the difference is unattributable -- it may be a clean upgrade the store
 // never stamped, or a deliberate local edit -- and the only honest report is to
 // say so and name the command that finds out. Like assetDriftSignal it is a
-// cross-version contract: erg update greps the re-exec'd NEW binary's
+// cross-version contract: erg sync greps the re-exec'd NEW binary's
 // `erg check` output for this literal (see update.go), so producer and consumer
 // share it and it may be extended at the END only, never rewritten.
 //
@@ -66,7 +66,7 @@ const assetRollbackSignal = "is older than the .erg-assets stamp (this binary pr
 // Why not simply rewrite the sentence, which would be half the length: the
 // literal was already shipped when this correction was written. PR #348's
 // executor ran `strings` against the committed bootstrap binary and found the
-// constant present, so every store that has run `erg update` since carries an
+// constant present, so every store that has run `erg sync` since carries an
 // OLD binary that greps for the OLD prefix. Reword the front and that old side
 // stops recognising its own signal -- silently, with no error anywhere, which
 // is the exact failure this whole family of constants exists to prevent. The
@@ -108,9 +108,9 @@ const assetStamplessSignal = "no .erg-assets stamp -- cannot tell whether this i
 // documented in README's forge-layer section.
 //
 // Unlike assetDriftSignal and assetStamplessSignal this literal has no
-// cross-version consumer -- erg update greps for those two, not for this one
+// cross-version consumer -- erg sync greps for those two, not for this one
 // (see update.go) -- so, like assetRollbackSignal, it is free to be reworded
-// later. If a future erg update ever greps it, that freedom ends.
+// later. If a future erg sync ever greps it, that freedom ends.
 //
 // Note precisely what the freedom rests on: the ABSENCE OF A GREPPING
 // CONSUMER, not the literal being unreleased. Ticket 0292 recorded how that
@@ -654,7 +654,7 @@ func managedAssetWarnings(dir string) []string {
 			// but this change makes partial manifests routine, so a mixed
 			// fleet loses the warning until every binary is updated. Nothing
 			// in a new binary can repair an old one's gate; the only lever is
-			// erg update, which the stampless report already names.
+			// erg sync, which the stampless report already names.
 			if note, has := stamplessNote(dir, rel); has {
 				warnings = append(warnings, note)
 			}
