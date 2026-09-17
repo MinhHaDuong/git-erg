@@ -32,6 +32,11 @@ through `/verify`.
   `url.<mirror>.insteadOf` is honoured; an unwritable store exits 0 like any
   other environmental failure; stale `.erg-sync-*` directories are swept at the
   next run. (0302)
+- **Security:** a source string starting with `-` is refused before git runs,
+  and the fetch/ls-remote argv carry `--end-of-options`. Before, a committed
+  `tickets/.ergrc [update] url = --upload-pack=CMD` (a pull request can carry
+  one) or the same in `ERG_UPDATE_URL` ran `CMD` with exit 0. Found in the
+  decorrelated review of 0302. (0302)
 
 ### Added
 - **`erg install`** -- a new verb split out of `init`; the only verb that mutates

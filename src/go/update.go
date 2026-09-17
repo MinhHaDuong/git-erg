@@ -203,6 +203,13 @@ const syncTempPrefix = ".erg-sync-"
 // No network client is embedded. Raw git stderr is intentionally suppressed
 // because git may echo a source URL containing credentials.
 func fetchRemoteBinary(gitDir, remote, blobPath string, isolate bool) ([]byte, error) {
+	// A source is a remote name, a path or a URL, never a git option. A string
+	// starting with "-" would be parsed as one by ls-remote and fetch
+	// (--upload-pack=CMD runs CMD), and a committed .ergrc is an attack
+	// channel. Refused before any git runs; the string itself is never echoed.
+	if strings.HasPrefix(remote, "-") {
+		return nil, &remoteBinaryError{err: errors.New("source starts with '-' and is not a remote name, path or URL")}
+	}
 	fetchDir := gitDir
 	args := []string{"fetch", "--quiet"}
 	if isolate {
@@ -223,7 +230,7 @@ func fetchRemoteBinary(gitDir, remote, blobPath string, isolate bool) ([]byte, e
 		args = append(args, "--depth=1")
 	}
 
-	fetch := exec.Command("git", append([]string{"-C", fetchDir}, append(args, remote, "HEAD")...)...)
+	fetch := exec.Command("git", append([]string{"-C", fetchDir}, append(args, "--end-of-options", remote, "HEAD")...)...)
 	if err := fetch.Run(); err != nil {
 		return nil, &remoteBinaryError{unavailable: true, err: fmt.Errorf("git fetch failed: %w", err)}
 	}
@@ -244,7 +251,7 @@ func fetchRemoteBinary(gitDir, remote, blobPath string, isolate bool) ([]byte, e
 // when the fetch runs elsewhere. The result is for git only; it may carry
 // credentials and must not be echoed.
 func resolveRemoteURL(gitDir, remote string) string {
-	cmd := exec.Command("git", "-C", gitDir, "ls-remote", "--get-url", remote)
+	cmd := exec.Command("git", "-C", gitDir, "ls-remote", "--get-url", "--end-of-options", remote)
 	cmd.Stderr = nil
 	out, err := cmd.Output()
 	resolved := strings.TrimSpace(string(out))

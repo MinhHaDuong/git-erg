@@ -555,6 +555,36 @@ else
     fail "project origin missing its binary was silent or failed (rc=$ORIGIN_MISSING_RC, out: $OUT)"
 fi
 
+# A source string is a remote name, a path or a URL, never a git option. An
+# option-shaped source (from the environment, or from a committed .ergrc that a
+# pull request can carry) must be refused before git sees it: --upload-pack=CMD
+# would run CMD. It is an explicit source, so exit 1, binary untouched, and the
+# message never echoes the string.
+ACE_MARK="$WORKROOT/ace-marker"
+for ACE_MODE in env cfg; do
+    WORKACE="$WORKROOT/work-ace-$ACE_MODE"
+    git clone -q "$REMOTE" "$WORKACE"
+    cp "$ERG_ABS" "$WORKACE/tickets/erg"
+    ACE_BEFORE=$(sha256sum "$WORKACE/tickets/erg" | cut -c1-12)
+    ACE_PAYLOAD="--upload-pack=touch $ACE_MARK"
+    set +e
+    if [ "$ACE_MODE" = env ]; then
+        OUT=$(cd "$WORKACE" && ERG_TICKET_DIR="$WORKACE/tickets" ERG_UPDATE_URL="$ACE_PAYLOAD" ./tickets/erg sync 2>&1)
+    else
+        printf '[update]\nurl = %s\n' "$ACE_PAYLOAD" > "$WORKACE/tickets/.ergrc"
+        OUT=$(cd "$WORKACE" && ERG_TICKET_DIR="$WORKACE/tickets" ./tickets/erg sync 2>&1)
+    fi
+    ACE_RC=$?
+    set -e
+    ACE_AFTER=$(sha256sum "$WORKACE/tickets/erg" | cut -c1-12)
+    if [ ! -e "$ACE_MARK" ] && [ "$ACE_RC" -eq 1 ] && [ "$ACE_BEFORE" = "$ACE_AFTER" ] && ! echo "$OUT" | grep -q "upload-pack"; then
+        pass "option-shaped source ($ACE_MODE) is refused: no command run, binary untouched, exit 1, string not echoed"
+    else
+        fail "option-shaped source ($ACE_MODE) reached git (marker: $([ -e "$ACE_MARK" ] && echo yes || echo no), rc=$ACE_RC, after=$ACE_AFTER before=$ACE_BEFORE): $OUT"
+    fi
+    rm -f "$ACE_MARK"
+done
+
 # Git includes a failed fetch URL in stderr. sync must suppress that raw
 # diagnostic and print only its sanitized source identity.
 WORKSECRET="$WORKROOT/work-secret"
