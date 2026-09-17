@@ -518,6 +518,8 @@ git clone -q "$REMOTE" "$WORKSTALE"
 cp "$ERG_ABS" "$WORKSTALE/tickets/erg"
 git init -q --bare "$WORKSTALE/tickets/.erg-sync-stale"
 git -C "$WORKSTALE/tickets/.erg-sync-stale" fetch --quiet --depth=1 "$UPSTREAM" HEAD
+touch -d '1 hour ago' "$WORKSTALE/tickets/.erg-sync-stale"
+git init -q --bare "$WORKSTALE/tickets/.erg-sync-live"
 mkdir -p "$WORKSTALE/tickets/unrelated-dir/.erg-sync-nested"
 if (cd "$WORKSTALE" && "$ERG_ABS" check tickets/ >/dev/null 2>&1) && (cd "$WORKSTALE" && "$ERG_ABS" validate tickets/*.erg >/dev/null 2>&1); then
     pass "erg check and erg validate ignore a stale .erg-sync-* directory"
@@ -525,8 +527,8 @@ else
     fail "erg check or erg validate tripped on a stale .erg-sync-* directory"
 fi
 OUT=$(cd "$WORKSTALE" && ERG_TICKET_DIR="$WORKSTALE/tickets" ./tickets/erg sync 2>&1 || true)
-if [ ! -e "$WORKSTALE/tickets/.erg-sync-stale" ] && [ -d "$WORKSTALE/tickets/unrelated-dir/.erg-sync-nested" ]; then
-    pass "sync sweeps a stale .erg-sync-* directory directly under the store and nothing else"
+if [ ! -e "$WORKSTALE/tickets/.erg-sync-stale" ] && [ -d "$WORKSTALE/tickets/unrelated-dir/.erg-sync-nested" ] && [ -d "$WORKSTALE/tickets/.erg-sync-live" ]; then
+    pass "sync sweeps a stale .erg-sync-* directory directly under the store, not a young or nested one"
 else
     fail "sync did not sweep the stale directory, or swept too much: $OUT"
 fi

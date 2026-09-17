@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // syncRemote is the adopter project's default remote. The default mode keeps a
@@ -280,9 +281,14 @@ func sweepStaleSyncDirs(dir string) {
 		return
 	}
 	for _, e := range entries {
-		if e.IsDir() && strings.HasPrefix(e.Name(), syncTempPrefix) {
-			_ = os.RemoveAll(filepath.Join(dir, e.Name()))
+		if !e.IsDir() || !strings.HasPrefix(e.Name(), syncTempPrefix) {
+			continue
 		}
+		// A young directory may be a concurrent sync's live fetch: leave it.
+		if info, err := e.Info(); err != nil || time.Since(info.ModTime()) < 10*time.Minute {
+			continue
+		}
+		_ = os.RemoveAll(filepath.Join(dir, e.Name()))
 	}
 }
 
