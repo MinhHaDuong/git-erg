@@ -2,10 +2,12 @@
 Title: sync: isolate every untrusted fetch, honour adopter insteadOf, degrade gracefully
 Created: 2026-09-17
 Author: haduong
+Closed: fixed: every untrusted fetch isolated, repo-local insteadOf honoured, option-shaped sources refused, environmental failures exit 0
 
 --- log ---
 2026-09-17T10:19Z haduong created
 
+2026-09-17T10:40Z MinhHaDuong closed — fixed: every untrusted fetch isolated, repo-local insteadOf honoured, option-shaped sources refused, environmental failures exit 0
 --- body ---
 
 ## Context
