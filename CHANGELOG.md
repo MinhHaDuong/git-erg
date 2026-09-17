@@ -12,6 +12,27 @@ versioning is added for the embedded assets, and ticket autoclose is enforced by
 a required CI check rather than a bot. Sixteen PRs (#239-#254), each gated
 through `/verify`.
 
+### Changed -- `erg sync` (2026-09-17)
+- **`erg update` is renamed `erg sync`.** The default mode aligns a clone with
+  the binary its own project vendored at `origin`; `--upstream` is the explicit
+  import from git-erg, installed but never executed before review. `erg update`
+  stays as a compatibility alias that prints a notice; `ERG_UPDATE_URL` and the
+  `.ergrc [update]` key keep the old verb. All three will be removed together
+  in a future major version. (0298 -- #368)
+- A configured source now reads canonical `tickets/erg` whatever the adopter's
+  local store directory is called. (0299 -- #370)
+- `--upstream` fetches only the source tip (`--depth=1`) instead of git-erg's
+  full history. (0300 -- #370)
+- The shallow upstream fetch runs in a throwaway bare repository under the
+  ticket store, so the adopter repository is never marked shallow; a trusted
+  project origin missing its binary warns and exits 0. (0301 -- #371)
+- Every source except the project origin fetches in that throwaway repository
+  (no foreign objects, no `FETCH_HEAD` in the adopter repository); the source
+  is resolved in the adopter's repository first, so a repo-local
+  `url.<mirror>.insteadOf` is honoured; an unwritable store exits 0 like any
+  other environmental failure; stale `.erg-sync-*` directories are swept at the
+  next run. (0302)
+
 ### Added
 - **`erg install`** -- a new verb split out of `init`; the only verb that mutates
   outside `tickets/`, and only behind opt-in flags. `--hooks` installs a
