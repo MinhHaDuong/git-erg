@@ -21,7 +21,7 @@
 //	erg spec
 //	erg integration
 //	erg version
-//	erg update
+//	erg sync [--upstream]
 package main
 
 import (
@@ -208,7 +208,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	cmd := os.Args[1]
+	invokedCmd := os.Args[1]
+	cmd := invokedCmd
 	rest := os.Args[2:]
 
 	if canonical, ok := commandAliases[cmd]; ok {
@@ -290,8 +291,11 @@ func main() {
 		exitCode = cmdIntegration(rest)
 	case "version":
 		exitCode = cmdVersion(rest)
-	case "update":
-		exitCode = cmdUpdate(rest)
+	case "sync":
+		if invokedCmd == "update" {
+			fmt.Fprintln(os.Stderr, "erg: 'update' is now 'sync'; using the compatibility alias")
+		}
+		exitCode = cmdSync(rest)
 	case "-h", "--help", "help":
 		printUsage()
 		exitCode = 0

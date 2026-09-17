@@ -97,7 +97,7 @@ Prints the following fields for the running binary:
 After printing the running binary info, ` + "`erg version`" + ` discovers other erg binaries
 in well-known locations (./build/erg, ./tickets/erg, ~/.local/bin/erg, and PATH
 entries), compares VCS revisions and build dates against each discovered copy, and
-prints the update command for any outdated copy it finds.
+prints the sync command for any outdated copy it finds.
 
 Set ERG_VERSION_NO_DISCOVER=1 to suppress discovery (used internally by version
 comparison to avoid recursion).

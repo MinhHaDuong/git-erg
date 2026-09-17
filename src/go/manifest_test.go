@@ -409,13 +409,13 @@ func TestInstallAssetsRollbackPreserved(t *testing.T) {
 		if strings.Contains(stderr, "local edits") {
 			t.Errorf("second run calls the rollback a local edit: %q", stderr)
 		}
-		if !strings.Contains(stderr, "erg update") {
+		if !strings.Contains(stderr, "erg sync") {
 			t.Errorf("second run lost the remedy: %q", stderr)
 		}
 	})
 
 	t.Run("older stamp -> upgraded", func(t *testing.T) {
-		// The positive control: the ordinary `erg update && erg init` path must
+		// The positive control: the ordinary `tickets/erg sync && tickets/erg init` path must
 		// stay silent and automatic. An over-eager direction check breaks here.
 		setBuildDate(t, "2026-01-01T00:00:00Z")
 		root := stampFixture(t, manifestWith(t, "2020-01-01T00:00:00Z", sha256hex([]byte(older))), older)
@@ -563,12 +563,12 @@ func TestAssetDriftWarningsDirection(t *testing.T) {
 		if strings.Contains(w, "upgraded") {
 			t.Errorf("the binary is the OLDER side, yet the warning claims an upgrade: %q", w)
 		}
-		if !strings.Contains(w, "erg update") {
-			t.Errorf("the rollback warning must name the remedy (erg update first): %q", w)
+		if !strings.Contains(w, "erg sync") {
+			t.Errorf("the rollback warning must name the remedy (erg sync first): %q", w)
 		}
 	})
 
-	t.Run("upgrade: keeps the stable signal erg update greps for", func(t *testing.T) {
+	t.Run("upgrade: keeps the stable signal erg sync greps for", func(t *testing.T) {
 		// update.go re-execs the NEW binary and greps its output for the OLD
 		// binary's copy of assetDriftSignal, so this printed line is a
 		// cross-version contract: it must keep containing the historical text.
@@ -682,7 +682,7 @@ func stamplessFixture(t *testing.T, ergrcContent string) string {
 // Path A's defect is SILENCE, not destruction: with no .erg-assets stamp
 // assetDriftWarnings returned nil the instant stamps == nil, and because
 // corpusWarnings just appends its return value, erg check, erg init's chained
-// check and erg update's post-swap hint all went quiet for that one cause.
+// check and erg sync's post-swap hint all went quiet for that one cause.
 //
 // The assertion is therefore on message CONTENT, never on a count or an exit
 // code: the return value is empty both before the fix and after a fix that
@@ -1300,7 +1300,7 @@ func TestInitShowPrintsTheEmbeddedAsset(t *testing.T) {
 // under any rewording -- self-referential, zero protection (PR #360 round 1).
 //
 // The premise is measured, not assumed: this exact text is inside the committed
-// bootstrap binary, so a store that ran erg update carries an OLD binary that
+// bootstrap binary, so a store that ran erg sync carries an OLD binary that
 // greps update.go's copy of it against a NEW binary's `erg check` output. Reword
 // the front and the old side stops recognising its own signal, with no error
 // anywhere. Extending the END is always safe; that is what HasPrefix allows.

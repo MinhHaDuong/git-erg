@@ -17,7 +17,7 @@
 #   rm       deletes a file; there is nothing to re-validate (its DAG/refusal
 #            behaviour is covered by test_datasafety.sh Guard 6).
 #   init     touches non-.erg files (.ergrc), not tickets.
-#   install  / update touch non-.erg files (installed binary), not tickets.
+#   install  / sync touch non-.erg files (installed binary), not tickets.
 set -eu
 
 ERG="${ERG_BIN:-build/erg}"

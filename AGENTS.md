@@ -36,7 +36,7 @@ Seven invariants, one above the rest — **never lose data** is the tool's
   file is the contract and the binary is optional. Nothing may make the file
   the second-class source of truth (this is why a stale cache is a bug, not
   an optimisation).
-- **Offline / disconnected** — no network calls, ever. Even `erg update` now
+- **Offline / disconnected** — no network calls, ever. Even `erg sync` now
   shells out to `git fetch` (0148) rather than an embedded HTTP client, so the
   binary carries no network code at all — the invariant holds everywhere.
 - **Standalone** — one *static* binary plus POSIX; zero third-party

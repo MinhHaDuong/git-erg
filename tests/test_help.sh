@@ -43,7 +43,7 @@ else
 fi
 
 # --- each canonical command name appears in help output ---
-for cmd in validate check list ready next-id new close log label unlabel archive rm migrate init install spec integration version update; do
+for cmd in validate check list ready next-id new close log label unlabel archive rm migrate init install spec integration version sync; do
     if echo "$help_out" | grep -q "$cmd"; then
         pass "help mentions command: $cmd"
     else

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // Data-safety write path (ticket 0149).
@@ -84,9 +86,12 @@ func atomicWriteFile(path string, data []byte, perm os.FileMode) error {
 	// file with O_WRONLY (no O_TRUNC, so nothing is modified) and refuse if it
 	// is not writable; a non-existent target is fine (we are creating it). This
 	// reproduces the prior contract exactly, including root bypassing the check.
+	// Linux reports ETXTBSY rather than success when the target is the currently
+	// running executable; that still proves the file exists and permits the
+	// temp+rename replacement, so it is the one accepted probe error.
 	if f, err := os.OpenFile(path, os.O_WRONLY, 0); err == nil {
 		f.Close()
-	} else if !os.IsNotExist(err) {
+	} else if !os.IsNotExist(err) && !errors.Is(err, syscall.ETXTBSY) {
 		return err
 	}
 

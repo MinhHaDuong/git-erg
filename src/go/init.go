@@ -118,10 +118,11 @@ from an upgrade the store never stamped, and --show is how you find out.
 The stamp also records which binary wrote it, and init compares that date with
 its own. If this binary is the OLDER one -- an erg from before the last init --
 then refreshing would revert the deployed assets, not upgrade them. Such a file
-is preserved too, and init says so and points at 'erg update' rather than
+is preserved too, and init says so and points at 'erg sync' rather than
 claiming a local edit. A stamp with no date (written by an erg predating the
 field) carries no direction and is treated exactly as before. This is what makes
-'erg update && erg init' a pair the code enforces and not merely a convention.
+sync followed by init from the corresponding updated binary an order the code
+enforces and not merely a convention.
 
 Flags:
 
@@ -133,7 +134,7 @@ Flags:
                   this binary) a forced overwrite of a file still matching that
                   stamp is reported as "downgraded", not "refreshed": nothing
                   there was locally edited, the file is being reverted to an
-                  older release. Run 'erg update' first if that is not what you
+                  older release. Run 'erg sync' first if that is not what you
                   want.
   --show NAME     Print this binary's embedded copy of NAME on stdout and exit,
                   writing nothing. NAME is .ergrc, AGENTS.md or erg-github
@@ -155,12 +156,14 @@ After a successful run (not in dry-run), init chains a read-only corpus check
 and prints any warnings, but its exit code reflects the init outcome only --
 the chained warnings never change it.
 
-Canonical keep-current sequence: 'erg update && erg init'. erg update replaces the
-binary; erg init delivers embedded-asset changes and refreshes the default label
-vocabulary. The default vocabulary is frozen-by-copy into .ergrc at init time -- a
+Canonical keep-current sequence: run 'erg sync', then run init from the newly
+synchronized tickets/erg on Linux x86-64, or from a native system erg rebuilt from
+the same reviewed revision on other platforms. Sync replaces the traveling binary;
+init delivers embedded-asset changes and refreshes the default label vocabulary.
+The default vocabulary is frozen-by-copy into .ergrc at init time -- a
 new default added later to the binary is shadowed by the existing file and never takes
 effect until erg init overwrites the file (clean upgrade) or the user opts in with
---force (local edit). erg update alone cannot un-shadow a frozen vocabulary.
+--force (local edit). erg sync alone cannot un-shadow a frozen vocabulary.
 
 Exit codes: 0 success; 1 a hard error (bad flag, missing binary, write
 failure); 2 a file was preserved and skipped -- either it has local edits, or
@@ -386,7 +389,7 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 			}
 			if preserveRollback {
 				rollbackEvidence = true
-				reason = "is newer than this binary -- preserving (run 'erg update' first, then 'erg init')"
+				reason = "is newer than this binary -- preserving (run 'erg sync' first, then 'erg init')"
 				short = "newer than this binary"
 			}
 			if dryRun {
@@ -492,7 +495,7 @@ func installAssets(root string, paths []string, refuseDiverged, dryRun bool) (cr
 	// as ahead of this binary when it is not. It is the cheaper of the two
 	// available errors. It over-reports in a direction still true of the STORE
 	// (this binary IS behind its last install, which is what the rollback WARN
-	// says and what `erg update` remedies), and the write itself was announced
+	// says and what `erg sync` remedies), and the write itself was announced
 	// on stderr with an undo hint, so nothing happened silently. Rewriting
 	// instead under-reports, by going permanently silent about a divergence
 	// that is really there -- and per-file precision is unavailable here,

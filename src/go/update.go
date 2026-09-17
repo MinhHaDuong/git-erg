@@ -11,66 +11,135 @@ import (
 	"strings"
 )
 
-// updateRemote is the default git remote `erg update` fetches from when neither
-// ERG_UPDATE_URL nor the .ergrc [update] url is set. "origin" makes update
-// fork-kind: you update from where you cloned, so "from origin" is literally true.
-const updateRemote = "origin"
+// syncRemote is the adopter project's default remote. The default mode keeps a
+// clone aligned with the binary that project reviewed and committed.
+const syncRemote = "origin"
 
-// summaryUpdate is the one-liner printed by printUsage via the commands registry.
-const summaryUpdate = "Fetch and replace binary from origin (via git)"
+// gitErgUpstream is deliberately reached only through `erg sync --upstream`.
+// The explicit flag matters: unlike the default project-origin mode, this
+// imports an executable that the adopter repository has not yet reviewed.
+const gitErgUpstream = "https://github.com/MinhHaDuong/git-erg.git"
 
-const helpUpdate = `## erg update
+// summarySync is the one-liner printed by printUsage via the commands registry.
+const summarySync = "Sync this project's vendored binary from its origin"
 
-Fetch the committed binary from your git remote and replace this executable atomically.
+const helpSync = `## erg sync [--upstream]
 
-Uses git (already a dependency of git-erg) -- never an embedded network client -- so
-the binary carries no network code at all. It runs 'git fetch <remote> HEAD' in the
-ticket store's repository, extracts the committed binary at that remote's default
-branch, and compares its hash to the running binary.
+Synchronize this project's vendored binary with a committed binary fetched through git.
 
-The remote defaults to 'origin' (you update from where you cloned). Override it with
-the ERG_UPDATE_URL environment variable or the .ergrc [update] url key -- the value is
-a git remote name or URL, so a fork can point it at upstream to track upstream's binary.
+By default, sync reads tickets/erg from the current PROJECT'S origin. It aligns clones
+with the version vendored and reviewed by that project. It does NOT check whether the
+git-erg project has published a newer binary.
 
-If the fetched hash matches the running binary, prints "already up to date" and exits 0.
-Otherwise replaces the binary via an atomic rename (write to .tmp, then rename over self).
+Use --upstream to import tickets/erg explicitly from the git-erg project. Review and
+commit the resulting binary in the adopter project so its other clones can use the
+default project-origin mode. ERG_UPDATE_URL and the .ergrc [update] url key remain
+custom-source overrides when --upstream is absent; the environment wins over config.
+The explicit --upstream flag wins over both overrides.
 
-Fetch errors exit 0 so that 'erg update && erg validate' chains do not fail in offline
+Sync uses git (already a dependency of git-erg) -- never an embedded network client --
+so the binary carries no network code. It runs 'git fetch <source> HEAD' in the ticket
+store's repository, extracts the committed binary at that source's default branch,
+and compares its hash to the vendored binary at <ticket store>/erg. The executable used
+to invoke sync is never replaced, so a system-native erg remains intact.
+
+Messages name the resolved source, sanitizing configured URLs and suppressing git's
+raw diagnostics so credentials cannot be echoed. If the hash differs, sync replaces
+the vendored binary atomically (exclusive temp file, fsync, then rename).
+
+Fetch errors exit 0 so that 'erg sync && erg validate' chains do not fail in offline
 or isolated environments (no remote configured, no network, not a git repo). If no
-ticket store is found, update does nothing and exits 0 -- it never pulls the binary from
+ticket store is found, sync does nothing and exits 0 -- it never pulls the binary from
 an unrelated repository you happen to be standing in.
 
-After a successful update, checks whether any .erg files in the ticket store still carry
+After a successful sync, checks whether any .erg files in the ticket store still carry
 legacy Status: headers. If found, prints explicit migration guidance: 'erg migrate DIR',
-'git diff tickets/', 'git commit'. The update command never mutates ticket files itself --
+'git diff tickets/', 'git commit'. The sync command never mutates ticket files itself --
 migration is a separate, reviewable step.
 
-erg update replaces the binary only -- it never writes or modifies any store file
+erg sync replaces the binary only -- it never writes or modifies any store file
 (.ergrc, AGENTS.md, or tickets). Embedded-asset changes and new default label vocabulary
-are delivered by a follow-up 'erg init'. The canonical sequence after an update is:
+are delivered by a follow-up 'erg init'. On Linux x86-64, invoke the vendored binary
+for that follow-up so init uses the bytes just synchronized:
 
-  erg update && erg init
+  erg sync
+  tickets/erg init
+
+The explicit import sequence keeps review ahead of first execution:
+
+  erg sync --upstream
+  git diff -- tickets/erg
+  # review or verify the imported binary here
+  tickets/erg init
+  git diff -- tickets/
+  git commit
+
+An upstream or configured-source import is not executed automatically. Review it first,
+then run '<ticket store>/erg check' before init. Project-origin sync may run that check
+automatically because those bytes are the project's already-reviewed vendored version.
+
+The vendored binary is always Linux x86-64. On macOS, Windows, or another architecture,
+'erg sync' still updates that project/CI artifact but you must update or rebuild your
+native system erg from the same reviewed git-erg revision before running 'erg init'.
 
 erg init applies the dpkg-style 3-state rule: byte-identical files are left untouched;
 a file that matches the previously recorded stock hash is a clean upgrade and is
 overwritten; a locally-edited file is preserved (exit 2). A file the stamp says a
 NEWER erg wrote is preserved too, so an init run from a stale binary reports the
-situation instead of reverting the store. Running erg update alone is never
+situation instead of reverting the store. Running erg sync alone is never
 sufficient to absorb new defaults.
+
+The old command name 'erg update' is a compatibility alias for 'erg sync'.
 `
 
-// resolveUpdateRemote applies the update-source precedence: the ERG_UPDATE_URL
-// environment variable wins, then the .ergrc [update] url, then the compiled-in
-// default ("origin"). Empty strings are treated as unset at each level. The
-// resolved value is a git remote name or URL passed to `git fetch`.
-func resolveUpdateRemote(envRemote, configRemote, defaultRemote string) string {
+type syncSource struct {
+	remote               string
+	label                string
+	trustedProjectOrigin bool
+}
+
+// resolveSyncSource applies CLI > environment > config > default precedence.
+// Labels identify the resolved source while sanitizing custom URLs, which may
+// contain credentials in userinfo, query parameters, or fragments.
+func resolveSyncSource(upstream bool, envRemote, configRemote string) syncSource {
+	if upstream {
+		return syncSource{remote: gitErgUpstream, label: "git-erg upstream"}
+	}
 	if envRemote != "" {
-		return envRemote
+		return syncSource{remote: envRemote, label: "configured source (ERG_UPDATE_URL: " + safeRemoteIdentity(envRemote) + ")"}
 	}
 	if configRemote != "" {
-		return configRemote
+		return syncSource{remote: configRemote, label: "configured source (tickets/.ergrc: " + safeRemoteIdentity(configRemote) + ")"}
 	}
-	return defaultRemote
+	return syncSource{remote: syncRemote, label: "project origin", trustedProjectOrigin: true}
+}
+
+// safeRemoteIdentity gives operators a stable fingerprint to distinguish
+// sources without reproducing arbitrary user input. URLs additionally expose
+// only their host; paths, remote names, userinfo, queries, and fragments may
+// all contain secrets and are never echoed.
+func safeRemoteIdentity(remote string) string {
+	sum := sha256.Sum256([]byte(remote))
+	id := hex.EncodeToString(sum[:])[:12]
+	if scheme := strings.Index(remote, "://"); scheme >= 0 {
+		authority := remote[scheme+3:]
+		if end := strings.IndexAny(authority, "/?#"); end >= 0 {
+			authority = authority[:end]
+		}
+		if at := strings.LastIndex(authority, "@"); at >= 0 {
+			authority = authority[at+1:]
+		}
+		if authority != "" {
+			return fmt.Sprintf("host %s, id %s", authority, id)
+		}
+	}
+	if strings.Contains(remote, "/") || strings.Contains(remote, `\`) || strings.HasPrefix(remote, ".") {
+		return "local path, id " + id
+	}
+	if at, colon := strings.LastIndex(remote, "@"), strings.Index(remote, ":"); at >= 0 && colon > at {
+		return fmt.Sprintf("host %s, id %s", remote[at+1:colon], id)
+	}
+	return "named remote, id " + id
 }
 
 // gitToplevel returns the absolute path of the git working tree containing dir,
@@ -88,55 +157,41 @@ func gitToplevel(dir string) string {
 // fetchRemoteBinary fetches the default branch of remote into FETCH_HEAD and
 // returns the bytes of the committed binary at blobPath (a path relative to the
 // repository root). All work happens via git run in gitDir; no network client is
-// embedded. The git stderr is folded into the returned error for diagnostics.
+// embedded. Raw git stderr is intentionally suppressed because git may echo a
+// source URL containing credentials.
 func fetchRemoteBinary(gitDir, remote, blobPath string) ([]byte, error) {
-	var stderr bytes.Buffer
 	fetch := exec.Command("git", "-C", gitDir, "fetch", "--quiet", remote, "HEAD")
-	fetch.Stderr = &stderr
 	if err := fetch.Run(); err != nil {
-		return nil, fmt.Errorf("%v: %s", err, strings.TrimSpace(stderr.String()))
+		return nil, fmt.Errorf("git fetch failed: %w", err)
 	}
 
-	stderr.Reset()
 	show := exec.Command("git", "-C", gitDir, "cat-file", "blob", "FETCH_HEAD:"+blobPath)
 	var out bytes.Buffer
 	show.Stdout = &out
-	show.Stderr = &stderr
 	if err := show.Run(); err != nil {
-		return nil, fmt.Errorf("%v: %s", err, strings.TrimSpace(stderr.String()))
+		return nil, fmt.Errorf("git could not read the committed vendored binary: %w", err)
 	}
 	return out.Bytes(), nil
 }
 
-// cmdUpdate implements `erg update`. See helpUpdate for the user-facing summary.
-func cmdUpdate(args []string) int {
+// cmdSync implements `erg sync`. See helpSync for the user-facing summary.
+func cmdSync(args []string) int {
+	upstream := false
 	for _, a := range args {
-		if strings.HasPrefix(a, "-") {
-			fmt.Fprintf(os.Stderr, "update: unknown flag %q\nUsage: erg update\n", a)
+		switch a {
+		case "--upstream":
+			upstream = true
+		default:
+			if strings.HasPrefix(a, "-") {
+				fmt.Fprintf(os.Stderr, "sync: unknown flag %q\nUsage: erg sync [--upstream]\n", a)
+			} else {
+				fmt.Fprintf(os.Stderr, "sync: unexpected argument %q\nUsage: erg sync [--upstream]\n", a)
+			}
 			return 1
 		}
 	}
-	if len(args) > 0 {
-		fmt.Fprintf(os.Stderr, "update: unexpected argument %q\nUsage: erg update\n", args[0])
-		return 1
-	}
-	self, err := os.Executable()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "update: cannot resolve executable: %v\n", err)
-		return 1
-	}
-	if resolved, rErr := filepath.EvalSymlinks(self); rErr == nil {
-		self = resolved
-	}
-
-	localHash, err := selfHash(self)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "update: cannot hash self: %v\n", err)
-		return 1
-	}
-
 	// Locate the ticket store and, through it, the repository that carries the
-	// committed binary. The store dir is also where the post-update migration
+	// committed binary. The store dir is also where the post-sync migration
 	// scan runs, so resolve it once.
 	ticketDir := os.Getenv("ERG_TICKET_DIR")
 	if ticketDir == "" {
@@ -144,17 +199,22 @@ func cmdUpdate(args []string) int {
 			ticketDir = d
 		}
 	}
-
 	// Anchor the fetch to a resolved ticket store. Without one we have no
 	// trustworthy notion of "this project's repo", and falling back to the
-	// current directory's git repo would let `erg update` silently pull the
+	// current directory's git repo would let `erg sync` silently pull the
 	// binary from whatever unrelated repo you happen to be standing in. Refuse
-	// and leave the binary untouched (exit 0, so update && validate still works).
+	// and leave the binary untouched (exit 0, so sync && validate still works).
 	if ticketDir == "" {
 		fmt.Fprintln(os.Stderr,
-			"update: no git-erg ticket store found here -- run from inside your "+
+			"sync: no git-erg ticket store found here -- run from inside your "+
 				"git-erg repo, or set ERG_TICKET_DIR. Binary left unchanged.")
 		return 0
+	}
+	target := filepath.Join(ticketDir, "erg")
+	localHash, err := selfHash(target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "sync: cannot hash vendored binary %s: %v\n", target, err)
+		return 1
 	}
 
 	var configRemote string
@@ -163,28 +223,30 @@ func cmdUpdate(args []string) int {
 			configRemote = cfg.UpdateURL
 		}
 	}
-	remote := resolveUpdateRemote(os.Getenv("ERG_UPDATE_URL"), configRemote, updateRemote)
+	source := resolveSyncSource(upstream, os.Getenv("ERG_UPDATE_URL"), configRemote)
 
 	// The repo's committed binary lives at <ticket store>/erg. Translate that
 	// to a repo-root-relative path for `git cat-file blob FETCH_HEAD:<path>`.
 	// If the store is not inside a git repo, blobPath is moot -- the fetch below
 	// fails (not a repo) and we exit 0, leaving the binary in place.
 	blobPath := "tickets/erg"
-	if top := gitToplevel(ticketDir); top != "" {
-		if abs, absErr := filepath.Abs(ticketDir); absErr == nil {
-			if rel, relErr := filepath.Rel(top, filepath.Join(abs, "erg")); relErr == nil {
-				blobPath = filepath.ToSlash(rel)
+	if !upstream {
+		if top := gitToplevel(ticketDir); top != "" {
+			if abs, absErr := filepath.Abs(ticketDir); absErr == nil {
+				if rel, relErr := filepath.Rel(top, filepath.Join(abs, "erg")); relErr == nil {
+					blobPath = filepath.ToSlash(rel)
+				}
 			}
 		}
 	}
 
-	body, err := fetchRemoteBinary(ticketDir, remote, blobPath)
+	body, err := fetchRemoteBinary(ticketDir, source.remote, blobPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "update: could not fetch -- %v\n", err)
+		fmt.Fprintf(os.Stderr, "sync: could not fetch from %s -- %v\n", source.label, err)
 		return 0
 	}
 	if len(body) == 0 {
-		fmt.Fprintf(os.Stderr, "update: fetched an empty binary -- leaving current in place\n")
+		fmt.Fprintf(os.Stderr, "sync: %s supplied an empty binary -- leaving current in place\n", source.label)
 		return 0
 	}
 
@@ -192,29 +254,29 @@ func cmdUpdate(args []string) int {
 	remoteHash := hex.EncodeToString(sum[:])
 
 	if localHash == remoteHash {
-		fmt.Println("erg: already up to date")
+		fmt.Printf("erg: already synchronized with %s\n", source.label)
 		return 0
 	}
 
-	tmp := self + ".tmp"
-	if err := os.WriteFile(tmp, body, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "update: cannot write temp file: %v\n", err)
-		return 1
-	}
-	if err := os.Rename(tmp, self); err != nil {
-		_ = os.Remove(tmp)
-		fmt.Fprintf(os.Stderr, "update: cannot replace binary: %v\n", err)
+	if err := atomicWriteFile(target, body, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "sync: cannot replace binary: %v\n", err)
 		return 1
 	}
 
-	fmt.Printf("erg: updated (%s \u2192 %s)\n", localHash[:12], remoteHash[:12])
+	fmt.Printf("erg: synchronized with %s (%s \u2192 %s)\n", source.label, localHash[:12], remoteHash[:12])
+	targetCommand := shellSingleQuote(target)
+
+	if !source.trustedProjectOrigin {
+		fmt.Printf("erg: imported %s without executing it; review it before first use\n", source.label)
+		return 0
+	}
 
 	// Detect tickets still carrying `Status:` headers and emit a hint.
 	// Migration is explicit: the user runs `erg migrate`, reviews the diff,
-	// and commits separately. erg update never mutates ticket files.
+	// and commits separately. erg sync never mutates ticket files.
 	if info, err := os.Stat(ticketDir); err == nil && info.IsDir() && hasStatusHeader(ticketDir) {
 		fmt.Printf("erg: detected Status: headers in %s -- run:\n", ticketDir)
-		fmt.Printf("  erg migrate %s\n", ticketDir)
+		fmt.Printf("  %s migrate %s\n", targetCommand, shellSingleQuote(ticketDir))
 		fmt.Println("  git diff tickets/")
 		fmt.Println("  git commit -m 'chore: migrate to Closed: header'")
 	}
@@ -232,13 +294,13 @@ func cmdUpdate(args []string) int {
 	// embedded copy. Do not re-derive the old gate from a stale comment; the
 	// decision of what is comparable belongs to assetDriftWarnings, and this
 	// site's job is only to relay what the new binary reports.
-	if info, statErr := os.Stat(ticketDir); statErr == nil && info.IsDir() {
-		out, _ := exec.Command(self, "check", ticketDir).CombinedOutput()
+	{
+		out, _ := exec.Command(target, "check", ticketDir).CombinedOutput()
 		// Two conditions, two remedies: drift is "refresh what is stale",
 		// stampless is "record what is unrecorded". They are independent, so
 		// both may fire in one run (different assets).
 		if strings.Contains(string(out), assetDriftSignal) {
-			fmt.Println("erg: deployed assets are from an earlier rev -- run 'erg init' to refresh them.")
+			fmt.Printf("erg: deployed assets are from an earlier rev -- run %s init to refresh them.\n", targetCommand)
 		}
 		if strings.Contains(string(out), assetStamplessSignal) {
 			// Still does NOT say "run erg init to establish provenance". Init
@@ -253,7 +315,7 @@ func cmdUpdate(args []string) int {
 			// runs next is the new one. The grep above is the reverse
 			// direction and is why assetStamplessSignal itself may only ever
 			// be extended at its end.
-			fmt.Println("erg: deployed assets carry no .erg-assets stamp -- run 'erg check' to see which, then 'erg init --show NAME' to compare each against the shipped copy before 'erg init'.")
+			fmt.Printf("erg: deployed assets carry no .erg-assets stamp -- run %s check to see which, then %s init --show NAME to compare each against the shipped copy before %s init.\n", targetCommand, targetCommand, targetCommand)
 		}
 	}
 	return 0

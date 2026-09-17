@@ -8,7 +8,8 @@ needs-human
 deferred
 
 [update]
-# Git remote (name or URL) that `erg update` fetches the committed binary from.
+# Custom git remote (name or URL) that `erg sync` fetches from when --upstream
+# is absent.
 # Defaults to "origin" -- you update from where you cloned. Point it at upstream
 # to track upstream's binary instead, e.g.:
 # url = https://github.com/MinhHaDuong/git-erg.git

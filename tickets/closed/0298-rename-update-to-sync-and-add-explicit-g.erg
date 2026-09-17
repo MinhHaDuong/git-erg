@@ -1,0 +1,97 @@
+%erg 0.1
+Title: Rename update to sync and add explicit git-erg source mode
+Created: 2026-09-17
+Author: Codex
+Closed: implemented and verified
+
+--- log ---
+2026-09-17T07:55Z Codex created
+
+2026-09-17T08:16Z Codex verified by security, test, and UX panel; make test, make validate, and make ready pass
+2026-09-17T08:16Z Codex closed — implemented and verified
+--- body ---
+## Evidence
+
+On 2026-09-17, while propagating the new bootstrap binary across nine local
+installations, both the human operator and the executing agent understood
+`erg update` to mean "obtain the current binary from the git-erg project".
+The command instead fetched `tickets/erg` from each adopter project's own
+`origin`; the rollout therefore required an explicit `ERG_UPDATE_URL` override.
+
+This is not hypothetical friction.  `climate-finance-het` had previously
+documented that the same interpretation left its binary on an old revision
+from June until September: a current checkout asks its own current origin for
+the binary it already has, then reports `erg: already up to date` without ever
+consulting git-erg.
+
+The implementation and long help mention `origin`, but the user-facing model
+is still misleading:
+
+- README says only "the git remote";
+- the integration guide prescribes `erg update && erg init` without explaining
+  how a new git-erg binary first enters an adopter repository;
+- `already up to date` does not name the source or say that git-erg was not
+  checked;
+- the verb `update` conventionally suggests upstream currency, while the
+  actual default operation is clone-to-project synchronization.
+
+## Decision
+
+Name the operation for what it does: `erg sync`.
+
+- `erg sync` synchronizes `<ticket store>/erg` with the binary committed
+  at the adopter project's `origin` default branch.  This remains the default
+  and preserves project-level review and pinning.  It never replaces a system
+  or PATH binary used to launch the command.
+- `erg sync --upstream` explicitly fetches the binary from the git-erg project.
+  The upstream source must be named unambiguously in help and output; this mode
+  is opt-in because it bypasses the adopter repository's pinned binary.
+- `erg update` remains a compatibility alias during the transition and points
+  users to `erg sync`; it must not silently acquire a different meaning.
+
+The implementation continues to shell out to git.  Do not add an HTTP client
+or any other network dependency.  Preserve the atomic write-temp-then-rename
+swap, ticket-store anchoring, offline no-op behavior, legacy-header hint, and
+post-swap asset diagnostics.
+
+The existing `ERG_UPDATE_URL` and `.ergrc [update] url` overrides need an
+explicit compatibility decision and documented precedence relative to
+`--upstream`.  Whatever precedence is chosen, the command must print the
+resolved source so that no successful or no-op result can be mistaken for a
+check of another source.
+
+## Required interface
+
+- Short help describes `sync` as synchronizing the project's vendored binary
+  from its origin, not as obtaining the latest git-erg release.
+- Success and no-op messages name the resolved source and distinguish project
+  origin from git-erg upstream.
+- `fetch` is not used as the command name: unlike `git fetch`, this operation
+  mutates the working tree by replacing the executable.
+- Documentation separates two workflows:
+  1. clone synchronization: `erg sync`, then init with the newly synchronized
+     traveler on Linux x86-64 or an equivalently updated native system binary;
+  2. explicit upstream import: `erg sync --upstream`, review or verify
+     `tickets/erg` before first execution, then init with the platform-appropriate
+     updated binary, review the asset diff, and commit the binary and assets.
+
+## Exit criteria
+
+- [x] `erg sync` fetches the adopter project's `origin` and atomically installs
+      its committed `tickets/erg`.
+- [x] `erg sync --upstream` fetches the git-erg project explicitly and
+      atomically installs its committed `tickets/erg`.
+- [x] `erg update` remains a tested compatibility alias whose output directs
+      users to `erg sync`.
+- [x] Every updated/already-current message identifies the resolved source and
+      cannot imply that git-erg upstream was checked when it was not.
+- [x] Tests give project origin and git-erg upstream different binary bytes and
+      prove that the default and `--upstream` select opposite expected sources;
+      each arm first proves its hashes differ so a vacuous fixture cannot pass.
+- [x] Tests pin precedence and compatibility for `ERG_UPDATE_URL` and
+      `.ergrc [update] url`.
+- [x] Atomic replacement, offline behavior, store anchoring, migration hints,
+      and post-swap asset reporting retain coverage.
+- [x] README, generated manual, `erg integration`, command summaries, and all
+      canonical `update && init` guidance use and explain the new interface.
+- [x] `make test`, `make validate`, and `make ready` pass.

@@ -449,7 +449,7 @@ fi
 # --- store's condition (ticket 0292, defect 2)
 #
 # 0283 named three channels for an unstamped divergence -- erg check, erg
-# init's chained post-init check, erg update's post-swap hint -- and the middle
+# init's chained post-init check, erg sync's post-swap hint -- and the middle
 # one could not fire for any asset warning. A stampless store with a diverged
 # asset always skips, and `if skipped > 0 { return 2 }` sits several lines above
 # the chained corpusWarnings block on both legs; on the non-skipping leg the

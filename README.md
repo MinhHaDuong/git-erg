@@ -118,7 +118,7 @@ integration. It is not a subcommand of `erg` -- run it directly:
 ### Vendoring contract: you own your copy, `erg` tells you when it drifts
 
 `erg-github` is **vendored, not installed**. `erg init` does not write it,
-`erg update` does not refresh it, and nothing in the toolchain will ever
+`erg sync` does not refresh it, and nothing in the toolchain will ever
 overwrite it: you may have edited it or wired it into your own CI, and that
 copy is yours.
 
@@ -249,8 +249,14 @@ the lines out by hand). Full semantics: `erg close --help` or
 
 ## Updating
 
-`tickets/erg update` looks up the committed binary at the git remote and
-replaces the running one in place if it differs. Details: `erg update --help` or
+`erg sync` aligns a clone with the binary vendored in the current project's
+`origin`; it does not check the git-erg project for a newer version. To import
+explicitly from git-erg, run `erg sync --upstream` and review or verify the
+resulting `tickets/erg` before executing it. `sync` always replaces that
+project/CI artifact, never a system-native `erg` used to launch it. On Linux
+x86-64, run `tickets/erg init` afterward to deliver embedded asset changes. On
+another platform, update or rebuild the native system `erg` from the same
+reviewed git-erg revision, then run `erg init`. Details: `erg sync --help` or
 `docs/erg-manual.md`.
 
 ## Binary policy

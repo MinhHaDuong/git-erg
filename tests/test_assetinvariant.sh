@@ -11,9 +11,9 @@
 #
 # WHY A SEPARATE SUITE. 0278's children each proved their own path inside their
 # own scope: 0279 the direction-blind upgrade (init), 0283 the stampless report
-# (check/update), 0224/0280 migrate's charter overwrite. Nothing exercised the
+# (check/sync), 0224/0280 migrate's charter overwrite. Nothing exercised the
 # three commands over ONE store in ONE provenance state, which is where a
-# composition defect would live: init writes the stamp that update reads and
+# composition defect would live: init writes the stamp that sync reads and
 # migrate rewrites, so each command changes the state the next one judges by.
 # This file covers what tests/README.md § Testing layers already calls out as
 # shell-integration territory: "cross-command interactions".
@@ -21,17 +21,17 @@
 # It is NOT free of overlap with the per-child suites, and saying otherwise
 # would overstate it. Four assertions repeat single-command post-conditions the
 # children already lock down -- clean/init against test_init.sh:98,
-# edited/init's preserve-and-exit-2 against test_init.sh:96-125, clean/update
-# against test_update.sh:343-357, stampless/update against
+# edited/init's preserve-and-exit-2 against test_init.sh:96-125, clean/sync
+# against test_update.sh:343-357, stampless/sync against
 # test_update.sh:327-330. They are kept deliberately: each is the guard that
 # proves its own composition arm reached the code path at all. Drop
-# "erg: updated" from an update arm and the arm still passes when no swap
+# "erg: synchronized" from a sync arm and the arm still passes when no swap
 # happened, on an assertion about a report that never ran. The cost is that
 # four grep literals now live in two files, and nothing governs a reword of
 # them. An earlier revision of this comment claimed all four were prefixes of
 # the cross-version constants ticket 0292 pins to extend-at-the-end; measured,
 # that is false on every count -- two of the four come from init.go, none is
-# one of the three named constants, and the stampless/update literal is an
+# one of the three named constants, and the stampless/sync literal is an
 # infix of a line 0292's Action 6 reworded rather than extended (it now sends
 # the reader to `erg init --show NAME`; "carry no .erg-assets stamp" survived
 # the reword by luck, not by contract). The duplication is a real maintenance
@@ -39,7 +39,7 @@
 # discipline already covers.
 #
 # "Reachability" is the right defence for two of the four, not all four.
-# "erg: updated" is what proves an update arm swapped a binary at all, and
+# "erg: synchronized" is what proves a sync arm swapped a binary at all, and
 # without it the arm passes on a post-swap report that never ran. But
 # edited/init's exit 2 and clean/init's all-unchanged summary were measured
 # against their arms and found redundant -- each arm already carries an
@@ -58,7 +58,7 @@
 # happens SILENTLY. So the migrate arm below asserts the overwrite HAPPENED and
 # that it was announced -- asserting preservation there would be the bug.
 #
-# FOUR FIXTURE STATES, each driven through init, update and migrate:
+# FOUR FIXTURE STATES, each driven through init, sync and migrate:
 #   clean     -- stamp present, assets byte-identical to embedded.
 #   edited    -- stamp present, BOTH assets carrying a genuine local edit.
 #                .ergrc is outside migrateAssetPaths, AGENTS.md is inside it, so
@@ -164,7 +164,7 @@ case "$erg_build_date" in
     ;;
 esac
 
-# Local-path git remotes drive the `erg update` arms (update fetches the
+# Local-path git remotes drive the `erg sync` arms (sync fetches the
 # committed binary via git, never HTTP). Hardened hosts set
 # protocol.file.allow=never globally; inject the override via env so it reaches
 # both our git calls and the child git that erg itself spawns. The override is
@@ -183,7 +183,7 @@ export GIT_CONFIG_VALUE_0=always
 WORKROOT=$(mktemp -d)
 trap 'rm -rf "$WORKROOT"' EXIT
 
-echo "=== asset invariant across init/update/migrate (ticket 0278) ==="
+echo "=== asset invariant across init/sync/migrate (ticket 0278) ==="
 
 ERGRC_MARK="# LOCAL EDIT 0278 -- must survive every path"
 AGENTS_MARK="<!-- LOCAL EDIT 0278 -- migrate is allowed to take this, loudly -->"
@@ -206,7 +206,7 @@ git_init() {
 
 # --- the shared "origin" remote -------------------------------------------
 # Its committed tickets/erg differs from $ERG by one trailing byte, so a clone
-# whose binary is $ERG has a genuine swap to perform and `erg update` reaches
+# whose binary is $ERG has a genuine swap to perform and `erg sync` reaches
 # its post-swap asset-condition report. The remote deliberately ships NO
 # managed asset: every fixture state is built in the clone, by us.
 REMOTE="$WORKROOT/remote"
@@ -326,10 +326,10 @@ AUDIT_OUT=""
 # runners: each takes the store dir and runs one command under test.
 run_init() { "$ERG_ABS" init "$1" 2>&1 || true; }
 run_migrate() { "$ERG_ABS" migrate "$1/tickets" 2>&1 || true; }
-run_update() {
-    # update must run from inside the clone, as the checked-out binary, so the
+run_sync() {
+    # sync must run from inside the clone, as the checked-out binary, so the
     # post-swap re-exec is the NEW binary reading its own embedded assets.
-    (cd "$1" && ERG_TICKET_DIR="$1/tickets" ./tickets/erg update 2>&1 || true)
+    (cd "$1" && ERG_TICKET_DIR="$1/tickets" ./tickets/erg sync 2>&1 || true)
 }
 
 # audit_file LABEL NAME BEFORE AFTER -- the invariant, both halves.
@@ -394,16 +394,16 @@ else
     pass "clean/check: pristine stamped store says nothing about its assets"
 fi
 
-audit_step "$S" "clean/update" run_update
-if echo "$AUDIT_OUT" | grep -q "erg: updated"; then
-    pass "clean/update: the binary swap really happened (arm is not vacuous)"
+audit_step "$S" "clean/sync" run_sync
+if echo "$AUDIT_OUT" | grep -q "erg: synchronized"; then
+    pass "clean/sync: the binary swap really happened (arm is not vacuous)"
 else
-    fail "clean/update: no swap, so the post-swap asset report never ran (got: $AUDIT_OUT)"
+    fail "clean/sync: no swap, so the post-swap asset report never ran (got: $AUDIT_OUT)"
 fi
-if echo "$AUDIT_OUT" | grep -qE "run 'erg init' to refresh|carry no \.erg-assets stamp"; then
-    fail "clean/update: clean store nagged about its assets (got: $AUDIT_OUT)"
+if echo "$AUDIT_OUT" | grep -qE "init to refresh|carry no \.erg-assets stamp"; then
+    fail "clean/sync: clean store nagged about its assets (got: $AUDIT_OUT)"
 else
-    pass "clean/update: clean store gets no asset nag after the swap"
+    pass "clean/sync: clean store gets no asset nag after the swap"
 fi
 
 audit_step "$S" "clean/migrate" run_migrate
@@ -415,7 +415,7 @@ fi
 
 if [ "$(sha_of "$S/tickets/.ergrc")" = "$SUM_RC" ] &&
     [ "$(sha_of "$S/tickets/AGENTS.md")" = "$SUM_AG" ]; then
-    pass "clean: both assets survive init+update+migrate byte-identical"
+    pass "clean: both assets survive init+sync+migrate byte-identical"
 else
     fail "clean: an asset changed across the three-command sequence"
 fi
@@ -449,17 +449,17 @@ else
     pass "edited/check: a local edit under a current stamp raises nothing"
 fi
 
-audit_step "$S" "edited/update" run_update
-if echo "$AUDIT_OUT" | grep -q "erg: updated"; then
-    pass "edited/update: the binary swap really happened (arm is not vacuous)"
+audit_step "$S" "edited/sync" run_sync
+if echo "$AUDIT_OUT" | grep -q "erg: synchronized"; then
+    pass "edited/sync: the binary swap really happened (arm is not vacuous)"
 else
-    fail "edited/update: no swap, so the post-swap asset report never ran"
+    fail "edited/sync: no swap, so the post-swap asset report never ran"
 fi
 if grep -qF "$ERGRC_MARK" "$S/tickets/.ergrc" &&
     grep -qF "$AGENTS_MARK" "$S/tickets/AGENTS.md"; then
-    pass "edited/update: update replaces the binary only, never a store file"
+    pass "edited/sync: sync replaces the binary only, never a store file"
 else
-    fail "edited/update: an asset edit did not survive the binary swap"
+    fail "edited/sync: an asset edit did not survive the binary swap"
 fi
 
 # The charter arm. migrate MUST overwrite the diverged AGENTS.md (ticket 0224:
@@ -509,14 +509,14 @@ else
     pass "stampless/check: no stamp, so no stamp-relative claim"
 fi
 
-# update reaches the stampless branch only by re-execing the swapped-in binary;
+# sync reaches the stampless branch only by re-execing the swapped-in binary;
 # this is the sole caller that exercises that path end to end.
-audit_step "$S" "stampless/update" run_update
-if echo "$AUDIT_OUT" | grep -q "erg: updated" &&
+audit_step "$S" "stampless/sync" run_sync
+if echo "$AUDIT_OUT" | grep -q "erg: synchronized" &&
     echo "$AUDIT_OUT" | grep -qF "carry no .erg-assets stamp"; then
-    pass "stampless/update: the post-swap report surfaces the unstamped divergence"
+    pass "stampless/sync: the post-swap report surfaces the unstamped divergence"
 else
-    fail "stampless/update: expected the stampless hint after the swap (got: $AUDIT_OUT)"
+    fail "stampless/sync: expected the stampless hint after the swap (got: $AUDIT_OUT)"
 fi
 
 audit_step "$S" "stampless/init" run_init
@@ -644,16 +644,16 @@ else
     fail "rollback/init: init overwrote the provenance that proved the rollback"
 fi
 
-audit_step "$S" "rollback/update" run_update
-if echo "$AUDIT_OUT" | grep -q "erg: updated"; then
-    pass "rollback/update: the binary swap really happened (arm is not vacuous)"
+audit_step "$S" "rollback/sync" run_sync
+if echo "$AUDIT_OUT" | grep -q "erg: synchronized"; then
+    pass "rollback/sync: the binary swap really happened (arm is not vacuous)"
 else
-    fail "rollback/update: no swap, so nothing about the asset state was exercised"
+    fail "rollback/sync: no swap, so nothing about the asset state was exercised"
 fi
-# Not asserted: whether update relays the rollback condition. It does not, and
+# Not asserted: whether sync relays the rollback condition. It does not, and
 # that is deliberate -- assetRollbackSignal has no cross-version consumer because
-# update only ever re-execs a strictly NEWER binary (manifest.go). This fixture
-# re-execs the same build, a state update cannot reach in the field, so an
+# sync only ever re-execs a strictly NEWER binary (manifest.go). This fixture
+# re-execs the same build, a state sync cannot reach in the field, so an
 # assertion either way would pin an artifact of the fixture.
 
 # migrate takes AGENTS.md here too, and this is where the word matters: it is a

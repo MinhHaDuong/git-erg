@@ -31,12 +31,13 @@ var commands = []commandEntry{
 	{"spec", "", summarySpec, helpSpec},
 	{"integration", "", summaryIntegration, helpIntegration},
 	{"version", "", summaryVersion, helpVersion},
-	{"update", "", summaryUpdate, helpUpdate},
+	{"sync", "[--upstream]", summarySync, helpSync},
 }
 
 // commandAliases maps an alternate name to its canonical command. Resolved
 // once in main before help lookup and dispatch, so an alias behaves exactly
 // like its canonical name everywhere (e.g. `erg ls` == `erg list`).
 var commandAliases = map[string]string{
-	"ls": "list",
+	"ls":     "list",
+	"update": "sync",
 }

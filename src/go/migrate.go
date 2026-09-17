@@ -46,7 +46,7 @@ When DIR is named "tickets" (the canonical layout), also performs a one-time
 project layout upgrade: removes tickets/tools/ and tickets/FORMAT.md if present,
 renames archive/ to closed/ if archive/ exists and closed/ does not, refreshes
 tickets/AGENTS.md (force-overwrite, no prompt -- agent docs track the binary;
-.ergrc is configuration, delivered by 'erg init', so run 'erg update && erg
+.ergrc is configuration, delivered by 'erg init', so run 'erg sync && erg
 init' to refresh it with the dpkg 3-state rule, which preserves a file for
 either of two reasons: it has local edits, or it matches an .erg-assets stamp
 newer than this binary -- see 'erg init --help'). Because .ergrc is outside
@@ -57,7 +57,8 @@ a NEWER binary's stamp records, the manifest is left entirely as it stands, so
 it. The price is that such a sweep records nothing about the AGENTS.md it did
 write, so erg check reports that file as ahead too when it is no longer: one
 header cannot date two assets separately, and the write was announced with an
-undo hint when it happened. Run 'erg update && erg init' to clear it. It also
+undo hint when it happened. Run sync, then init from the corresponding updated
+traveling or native binary, to clear it. It also
 rewrites .git/hooks/pre-commit if it references
 the legacy tickets/tools/go/erg path or the legacy 'validate tickets/' CLI
 form. The hook rewrite is content-based and idempotent; hooks without legacy
@@ -601,7 +602,7 @@ func foldLogLines(log []string) (out []string, folded bool, stamped bool) {
 }
 
 // hasStatusHeader scans dir for any .erg file containing a `Status:` line
-// in the preamble. Used by `erg update` to decide whether to print
+// in the preamble. Used by `erg sync` to decide whether to print
 // migration guidance after a binary swap.
 func hasStatusHeader(dir string) bool {
 	stopWalk := fmt.Errorf("found")
