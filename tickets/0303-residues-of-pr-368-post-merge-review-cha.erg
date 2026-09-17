@@ -5,6 +5,8 @@ Author: haduong
 
 --- log ---
 2026-09-17T10:19Z haduong created
+2026-09-17T11:20Z haduong note finding 3 disposed: already reconciled in code by fe3307a (#370), the post-swap re-exec is gated on canRunTravelingBinary (linux/amd64) so a non-Linux host never executes the installed traveler; integration.md and the code agree, no doc change
+2026-09-17T11:20Z haduong note finding 4 disposed: the ETXTBSY exception in the atomicWriteFile probe is explained in place at src/go/atomicwrite.go (probe comment); replacing the running tickets/erg is precisely that case, a .erg file can never raise it, blast radius nil, no code change
 
 --- body ---
 
