@@ -22,8 +22,8 @@
 # would overstate it. Four assertions repeat single-command post-conditions the
 # children already lock down -- clean/init against test_init.sh:98,
 # edited/init's preserve-and-exit-2 against test_init.sh:96-125, clean/sync
-# against test_update.sh:343-357, stampless/sync against
-# test_update.sh:327-330. They are kept deliberately: each is the guard that
+# against test_sync.sh:343-357, stampless/sync against
+# test_sync.sh:327-330. They are kept deliberately: each is the guard that
 # proves its own composition arm reached the code path at all. Drop
 # "erg: synchronized" from a sync arm and the arm still passes when no swap
 # happened, on an assertion about a report that never ran. The cost is that

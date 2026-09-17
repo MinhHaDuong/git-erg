@@ -29,11 +29,11 @@ Run the binary under test with `make build` (`build/erg`), never the committed
 
 ### S2 — Update channel
 
-- **S2.1 Hijack refusal + offline no-op.** Covered by `tests/test_update.sh`:
+- **S2.1 Hijack refusal + offline no-op.** Covered by `tests/test_sync.sh`:
   `sync` with no discoverable ticket store refuses (no cwd-repo hijack);
   `sync` offline exits 0 and leaves the binary untouched. *Expected:* both
   pass. **Reference the suite — do not stand up a network sandbox by hand.**
-- **S2.2 No network code.** `tests/test_update.sh` asserts the source carries
+- **S2.2 No network code.** `tests/test_sync.sh` asserts the source carries
   no `net/http` / `crypto/tls` (the offline invariant; sync is git-transport
   only). *Expected:* pass.
 
@@ -77,8 +77,8 @@ Binary under test: `build/erg`, revision `286de8e`, `linux/amd64`. Committed
 |---|---|---|
 | S1.1 Reproducible rebuild | PASS | `make verify` → `verify: PASS`; committed == rebuilt == `9a80…9f64`, toolchain go1.21.13 |
 | S1.2 Tamper check | PASS | `sha256sum tickets/erg` = `9a80…9f64` = the `sha256:` line from `tickets/erg version` |
-| S2.1 Hijack refusal + offline no-op | PASS | `tests/test_update.sh`: "sync refuses when no ticket store is found", "sync offline exits 0 and leaves binary untouched" |
-| S2.2 No network code | PASS | `tests/test_update.sh`: "no net/http or crypto/tls in source (offline invariant)" |
+| S2.1 Hijack refusal + offline no-op | PASS | `tests/test_sync.sh`: "sync refuses when no ticket store is found", "sync offline exits 0 and leaves binary untouched" |
+| S2.2 No network code | PASS | `tests/test_sync.sh`: "no net/http or crypto/tls in source (offline invariant)" |
 | S3.1 Bounded parse | PASS | `tests/test_security.sh` Group 6: 10 MB body, 100k-line log, 10k-char title slug truncated to 40 — all within budget (26/26 passed) |
 | S4.1 Traversal + embedded-separator IDs | PASS | `tests/test_security.sh` Groups 1/1b: traversal and embedded-separator IDs refused; negative controls succeed |
 | S4.2 Symlink + write/delete confinement | PASS | Groups 2/3/4: symlink escape blocked; out-of-store `rm` refused; `new` DIR as documented |

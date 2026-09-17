@@ -83,7 +83,7 @@ adopted git-erg today.
 | `make verify` rebuilds the committed binary from its embedded revision and byte-diffs it | shipped, CI-tested | ticket 0156; `tests/test_verify.sh`, run by `make test` in CI |
 | Path-traversal / ID-injection / symlink / input-DoS hardening, each with a negative control | CI-tested | ticket 0157; `tests/test_security.sh` |
 | `rm` FILE-form and `new` explicit-DIR confinement to the named store | shipped | ticket 0157 |
-| Update integrity via git transport — no `net/http`, no `crypto/tls` in source; refuses cwd-repo hijack; offline no-op | shipped | ticket 0148; `tests/test_update.sh` |
+| Update integrity via git transport — no `net/http`, no `crypto/tls` in source; refuses cwd-repo hijack; offline no-op | shipped | ticket 0148; `tests/test_sync.sh` |
 | Signed release tags (`git tag -s`, verified with `git verify-tag`) as the trustable publication | shipped | ticket 0151; tag `2026-05-30`, key `4A46C91E03B83B23` (YubiKey-backed) |
 | ASCII-only `src/go/**` (Trojan-Source / homoglyph / bidi-override defense, CVE-2021-42574) + no U+FFFD anywhere (encoding-corruption signal, incident 0160) | CI-tested | ticket 0167; `tests/test_encoding.sh` |
 | gofmt + `go vet` adherence ratchet (the Go analog of the ruff check) | CI-tested | ticket 0217; `tests/test_gofmt.sh` |
