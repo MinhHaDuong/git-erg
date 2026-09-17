@@ -8,6 +8,7 @@ Closed: fixed: isolate shallow upstream fetch and preserve adopter git state
 2026-09-17T08:51Z Codex created
 
 2026-09-17T09:03Z Codex closed — fixed: isolate shallow upstream fetch and preserve adopter git state
+2026-09-17T11:05Z haduong note ticked the exit criteria after the #371 post-merge review; its "Linux x86-64 traveler" wording nit from #370 (canRunTravelingBinary hardcodes linux/amd64 and the message names that platform whatever the fetched bytes are) is deferred: sniff the fetched bytes, no ticket until a non-Linux adopter with a vendored native erg exists
 --- body ---
 
 ## Context
@@ -24,15 +25,17 @@ Review: https://github.com/MinhHaDuong/git-erg/pull/370#pullrequestreview-523329
 
 ## Exit criteria
 
-- [ ] `sync --upstream` fetches shallowly in a throwaway repository confined
+- [x] `sync --upstream` fetches shallowly in a throwaway repository confined
       to the ticket store and leaves the adopter repository non-shallow without
       importing upstream history
-- [ ] focused integration coverage proves both halves of that property
-- [ ] a reachable trusted project origin missing its store-relative binary
+- [x] focused integration coverage proves both halves of that property
+- [x] a reachable trusted project origin missing its store-relative binary
       warns but exits 0; explicit custom/upstream sources still fail hard
-- [ ] help text describes where each fetch runs
-- [ ] `make test`, `make validate`, and the ticket DAG pass
-- [ ] external verification has no unresolved findings
+- [x] help text describes where each fetch runs
+- [x] `make test`, `make validate`, and the ticket DAG pass
+- [x] external verification has no unresolved findings -- the post-merge
+      review of #371 confirmed criteria 1-5 and found two Medium, three Low
+      and two Nit follow-ups, all carried by 0302
 
 ## Review disposition
 

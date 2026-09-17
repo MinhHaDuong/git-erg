@@ -1,0 +1,54 @@
+%erg 0.1
+Title: sync: isolate every untrusted fetch, honour adopter insteadOf, degrade gracefully
+Created: 2026-09-17
+Author: haduong
+Closed: fixed: every untrusted fetch isolated, repo-local insteadOf honoured, option-shaped sources refused, environmental failures exit 0
+
+--- log ---
+2026-09-17T10:19Z haduong created
+
+2026-09-17T10:40Z MinhHaDuong closed — fixed: every untrusted fetch isolated, repo-local insteadOf honoured, option-shaped sources refused, environmental failures exit 0
+--- body ---
+
+## Context
+
+Post-merge review of PR #371 (ticket 0301), all findings measured:
+https://github.com/MinhHaDuong/git-erg/pull/371#pullrequestreview-5234047880
+
+- Medium: the throwaway bare repo has an empty config, so a repo-local
+  `url.<mirror>.insteadOf` for the hardcoded upstream URL is bypassed and the
+  adopter silently receives github.com bytes instead of its pinned mirror.
+- Medium: isolation is gated on `shallow`, so a configured source
+  (`ERG_UPDATE_URL` / `.ergrc [update]`) still fetches unshallow straight into
+  the adopter's object store -- the #370 defect class in the arm not probed.
+- Low: `MkdirTemp` / `init --bare` failures return `unavailable: false`, so a
+  read-only or full ticket store exits 1 against the documented exit-0 contract.
+- Low: the explicit `RemoveAll` after `cat-file` turns a successful fetch into
+  exit 1 when cleanup fails; the `defer` already cleans up.
+- Low: `.erg-sync-*` lives inside the adopter's work tree; a signal during the
+  fetch leaks it and a concurrent `git add -A` would commit a bare repo.
+- Nit: 0301 closed with all six exit criteria unticked.
+- Nit: the "Linux x86-64 traveler" wording finding from #370 was never disposed.
+
+## Exit criteria
+
+- [x] the fetch URL is resolved in the adopter's repository
+      (`git ls-remote --get-url`) before the throwaway repo is created, so
+      repo-local `insteadOf` is honoured; the resolved URL never reaches a
+      message unsanitized; a fixture with the redirect in `.git/config` (not
+      `GIT_CONFIG_*`) is red on the base and green after
+- [x] every source except the trusted project origin fetches in the throwaway
+      repo; a configured-source fixture proves no object import and no
+      `FETCH_HEAD` in the adopter repo, red on the base
+- [x] temp-dir creation or `init --bare` failure exits 0 with the binary
+      untouched (`unavailable: true`); fixture on a read-only store
+- [x] a cleanup failure after a successful `cat-file` returns the bytes and at
+      most warns on stderr
+- [x] `cmdSync` sweeps stale `.erg-sync-*` directories at start; `erg check`
+      and `erg validate` ignore that directory
+- [x] help text and `docs/erg-manual.md` describe the new confinement, and
+      `AGENTS.md`'s confinement claim is true of `sync` as a whole
+- [x] 0301's exit criteria are ticked or annotated, and its log disposes of the
+      x86-64 wording nit (deferred: sniff the fetched bytes, no ticket until a
+      non-Linux adopter with a vendored native erg exists)
+- [x] `make test`, `make validate`, ticket DAG pass

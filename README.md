@@ -57,7 +57,8 @@ The `erg` CLI rests on seven non-negotiable properties (law:
 
 - **Never lose data** -- atomic write, validate before replace, no truncation on kill.
 - **Agnostic** -- a hand edit always wins; the plain `.erg` file is the contract.
-- **Offline / disconnected** -- no network calls, ever; listing work is a local file read.
+- **Offline / disconnected** -- no embedded network client, and only `erg sync`
+  asks git to fetch; it exits 0 when disconnected. Listing work is a local file read.
 - **Standalone** -- one static binary plus POSIX; zero third-party dependencies.
 - **Stateless** -- the files are the only state; no `pending`/`claimed`/`doing` tags.
 - **Fast** -- linear in corpus size; invoked per-commit, per-push, in agent loops.
@@ -247,7 +248,7 @@ close ID REASON` clears them from dependents automatically (otherwise you edit
 the lines out by hand). Full semantics: `erg close --help` or
 `docs/erg-manual.md`.
 
-## Updating
+## Syncing
 
 `erg sync` aligns a clone with the binary vendored in the current project's
 `origin`; it does not check the git-erg project for a newer version. To import

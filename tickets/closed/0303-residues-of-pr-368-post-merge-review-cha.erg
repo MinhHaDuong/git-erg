@@ -1,0 +1,36 @@
+%erg 0.1
+Title: Residues of PR 368 post-merge review: changelog, docs wording, update alias
+Created: 2026-09-17
+Author: haduong
+Closed: done: changelog, README heading, compatibility spellings documented, findings 3-4 disposed
+
+--- log ---
+2026-09-17T10:19Z haduong created
+2026-09-17T11:20Z haduong note finding 3 disposed: already reconciled in code by fe3307a (#370), the post-swap re-exec is gated on canRunTravelingBinary (linux/amd64) so a non-Linux host never executes the installed traveler; integration.md and the code agree, no doc change
+2026-09-17T11:20Z haduong note finding 4 disposed: the ETXTBSY exception in the atomicWriteFile probe is explained in place at src/go/atomicwrite.go (probe comment); replacing the running tickets/erg is precisely that case, a .erg file can never raise it, blast radius nil, no code change
+
+2026-09-17T10:40Z MinhHaDuong closed — done: changelog, README heading, compatibility spellings documented, findings 3-4 disposed
+--- body ---
+
+## Context
+
+Post-merge review of PR #368 (ticket 0298):
+https://github.com/MinhHaDuong/git-erg/pull/368#pullrequestreview-5232888706
+Findings 1 and 2 became 0299 and 0300. Findings 3 to 7 were never ticketed.
+
+## Exit criteria
+
+- [x] `CHANGELOG.md` `[Unreleased]` records the `update` to `sync` rename with
+      its compatibility alias, and the 0299/0300/0301/0302 sync fixes
+- [x] `README.md` section heading matches the verb (`## Syncing` or similar)
+- [x] the `update` alias, `ERG_UPDATE_URL` and `.ergrc [update]` are documented
+      as compatibility spellings with a stated deprecation path (in help and
+      manual), and `tests/test_update.sh` is renamed or its header says why not
+- [x] finding 3 (default path executes the binary it just installed while
+      `integration.md` tells the operator not to) is either reconciled in the
+      docs or disposed in this ticket's log with the reason
+- [x] finding 4 (`ETXTBSY` accepted in the writability probe): the code comment
+      already explains it; record the disposition here, no code change
+- [x] `AGENTS.md` "Offline / disconnected" bullet is accurate (verify: it may
+      already have been sharpened by #370/#371)
+- [x] `make test`, `make validate`, ticket DAG pass

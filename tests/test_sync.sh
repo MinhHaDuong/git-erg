@@ -44,7 +44,7 @@ fi
 # --- git-fetch-based sync tests ---
 
 WORKROOT=$(mktemp -d)
-cleanup() { rm -rf "$WORKROOT"; }
+cleanup() { chmod -R u+w "$WORKROOT" 2>/dev/null; rm -rf "$WORKROOT"; }
 trap cleanup EXIT
 
 # Build an "origin" remote whose committed tickets/erg differs from $ERG.
@@ -172,6 +172,9 @@ cat > "$GIT_WRAPPER_DIR/git" <<'EOF'
 #!/bin/sh
 if [ "$1" = "-C" ] && [ "$3" = "cat-file" ] && [ -n "${ERG_TEST_GIT_OBSERVE:-}" ]; then
     "$ERG_REAL_GIT" -C "$2" rev-parse --is-shallow-repository > "$ERG_TEST_GIT_OBSERVE"
+fi
+if [ "$1" = "-C" ] && [ "$3" = "cat-file" ] && [ -n "${ERG_TEST_GIT_PIN:-}" ]; then
+    mkdir -p "$2/pinned" && chmod 555 "$2"
 fi
 exec "$ERG_REAL_GIT" "$@"
 EOF
@@ -330,6 +333,39 @@ else
     fail "environment source label is absent or leaked its URL: $OUT"
 fi
 
+# A configured source is not the adopter's own history. Like --upstream, it must
+# fetch in the throwaway repository: no foreign objects, no FETCH_HEAD, no
+# leftover, in the adopter repository.
+if git -C "$WORK2" cat-file -e "$UPSTREAM_TIP^{commit}" 2>/dev/null; then
+    fail "configured source imported its fetched tip into the adopter repository"
+else
+    pass "configured source leaves its fetched tip out of the adopter object store"
+fi
+if [ -e "$WORK2/.git/FETCH_HEAD" ]; then
+    fail "configured source wrote FETCH_HEAD in the adopter repository"
+else
+    pass "configured source leaves no FETCH_HEAD in the adopter repository"
+fi
+if find "$WORK2/tickets" -maxdepth 1 -type d -name '.erg-sync-*' | grep -q .; then
+    fail "configured source left its temporary git repository in the ticket store"
+else
+    pass "configured source removes its temporary git repository after success"
+fi
+
+# A relative configured path resolves as git resolves it in the adopter's repo
+# (against the work tree root). Fetching it from the throwaway repository must
+# keep that meaning, and stay isolated.
+WORKREL="$WORKROOT/work-rel"
+git clone -q "$REMOTE" "$WORKREL"
+cp "$ERG_ABS" "$WORKREL/tickets/erg"
+OUT=$(cd "$WORKREL" && ERG_TICKET_DIR="$WORKREL/tickets" ERG_UPDATE_URL="../upstream" ./tickets/erg sync 2>&1 || true)
+WORKREL_HASH=$(sha256sum "$WORKREL/tickets/erg" | cut -c1-12)
+if [ "$WORKREL_HASH" = "$UPSTREAM_HASH" ] && ! git -C "$WORKREL" cat-file -e "$UPSTREAM_TIP^{commit}" 2>/dev/null; then
+    pass "relative configured path keeps its meaning and fetches in isolation"
+else
+    fail "relative configured path failed or imported objects: after=$WORKREL_HASH want=$UPSTREAM_HASH ($OUT)"
+fi
+
 # Test: .ergrc [update] url override is honored when the env var is unset.
 WORK3="$WORKROOT/work3"
 git clone -q "$REMOTE" "$WORK3"
@@ -397,6 +433,106 @@ else
     pass "failed upstream sync removes its temporary git repository"
 fi
 
+# The adopter's repo-local git config must govern the fetch. An insteadOf in
+# .git/config (not in the environment, which also reaches the throwaway repo)
+# is how a mirror or air-gapped proxy pins which bytes --upstream may receive.
+WORKCFG="$WORKROOT/work-config"
+git clone -q "$REMOTE" "$WORKCFG"
+cp "$ERG_ABS" "$WORKCFG/tickets/erg"
+git -C "$WORKCFG" config "url.$UPSTREAM_URL.insteadOf" "https://github.com/MinhHaDuong/git-erg.git"
+OUT=$(cd "$WORKCFG" && \
+    GIT_TERMINAL_PROMPT=0 \
+    ERG_TICKET_DIR="$WORKCFG/tickets" \
+    ./tickets/erg sync --upstream 2>&1 || true)
+WORKCFG_HASH=$(sha256sum "$WORKCFG/tickets/erg" | cut -c1-12)
+if [ "$WORKCFG_HASH" = "$UPSTREAM_HASH" ]; then
+    pass "--upstream honours a repo-local insteadOf in .git/config"
+else
+    fail "--upstream bypassed the adopter's repo-local insteadOf: after=$WORKCFG_HASH want=$UPSTREAM_HASH ($OUT)"
+fi
+
+# An unwritable ticket store is an environmental condition, like being offline:
+# the throwaway repository cannot be created, so sync reports it and exits 0
+# with the binary untouched.
+WORKRO="$WORKROOT/work-readonly"
+git clone -q "$REMOTE" "$WORKRO"
+cp "$ERG_ABS" "$WORKRO/tickets/erg"
+RO_BEFORE=$(sha256sum "$WORKRO/tickets/erg" | cut -c1-12)
+chmod 555 "$WORKRO/tickets"
+if touch "$WORKRO/tickets/.probe" 2>/dev/null; then
+    rm "$WORKRO/tickets/.probe"
+    pass "read-only store fixture skipped: this user bypasses directory permissions"
+else
+    set +e
+    OUT=$(cd "$WORKRO" && \
+        GIT_CONFIG_COUNT=2 \
+        GIT_CONFIG_KEY_1="url.$UPSTREAM_URL.insteadOf" \
+        GIT_CONFIG_VALUE_1="https://github.com/MinhHaDuong/git-erg.git" \
+        ERG_TICKET_DIR="$WORKRO/tickets" \
+        ./tickets/erg sync --upstream 2>&1)
+    RO_RC=$?
+    set -e
+    RO_AFTER=$(sha256sum "$WORKRO/tickets/erg" | cut -c1-12)
+    if [ "$RO_RC" -eq 0 ] && [ "$RO_BEFORE" = "$RO_AFTER" ] && echo "$OUT" | grep -q "temporary git directory"; then
+        pass "unwritable ticket store exits 0 with the binary untouched"
+    else
+        fail "unwritable ticket store broke the exit-0 contract (rc=$RO_RC, out: $OUT)"
+    fi
+fi
+chmod 755 "$WORKRO/tickets"
+
+# A cleanup failure after the bytes were read is not a failed sync: the binary
+# is installed, the leftover is reported, and the next sync sweeps it. The
+# wrapper pins the throwaway repository (unremovable) right after cat-file.
+WORKPIN="$WORKROOT/work-pin"
+git clone -q "$REMOTE" "$WORKPIN"
+cp "$ERG_ABS" "$WORKPIN/tickets/erg"
+set +e
+OUT=$(cd "$WORKPIN" && \
+    PATH="$GIT_WRAPPER_DIR:$PATH" \
+    ERG_REAL_GIT="$REAL_GIT" \
+    ERG_TEST_GIT_PIN=1 \
+    GIT_CONFIG_COUNT=2 \
+    GIT_CONFIG_KEY_1="url.$UPSTREAM_URL.insteadOf" \
+    GIT_CONFIG_VALUE_1="https://github.com/MinhHaDuong/git-erg.git" \
+    ERG_TICKET_DIR="$WORKPIN/tickets" \
+    ./tickets/erg sync --upstream 2>&1)
+PIN_RC=$?
+set -e
+PIN_HASH=$(sha256sum "$WORKPIN/tickets/erg" | cut -c1-12)
+PINNED=$(find "$WORKPIN/tickets" -maxdepth 1 -type d -name '.erg-sync-*' | head -1)
+if [ -z "$PINNED" ]; then
+    pass "cleanup-failure fixture skipped: this user bypasses directory permissions"
+elif [ "$PIN_RC" -eq 0 ] && [ "$PIN_HASH" = "$UPSTREAM_HASH" ] && echo "$OUT" | grep -q "warning: could not remove temporary git repository"; then
+    pass "cleanup failure after a successful fetch keeps the bytes, exits 0, warns"
+else
+    fail "cleanup failure discarded a successful sync (rc=$PIN_RC, after=$PIN_HASH want=$UPSTREAM_HASH, out: $OUT)"
+fi
+chmod -R u+w "$WORKPIN/tickets"
+
+# A stale throwaway repository (a signal during the fetch) must not disturb the
+# store gates, and the next sync sweeps it. Only that exact prefix, only
+# directly under the store: a nested directory of the same name survives.
+WORKSTALE="$WORKROOT/work-stale"
+git clone -q "$REMOTE" "$WORKSTALE"
+cp "$ERG_ABS" "$WORKSTALE/tickets/erg"
+git init -q --bare "$WORKSTALE/tickets/.erg-sync-stale"
+git -C "$WORKSTALE/tickets/.erg-sync-stale" fetch --quiet --depth=1 "$UPSTREAM" HEAD
+touch -d '1 hour ago' "$WORKSTALE/tickets/.erg-sync-stale"
+git init -q --bare "$WORKSTALE/tickets/.erg-sync-live"
+mkdir -p "$WORKSTALE/tickets/unrelated-dir/.erg-sync-nested"
+if (cd "$WORKSTALE" && "$ERG_ABS" check tickets/ >/dev/null 2>&1) && (cd "$WORKSTALE" && "$ERG_ABS" validate tickets/*.erg >/dev/null 2>&1); then
+    pass "erg check and erg validate ignore a stale .erg-sync-* directory"
+else
+    fail "erg check or erg validate tripped on a stale .erg-sync-* directory"
+fi
+OUT=$(cd "$WORKSTALE" && ERG_TICKET_DIR="$WORKSTALE/tickets" ./tickets/erg sync 2>&1 || true)
+if [ ! -e "$WORKSTALE/tickets/.erg-sync-stale" ] && [ -d "$WORKSTALE/tickets/unrelated-dir/.erg-sync-nested" ] && [ -d "$WORKSTALE/tickets/.erg-sync-live" ]; then
+    pass "sync sweeps a stale .erg-sync-* directory directly under the store, not a young or nested one"
+else
+    fail "sync did not sweep the stale directory, or swept too much: $OUT"
+fi
+
 # A trusted project origin can legitimately omit the local store-relative
 # binary (for example while it is gitignored or before its first commit). Keep
 # the diagnostic, but preserve sync's offline-friendly exit contract.
@@ -420,6 +556,36 @@ if [ "$ORIGIN_MISSING_RC" -eq 0 ] && echo "$OUT" | grep -q "could not read the c
 else
     fail "project origin missing its binary was silent or failed (rc=$ORIGIN_MISSING_RC, out: $OUT)"
 fi
+
+# A source string is a remote name, a path or a URL, never a git option. An
+# option-shaped source (from the environment, or from a committed .ergrc that a
+# pull request can carry) must be refused before git sees it: --upload-pack=CMD
+# would run CMD. It is an explicit source, so exit 1, binary untouched, and the
+# message never echoes the string.
+ACE_MARK="$WORKROOT/ace-marker"
+for ACE_MODE in env cfg; do
+    WORKACE="$WORKROOT/work-ace-$ACE_MODE"
+    git clone -q "$REMOTE" "$WORKACE"
+    cp "$ERG_ABS" "$WORKACE/tickets/erg"
+    ACE_BEFORE=$(sha256sum "$WORKACE/tickets/erg" | cut -c1-12)
+    ACE_PAYLOAD="--upload-pack=touch $ACE_MARK"
+    set +e
+    if [ "$ACE_MODE" = env ]; then
+        OUT=$(cd "$WORKACE" && ERG_TICKET_DIR="$WORKACE/tickets" ERG_UPDATE_URL="$ACE_PAYLOAD" ./tickets/erg sync 2>&1)
+    else
+        printf '[update]\nurl = %s\n' "$ACE_PAYLOAD" > "$WORKACE/tickets/.ergrc"
+        OUT=$(cd "$WORKACE" && ERG_TICKET_DIR="$WORKACE/tickets" ./tickets/erg sync 2>&1)
+    fi
+    ACE_RC=$?
+    set -e
+    ACE_AFTER=$(sha256sum "$WORKACE/tickets/erg" | cut -c1-12)
+    if [ ! -e "$ACE_MARK" ] && [ "$ACE_RC" -eq 1 ] && [ "$ACE_BEFORE" = "$ACE_AFTER" ] && ! echo "$OUT" | grep -q "upload-pack"; then
+        pass "option-shaped source ($ACE_MODE) is refused: no command run, binary untouched, exit 1, string not echoed"
+    else
+        fail "option-shaped source ($ACE_MODE) reached git (marker: $([ -e "$ACE_MARK" ] && echo yes || echo no), rc=$ACE_RC, after=$ACE_AFTER before=$ACE_BEFORE): $OUT"
+    fi
+    rm -f "$ACE_MARK"
+done
 
 # Git includes a failed fetch URL in stderr. sync must suppress that raw
 # diagnostic and print only its sanitized source identity.

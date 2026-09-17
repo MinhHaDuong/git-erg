@@ -25,7 +25,7 @@ The agent runs the items in
 [`docs/red-team-checklist.md`](docs/red-team-checklist.md) (S1--S5) and
 records results in the run-log section of that file. The checklist is
 designed to be cheap: most items delegate to the existing CI test suites
-(`tests/test_security.sh`, `tests/test_update.sh`, `make verify`).
+(`tests/test_security.sh`, `tests/test_sync.sh`, `make verify`).
 
 Cold prompt for the red-team agent:
 
@@ -72,10 +72,10 @@ These run on every push and do not need to be re-run manually:
 
 - **Path/ID injection + input DoS**: `tests/test_security.sh`
   (ticket 0157).
-- **Update-channel integrity**: `tests/test_update.sh` (ticket 0148).
+- **Update-channel integrity**: `tests/test_sync.sh` (ticket 0148).
 - **Reproducible build**: `make verify` rebuilds from the embedded
   revision and byte-diffs (ticket 0156).
-- **No network code**: `tests/test_update.sh` asserts no `net/http` /
+- **No network code**: `tests/test_sync.sh` asserts no `net/http` /
   `crypto/tls` in source.
 
 The red-team covers judgment and novel vectors; CI covers regressions.
