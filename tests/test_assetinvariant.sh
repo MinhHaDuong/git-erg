@@ -170,7 +170,7 @@ esac
 # both our git calls and the child git that erg itself spawns. The override is
 # unconditional, not additive -- it would clobber an outer GIT_CONFIG_COUNT
 # scheme (an insteadOf proxy rule, say) for this process tree. That is the form
-# test_update.sh established and CI sets no such vars; breaking ranks in one
+# test_sync.sh established and CI sets no such vars; breaking ranks in one
 # suite would be the surprising move.
 export GIT_CONFIG_COUNT=1
 export GIT_CONFIG_KEY_0=protocol.file.allow

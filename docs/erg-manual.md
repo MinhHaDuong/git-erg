@@ -693,7 +693,10 @@ or a configured one) is fetched shallowly in a private throwaway bare repository
 the ticket store, so all writes stay confined there and the adopter repository gains no
 foreign objects, no FETCH_HEAD and no shallow marking. The source is resolved in the
 adopter's repository first, so a repo-local url.<mirror>.insteadOf or a remote name is
-honoured; the resolved URL is handed to git and never printed. Sync extracts the
+honoured; the resolved URL is handed to git and never printed. Messages identify the
+source as configured, not as resolved. Other repo-local transport settings (credential
+helpers, http.*, core.sshCommand) do not reach the isolated fetch, which then fails
+loudly and exits 0; set them globally or in the environment. Sync extracts the
 committed binary at the source's default branch and compares its hash to the vendored
 binary at <ticket store>/erg. The executable used to invoke sync is never replaced, so
 a system-native erg remains intact.
