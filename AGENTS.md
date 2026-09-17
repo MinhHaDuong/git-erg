@@ -58,7 +58,10 @@ Scope confinement: `install` is the only verb that mutates outside `tickets/`
 (`.git/hooks` and the root `AGENTS.md` pointer), and only behind explicit
 opt-in flags (`--hooks`, `--inject-agents`) that default to off. Every other
 verb stays confined to `tickets/`; all except the explicitly network-facing
-`sync` stay offline. This is the implementation of
+`sync` stay offline. `sync` writes the vendored binary and, for any source
+other than the project origin, a throwaway fetch repository, both inside the
+store; the project-origin fetch adds only the adopter's own objects to the
+adopter's repository. This is the implementation of
 the Offline and Standalone invariants at the command boundary -- a contributor
 adding a new verb must respect the same scope, or move the mutation behind an
 equally explicit opt-in.
