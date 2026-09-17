@@ -30,23 +30,23 @@ https://github.com/MinhHaDuong/git-erg/pull/371#pullrequestreview-5234047880
 
 ## Exit criteria
 
-- [ ] the fetch URL is resolved in the adopter's repository
+- [x] the fetch URL is resolved in the adopter's repository
       (`git ls-remote --get-url`) before the throwaway repo is created, so
       repo-local `insteadOf` is honoured; the resolved URL never reaches a
       message unsanitized; a fixture with the redirect in `.git/config` (not
       `GIT_CONFIG_*`) is red on the base and green after
-- [ ] every source except the trusted project origin fetches in the throwaway
+- [x] every source except the trusted project origin fetches in the throwaway
       repo; a configured-source fixture proves no object import and no
       `FETCH_HEAD` in the adopter repo, red on the base
-- [ ] temp-dir creation or `init --bare` failure exits 0 with the binary
+- [x] temp-dir creation or `init --bare` failure exits 0 with the binary
       untouched (`unavailable: true`); fixture on a read-only store
-- [ ] a cleanup failure after a successful `cat-file` returns the bytes and at
+- [x] a cleanup failure after a successful `cat-file` returns the bytes and at
       most warns on stderr
-- [ ] `cmdSync` sweeps stale `.erg-sync-*` directories at start; `erg check`
+- [x] `cmdSync` sweeps stale `.erg-sync-*` directories at start; `erg check`
       and `erg validate` ignore that directory
-- [ ] help text and `docs/erg-manual.md` describe the new confinement, and
+- [x] help text and `docs/erg-manual.md` describe the new confinement, and
       `AGENTS.md`'s confinement claim is true of `sync` as a whole
-- [ ] 0301's exit criteria are ticked or annotated, and its log disposes of the
+- [x] 0301's exit criteria are ticked or annotated, and its log disposes of the
       x86-64 wording nit (deferred: sniff the fetched bytes, no ticket until a
       non-Linux adopter with a vendored native erg exists)
-- [ ] `make test`, `make validate`, ticket DAG pass
+- [x] `make test`, `make validate`, ticket DAG pass
