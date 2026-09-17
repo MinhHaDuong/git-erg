@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -37,6 +39,11 @@ default project-origin mode. ERG_UPDATE_URL and the .ergrc [update] url key rema
 custom-source overrides when --upstream is absent; the environment wins over config.
 The explicit --upstream flag wins over both overrides.
 
+Project-origin mode reads the binary at the adopter's local store-relative path.
+Upstream and configured sources instead read canonical tickets/erg, because their
+repository layout is independent of the adopter's local store name. Upstream fetches
+only the source tip needed for that blob rather than importing git-erg's full history.
+
 Sync uses git (already a dependency of git-erg) -- never an embedded network client --
 so the binary carries no network code. It runs 'git fetch <source> HEAD' in the ticket
 store's repository, extracts the committed binary at that source's default branch,
@@ -47,15 +54,16 @@ Messages name the resolved source, sanitizing configured URLs and suppressing gi
 raw diagnostics so credentials cannot be echoed. If the hash differs, sync replaces
 the vendored binary atomically (exclusive temp file, fsync, then rename).
 
-Fetch errors exit 0 so that 'erg sync && erg validate' chains do not fail in offline
-or isolated environments (no remote configured, no network, not a git repo). If no
-ticket store is found, sync does nothing and exits 0 -- it never pulls the binary from
-an unrelated repository you happen to be standing in.
+Transport errors exit 0 so that 'erg sync && erg validate' chains do not fail in
+offline or isolated environments (no remote configured, no network, not a git repo).
+A reachable source whose fetched commit lacks the expected vendored binary is a hard
+error instead. If no ticket store is found, sync does nothing and exits 0 -- it never
+pulls the binary from an unrelated repository you happen to be standing in.
 
-After a successful sync, checks whether any .erg files in the ticket store still carry
-legacy Status: headers. If found, prints explicit migration guidance: 'erg migrate DIR',
-'git diff tickets/', 'git commit'. The sync command never mutates ticket files itself --
-migration is a separate, reviewable step.
+After a successful project-origin sync, checks whether any .erg files in the ticket store
+still carry legacy Status: headers. If found, prints explicit migration guidance:
+'erg migrate DIR', 'git diff tickets/', 'git commit'. The sync command never mutates
+ticket files itself -- migration is a separate, reviewable step.
 
 erg sync replaces the binary only -- it never writes or modifies any store file
 (.ergrc, AGENTS.md, or tickets). Embedded-asset changes and new default label vocabulary
@@ -96,14 +104,23 @@ type syncSource struct {
 	remote               string
 	label                string
 	trustedProjectOrigin bool
+	shallow              bool
 }
+
+type remoteBinaryError struct {
+	unavailable bool
+	err         error
+}
+
+func (e *remoteBinaryError) Error() string { return e.err.Error() }
+func (e *remoteBinaryError) Unwrap() error { return e.err }
 
 // resolveSyncSource applies CLI > environment > config > default precedence.
 // Labels identify the resolved source while sanitizing custom URLs, which may
 // contain credentials in userinfo, query parameters, or fragments.
 func resolveSyncSource(upstream bool, envRemote, configRemote string) syncSource {
 	if upstream {
-		return syncSource{remote: gitErgUpstream, label: "git-erg upstream"}
+		return syncSource{remote: gitErgUpstream, label: "git-erg upstream", shallow: true}
 	}
 	if envRemote != "" {
 		return syncSource{remote: envRemote, label: "configured source (ERG_UPDATE_URL: " + safeRemoteIdentity(envRemote) + ")"}
@@ -159,19 +176,31 @@ func gitToplevel(dir string) string {
 // repository root). All work happens via git run in gitDir; no network client is
 // embedded. Raw git stderr is intentionally suppressed because git may echo a
 // source URL containing credentials.
-func fetchRemoteBinary(gitDir, remote, blobPath string) ([]byte, error) {
-	fetch := exec.Command("git", "-C", gitDir, "fetch", "--quiet", remote, "HEAD")
+func fetchRemoteBinary(gitDir, remote, blobPath string, shallow bool) ([]byte, error) {
+	args := []string{"-C", gitDir, "fetch", "--quiet"}
+	if shallow {
+		args = append(args, "--depth=1")
+	}
+	args = append(args, remote, "HEAD")
+	fetch := exec.Command("git", args...)
 	if err := fetch.Run(); err != nil {
-		return nil, fmt.Errorf("git fetch failed: %w", err)
+		return nil, &remoteBinaryError{unavailable: true, err: fmt.Errorf("git fetch failed: %w", err)}
 	}
 
 	show := exec.Command("git", "-C", gitDir, "cat-file", "blob", "FETCH_HEAD:"+blobPath)
 	var out bytes.Buffer
 	show.Stdout = &out
 	if err := show.Run(); err != nil {
-		return nil, fmt.Errorf("git could not read the committed vendored binary: %w", err)
+		return nil, &remoteBinaryError{err: fmt.Errorf("git could not read the committed vendored binary: %w", err)}
 	}
 	return out.Bytes(), nil
+}
+
+// canRunTravelingBinary reports whether the host can execute the one committed
+// traveler artifact. Other platforms use a native system erg and must never
+// attempt to execute the freshly installed Linux binary.
+func canRunTravelingBinary(goos, goarch string) bool {
+	return goos == "linux" && goarch == "amd64"
 }
 
 // cmdSync implements `erg sync`. See helpSync for the user-facing summary.
@@ -230,7 +259,7 @@ func cmdSync(args []string) int {
 	// If the store is not inside a git repo, blobPath is moot -- the fetch below
 	// fails (not a repo) and we exit 0, leaving the binary in place.
 	blobPath := "tickets/erg"
-	if !upstream {
+	if source.trustedProjectOrigin {
 		if top := gitToplevel(ticketDir); top != "" {
 			if abs, absErr := filepath.Abs(ticketDir); absErr == nil {
 				if rel, relErr := filepath.Rel(top, filepath.Join(abs, "erg")); relErr == nil {
@@ -240,9 +269,13 @@ func cmdSync(args []string) int {
 		}
 	}
 
-	body, err := fetchRemoteBinary(ticketDir, source.remote, blobPath)
+	body, err := fetchRemoteBinary(ticketDir, source.remote, blobPath, source.shallow)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "sync: could not fetch from %s -- %v\n", source.label, err)
+		var remoteErr *remoteBinaryError
+		if errors.As(err, &remoteErr) && !remoteErr.unavailable {
+			return 1
+		}
 		return 0
 	}
 	if len(body) == 0 {
@@ -270,13 +303,21 @@ func cmdSync(args []string) int {
 		fmt.Printf("erg: imported %s without executing it; review it before first use\n", source.label)
 		return 0
 	}
+	hostCanRunTraveler := canRunTravelingBinary(runtime.GOOS, runtime.GOARCH)
+	if !hostCanRunTraveler {
+		fmt.Printf("erg: synchronized the Linux x86-64 traveler without executing it on %s/%s; use an updated native erg for check/init\n", runtime.GOOS, runtime.GOARCH)
+	}
 
 	// Detect tickets still carrying `Status:` headers and emit a hint.
 	// Migration is explicit: the user runs `erg migrate`, reviews the diff,
 	// and commits separately. erg sync never mutates ticket files.
 	if info, err := os.Stat(ticketDir); err == nil && info.IsDir() && hasStatusHeader(ticketDir) {
 		fmt.Printf("erg: detected Status: headers in %s -- run:\n", ticketDir)
-		fmt.Printf("  %s migrate %s\n", targetCommand, shellSingleQuote(ticketDir))
+		if hostCanRunTraveler {
+			fmt.Printf("  %s migrate %s\n", targetCommand, shellSingleQuote(ticketDir))
+		} else {
+			fmt.Printf("  # after updating native erg: erg migrate %s\n", shellSingleQuote(ticketDir))
+		}
 		fmt.Println("  git diff tickets/")
 		fmt.Println("  git commit -m 'chore: migrate to Closed: header'")
 	}
@@ -294,7 +335,7 @@ func cmdSync(args []string) int {
 	// embedded copy. Do not re-derive the old gate from a stale comment; the
 	// decision of what is comparable belongs to assetDriftWarnings, and this
 	// site's job is only to relay what the new binary reports.
-	{
+	if hostCanRunTraveler {
 		out, _ := exec.Command(target, "check", ticketDir).CombinedOutput()
 		// Two conditions, two remedies: drift is "refresh what is stale",
 		// stampless is "record what is unrecorded". They are independent, so

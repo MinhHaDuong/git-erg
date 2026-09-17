@@ -34,14 +34,15 @@
 
 | Couche | Quoi | Forge-aware | Present ou |
 |---|---|---|---|
-| **erg core** (binaire Go) | validate/check/list/new/close/archive/init/**install**/spec/integration/sync + hooks git | **non** -- offline, local | partout, y compris Claude web |
+| **erg core** (binaire Go) | validate/check/list/new/close/archive/init/**install**/spec/integration/sync + hooks git | **non** -- local; `sync` seul delegue un fetch explicite a git | partout, y compris Claude web |
 | **erg-github** (script commite dans le repo) | `install` (pose le check CI) + `verify` (discover forge -> pass/fail) | oui, par forge | accelerateur optionnel |
 | **AGENTS.md** (instructions) | "lance `erg close`" | n/a | plancher universel |
 
 > Note : dans erg core, **`install` est le seul verbe qui mute hors de
 > `tickets/`** (`.git/hooks`, AGENTS.md racine), et uniquement derriere des flags
 > explicites par defaut a off (`--hooks`, `--inject-agents`). Tous les autres
-> verbes restent confines a `tickets/` et offline.
+> verbes restent confines a `tickets/`; tous sauf `sync`, qui delegue son fetch
+> explicite a git, restent offline.
 
 ---
 

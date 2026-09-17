@@ -140,11 +140,16 @@ fi
 # Test: ERG_UPDATE_URL overrides origin — fetch upstream's binary instead.
 UPSTREAM="$WORKROOT/upstream"
 git_init "$UPSTREAM"
+printf 'history that adopters do not need\n' > "$UPSTREAM/history.txt"
+git -C "$UPSTREAM" add -A
+git -C "$UPSTREAM" commit -qm upstream-parent
+UPSTREAM_PARENT=$(git -C "$UPSTREAM" rev-parse HEAD)
 mkdir "$UPSTREAM/tickets"
 cp "$ERG_ABS" "$UPSTREAM/tickets/erg"
 printf 'UPSTREAM' >> "$UPSTREAM/tickets/erg"   # distinct from both $ERG and origin
 git -C "$UPSTREAM" add -A
 git -C "$UPSTREAM" commit -qm upstream
+UPSTREAM_URL="file://$UPSTREAM"
 UPSTREAM_HASH=$(sha256sum "$UPSTREAM/tickets/erg" | cut -c1-12)
 if [ "$UPSTREAM_HASH" != "$REMOTE_HASH" ]; then
     pass "source-selection fixture gives origin and upstream distinct hashes"
@@ -160,7 +165,7 @@ git clone -q "$REMOTE" "$WORKUP"
 cp "$ERG_ABS" "$WORKUP/tickets/erg"
 OUT=$(cd "$WORKUP" && \
     GIT_CONFIG_COUNT=2 \
-    GIT_CONFIG_KEY_1="url.$UPSTREAM.insteadOf" \
+    GIT_CONFIG_KEY_1="url.$UPSTREAM_URL.insteadOf" \
     GIT_CONFIG_VALUE_1="https://github.com/MinhHaDuong/git-erg.git" \
     ERG_UPDATE_URL="$REMOTE" \
     ERG_TICKET_DIR="$WORKUP/tickets" \
@@ -170,6 +175,11 @@ if [ "$WORKUP_HASH" = "$UPSTREAM_HASH" ] && echo "$OUT" | grep -q "git-erg upstr
     pass "--upstream selects and names git-erg ahead of custom-source overrides"
 else
     fail "--upstream selected the wrong source: after=$WORKUP_HASH want=$UPSTREAM_HASH ($OUT)"
+fi
+if git -C "$WORKUP" cat-file -e "$UPSTREAM_PARENT^{commit}" 2>/dev/null; then
+    fail "--upstream imported history older than the fetched tip"
+else
+    pass "--upstream fetch is shallow and does not import git-erg history"
 fi
 
 # An explicit upstream import crosses a review boundary. The fetched bytes must
@@ -183,12 +193,13 @@ printf '#!/bin/sh\ntouch "%s"\n' "$EVIL_SENTINEL" > "$EVIL_UPSTREAM/tickets/erg"
 chmod +x "$EVIL_UPSTREAM/tickets/erg"
 git -C "$EVIL_UPSTREAM" add -A
 git -C "$EVIL_UPSTREAM" commit -qm malicious-fixture
+EVIL_UPSTREAM_URL="file://$EVIL_UPSTREAM"
 WORKREVIEW="$WORKROOT/work-review"
 git clone -q "$REMOTE" "$WORKREVIEW"
 cp "$ERG_ABS" "$WORKREVIEW/tickets/erg"
 OUT=$(cd "$WORKREVIEW" && \
     GIT_CONFIG_COUNT=2 \
-    GIT_CONFIG_KEY_1="url.$EVIL_UPSTREAM.insteadOf" \
+    GIT_CONFIG_KEY_1="url.$EVIL_UPSTREAM_URL.insteadOf" \
     GIT_CONFIG_VALUE_1="https://github.com/MinhHaDuong/git-erg.git" \
     ERG_TICKET_DIR="$WORKREVIEW/tickets" \
     ./tickets/erg sync --upstream 2>&1 || true)
@@ -206,7 +217,7 @@ mkdir "$WORKLAYOUT/issues"
 cp "$ERG_ABS" "$WORKLAYOUT/issues/erg"
 OUT=$(cd "$WORKLAYOUT" && \
     GIT_CONFIG_COUNT=2 \
-    GIT_CONFIG_KEY_1="url.$UPSTREAM.insteadOf" \
+    GIT_CONFIG_KEY_1="url.$UPSTREAM_URL.insteadOf" \
     GIT_CONFIG_VALUE_1="https://github.com/MinhHaDuong/git-erg.git" \
     ERG_TICKET_DIR="$WORKLAYOUT/issues" \
     ./issues/erg sync --upstream 2>&1 || true)
@@ -215,6 +226,23 @@ if [ "$LAYOUT_HASH" = "$UPSTREAM_HASH" ]; then
     pass "upstream import uses canonical tickets/erg with a noncanonical local store"
 else
     fail "upstream import derived its source path from the adopter layout: $OUT"
+fi
+
+# Configured sources have their own repository layout too. A noncanonical local
+# store must still request canonical tickets/erg from the configured source.
+WORKCUSTOMLAYOUT="$WORKROOT/work-custom-layout"
+git clone -q "$REMOTE" "$WORKCUSTOMLAYOUT"
+mkdir "$WORKCUSTOMLAYOUT/issues"
+cp "$ERG_ABS" "$WORKCUSTOMLAYOUT/issues/erg"
+OUT=$(cd "$WORKCUSTOMLAYOUT" && \
+    ERG_UPDATE_URL="$UPSTREAM" \
+    ERG_TICKET_DIR="$WORKCUSTOMLAYOUT/issues" \
+    ./issues/erg sync 2>&1 || true)
+CUSTOM_LAYOUT_HASH=$(sha256sum "$WORKCUSTOMLAYOUT/issues/erg" | cut -c1-12)
+if [ "$CUSTOM_LAYOUT_HASH" = "$UPSTREAM_HASH" ]; then
+    pass "custom source uses canonical tickets/erg with a noncanonical local store"
+else
+    fail "custom source derived its blob path from the adopter layout: $OUT"
 fi
 
 # sync targets the project's vendored binary, not whichever system/PATH copy
@@ -284,6 +312,29 @@ else
     fail "config source label is absent or leaked its URL: $OUT"
 fi
 
+# A reachable source that does not contain canonical tickets/erg is a hard
+# source/layout error, not an offline condition to swallow with exit 0.
+MISSING="$WORKROOT/missing-blob"
+git_init "$MISSING"
+printf 'no vendored binary here\n' > "$MISSING/README"
+git -C "$MISSING" add -A
+git -C "$MISSING" commit -qm missing-blob
+WORKMISSING="$WORKROOT/work-missing"
+git clone -q "$REMOTE" "$WORKMISSING"
+cp "$ERG_ABS" "$WORKMISSING/tickets/erg"
+set +e
+OUT=$(cd "$WORKMISSING" && \
+    ERG_TICKET_DIR="$WORKMISSING/tickets" \
+    ERG_UPDATE_URL="$MISSING" \
+    ./tickets/erg sync 2>&1)
+MISSING_RC=$?
+set -e
+if [ "$MISSING_RC" -ne 0 ] && echo "$OUT" | grep -q "could not read the committed vendored binary"; then
+    pass "reachable source missing tickets/erg is reported as a hard error"
+else
+    fail "missing source blob was silent or exited 0 (rc=$MISSING_RC, out: $OUT)"
+fi
+
 # Git includes a failed fetch URL in stderr. sync must suppress that raw
 # diagnostic and print only its sanitized source identity.
 WORKSECRET="$WORKROOT/work-secret"
@@ -346,12 +397,12 @@ else
     fail "sync without a store changed the binary or gave no warning: $OUT"
 fi
 
-# Test: the binary carries no embedded network/TLS client. `erg sync` now
-# shells out to git, so the offline invariant holds everywhere — guard it.
+# Test: the binary carries no embedded network/TLS client. `erg sync` delegates
+# its explicit transfer to git; every other workflow remains disconnected.
 if grep -rEn --include='*.go' 'net/http|crypto/tls' src/go/ >/dev/null 2>&1; then
     fail "source imports net/http or crypto/tls — erg must carry no network code"
 else
-    pass "no net/http or crypto/tls in source (offline invariant)"
+    pass "no embedded network/TLS client in the binary"
 fi
 
 # --- vcsRevision-based outdated detection tests ---

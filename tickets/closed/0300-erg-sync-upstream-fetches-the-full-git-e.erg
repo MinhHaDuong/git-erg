@@ -2,10 +2,13 @@
 Title: erg sync --upstream fetches the full git-erg history into every adopter
 Created: 2026-09-17
 Author: MinhHaDuong
+Closed: implemented and verified
 
 --- log ---
 2026-09-17T08:34Z MinhHaDuong created
 
+2026-09-17T08:45Z Codex verified by security, test, and UX panel; make check passes
+2026-09-17T08:45Z Codex closed — implemented and verified
 --- body ---
 ## Context
 
@@ -27,9 +30,9 @@ real guarantee is no embedded HTTP client and a graceful exit 0 offline.
 
 ## Exit criteria
 
-- [ ] The upstream fetch is shallow (`--depth=1` or equivalent) and a test
+- [x] The upstream fetch is shallow (`--depth=1` or equivalent) and a test
       asserts the adopter's `.git` does not gain git-erg's history.
-- [ ] Fixtures still pass offline (negative control unchanged).
-- [ ] The post-install self-exec is gated on the host platform.
-- [ ] `AGENTS.md` states the actual offline guarantee.
-- [ ] `make check` passes.
+- [x] Fixtures still pass offline (negative control unchanged).
+- [x] The post-install self-exec is gated on the host platform.
+- [x] `AGENTS.md` states the actual offline guarantee.
+- [x] `make check` passes.
