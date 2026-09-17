@@ -1,0 +1,28 @@
+%erg 0.1
+Title: erg sync with a custom source derives the blob path from the local store layout
+Created: 2026-09-17
+Author: MinhHaDuong
+
+--- log ---
+2026-09-17T08:34Z MinhHaDuong created
+
+--- body ---
+## Context
+
+Post-merge review of PR #368 (0298). In `src/go/update.go` around lines
+229-239, when a custom source is configured (`ERG_UPDATE_URL` or
+`.ergrc [update] url`), the path of the blob to fetch is derived from the
+*local* store layout, not from the source repository's layout. The shipped
+`.ergrc` advertises pointing that key at git-erg itself; an adopter whose
+store is `issues/` then asks git-erg for `issues/erg`, which does not exist,
+and the command exits 0 silently. The `work-layout` test covers only the
+`--upstream` arm, so nothing red catches it.
+
+## Exit criteria
+
+- [ ] The blob path is derived from the local layout only when the source is
+      a `trustedProjectOrigin`; otherwise the canonical `tickets/erg` is used.
+- [ ] A test mirrors `work-layout` for the custom-source arm: store `issues/`,
+      source git-erg, and asserts the binary is fetched (red before the fix).
+- [ ] A missing blob at the source is reported, not swallowed into exit 0.
+- [ ] `make check` passes.

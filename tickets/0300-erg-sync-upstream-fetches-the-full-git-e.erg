@@ -1,0 +1,35 @@
+%erg 0.1
+Title: erg sync --upstream fetches the full git-erg history into every adopter
+Created: 2026-09-17
+Author: MinhHaDuong
+
+--- log ---
+2026-09-17T08:34Z MinhHaDuong created
+
+--- body ---
+## Context
+
+Post-merge review of PR #368 (0298). `src/go/update.go` around line 187:
+`erg sync --upstream` runs an unshallowed `git fetch <url> HEAD`, which
+permanently imports git-erg's whole history into every adopter's `.git`.
+Adopters only need one blob from one commit.
+
+Caveat found in review: git rejects `--depth` on the local-path transport
+the test fixtures use via `insteadOf`, so the fixtures need a `file://` URL
+or the depth flag must be applied only for non-local transports.
+
+Two smaller residues from the same review can ride along, one commit each:
+the default path re-executes the freshly installed Linux x86-64 binary on
+every platform (`update.go` ~271-277), contradicting
+`src/go/assets/integration.md`; gate on GOOS/GOARCH. And `AGENTS.md:39`
+promises "no network calls, ever" for a command that runs `git fetch`; the
+real guarantee is no embedded HTTP client and a graceful exit 0 offline.
+
+## Exit criteria
+
+- [ ] The upstream fetch is shallow (`--depth=1` or equivalent) and a test
+      asserts the adopter's `.git` does not gain git-erg's history.
+- [ ] Fixtures still pass offline (negative control unchanged).
+- [ ] The post-install self-exec is gated on the host platform.
+- [ ] `AGENTS.md` states the actual offline guarantee.
+- [ ] `make check` passes.
