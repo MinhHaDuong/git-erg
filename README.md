@@ -60,6 +60,7 @@ The `erg` CLI rests on seven non-negotiable properties (law:
 - **Offline / disconnected** -- no embedded network client, and only `erg sync`
   asks git to fetch; it exits 0 when disconnected. Listing work is a local file read.
 - **Standalone** -- one static binary plus POSIX; zero third-party dependencies.
+  `erg sync` is the one verb that needs git, 2.24 or newer.
 - **Stateless** -- the files are the only state; no `pending`/`claimed`/`doing` tags.
 - **Fast** -- linear in corpus size; invoked per-commit, per-push, in agent loops.
 - **Small** -- the binary is committed and travels with every clone; size is paid by all.

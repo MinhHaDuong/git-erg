@@ -508,6 +508,14 @@ elif [ "$PIN_RC" -eq 0 ] && [ "$PIN_HASH" = "$UPSTREAM_HASH" ] && echo "$OUT" | 
 else
     fail "cleanup failure discarded a successful sync (rc=$PIN_RC, after=$PIN_HASH want=$UPSTREAM_HASH, out: $OUT)"
 fi
+if [ -n "$PINNED" ]; then
+    STAGED=$(git -C "$WORKPIN" add -A --dry-run 2>/dev/null | grep -c "erg-sync-" || true)
+    if [ "$STAGED" -eq 0 ]; then
+        pass "a leftover throwaway repository is invisible to git add -A"
+    else
+        fail "git add -A would stage $STAGED paths from the leftover throwaway repository"
+    fi
+fi
 chmod -R u+w "$WORKPIN/tickets"
 
 # A stale throwaway repository (a signal during the fetch) must not disturb the

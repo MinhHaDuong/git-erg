@@ -52,7 +52,10 @@ or a configured one) is fetched shallowly in a private throwaway bare repository
 the ticket store, so all writes stay confined there and the adopter repository gains no
 foreign objects, no FETCH_HEAD and no shallow marking. The source is resolved in the
 adopter's repository first, so a repo-local url.<mirror>.insteadOf or a remote name is
-honoured; the resolved URL is handed to git and never printed. Sync extracts the
+honoured; the resolved URL is handed to git and never printed. Messages identify the
+source as configured, not as resolved. Other repo-local transport settings (credential
+helpers, http.*, core.sshCommand) do not reach the isolated fetch, which then fails
+loudly and exits 0; set them globally or in the environment. Sync extracts the
 committed binary at the source's default branch and compares its hash to the vendored
 binary at <ticket store>/erg. The executable used to invoke sync is never replaced, so
 a system-native erg remains intact.
@@ -165,11 +168,11 @@ func safeRemoteIdentity(remote string) string {
 			return fmt.Sprintf("host %s, id %s", authority, id)
 		}
 	}
+	if at, colon := strings.LastIndex(remote, "@"), strings.Index(remote, ":"); at >= 0 && colon > at && !strings.Contains(remote[:colon], "/") {
+		return fmt.Sprintf("host %s, id %s", remote[at+1:colon], id)
+	}
 	if strings.Contains(remote, "/") || strings.Contains(remote, `\`) || strings.HasPrefix(remote, ".") {
 		return "local path, id " + id
-	}
-	if at, colon := strings.LastIndex(remote, "@"), strings.Index(remote, ":"); at >= 0 && colon > at {
-		return fmt.Sprintf("host %s, id %s", remote[at+1:colon], id)
 	}
 	return "named remote, id " + id
 }
@@ -224,6 +227,13 @@ func fetchRemoteBinary(gitDir, remote, blobPath string, isolate bool) ([]byte, e
 				fmt.Fprintf(os.Stderr, "sync: warning: could not remove temporary git repository %s: %v -- the next sync sweeps it\n", tmp, err)
 			}
 		}()
+		// A sync killed mid-fetch leaves this directory inside the adopter's
+		// work tree, where a concurrent `git add -A` would commit a bare
+		// repository. An ignore-everything file makes it invisible to that
+		// accident until the next sync sweeps it.
+		if err := os.WriteFile(filepath.Join(tmp, ".gitignore"), []byte("*\n"), 0644); err != nil {
+			return nil, &remoteBinaryError{unavailable: true, err: fmt.Errorf("could not mark temporary git directory ignored: %w", err)}
+		}
 		if err := exec.Command("git", "-C", tmp, "init", "--quiet", "--bare").Run(); err != nil {
 			return nil, &remoteBinaryError{unavailable: true, err: fmt.Errorf("could not initialize temporary git repository: %w", err)}
 		}
@@ -252,7 +262,7 @@ func fetchRemoteBinary(gitDir, remote, blobPath string, isolate bool) ([]byte, e
 // when the fetch runs elsewhere. The result is for git only; it may carry
 // credentials and must not be echoed.
 func resolveRemoteURL(gitDir, remote string) string {
-	cmd := exec.Command("git", "-C", gitDir, "ls-remote", "--get-url", "--end-of-options", remote)
+	cmd := exec.Command("git", "-C", gitDir, "ls-remote", "--get-url", remote)
 	cmd.Stderr = nil
 	out, err := cmd.Output()
 	resolved := strings.TrimSpace(string(out))
