@@ -217,7 +217,7 @@ func TestUpdateURL_EnvVarOverridesConfig(t *testing.T) {
 	envURL := "https://from-env.example.com/erg"
 
 	// Env var set -> wins over both config and default.
-	if got := resolveSyncSource(false, envURL, cfg.UpdateURL); got.remote != envURL {
+	if got := resolveSyncSource(false, envURL, cfg.UpdateURL); got.remote != envURL || got.trustedProjectOrigin || got.shallow {
 		t.Errorf("env var should override config: got %q, want %q", got.remote, envURL)
 	}
 	// Env var unset -> config wins over default.
@@ -225,11 +225,29 @@ func TestUpdateURL_EnvVarOverridesConfig(t *testing.T) {
 		t.Errorf("config should override default when env unset: got %q, want %q", got.remote, cfg.UpdateURL)
 	}
 	// Env and config unset -> compiled-in default.
-	if got := resolveSyncSource(false, "", ""); got.remote != syncRemote {
+	if got := resolveSyncSource(false, "", ""); got.remote != syncRemote || !got.trustedProjectOrigin || got.shallow {
 		t.Errorf("default should apply when env and config unset: got %q, want %q", got.remote, syncRemote)
 	}
 	// Explicit upstream wins over both custom-source mechanisms.
-	if got := resolveSyncSource(true, envURL, cfg.UpdateURL); got.remote != gitErgUpstream {
+	if got := resolveSyncSource(true, envURL, cfg.UpdateURL); got.remote != gitErgUpstream || got.trustedProjectOrigin || !got.shallow {
 		t.Errorf("--upstream should override env and config: got %q, want %q", got.remote, gitErgUpstream)
+	}
+}
+
+func TestCanRunTravelingBinary(t *testing.T) {
+	tests := []struct {
+		goos, goarch string
+		want         bool
+	}{
+		{"linux", "amd64", true},
+		{"linux", "arm64", false},
+		{"darwin", "amd64", false},
+		{"darwin", "arm64", false},
+		{"windows", "amd64", false},
+	}
+	for _, tt := range tests {
+		if got := canRunTravelingBinary(tt.goos, tt.goarch); got != tt.want {
+			t.Errorf("canRunTravelingBinary(%q, %q) = %v, want %v", tt.goos, tt.goarch, got, tt.want)
+		}
 	}
 }

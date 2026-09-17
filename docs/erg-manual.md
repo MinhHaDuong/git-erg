@@ -681,6 +681,11 @@ default project-origin mode. ERG_UPDATE_URL and the .ergrc [update] url key rema
 custom-source overrides when --upstream is absent; the environment wins over config.
 The explicit --upstream flag wins over both overrides.
 
+Project-origin mode reads the binary at the adopter's local store-relative path.
+Upstream and configured sources instead read canonical tickets/erg, because their
+repository layout is independent of the adopter's local store name. Upstream fetches
+only the source tip needed for that blob rather than importing git-erg's full history.
+
 Sync uses git (already a dependency of git-erg) -- never an embedded network client --
 so the binary carries no network code. It runs 'git fetch <source> HEAD' in the ticket
 store's repository, extracts the committed binary at that source's default branch,
@@ -691,15 +696,16 @@ Messages name the resolved source, sanitizing configured URLs and suppressing gi
 raw diagnostics so credentials cannot be echoed. If the hash differs, sync replaces
 the vendored binary atomically (exclusive temp file, fsync, then rename).
 
-Fetch errors exit 0 so that 'erg sync && erg validate' chains do not fail in offline
-or isolated environments (no remote configured, no network, not a git repo). If no
-ticket store is found, sync does nothing and exits 0 -- it never pulls the binary from
-an unrelated repository you happen to be standing in.
+Transport errors exit 0 so that 'erg sync && erg validate' chains do not fail in
+offline or isolated environments (no remote configured, no network, not a git repo).
+A reachable source whose fetched commit lacks the expected vendored binary is a hard
+error instead. If no ticket store is found, sync does nothing and exits 0 -- it never
+pulls the binary from an unrelated repository you happen to be standing in.
 
-After a successful sync, checks whether any .erg files in the ticket store still carry
-legacy Status: headers. If found, prints explicit migration guidance: 'erg migrate DIR',
-'git diff tickets/', 'git commit'. The sync command never mutates ticket files itself --
-migration is a separate, reviewable step.
+After a successful project-origin sync, checks whether any .erg files in the ticket store
+still carry legacy Status: headers. If found, prints explicit migration guidance:
+'erg migrate DIR', 'git diff tickets/', 'git commit'. The sync command never mutates
+ticket files itself -- migration is a separate, reviewable step.
 
 erg sync replaces the binary only -- it never writes or modifies any store file
 (.ergrc, AGENTS.md, or tickets). Embedded-asset changes and new default label vocabulary

@@ -36,9 +36,10 @@ Seven invariants, one above the rest — **never lose data** is the tool's
   file is the contract and the binary is optional. Nothing may make the file
   the second-class source of truth (this is why a stale cache is a bug, not
   an optimisation).
-- **Offline / disconnected** — no network calls, ever. Even `erg sync` now
-  shells out to `git fetch` (0148) rather than an embedded HTTP client, so the
-  binary carries no network code at all — the invariant holds everywhere.
+- **Offline / disconnected** — every local workflow works without a network.
+  The explicitly network-facing `erg sync` delegates transfer to `git fetch`
+  (0148), exits gracefully when disconnected, and carries no embedded network
+  client; all other verbs make no network calls.
 - **Standalone** — one *static* binary plus POSIX; zero third-party
   dependencies (the fat stdlib is what lets us hold that line).
 - **Stateless** — the files are the only state; no external state encoded in
@@ -56,7 +57,8 @@ Seven invariants, one above the rest — **never lose data** is the tool's
 Scope confinement: `install` is the only verb that mutates outside `tickets/`
 (`.git/hooks` and the root `AGENTS.md` pointer), and only behind explicit
 opt-in flags (`--hooks`, `--inject-agents`) that default to off. Every other
-verb stays confined to `tickets/` and offline. This is the implementation of
+verb stays confined to `tickets/`; all except the explicitly network-facing
+`sync` stay offline. This is the implementation of
 the Offline and Standalone invariants at the command boundary -- a contributor
 adding a new verb must respect the same scope, or move the mutation behind an
 equally explicit opt-in.

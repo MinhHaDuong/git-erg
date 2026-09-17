@@ -2,10 +2,13 @@
 Title: erg sync with a custom source derives the blob path from the local store layout
 Created: 2026-09-17
 Author: MinhHaDuong
+Closed: implemented and verified
 
 --- log ---
 2026-09-17T08:34Z MinhHaDuong created
 
+2026-09-17T08:45Z Codex verified by security, test, and UX panel; make check passes
+2026-09-17T08:45Z Codex closed — implemented and verified
 --- body ---
 ## Context
 
@@ -20,9 +23,9 @@ and the command exits 0 silently. The `work-layout` test covers only the
 
 ## Exit criteria
 
-- [ ] The blob path is derived from the local layout only when the source is
+- [x] The blob path is derived from the local layout only when the source is
       a `trustedProjectOrigin`; otherwise the canonical `tickets/erg` is used.
-- [ ] A test mirrors `work-layout` for the custom-source arm: store `issues/`,
+- [x] A test mirrors `work-layout` for the custom-source arm: store `issues/`,
       source git-erg, and asserts the binary is fetched (red before the fix).
-- [ ] A missing blob at the source is reported, not swallowed into exit 0.
-- [ ] `make check` passes.
+- [x] A missing blob at the source is reported, not swallowed into exit 0.
+- [x] `make check` passes.
