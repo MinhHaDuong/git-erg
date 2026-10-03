@@ -1,0 +1,61 @@
+%erg 0.1
+Title: appendLogLine places a log entry after the terminal blank and erg check does not see it
+Created: 2026-10-03
+Author: claude
+
+--- log ---
+2026-10-03T12:04Z claude created
+
+--- body ---
+## Context
+
+`erg new` writes a log section whose entry run is terminated by a blank line
+before `--- body ---`. `appendLogLine` (src/go/close.go) then inserts the new
+entry directly before `\\n` + `--- body ---`, i.e. AFTER that terminal blank:
+
+    created
+                <- terminal blank (end of entry run)
+    new entry           <- lands here, out of the entry run
+    --- body ---
+
+The new entry is displaced past the blank that terminates the entry run, and
+the terminal blank is consumed. Since `erg log`, `erg close`, `erg label` and
+`erg unlabel` all route through appendLogLine, the tool's own systematic
+output produces this shape: in the maintainer's harness corpus 460 of 534
+ticket files carry it. A validator that never looks at position reports PASS
+either way, so nothing distinguishes a well-placed entry from one placed where
+the validator does not read (harness ticket 0879).
+
+A second blind spot: log timestamps are never checked for ordering. A wave
+rebase legitimately replays older-stamped lines after newer ones (65 corpus
+files), so ordering must be advisory, never a rejection.
+
+## Scope
+
+- appendLogLine: normalize-then-append. The entry is inserted at the end of
+  the entry run (contiguous with previous entries), before the blank run that
+  precedes `--- body ---`; a missing terminal blank is restored. No write
+  refusal anywhere: the displaced shape is the tool's own systematic output,
+  and refusing would wedge every corpus that carries it (callers include
+  close, label, unlabel, log and the adopter's CI validate-tickets gate).
+- erg check: advisory WARN (exit 0) when a log-format line sits after the
+  entry run's last blank (displaced entry), and advisory WARN when log
+  timestamps decrease within the entry run (routine rebase replay is exempt
+  from rejection, reported only).
+
+## Test
+
+- Red: TestAppendLogLine case on content ending `created\\n\\n--- body ---`
+  must yield the new entry contiguous with the previous entries and the
+  terminal blank preserved (`created\\n<line>\\n\\n--- body ---`). The current
+  code fails it.
+- New corpus warnings fire on a displaced entry and on regressive timestamps;
+  a well-formed file draws neither; exit code stays 0 in all cases.
+
+## Exit criteria
+
+- [ ] appendLogLine keeps entries contiguous and preserves/restores the
+      terminal blank; no caller refusal added
+- [ ] erg check warns (advisory, exit 0) on a displaced log entry
+- [ ] erg check warns (advisory, exit 0) on regressive log timestamps
+- [ ] make check passes
