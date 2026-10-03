@@ -2,9 +2,11 @@
 Title: appendLogLine places a log entry after the terminal blank and erg check does not see it
 Created: 2026-10-03
 Author: claude
+Closed: fixed by normalize-then-append in appendLogLine plus advisory check warnings for displaced entries and regressive timestamps
 
 --- log ---
 2026-10-03T12:04Z claude created
+2026-10-03T12:11Z MinhHaDuong closed — fixed by normalize-then-append in appendLogLine plus advisory check warnings for displaced entries and regressive timestamps
 
 --- body ---
 ## Context
@@ -54,8 +56,8 @@ files), so ordering must be advisory, never a rejection.
 
 ## Exit criteria
 
-- [ ] appendLogLine keeps entries contiguous and preserves/restores the
+- [x] appendLogLine keeps entries contiguous and preserves/restores the
       terminal blank; no caller refusal added
-- [ ] erg check warns (advisory, exit 0) on a displaced log entry
-- [ ] erg check warns (advisory, exit 0) on regressive log timestamps
-- [ ] make check passes
+- [x] erg check warns (advisory, exit 0) on a displaced log entry
+- [x] erg check warns (advisory, exit 0) on regressive log timestamps
+- [x] make check passes
