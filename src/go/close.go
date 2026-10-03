@@ -294,9 +294,13 @@ func insertClosedHeader(content, headerLine string) (string, error) {
 	return strings.Join(out, "\n"), nil
 }
 
-// appendLogLine inserts a log line at the end of the log section, just
-// before the `--- body ---` separator. If the file lacks a body separator,
-// appends to the end of the file.
+// appendLogLine inserts a log line at the end of the log entry run, before
+// the blank line that terminates the run ahead of the `--- body ---`
+// separator. The terminal blank is preserved when present and restored when
+// a displaced entry consumed it (ticket 0304: the previous insert-directly-
+// before-the-separator landed every new entry after the terminal blank, so
+// the tool's own systematic output produced out-of-section entries). If the
+// file lacks a body separator, appends to the end of the file.
 func appendLogLine(content, logLine string) string {
 	bodyIdx := strings.Index(content, "\n"+separatorBody)
 	if bodyIdx < 0 {
@@ -305,5 +309,12 @@ func appendLogLine(content, logLine string) string {
 		}
 		return content + logLine + "\n"
 	}
-	return content[:bodyIdx] + "\n" + logLine + content[bodyIdx:]
+	// content[:bodyIdx] is everything before the newline that opens the
+	// body separator line; it ends with the log section's trailing blank
+	// run when one survives. Trimming that run finds the end of the entry
+	// run; the entry goes right after it, and exactly one terminal blank
+	// is re-emitted regardless of how many the input carried (none when a
+	// displaced entry had consumed it). Existing entries are untouched.
+	entryRun := strings.TrimRight(content[:bodyIdx], "\n")
+	return entryRun + "\n" + logLine + "\n\n" + content[bodyIdx+1:]
 }

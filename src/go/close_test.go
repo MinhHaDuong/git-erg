@@ -11,7 +11,7 @@ func TestAppendLogLine(t *testing.T) {
 			name:    "inserts before body separator",
 			content: "%erg 0.1\n--- log ---\n--- body ---\n",
 			line:    "2026-01-01T10:00Z entry",
-			want:    "%erg 0.1\n--- log ---\n2026-01-01T10:00Z entry\n--- body ---\n",
+			want:    "%erg 0.1\n--- log ---\n2026-01-01T10:00Z entry\n\n--- body ---\n",
 		},
 		{
 			name:    "fallback: appends to end when no body separator",
@@ -26,6 +26,26 @@ func TestAppendLogLine(t *testing.T) {
 			want:    "%erg 0.1\n--- log ---\n2026-01-01T10:00Z entry\n",
 		},
 		{
+			// Ticket 0304: the entry run is contiguous and terminated by a
+			// blank line before '--- body ---'. The new entry must land
+			// INSIDE the run (contiguous with the previous entries), and
+			// the terminal blank must survive the insertion.
+			name:    "keeps entry contiguous and preserves the terminal blank",
+			content: "%erg 0.1\n--- log ---\n2026-01-01T10:00Z claude created\n\n--- body ---\n",
+			line:    "2026-01-02T11:00Z claude note after",
+			want:    "%erg 0.1\n--- log ---\n2026-01-01T10:00Z claude created\n2026-01-02T11:00Z claude note after\n\n--- body ---\n",
+		},
+		{
+			// Ticket 0304: the incident shape -- a displaced entry glued to
+			// '--- body ---', terminal blank consumed. Normalise on append:
+			// the new entry lands contiguous with the last entry and the
+			// terminal blank is restored.
+			name:    "restores the terminal blank consumed by a displaced entry",
+			content: "%erg 0.1\n--- log ---\n2026-01-01T10:00Z claude created\n\n2026-01-02T11:00Z claude note displaced\n--- body ---\n",
+			line:    "2026-01-03T12:00Z claude note new",
+			want:    "%erg 0.1\n--- log ---\n2026-01-01T10:00Z claude created\n\n2026-01-02T11:00Z claude note displaced\n2026-01-03T12:00Z claude note new\n\n--- body ---\n",
+		},
+		{
 			// Distinguishing case for strings.Index vs strings.LastIndex:
 			// body section contains a line that echoes the separator literal.
 			// Index inserts before the FIRST '--- body ---' (correct: end of log
@@ -34,7 +54,7 @@ func TestAppendLogLine(t *testing.T) {
 			name:    "inserts before first body separator when body echoes separator",
 			content: "%erg 0.1\n--- log ---\n--- body ---\ntext\n--- body ---\nmore\n",
 			line:    "2026-01-01T10:00Z entry",
-			want:    "%erg 0.1\n--- log ---\n2026-01-01T10:00Z entry\n--- body ---\ntext\n--- body ---\nmore\n",
+			want:    "%erg 0.1\n--- log ---\n2026-01-01T10:00Z entry\n\n--- body ---\ntext\n--- body ---\nmore\n",
 		},
 	}
 	for _, c := range cases {

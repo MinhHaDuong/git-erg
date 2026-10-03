@@ -79,3 +79,82 @@ func TestHeaderBlankWarnings(t *testing.T) {
 		}
 	})
 }
+
+func TestLogPlacementWarnings(t *testing.T) {
+	t.Run("well-formed log yields no warnings", func(t *testing.T) {
+		dir := t.TempDir()
+		writeErg(t, dir, "0001-clean.erg",
+			"%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n"+
+				"2024-01-01T10:00Z test created\n2024-01-01T11:00Z test note ok\n\n--- body ---\n")
+		if w := logPlacementWarnings(dir); w != nil {
+			t.Errorf("clean log -> %v, want nil", w)
+		}
+	})
+
+	t.Run("displaced entry after the terminal blank warns once", func(t *testing.T) {
+		dir := t.TempDir()
+		writeErg(t, dir, "0002-displaced.erg",
+			"%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n"+
+				"2024-01-01T10:00Z test created\n\n2024-01-01T12:00Z test note displaced\n--- body ---\n")
+		w := logPlacementWarnings(dir)
+		if len(w) != 1 {
+			t.Fatalf("got %d warnings, want 1: %v", len(w), w)
+		}
+		want := "WARN 0002-displaced.erg: log entry after the entry run's terminal blank"
+		if !strings.HasPrefix(w[0], want) {
+			t.Errorf("warning %q should have prefix %q", w[0], want)
+		}
+	})
+
+	t.Run("regressive timestamps warn and stay advisory", func(t *testing.T) {
+		dir := t.TempDir()
+		writeErg(t, dir, "0003-regressive.erg",
+			"%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n"+
+				"2024-01-02T10:00Z test created\n2024-01-01T09:00Z test note replayed\n\n--- body ---\n")
+		w := logPlacementWarnings(dir)
+		if len(w) != 1 {
+			t.Fatalf("got %d warnings, want 1: %v", len(w), w)
+		}
+		want := "WARN 0003-regressive.erg: regressive log timestamps"
+		if !strings.HasPrefix(w[0], want) {
+			t.Errorf("warning %q should have prefix %q", w[0], want)
+		}
+	})
+
+	t.Run("displaced and regressive on one file warn in that order", func(t *testing.T) {
+		dir := t.TempDir()
+		writeErg(t, dir, "0004-both.erg",
+			"%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n"+
+				"2024-01-02T10:00Z test created\n\n2024-01-01T09:00Z test note displaced\n--- body ---\n")
+		w := logPlacementWarnings(dir)
+		if len(w) != 2 {
+			t.Fatalf("got %d warnings, want 2: %v", len(w), w)
+		}
+		if !strings.HasPrefix(w[0], "WARN 0004-both.erg: log entry after") ||
+			!strings.HasPrefix(w[1], "WARN 0004-both.erg: regressive log timestamps") {
+			t.Errorf("unexpected warnings: %v", w)
+		}
+	})
+
+	t.Run("continuation lines do not count as entries", func(t *testing.T) {
+		dir := t.TempDir()
+		// A folded detail line after the terminal blank, with no entry-
+		// format line below the blank, draws no placement warning.
+		writeErg(t, dir, "0005-cont.erg",
+			"%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n"+
+				"2024-01-01T10:00Z test created\n\nstill the created entry\n\n--- body ---\n")
+		if w := logPlacementWarnings(dir); w != nil {
+			t.Errorf("continuation-only after blank -> %v, want nil", w)
+		}
+	})
+
+	t.Run("equal consecutive timestamps are not regressive", func(t *testing.T) {
+		dir := t.TempDir()
+		writeErg(t, dir, "0006-equal.erg",
+			"%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n"+
+				"2024-01-01T10:00Z test created\n2024-01-01T10:00Z test note same minute\n\n--- body ---\n")
+		if w := logPlacementWarnings(dir); w != nil {
+			t.Errorf("equal timestamps -> %v, want nil", w)
+		}
+	})
+}
