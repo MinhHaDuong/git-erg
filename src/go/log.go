@@ -16,8 +16,11 @@ Append a timestamped entry to a ticket's log section.
 
 Resolves the ticket by 4-digit ID in DIR (default: auto-discovered tickets/), then
 prepends the current UTC timestamp (YYYY-MM-DDThh:mmZ) AND the resolved author to
-LINE, and inserts the resulting line at the end of the log section, just before
-the ` + "`--- body ---`" + ` separator.
+LINE, and inserts the resulting line at the end of the log entry run, before
+the blank line that terminates it ahead of the ` + "`--- body ---`" + ` separator.
+That terminal blank is preserved when present and restored when a displaced
+entry had consumed it (entries stay contiguous; existing entries are never
+rewritten).
 
 The resulting log entry format is:
 
