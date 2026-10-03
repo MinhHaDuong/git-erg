@@ -103,6 +103,12 @@ Additionally emits warnings (non-fatal) for:
   - Stray Go source files (*.go, go.mod, go.sum) inside the ticket store directory.
   - Interior header blank: a blank line inside the header block (tolerated on
     read; run 'erg migrate' to normalise).
+  - Displaced log entry: a log-format line sits after the entry run's
+    terminal blank (advisory -- the shape parses identically and is the
+    tool's own systematic historical output; move the blank below the last
+    entry by hand, entries are never rewritten).
+  - Regressive log timestamps: an older-stamped entry follows a newer one
+    (advisory -- routine after a git rebase replay; never a rejection).
   - Asset drift: the .erg-assets stamp differs from this binary's embedded
     asset. The message names the direction, because the remedy differs and one
     of the two would destroy data if applied to the other:
@@ -306,8 +312,11 @@ Append a timestamped entry to a ticket's log section.
 
 Resolves the ticket by 4-digit ID in DIR (default: auto-discovered tickets/), then
 prepends the current UTC timestamp (YYYY-MM-DDThh:mmZ) AND the resolved author to
-LINE, and inserts the resulting line at the end of the log section, just before
-the `--- body ---` separator.
+LINE, and inserts the resulting line at the end of the log entry run, before
+the blank line that terminates it ahead of the `--- body ---` separator.
+That terminal blank is preserved when present and restored when a displaced
+entry had consumed it (entries stay contiguous; existing entries are never
+rewritten).
 
 The resulting log entry format is:
 
