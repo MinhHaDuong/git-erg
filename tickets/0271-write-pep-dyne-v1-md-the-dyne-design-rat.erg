@@ -6,6 +6,8 @@ Author: Claude
 --- log ---
 2026-08-26T10:37Z Claude created
 
+2026-10-15T15:43Z ChatGPT note Author adopts fixed tickets/merges layout, independent Dyne review-plan composition and phased delivery; see docs/dyne-review-contract.md.
+
 --- body ---
 ## Context
 
@@ -26,11 +28,11 @@ that lost:
 - state is the DAG (`git merge-base --is-ancestor` is the status field;
   no Status header, not even the file path carries state)
 - one object = one plain-text file on the source branch
-  (`merges/<branch>.dyne`); merging into main IS the archival act
+  (`tickets/merges/<branch>.dyne`); merging into main IS the archival act
   (rejected: dedicated refs, shared registry branch, MR-ticket fusion)
 - erg's exact three-section grammar; log = one-liners, body = the
   discussion whose opening post is the description (comment #0)
-- multi-writer merges via `merge=union` on `merges/*.dyne`; prose
+- multi-writer merges via `merge=union` on `tickets/merges/*.dyne`; prose
   append-only by convention; `dyne check` fences the residual hazard
   (rejected: sibling `.log` file, custom merge driver)
 - no archive numbering: the merge commit SHA is the permanent name;
@@ -49,3 +51,15 @@ that lost:
 - [ ] pep-dyne-v1.md merged, covering every settled choice of 0270 with
       its rationale and rejected alternatives
 - [ ] the three-scope authority model stated in the PEP itself
+
+## Author design amendment (2026-10-15)
+
+Read `docs/dyne-review-contract.md` as the current amendment to 0270.
+It supersedes the earlier root merges/ placement: use tickets/merges/,
+with evidence under tickets/reviews/. Keep the Go/static/shared-codebase
+plan and independent commands; no new path configuration or erg dependency.
+The Dyne body carries the evolving plan; Hunt owns it and gaze executes it.
+Preserve immutable per-pass requests/results and revision-bound evidence.
+Open reuse, stop, concurrency and recovery questions are recorded for author
+discussion, not silently settled. Follow the delivery phases in that document;
+this ticket remains open and no implementation is claimed.
