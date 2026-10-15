@@ -7,6 +7,8 @@ Blocked-by: 0273
 --- log ---
 2026-08-26T10:37Z Claude created
 
+2026-10-15T15:43Z ChatGPT note Author adopts fixed tickets/merges layout, independent Dyne review-plan composition and phased delivery; see docs/dyne-review-contract.md.
+
 --- body ---
 ## Context
 
@@ -16,8 +18,8 @@ layers 2-4 around the 0273 binary.
 
 ## Scope
 
-- `dyne init`: unpack into `merges/` -- `AGENTS.md` (embedded asset),
-  `.gitattributes` with `merge=union` on `merges/*.dyne`, a `.dynerc`
+- `dyne init`: unpack into `tickets/merges/` -- `AGENTS.md` (embedded asset),
+  `.gitattributes` with `merge=union` on `tickets/merges/*.dyne`, a `.dynerc`
   skeleton (`[hooks]`); the init-unpack ASCII guard applies to every
   unpacked asset (0245 precedent)
 - `dyne spec` and `dyne integration` served from embedded assets: the
@@ -25,11 +27,23 @@ layers 2-4 around the 0273 binary.
   `Closes:` refs, the `add -A` staging clause)
 - `make docs` gains `dyne --help --all > docs/dyne-manual.md`; the
   manual cannot drift because it is the binary's own help output
-- self-coherence guard: CI fails when the deployed `merges/AGENTS.md`
+- self-coherence guard: CI fails when the deployed `tickets/merges/AGENTS.md`
   drifts from the embedded source, mirroring erg's guard; fold a
-  `dyne check merges/` gate into `make test` (0246 precedent)
+  `dyne check tickets/merges/` gate into `make test` (0246 precedent)
 
 ## Exit criteria
 
 - [ ] `dyne init` on a fresh repo yields a working store, offline
 - [ ] guards live in `make test`, not only CI
+
+## Author design amendment (2026-10-15)
+
+Read `docs/dyne-review-contract.md` as the current amendment to 0270.
+It supersedes the earlier root merges/ placement: use tickets/merges/,
+with evidence under tickets/reviews/. Keep the Go/static/shared-codebase
+plan and independent commands; no new path configuration or erg dependency.
+The Dyne body carries the evolving plan; Hunt owns it and gaze executes it.
+Preserve immutable per-pass requests/results and revision-bound evidence.
+Open reuse, stop, concurrency and recovery questions are recorded for author
+discussion, not silently settled. Follow the delivery phases in that document;
+this ticket remains open and no implementation is claimed.
