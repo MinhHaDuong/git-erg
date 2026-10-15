@@ -7,6 +7,8 @@ Blocked-by: 0273
 --- log ---
 2026-08-26T10:37Z Claude created
 
+2026-10-15T15:43Z ChatGPT note Author adopts fixed tickets/merges layout, independent Dyne review-plan composition and phased delivery; see docs/dyne-review-contract.md.
+
 --- body ---
 ## Context
 
@@ -18,7 +20,7 @@ hand-parsed truth.
 
 ## Scope
 
-- a command that renders PR title and body from `merges/<branch>.dyne`:
+- a command that renders PR title and body from `tickets/merges/<branch>.dyne`:
   Title header as the PR title, the discussion's opening post as the
   body, `Closes:` values passed through as text
 - offline invariant intact: dyne prints, carrying no network code; the
@@ -32,3 +34,15 @@ hand-parsed truth.
       (dogfooded on this repo)
 - [ ] round-trip honesty: nothing in the PR body exists only on the
       forge
+
+## Author design amendment (2026-10-15)
+
+Read `docs/dyne-review-contract.md` as the current amendment to 0270.
+It supersedes the earlier root merges/ placement: use tickets/merges/,
+with evidence under tickets/reviews/. Keep the Go/static/shared-codebase
+plan and independent commands; no new path configuration or erg dependency.
+The Dyne body carries the evolving plan; Hunt owns it and gaze executes it.
+Preserve immutable per-pass requests/results and revision-bound evidence.
+Open reuse, stop, concurrency and recovery questions are recorded for author
+discussion, not silently settled. Follow the delivery phases in that document;
+this ticket remains open and no implementation is claimed.
