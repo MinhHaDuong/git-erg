@@ -7,6 +7,8 @@ Blocked-by: 0272
 --- log ---
 2026-08-26T10:37Z Claude created
 
+2026-10-15T15:43Z ChatGPT note Author adopts fixed tickets/merges layout, independent Dyne review-plan composition and phased delivery; see docs/dyne-review-contract.md.
+
 --- body ---
 ## Context
 
@@ -19,15 +21,15 @@ busybox-style blob.
 ## Scope
 
 - argv[0] dispatch in the shared binary; identical blob committed at
-  `tickets/erg` and `merges/dyne` (one content-addressed blob, two
+  `tickets/erg` and `tickets/merges/dyne` (one content-addressed blob, two
   checkout paths); the size ratchet covers it
-- `dyne open`: create `merges/<branch>.dyne` for the current branch
+- `dyne open`: create `tickets/merges/<branch>.dyne` for the current branch
   (Source = branch, Target defaulting to main), refuse an existing one
 - `dyne show`: render the file, log entries reordered by timestamp
 - `dyne list`: an MR is open iff Source is not an ancestor of Target
   (`git merge-base --is-ancestor`); enumeration is as fresh as the
   last fetch -- document, per 0270's hard points
-- `dyne check`: corpus checks over `merges/` -- duplicate headers are
+- `dyne check`: corpus checks over `tickets/merges/` -- duplicate headers are
   a hard error (the union-merge fence), malformed files, magic/version
 - invariants hold: offline (shells out to git, no network code),
   standalone (static binary, POSIX, zero third-party deps), stateless,
@@ -42,5 +44,17 @@ behavior.
 
 ## Exit criteria
 
-- [ ] dogfood: this repo carries `merges/` with the committed dyne blob
+- [ ] dogfood: this repo carries `tickets/merges/` with the committed dyne blob
 - [ ] the four commands behave per the %dyne 0.1 spec; make test green
+
+## Author design amendment (2026-10-15)
+
+Read `docs/dyne-review-contract.md` as the current amendment to 0270.
+It supersedes the earlier root merges/ placement: use tickets/merges/,
+with evidence under tickets/reviews/. Keep the Go/static/shared-codebase
+plan and independent commands; no new path configuration or erg dependency.
+The Dyne body carries the evolving plan; Hunt owns it and gaze executes it.
+Preserve immutable per-pass requests/results and revision-bound evidence.
+Open reuse, stop, concurrency and recovery questions are recorded for author
+discussion, not silently settled. Follow the delivery phases in that document;
+this ticket remains open and no implementation is claimed.
