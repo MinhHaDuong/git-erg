@@ -1,0 +1,55 @@
+%erg 0.1
+Title: Claim ticket numbers in tickets/.claims/NNNN so git detects a collision
+Created: 2026-10-21
+Author: MinhHaDuong
+
+--- log ---
+2026-10-21T15:17Z MinhHaDuong created
+
+--- body ---
+## Context
+Asked by the author (2026-10-21), from the IDH harness repo, where the collision had to be policed by a CI job
+(`cross-pr-ticket-collision`: fail a pull request whose added ticket ID another open pull request also adds) that
+was switched off the same day with GitHub Actions. Evidence of the pain: `docs/erg-manual.md` (ID allocation is
+optimistic: two concurrent invocations in different checkouts can take the same number), the existing
+post-check retry loop, the 200 ms "branch-tip scan exceeded" warning of `erg new`, and the harness's own CI
+guard built for it (git-erg#282). Today two branches that each add `tickets/NNNN-slug-a.erg` and
+`tickets/NNNN-slug-b.erg` have different paths, so git sees no conflict; the duplicate surfaces only when the
+corpus check (`erg check`) runs on the merged tree.
+
+## Design (the author's)
+- `erg new NNNN` also writes `tickets/.claims/NNNN`, a small file whose content is the ticket's slug.
+- Two branches claiming the same number create the same path with different content: git reports an add/add
+  conflict when the second one is merged or rebased. The later claimant resolves it by renaming to the next
+  free number (its ticket file, its claim file, references in its own log), then continues.
+- Claims are never deleted when a ticket closes: the directory is the record of numbers ever used.
+- Optional: the holes in the claim numbers are free numbers, so `erg new` can allocate from the claims on the
+  merged base plus the claims on branch tips, and the lowest hole is a valid answer.
+
+Notes for whoever builds it:
+- The content must differ between claimants. An empty file, or the same slug, would merge cleanly. Slug
+  plus nothing else is enough; two different tickets with the same slug and the same number are the same
+  ticket by any reading.
+- Detection happens when the second claimant reaches the base (rebase or merge), not at allocation. Two
+  sessions can still pick a number at the same moment. A stronger option exists for a central origin (push
+  an atomic ref `refs/erg/id/NNNN`), at the price of needing the network. Not part of this ticket.
+- Existing tickets: decided by the author, 2026-10-21: populate the claims on migration. A migration step
+  (`erg migrate`, or its successor) writes `tickets/.claims/NNNN` with the slug for every existing ticket,
+  open and closed, so the directory is complete from the first day and the holes are real holes. It is
+  idempotent; running it twice changes nothing.
+- Check the repository's ignore rules: some repos (the IDH harness) ignore everything and allowlist paths;
+  `.claims/` must be addable there or the claim silently disappears.
+- `erg check` reports a claim without a ticket, a ticket without a claim (after migration), and a claim whose
+  slug does not match the ticket file's slug.
+- Per `AGENTS.md` § Earning a feature the burden is on adding: the near-misses above are the evidence; if
+  collisions stop biting (the gate catches duplicates at the merge candidate), the ticket can be closed unbuilt.
+
+## Exit criteria
+- [ ] `erg new` writes `tickets/.claims/NNNN` with the slug; `erg close` leaves it in place.
+- [ ] A test with two branches adding the same number with different slugs: the merge reports an add/add conflict
+      on the claim file (positive control), and a merge of claims with different numbers is clean (negative
+      control).
+- [ ] `erg new` allocates from claims (base and branch tips) and may reuse a hole; a documented rule.
+- [ ] The migration populates the claims for all existing tickets (open and closed) and is idempotent; `erg check` reports claim/ticket mismatches, including a ticket with no claim after migration.
+- [ ] The manual's ID-allocation section and `tickets/AGENTS.md` describe the claims and the rename step.
+- [ ] `make check` passes; the bootstrap binary is rebuilt by the normal route.
