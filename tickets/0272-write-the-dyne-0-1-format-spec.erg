@@ -7,6 +7,8 @@ Blocked-by: 0271
 --- log ---
 2026-08-26T10:37Z Claude created
 
+2026-10-15T15:43Z ChatGPT note Recorded the Dyne review-plan proposal; reassessed on 2026-11-04 in docs/dyne-review-contract.md.
+
 --- body ---
 ## Context
 
@@ -21,7 +23,7 @@ arbitrates intent.
 
 Mirror the `%erg 0.1` spec's structure, for MRs:
 
-- extension `.dyne`, location `merges/`, UTF-8, LF; magic line
+- extension `.dyne`, location `tickets/merges/`, UTF-8, LF; magic line
   `%dyne 0.1`, MAJOR.MINOR versioning
 - three sections: headers, `--- log ---`, `--- body ---`
 - closed header set v1: `Title`, `Source`, `Target`, `Created`,
@@ -34,13 +36,26 @@ Mirror the `%erg 0.1` spec's structure, for MRs:
 - body = the discussion: opening post is the author's description,
   later comments are timestamp-attributed prose blocks, append-only by
   convention
-- document the merge regime: `merge=union` on `merges/*.dyne` via
+- document the merge regime: `merge=union` on `tickets/merges/*.dyne` via
   .gitattributes (deployed by `dyne init`, 0274), entries reordered by
   timestamp at display time, duplicate headers a hard `check` error
 
-## Exit criteria
+## Historical exit criteria
+
+These criteria are candidates only. Before work starts, revise them to match
+the decision in 0271; if Dyne is not justified, do not implement them.
 
 - [ ] spec document merged (embedded serving via `dyne spec` lands with
       0273/0274)
 - [ ] every constraint above is a testable statement, in the spec's
       validate-rules style
+
+## Design reassessment (2026-11-04)
+
+Git notes are the review-evidence store, as the author confirmed. The earlier
+`tickets/reviews/` proposal is superseded. Read `docs/dyne-review-contract.md`
+for the current harness evidence and the remaining decision. The scope above
+records the original design candidates; it does not authorize implementation.
+Ticket 0271 must first establish a concrete unmet need and decide whether a
+separate Dyne object is warranted. Subsequent format and implementation work
+is conditional on that decision. This ticket remains open.

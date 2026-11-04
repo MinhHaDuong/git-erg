@@ -6,31 +6,29 @@ Author: Claude
 --- log ---
 2026-08-26T10:37Z Claude created
 
+2026-10-15T15:43Z ChatGPT note Recorded the Dyne review-plan proposal; reassessed on 2026-11-04 in docs/dyne-review-contract.md.
+
 --- body ---
 ## Context
 
-Ticket 0270 settled the dyne design end-to-end (vision, composed-vs-
-integrated arbitration, log home, no numbering, name). Phase 1 of the
-migration path starts here. The PEP is documentation layer 1: written
-before code, one numbered design choice per section (Choice / Rationale
-/ Alternatives considered), and the arbiter of intent under the
-three-scope authority model (spec normative for files, binary normative
-for the spec's text, PEP arbitrates intent).
+Ticket 0270 recorded the original Dyne design. The current harness review
+workflow now warrants reassessing its premises before committing to a PEP
+or implementation. See the design reassessment below.
 
 ## Task
 
-Write `pep-dyne-v1.md` beside `pep-erg-v1.md`, seeded from 0270's body.
-Every settled choice gets its numbered section with the alternatives
-that lost:
+Evaluate the original choices below against current execution and a concrete
+user need. If a separate Dyne object is justified, document the resulting
+design and alternatives in a PEP before implementation:
 
 - state is the DAG (`git merge-base --is-ancestor` is the status field;
   no Status header, not even the file path carries state)
 - one object = one plain-text file on the source branch
-  (`merges/<branch>.dyne`); merging into main IS the archival act
+  (`tickets/merges/<branch>.dyne`); merging into main IS the archival act
   (rejected: dedicated refs, shared registry branch, MR-ticket fusion)
 - erg's exact three-section grammar; log = one-liners, body = the
   discussion whose opening post is the description (comment #0)
-- multi-writer merges via `merge=union` on `merges/*.dyne`; prose
+- multi-writer merges via `merge=union` on `tickets/merges/*.dyne`; prose
   append-only by convention; `dyne check` fences the residual hazard
   (rejected: sibling `.log` file, custom merge driver)
 - no archive numbering: the merge commit SHA is the permanent name;
@@ -46,6 +44,18 @@ that lost:
 
 ## Exit criteria
 
-- [ ] pep-dyne-v1.md merged, covering every settled choice of 0270 with
-      its rationale and rejected alternatives
-- [ ] the three-scope authority model stated in the PEP itself
+- [ ] Compare a concrete user task with the current no-forge notes workflow;
+      document the demonstrated gap or conclude that no Dyne is needed
+- [ ] Recommend the smallest remedy with its authority, transport, data-safety,
+      concurrency, and cost implications; if Dyne is justified, document its
+      settled design, alternatives, and authority model before 0272 proceeds
+
+## Design reassessment (2026-11-04)
+
+Git notes are the review-evidence store, as the author confirmed. The earlier
+`tickets/reviews/` proposal is superseded. Read `docs/dyne-review-contract.md`
+for the current harness evidence and the remaining decision. The scope above
+records the original design candidates; it does not authorize implementation.
+Ticket 0271 must first establish a concrete unmet need and decide whether a
+separate Dyne object is warranted. Subsequent format and implementation work
+is conditional on that decision. This ticket remains open.

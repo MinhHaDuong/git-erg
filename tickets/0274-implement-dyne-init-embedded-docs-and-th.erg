@@ -7,6 +7,8 @@ Blocked-by: 0273
 --- log ---
 2026-08-26T10:37Z Claude created
 
+2026-10-15T15:43Z ChatGPT note Recorded the Dyne review-plan proposal; reassessed on 2026-11-04 in docs/dyne-review-contract.md.
+
 --- body ---
 ## Context
 
@@ -16,8 +18,8 @@ layers 2-4 around the 0273 binary.
 
 ## Scope
 
-- `dyne init`: unpack into `merges/` -- `AGENTS.md` (embedded asset),
-  `.gitattributes` with `merge=union` on `merges/*.dyne`, a `.dynerc`
+- `dyne init`: unpack into `tickets/merges/` -- `AGENTS.md` (embedded asset),
+  `.gitattributes` with `merge=union` on `tickets/merges/*.dyne`, a `.dynerc`
   skeleton (`[hooks]`); the init-unpack ASCII guard applies to every
   unpacked asset (0245 precedent)
 - `dyne spec` and `dyne integration` served from embedded assets: the
@@ -25,11 +27,24 @@ layers 2-4 around the 0273 binary.
   `Closes:` refs, the `add -A` staging clause)
 - `make docs` gains `dyne --help --all > docs/dyne-manual.md`; the
   manual cannot drift because it is the binary's own help output
-- self-coherence guard: CI fails when the deployed `merges/AGENTS.md`
+- self-coherence guard: CI fails when the deployed `tickets/merges/AGENTS.md`
   drifts from the embedded source, mirroring erg's guard; fold a
-  `dyne check merges/` gate into `make test` (0246 precedent)
+  `dyne check tickets/merges/` gate into `make test` (0246 precedent)
 
-## Exit criteria
+## Historical exit criteria
+
+These criteria are candidates only. Before work starts, revise them to match
+the decision in 0271; if Dyne is not justified, do not implement them.
 
 - [ ] `dyne init` on a fresh repo yields a working store, offline
 - [ ] guards live in `make test`, not only CI
+
+## Design reassessment (2026-11-04)
+
+Git notes are the review-evidence store, as the author confirmed. The earlier
+`tickets/reviews/` proposal is superseded. Read `docs/dyne-review-contract.md`
+for the current harness evidence and the remaining decision. The scope above
+records the original design candidates; it does not authorize implementation.
+Ticket 0271 must first establish a concrete unmet need and decide whether a
+separate Dyne object is warranted. Subsequent format and implementation work
+is conditional on that decision. This ticket remains open.

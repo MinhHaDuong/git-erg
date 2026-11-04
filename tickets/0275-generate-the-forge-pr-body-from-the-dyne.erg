@@ -7,6 +7,8 @@ Blocked-by: 0273
 --- log ---
 2026-08-26T10:37Z Claude created
 
+2026-10-15T15:43Z ChatGPT note Recorded the Dyne review-plan proposal; reassessed on 2026-11-04 in docs/dyne-review-contract.md.
+
 --- body ---
 ## Context
 
@@ -18,7 +20,7 @@ hand-parsed truth.
 
 ## Scope
 
-- a command that renders PR title and body from `merges/<branch>.dyne`:
+- a command that renders PR title and body from `tickets/merges/<branch>.dyne`:
   Title header as the PR title, the discussion's opening post as the
   body, `Closes:` values passed through as text
 - offline invariant intact: dyne prints, carrying no network code; the
@@ -26,9 +28,22 @@ hand-parsed truth.
 - exact command shape (a `show` flag vs a dedicated verb) is decided in
   implementation and recorded here
 
-## Exit criteria
+## Historical exit criteria
+
+These criteria are candidates only. Before work starts, revise them to match
+the decision in 0271; if Dyne is not justified, do not implement them.
 
 - [ ] PRs for dyne-carrying branches are opened with generated bodies
       (dogfooded on this repo)
 - [ ] round-trip honesty: nothing in the PR body exists only on the
       forge
+
+## Design reassessment (2026-11-04)
+
+Git notes are the review-evidence store, as the author confirmed. The earlier
+`tickets/reviews/` proposal is superseded. Read `docs/dyne-review-contract.md`
+for the current harness evidence and the remaining decision. The scope above
+records the original design candidates; it does not authorize implementation.
+Ticket 0271 must first establish a concrete unmet need and decide whether a
+separate Dyne object is warranted. Subsequent format and implementation work
+is conditional on that decision. This ticket remains open.
