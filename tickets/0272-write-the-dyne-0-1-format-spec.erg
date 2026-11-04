@@ -40,7 +40,10 @@ Mirror the `%erg 0.1` spec's structure, for MRs:
   .gitattributes (deployed by `dyne init`, 0274), entries reordered by
   timestamp at display time, duplicate headers a hard `check` error
 
-## Exit criteria
+## Historical exit criteria
+
+These criteria are candidates only. Before work starts, revise them to match
+the decision in 0271; if Dyne is not justified, do not implement them.
 
 - [ ] spec document merged (embedded serving via `dyne spec` lands with
       0273/0274)

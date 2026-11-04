@@ -28,7 +28,10 @@ hand-parsed truth.
 - exact command shape (a `show` flag vs a dedicated verb) is decided in
   implementation and recorded here
 
-## Exit criteria
+## Historical exit criteria
+
+These criteria are candidates only. Before work starts, revise them to match
+the decision in 0271; if Dyne is not justified, do not implement them.
 
 - [ ] PRs for dyne-carrying branches are opened with generated bodies
       (dogfooded on this repo)

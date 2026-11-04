@@ -11,19 +11,15 @@ Author: Claude
 --- body ---
 ## Context
 
-Ticket 0270 settled the dyne design end-to-end (vision, composed-vs-
-integrated arbitration, log home, no numbering, name). Phase 1 of the
-migration path starts here. The PEP is documentation layer 1: written
-before code, one numbered design choice per section (Choice / Rationale
-/ Alternatives considered), and the arbiter of intent under the
-three-scope authority model (spec normative for files, binary normative
-for the spec's text, PEP arbitrates intent).
+Ticket 0270 recorded the original Dyne design. The current harness review
+workflow now warrants reassessing its premises before committing to a PEP
+or implementation. See the design reassessment below.
 
 ## Task
 
-Write `pep-dyne-v1.md` beside `pep-erg-v1.md`, seeded from 0270's body.
-Every settled choice gets its numbered section with the alternatives
-that lost:
+Evaluate the original choices below against current execution and a concrete
+user need. If a separate Dyne object is justified, document the resulting
+design and alternatives in a PEP before implementation:
 
 - state is the DAG (`git merge-base --is-ancestor` is the status field;
   no Status header, not even the file path carries state)

@@ -42,7 +42,10 @@ House policy: Go unit tests own pure-function correctness (parsing,
 DAG-state predicate); shell integration tests own CLI black-box
 behavior.
 
-## Exit criteria
+## Historical exit criteria
+
+These criteria are candidates only. Before work starts, revise them to match
+the decision in 0271; if Dyne is not justified, do not implement them.
 
 - [ ] dogfood: this repo carries `tickets/merges/` with the committed dyne blob
 - [ ] the four commands behave per the %dyne 0.1 spec; make test green

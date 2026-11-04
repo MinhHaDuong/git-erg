@@ -31,7 +31,10 @@ layers 2-4 around the 0273 binary.
   drifts from the embedded source, mirroring erg's guard; fold a
   `dyne check tickets/merges/` gate into `make test` (0246 precedent)
 
-## Exit criteria
+## Historical exit criteria
+
+These criteria are candidates only. Before work starts, revise them to match
+the decision in 0271; if Dyne is not justified, do not implement them.
 
 - [ ] `dyne init` on a fresh repo yields a working store, offline
 - [ ] guards live in `make test`, not only CI
