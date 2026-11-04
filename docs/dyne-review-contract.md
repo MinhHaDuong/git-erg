@@ -2,6 +2,11 @@
 
 Date: 2026-11-04
 
+Status: historical reassessment. Later on 2026-11-04 the author closed
+tickets 0271–0275 without implementing Dyne and requested a technical note
+for HAL and a practical post instead (harness ticket 1445). The proposed
+next decision and open-ticket status below record the earlier position.
+
 This reassesses the 2026-10-15 proposal for tickets 0271–0275 against the
 review workflow now used by the harness. It is a design assessment, not a
 format specification or evidence that Dyne is implemented.
