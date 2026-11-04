@@ -3,11 +3,13 @@ Title: Implement dyne init, embedded docs, and the self-coherence guard
 Created: 2026-08-26
 Author: Claude
 Blocked-by: 0273
+Closed: abandoned by author: document the Git notes review workflow instead; harness ticket 1445
 
 --- log ---
 2026-08-26T10:37Z Claude created
 
 2026-10-15T15:43Z ChatGPT note Recorded the Dyne review-plan proposal; reassessed on 2026-11-04 in docs/dyne-review-contract.md.
+2026-11-04T15:05Z HDMX-coding-agent closed — abandoned by author: document the Git notes review workflow instead; harness ticket 1445
 
 --- body ---
 ## Context
