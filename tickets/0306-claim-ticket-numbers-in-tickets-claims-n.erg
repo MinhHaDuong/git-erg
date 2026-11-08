@@ -5,6 +5,7 @@ Author: MinhHaDuong
 
 --- log ---
 2026-10-21T15:17Z MinhHaDuong created
+2026-11-08T20:52Z MinhHaDuong amended design after review and a 16-repo collision survey (see Evidence, Design (A) marks)
 
 --- body ---
 ## Context
@@ -17,39 +18,112 @@ guard built for it (git-erg#282). Today two branches that each add `tickets/NNNN
 `tickets/NNNN-slug-b.erg` have different paths, so git sees no conflict; the duplicate surfaces only when the
 corpus check (`erg check`) runs on the merged tree.
 
-## Design (the author's)
-- `erg new NNNN` also writes `tickets/.claims/NNNN`, a small file whose content is the ticket's slug.
-- Two branches claiming the same number create the same path with different content: git reports an add/add
-  conflict when the second one is merged or rebased. The later claimant resolves it by renaming to the next
-  free number (its ticket file, its claim file, references in its own log), then continues.
-- Claims are never deleted when a ticket closes: the directory is the record of numbers ever used.
-- Optional: the holes in the claim numbers are free numbers, so `erg new` can allocate from the claims on the
-  merged base plus the claims on branch tips, and the lowest hole is a valid answer.
+What the claim adds over the existing checks: the pre-commit hook does not run on a rebase or a forge-side
+merge, CI checks a merge ref that goes stale when a sibling lands, and the cross-PR job compares open pull
+requests only with each other. An add/add conflict needs none of them: the forge recomputes mergeability
+when the base moves, a local rebase stops, and it works offline and on any forge.
 
-Notes for whoever builds it:
-- The content must differ between claimants. An empty file, or the same slug, would merge cleanly. Slug
-  plus nothing else is enough; two different tickets with the same slug and the same number are the same
-  ticket by any reading.
-- Detection happens when the second claimant reaches the base (rebase or merge), not at allocation. Two
-  sessions can still pick a number at the same moment. A stronger option exists for a central origin (push
-  an atomic ref `refs/erg/id/NNNN`), at the price of needing the network. Not part of this ticket.
-- Existing tickets: decided by the author, 2026-10-21: populate the claims on migration. A migration step
-  (`erg migrate`, or its successor) writes `tickets/.claims/NNNN` with the slug for every existing ticket,
-  open and closed, so the directory is complete from the first day and the holes are real holes. It is
-  idempotent; running it twice changes nothing.
-- Check the repository's ignore rules: some repos (the IDH harness) ignore everything and allowlist paths;
-  `.claims/` must be addable there or the claim silently disappears.
-- `erg check` reports a claim without a ticket, a ticket without a claim (after migration), and a claim whose
-  slug does not match the ticket file's slug.
-- Per `AGENTS.md` § Earning a feature the burden is on adding: the near-misses above are the evidence; if
-  collisions stop biting (the gate catches duplicates at the merge candidate), the ticket can be closed unbuilt.
+## Evidence (2026-11-08 survey of the 16 ticket stores on padme)
+Method: git rename detection for ticket files whose number changed (collisions caught and renumbered),
+and `ls-tree` of every first-parent default-branch commit for two ticket files sharing a number
+(collisions that reached the default branch). Positive control: a duplicate made in a scratch repo was
+found. Duplicate counts are an upper bound: arena's one hit (1048, 2026-10-15) is a slug rename that left
+the old file behind for one commit, not a collision.
+
+| Repo | Renumbers (last) | Duplicate IDs on the default branch (last) |
+|---|---|---|
+| AEDIST-technical-report | 54 (2026-06-16) | 34 (2026-06-16) |
+| climate-finance-het | 29 (2026-10-23) | 6 (2026-07-27) |
+| IDH harness | 12 (2026-10-01) | 0 |
+| search-works-for-zotero | 6 (2026-09-09) | 5 (2026-09-09) |
+| chemin-de-voix | 1 (2026-04-29) | 6 (2026-05-17) |
+| padme | 1 (2026-08-21, a migrate) | 1 (2026-06-09) |
+| sen-causal-reading | 1 (2026-11-06) | 0 |
+| archiveCIRED | 1 (2026-06-24) | 0 |
+| git-erg, arena, DOIfetch, fuzzy-corpus, cadens, JETP-observer | 0 | 0 |
+
+Reading: collisions reached a default branch about 50 times from April to 2026-09-09 (commit messages
+confirm "main was red on a duplicate ID" in search-works-for-zotero and climate-finance-het), and none
+since. They still happen: two since the harness's CI job was switched off on 2026-10-21
+(climate-finance-het 2650->2700 on 2026-10-23, sen-causal-reading 0099->0102 on 2026-11-06), both caught
+before merge. So the current gates detect; what remains is the renumber cost, which the claim does not
+reduce, and the gates' dependence on CI and agent discipline, which the claim removes. Why duplicates
+stopped reaching main after September is not established.
+
+## Design
+Amended 2026-11-08 after a review of the author's design (2026-10-21); the changes are marked (A).
+
+- `erg new NNNN` also writes `tickets/.claims/NNNN`, a file of exactly one line: the ticket's slug.
+- Two branches claiming the same number create the same path with different content: git reports an add/add
+  conflict when the second one is merged or rebased. Tested 2026-11-08 in a scratch repo: merge and rebase
+  conflict on the claim; a different number merges clean.
+- Two claimants with the same number and the same slug also have the same ticket path; their ticket files
+  differ (Created, Author, log), so git conflicts on the ticket file itself. The claim needs nothing more.
+- Claims are never deleted, neither by `erg close` nor by `erg rm`: the directory is the record of numbers
+  ever used. A claim without a ticket is therefore legitimate, not an error. (A: the earlier text both kept
+  claims forever and reported a claim without a ticket.)
+- Allocation stays dense: `erg new` takes one above the highest number among the tickets and the claims
+  (base, sibling worktrees, branch tips, as today). (A: holes are never reused. The lowest hole is as
+  contended as the frontier, and a hole is usually a number an abandoned branch used, still cited by
+  branch names, pull request titles and commit messages; reusing it makes `git log --grep NNNN` ambiguous.)
+- Recovery: the later claimant renumbers to a number well clear of the high-water mark, per
+  `erg integration`, not to the next free one. (A: the earlier text said "next free number", the most
+  contended seat, which `erg integration` documents as the cause of a three-step collision chain.) The
+  rename covers the claim, the ticket file, its log, references from other tickets on the branch
+  (`Blocked-by:`, body), code comments and config that cite the number (climate-finance-het's
+  2650->2700 renumber edited two code files), the branch name, and the pull request's title and close
+  claim: a stale "Closes NNNN" would close the winner's ticket at merge.
+- A slug rename must rewrite the claim too; a rename that leaves the old file behind (arena, 2026-10-15)
+  then fails the slug-mismatch check below.
+
+### Backstops (A: required, not optional)
+The conflict can be silenced: a merge with `-X ours`, a conflict resolved by keeping one side, or a
+`merge=union` attribute on the claims all merge clean (tested 2026-11-08: `-X ours` lands both
+`NNNN-*.erg` files under one claim; union writes a two-line claim). `erg check` must therefore reject:
+- a claim that is not exactly one line;
+- a claim whose slug does not match its ticket file's slug;
+- a ticket without a claim (after migration), with an error that prints the plain-file fix
+  (`echo SLUG > tickets/.claims/NNNN`), so a hand-made ticket still needs no binary (Agnostic invariant);
+- the existing duplicate-ID check stays.
+
+### Staging (A)
+`erg new` does not commit, and agents add the ticket by name (`git add tickets/NNNN-*` misses
+`tickets/.claims/NNNN`, tested). The claim then sits untracked: `erg check` passes locally because the file
+is on disk, and only a fresh clone in CI fails. So:
+- `erg new` prints the `git add` line naming both files;
+- the pre-commit hook rejects a staged ticket file whose claim is not in the index;
+- `erg new` runs `git check-ignore` on the claim path and refuses when it is ignored (some repos, the IDH
+  harness, ignore everything and allowlist paths).
+
+### Migration
+The migration step (`erg migrate`, or its successor) writes `tickets/.claims/NNNN` with the slug for every
+existing ticket, open and closed, so the holes are real holes from the first day. It is idempotent. (A) When
+two tickets already share a number, it writes no claim for that number, reports both files and exits
+non-zero: one claim cannot hold two slugs.
+
+### Docs (A)
+`erg integration` says "No reservation machinery exists or is planned": reword it to describe the claims.
+
+### Not in this ticket
+Detection happens when the second claimant reaches the base, not at allocation. The stronger option for a
+central origin (push an atomic ref `refs/erg/id/NNNN`, git-erg#282) needs the network.
+
+Per `AGENTS.md` § Earning a feature the burden is on adding: if collisions stop biting, the ticket can be
+closed unbuilt.
 
 ## Exit criteria
-- [ ] `erg new` writes `tickets/.claims/NNNN` with the slug; `erg close` leaves it in place.
-- [ ] A test with two branches adding the same number with different slugs: the merge reports an add/add conflict
-      on the claim file (positive control), and a merge of claims with different numbers is clean (negative
-      control).
-- [ ] `erg new` allocates from claims (base and branch tips) and may reuse a hole; a documented rule.
-- [ ] The migration populates the claims for all existing tickets (open and closed) and is idempotent; `erg check` reports claim/ticket mismatches, including a ticket with no claim after migration.
-- [ ] The manual's ID-allocation section and `tickets/AGENTS.md` describe the claims and the rename step.
+- [ ] `erg new` writes `tickets/.claims/NNNN` (one line, the slug), prints the `git add` line for both
+      files, and refuses an ignored claim path; `erg close` and `erg rm` leave the claim in place.
+- [ ] A test with two branches adding the same number with different slugs: merge and rebase report an
+      add/add conflict on the claim file (positive control); claims with different numbers merge clean
+      (negative control).
+- [ ] `erg new` allocates above the highest ticket or claim number and never reuses a hole.
+- [ ] `erg check` rejects a multi-line claim, a slug mismatch, and a ticket without a claim (after
+      migration, with the plain-file fix in the message); a claim without a ticket passes. Tests cover the
+      `-X ours` and `merge=union` silencings.
+- [ ] The pre-commit hook rejects a staged ticket whose claim is not staged.
+- [ ] The migration populates the claims for all existing tickets (open and closed), is idempotent, and
+      refuses a number two tickets share.
+- [ ] The manual's ID-allocation section, `erg integration` (recovery: rename scope, claims) and
+      `tickets/AGENTS.md` describe the claims and the rename step.
 - [ ] `make check` passes; the bootstrap binary is rebuilt by the normal route.
