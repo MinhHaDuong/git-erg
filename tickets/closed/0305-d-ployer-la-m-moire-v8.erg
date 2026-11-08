@@ -2,11 +2,13 @@
 Title: Déployer la mémoire v8
 Created: 2026-10-05
 Author: codex
+Closed: autoclosed — PR #384
 
 --- log ---
 2026-10-05T19:32Z codex created
 2026-11-08T19:32Z MinhHaDuong note convention update: memory/DREAM.md void (harness a1dbb4b8, e309df17, ticket 1451), index cap 40 lines (af95a78f); see body § Imagine
 2026-11-08T19:32Z MinhHaDuong note feasibility PASS: no test, Makefile target or CI job reads root AGENTS.md or memory/; root pointer line is unmarked legacy (install.go agentsMarkerSets), section goes before it; no cross-ticket registry
+2026-11-08T19:55Z MinhHaDuong closed — autoclosed — PR #384
 
 --- body ---
 
