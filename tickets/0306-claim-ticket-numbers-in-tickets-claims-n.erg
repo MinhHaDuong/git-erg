@@ -104,6 +104,27 @@ non-zero: one claim cannot hold two slugs.
 ### Docs (A)
 `erg integration` says "No reservation machinery exists or is planned": reword it to describe the claims.
 
+### Retires (A: the condition the author set for building it, 2026-11-08)
+In git-erg, in this ticket:
+- `erg new`'s post-check retry loop (O_EXCL on the ticket path, glob `NNNN-*.erg`, delete and retry, up to
+  20 attempts; about 55 lines in `src/go/new.go`). The claim path depends on the number alone, so an
+  O_EXCL create of `tickets/.claims/NNNN` fails on exactly the collision the glob detects, without the
+  delete-and-retry race.
+- Three manual disciplines in `erg integration`: re-running the collision scan at the merge gate, the
+  `gh pr view` loop over open pull requests, and "run `erg check` against `origin/main` after a merge,
+  the only collision check in a repo with no CI". The add/add conflict covers the base tip and the
+  sibling pull request (at the second merge, before any duplicate lands), with no forge call. The
+  renumber-clear-of-the-frontier rule stays.
+In the IDH harness, by a ticket filed there once a release carries the claims:
+- `scripts/check-cross-pr-ticket-collision.sh` (173 lines), its test (450 lines),
+  `.github/workflows/ticket-collision.yml`, the `scripts/local-ci.sh` wiring and its `tickets/LOCAL.md`
+  line: a forge-dependent gate (gh auth, network, self-PR ambiguity; harness ticket 1325) already
+  switched off.
+Gained where nothing ran: search-works-for-zotero has no CI, and five duplicates reached its main.
+Kept: the sibling-worktree and branch-tip scans of `next-id`. They lower how often collisions happen;
+the claim only detects them. Without the scans every parallel session would meet a rebase conflict and
+a renumber. The duplicate-ID check of `erg check` stays as the backstop.
+
 ### Not in this ticket
 Detection happens when the second claimant reaches the base, not at allocation. The stronger option for a
 central origin (push an atomic ref `refs/erg/id/NNNN`, git-erg#282) needs the network.
@@ -124,6 +145,10 @@ closed unbuilt.
 - [ ] The pre-commit hook rejects a staged ticket whose claim is not staged.
 - [ ] The migration populates the claims for all existing tickets (open and closed), is idempotent, and
       refuses a number two tickets share.
-- [ ] The manual's ID-allocation section, `erg integration` (recovery: rename scope, claims) and
-      `tickets/AGENTS.md` describe the claims and the rename step.
+- [ ] `erg new`'s glob post-check retry loop is replaced by an O_EXCL create of the claim; a test races
+      two creations of the same number in one checkout.
+- [ ] The manual's ID-allocation section, `erg integration` (recovery: rename scope, claims; the three
+      manual collision scans removed) and `tickets/AGENTS.md` describe the claims and the rename step.
+- [ ] A ticket filed in the IDH harness to retire its cross-PR collision gate, once a release carries
+      the claims.
 - [ ] `make check` passes; the bootstrap binary is rebuilt by the normal route.
