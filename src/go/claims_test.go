@@ -100,6 +100,26 @@ func TestClaimViolationPrintsPlainFileFix(t *testing.T) {
 	}
 }
 
+func TestClaimFileSymlinkRejected(t *testing.T) {
+	dir := t.TempDir()
+	writeClaimTestTicket(t, dir, "0001-a.erg")
+	outside := filepath.Join(t.TempDir(), "elsewhere")
+	if err := os.WriteFile(outside, []byte("a x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(claimsDir(dir), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(claimsDir(dir), "0001")); err != nil {
+		t.Skip("symlinks unsupported:", err)
+	}
+	tickets, _ := loadErgs(dir)
+	got := strings.Join(claimViolations(dir, tickets), "\n")
+	if !strings.Contains(got, "claim is a symlink") || strings.Contains(got, "has no claim") {
+		t.Fatalf("want one symlink violation, got:\n%s", got)
+	}
+}
+
 func TestClaimsSymlinkRefused(t *testing.T) {
 	dir := t.TempDir()
 	outside := t.TempDir()

@@ -718,7 +718,7 @@ func initClaims(ticketsDir string, dryRun bool) int {
 		return 0
 	}
 	rel := filepath.Join("tickets", claimsDirName) + "/"
-	if claimsIgnored(ticketsDir) {
+	if claimsIgnored(ticketsDir, "0001") {
 		// Not an init failure: the store works without claims. Say why
 		// they stay off rather than create a switch git would never carry.
 		fmt.Fprintf(os.Stderr, "init: not creating %s: %s\n", rel, claimsIgnoredMessage(ticketsDir))

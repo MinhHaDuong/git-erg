@@ -286,10 +286,12 @@ printed on stderr. new refuses when git ignores the claim path, since the
 claim would then never be committed.
 
 Without .claims/, new writes no claim and prints a hint on stderr: run
-'erg migrate --claims' to switch claims on. Such a store keeps the old
-residual race: two invocations racing in one checkout can take the same
-number under different slugs (no file is clobbered; 'erg check' reports the
-duplicate ID).
+'erg migrate --claims' to switch claims on. Nothing then keeps concurrent
+invocations apart: erg new calls racing in one checkout (parallel agents
+filing into the same directory) take the same number under different slugs,
+every racer at once, and the duplicate surfaces only in 'erg check' (no file
+is clobbered). Before claims, a glob post-check retried that race; it is
+retired, so in such a store run erg new sequentially or switch claims on.
 
 The new file contains the required preamble headers (Title, Created, Author),
 an empty log section with a "created" entry, and an empty body section.

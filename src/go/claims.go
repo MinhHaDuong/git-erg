@@ -88,13 +88,14 @@ func claimContent(slug, nonce string) string {
 	return slug + " " + nonce + "\n"
 }
 
-// claimsIgnored reports whether git ignores the claims of store (probed on a
-// claim name inside .claims/), which would leave them out of every commit
-// while erg check passes locally on the files on disk. git runs from the
-// store, which exists, so the probe works before .claims/ is created (init,
-// migrate). Outside a git worktree, or without git, nothing is ignored.
-func claimsIgnored(store string) bool {
-	probe := filepath.ToSlash(filepath.Join(claimsDirName, "0001"))
+// claimsIgnored reports whether git ignores the claim <store>/.claims/<id>,
+// which would leave it out of every commit while erg check passes locally on
+// the file on disk. erg new probes the id it is about to claim; init and
+// migrate probe one name for the whole directory. git runs from the store,
+// which exists, so the probe works before .claims/ is created. Outside a git
+// worktree, or without git, nothing is ignored.
+func claimsIgnored(store, id string) bool {
+	probe := filepath.ToSlash(filepath.Join(claimsDirName, id))
 	cmd := exec.Command("git", "-C", store, "check-ignore", "-q", "--", probe)
 	return cmd.Run() == nil
 }
@@ -221,6 +222,13 @@ func claimViolations(dir string, tickets []Erg) []string {
 			continue
 		}
 		path := filepath.Join(claimsDir(dir), e.Name())
+		if e.Type()&fs.ModeSymlink != 0 {
+			// A claim is a plain committed file; a link would let check
+			// read, and a merge carry, content from outside the store.
+			errs = append(errs, fmt.Sprintf("%s: claim is a symlink; replace it with a plain file", path))
+			malformed[e.Name()] = true
+			continue
+		}
 		data, rerr := os.ReadFile(path)
 		if rerr != nil {
 			errs = append(errs, fmt.Sprintf("%s: cannot read claim: %v", path, rerr))

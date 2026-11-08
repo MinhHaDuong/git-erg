@@ -652,7 +652,7 @@ func hasStatusHeader(dir string) bool {
 
 // cmdMigrateClaims implements `erg migrate --claims [DIR]` (ticket 0306).
 func cmdMigrateClaims(dir string) int {
-	if claimsIgnored(dir) {
+	if claimsIgnored(dir, "0001") {
 		fmt.Fprintf(os.Stderr, "migrate: %s\n", claimsIgnoredMessage(dir))
 		return 1
 	}

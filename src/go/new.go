@@ -80,10 +80,12 @@ printed on stderr. new refuses when git ignores the claim path, since the
 claim would then never be committed.
 
 Without .claims/, new writes no claim and prints a hint on stderr: run
-'erg migrate --claims' to switch claims on. Such a store keeps the old
-residual race: two invocations racing in one checkout can take the same
-number under different slugs (no file is clobbered; 'erg check' reports the
-duplicate ID).
+'erg migrate --claims' to switch claims on. Nothing then keeps concurrent
+invocations apart: erg new calls racing in one checkout (parallel agents
+filing into the same directory) take the same number under different slugs,
+every racer at once, and the duplicate surfaces only in 'erg check' (no file
+is clobbered). Before claims, a glob post-check retried that race; it is
+retired, so in such a store run erg new sequentially or switch claims on.
 
 The new file contains the required preamble headers (Title, Created, Author),
 an empty log section with a "created" entry, and an empty body section.
@@ -191,10 +193,6 @@ func cmdNew(args []string) int {
 		fmt.Fprintf(os.Stderr, "new: %v\n", err)
 		return 1
 	}
-	if active && claimsIgnored(ticketDir) {
-		fmt.Fprintf(os.Stderr, "new: %s\n", claimsIgnoredMessage(ticketDir))
-		return 1
-	}
 
 	const maxAttempts = 20
 	for attempt := 0; attempt < maxAttempts; attempt++ {
@@ -208,6 +206,12 @@ func cmdNew(args []string) int {
 		path := filepath.Join(ticketDir, filename)
 
 		if active {
+			// Probe the real claim path: a claim git ignores would never
+			// be committed, while erg check passes on the file on disk.
+			if claimsIgnored(ticketDir, id) {
+				fmt.Fprintf(os.Stderr, "new: %s\n", claimsIgnoredMessage(ticketDir))
+				return 1
+			}
 			// The claim is the exclusive create: its path depends on the
 			// number alone, so EEXIST is exactly "this number is taken".
 			if err := writeClaim(ticketDir, id, slug); err != nil {
@@ -242,7 +246,7 @@ func cmdNew(args []string) int {
 			fmt.Fprintf(os.Stderr, "new: stage both files: git add %s %s\n",
 				displayPath(cwd, path), displayPath(cwd, filepath.Join(claimsDir(ticketDir), id)))
 		} else {
-			fmt.Fprintln(os.Stderr, "new: hint: this store has no .claims/, so two checkouts can take the same ID unnoticed until merge; run 'erg migrate --claims' to claim IDs")
+			fmt.Fprintln(os.Stderr, "new: hint: this store has no .claims/, so concurrent erg new runs, here or in other checkouts, can take the same ID unnoticed until erg check; run 'erg migrate --claims' to claim IDs")
 		}
 		return 0
 	}
