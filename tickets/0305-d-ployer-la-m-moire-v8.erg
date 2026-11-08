@@ -63,8 +63,8 @@ rollback reverts the index and section only, the journal stays.
 Actions:
 1. Root `AGENTS.md`: add `## Project memory` from the harness template
    (conception/memory-v8/templates/AGENTS.md at 2ed015e6), before the final
-   `git-erg local tickets: see tickets/AGENTS.md` pointer line, which
-   `erg install --inject-agents` manages by marker; one framing sentence says
+   `git-erg local tickets: see tickets/AGENTS.md` pointer line (erg's
+   pointer text, here unmarked, so install does not manage it); one framing sentence says
    the vocabulary (roar, smelt, Brood) is the maintainer's agent harness and
    that an adopter can ignore the section.
 2. `memory/MEMORY.md` (<=40 lines, ends in newline): canonical state
