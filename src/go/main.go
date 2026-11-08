@@ -15,7 +15,7 @@
 //	erg unlabel  ID LABELNAME [DIR]
 //	erg archive  [id...] [dir] [-n|--dry-run]
 //	erg rm       ID|FILE [dir] [--force]
-//	erg migrate  [dir]
+//	erg migrate  [dir] [--claims]
 //	erg init     [dir]
 //	erg install  [dir] [--hooks] [--push-hook] [--inject-agents] [--create-agents-md]
 //	erg spec

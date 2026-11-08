@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -88,6 +89,11 @@ binary's rev/date and the SHA-256 of each embedded asset. The manifest is
 committable durable state (not gitignored) and is invisible to erg check, so
 it never trips the pre-commit hook. It is deterministic: the same binary and
 assets always produce byte-identical content.
+
+In a store that holds no .erg file yet, init also creates tickets/.claims/
+(with a .keep file, since git carries no empty directory), which switches ID
+claims on (see 'erg new'). A store that already holds tickets is left as it
+is: switch claims on there with 'erg migrate --claims'.
 
 The format specification and setup guide are available on demand via
 erg spec and erg integration respectively.
@@ -579,6 +585,13 @@ func cmdInit(args []string) int {
 
 	cleanOrphanAssets(root, dryRun)
 
+	// A new store starts with claims on (ticket 0306); an existing one is
+	// switched on only by 'erg migrate --claims', so an init after a binary
+	// update never changes what erg check requires of a corpus.
+	if code := initClaims(filepath.Join(root, "tickets"), dryRun); code != 0 {
+		return code
+	}
+
 	if dryRun {
 		// "preserved", not "local edits": a file is also skipped when it is
 		// newer than this binary, and the per-file lines above already gave
@@ -692,4 +705,42 @@ func commandForOrphan(rel string) string {
 		return "spec"
 	}
 	return "integration"
+}
+
+// initClaims creates the claims directory in a store that holds no .erg file
+// yet. Returns non-zero only on a write failure.
+func initClaims(ticketsDir string, dryRun bool) int {
+	if active, err := claimsActive(ticketsDir); err != nil {
+		fmt.Fprintf(os.Stderr, "init: %v\n", err)
+		return 1
+	} else if active || storeHasTickets(ticketsDir) {
+		return 0
+	}
+	rel := filepath.Join("tickets", claimsDirName) + "/"
+	if dryRun {
+		fmt.Fprintf(os.Stderr, "init (dry-run): would create %s (ID claims on)\n", rel)
+		return 0
+	}
+	if err := ensureClaimsDir(ticketsDir); err != nil {
+		fmt.Fprintf(os.Stderr, "init: cannot create %s: %v\n", rel, err)
+		return 1
+	}
+	fmt.Fprintf(os.Stderr, "init: created %s (ID claims on; commit %s%s)\n", rel, rel, claimsKeepName)
+	return 0
+}
+
+// storeHasTickets reports whether any .erg file lies under dir.
+func storeHasTickets(dir string) bool {
+	found := false
+	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !d.IsDir() && strings.HasSuffix(d.Name(), ".erg") {
+			found = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return found
 }

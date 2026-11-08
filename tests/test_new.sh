@@ -172,8 +172,11 @@ rmdir "$SEQDIR" 2>/dev/null || true
 # --- Concurrent N=10: parallel erg new with distinct titles produces distinct IDs ---
 # Uses a named pipe barrier to start all workers simultaneously.
 # CDIR is outside the repo so nextID Pass 2/3 (sibling worktrees/branches) does
-# not inject existing IDs and break the assertions.
+# not inject existing IDs and break the assertions. CDIR holds .claims/: the
+# exclusive create of the claim is what keeps racing workers apart (ticket
+# 0306); a store without it no longer retries a same-number race.
 CDIR=$(mktemp -d)
+mkdir "$CDIR/.claims"
 OUTDIR=$(mktemp -d)
 BARRIER="$OUTDIR/barrier"
 mkfifo "$BARRIER"
@@ -218,6 +221,14 @@ else
     fail "concurrent N=10: expected 10 distinct IDs, got $CUNIQ unique out of $CTOTAL files"
 fi
 
+# Every worker's number is claimed exactly once.
+CCLAIMS=$(ls "$CDIR/.claims" 2>/dev/null | wc -l)
+if [ "$CCLAIMS" -eq 10 ]; then
+    pass "concurrent N=10: 10 claims, one per ticket"
+else
+    fail "concurrent N=10: expected 10 claims, got $CCLAIMS"
+fi
+
 # erg check must pass on the resulting store.
 if $ERG check "$CDIR" > /dev/null 2>&1; then
     pass "concurrent N=10: erg check passes on resulting store"
@@ -225,8 +236,7 @@ else
     fail "concurrent N=10: erg check fails on resulting store"
 fi
 
-find "$CDIR" -type f -delete 2>/dev/null || true
-rmdir "$CDIR" 2>/dev/null || true
+rm -rf "$CDIR"
 find "$OUTDIR" -type f -delete 2>/dev/null || true
 rmdir "$OUTDIR" 2>/dev/null || true
 

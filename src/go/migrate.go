@@ -11,7 +11,7 @@ import (
 // summaryMigrate is the one-liner printed by printUsage via the commands registry.
 const summaryMigrate = "Convert legacy Status: headers to Closed: form"
 
-const helpMigrate = `## erg migrate [DIR]
+const helpMigrate = `## erg migrate [DIR] [--claims]
 
 Convert legacy headers to %erg 0.1 format.
 
@@ -85,14 +85,30 @@ erg init bundles (ticket 0243):
 
 Does NOT commit. Exits 1 on archive/->closed/ filename collision (both directories are left untouched; the user must resolve manually). Exits 0 otherwise.
 Review the diff with 'git diff tickets/' and commit manually.
+
+  --claims
+      Switch ID claims on for the store (see 'erg new') and run nothing else:
+      create DIR/.claims/ with a .keep file, then write DIR/.claims/NNNN (the
+      slug and a random nonce) for every existing ticket, open and closed, so
+      the numbers already used are claimed from the first day. Idempotent: an
+      existing claim is never rewritten. A number that two tickets already
+      share gets no claim -- one claim cannot hold two slugs -- so both files
+      are reported and the command exits 1; renumber one of them clear of the
+      frontier ('erg integration'), then re-run. Commit DIR/.claims/ with the
+      tickets. Bare 'erg migrate' never switches claims on.
 `
 
 // cmdMigrate implements `erg migrate [dir]`. See helpMigrate for the user-facing summary.
 func cmdMigrate(args []string) int {
 	var positional []string
+	claims := false
 	for _, a := range args {
+		if a == "--claims" {
+			claims = true
+			continue
+		}
 		if strings.HasPrefix(a, "-") {
-			fmt.Fprintf(os.Stderr, "migrate: unknown flag %q\nUsage: erg migrate [DIR]\n", a)
+			fmt.Fprintf(os.Stderr, "migrate: unknown flag %q\nUsage: erg migrate [DIR] [--claims]\n", a)
 			return 1
 		}
 		positional = append(positional, a)
@@ -105,6 +121,9 @@ func cmdMigrate(args []string) int {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "migrate: %v\n", err)
 		return 1
+	}
+	if claims {
+		return cmdMigrateClaims(dir)
 	}
 
 	migratedClosed := 0
@@ -628,4 +647,22 @@ func hasStatusHeader(dir string) bool {
 		return nil
 	})
 	return err == stopWalk
+}
+
+// cmdMigrateClaims implements `erg migrate --claims [DIR]` (ticket 0306).
+func cmdMigrateClaims(dir string) int {
+	written, kept, shared, err := migrateClaims(dir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "migrate: %v\n", err)
+		return 1
+	}
+	fmt.Printf("claims: %d written, %d already present\n", written, kept)
+	if len(shared) == 0 {
+		return 0
+	}
+	for _, paths := range shared {
+		fmt.Fprintf(os.Stderr, "migrate: no claim written for %s: %d tickets share it: %s -- renumber all but one clear of the frontier, then re-run\n",
+			filenameID(filepath.Base(paths[0])), len(paths), strings.Join(paths, ", "))
+	}
+	return 1
 }

@@ -12,7 +12,8 @@ local edit. It is not a `.erg` ticket, so `erg check` ignores it.
 ## 1. Pre-commit hook
 
 The hook prevents committing `tickets/erg` on feature branches -- CI
-rebuilds the binary after merge to main -- and validates staged tickets.
+rebuilds the binary after merge to main -- validates staged tickets, and,
+when ID claims are on, rejects a staged ticket whose claim is not staged.
 See the `.gitignore` section below for the full commit policy.
 
 **Automated:** run `erg install --hooks`. It inserts the block below into
@@ -60,6 +61,24 @@ if [ -n "$erg_files" ]; then
         echo "  (make build there), or 'git pull' if your project vendors the committed binary." >&2
         exit 1
     fi
+fi
+
+# Reject a staged ticket whose ID claim is not staged. Claims are on when
+# tickets/.claims/ exists; 'git add tickets/NNNN-*' misses the claim.
+if [ -d tickets/.claims ]; then
+    for erg_f in $(git diff --cached --name-only --diff-filter=d -- 'tickets/*.erg'); do
+        erg_base=${erg_f##*/}
+        erg_id=${erg_base%%-*}
+        case $erg_id in
+            [0-9][0-9][0-9][0-9]) ;;
+            *) continue ;;
+        esac
+        if ! git cat-file -e ":tickets/.claims/$erg_id" 2>/dev/null; then
+            echo "pre-commit: $erg_f has no staged claim tickets/.claims/$erg_id." >&2
+            echo " Stage it: git add tickets/.claims/$erg_id" >&2
+            exit 1
+        fi
+    done
 fi
 # <<< erg managed <<<
 ```
@@ -121,27 +140,50 @@ a collision or a handoff actually happens.
 `erg new` returns one past the highest ID it can see, and it looks in three
 places: the store itself, every sibling git worktree at the same relative path,
 and every `refs/heads` and `refs/remotes` tip. A sibling session holding an ID
-on an unmerged branch is therefore already avoided, without a fetch.
+on an unmerged branch is therefore already avoided, without a fetch. A claim
+name counts like a ticket, so a removed ticket's number is never handed out
+again.
 
 What remains is narrower, and still real. A ref you have not fetched is
 invisible, so a collision with another clone is possible until you fetch. The
 branch scan runs under a 200 ms deadline and prints a warning on stderr when it
 trips -- a result that arrives with that warning may have missed IDs on
-un-checked-out branches. And two allocations racing between the scan and the
-commit can still land on the same number. No reservation machinery exists or is
-planned. So: fetch before allocating, run `erg check` after every fetch in
-ticket-heavy sessions, and read that deadline warning when it appears rather
-than past it.
+un-checked-out branches. And two allocations in different checkouts racing
+between the scan and the commit can still land on the same number. So: fetch
+before allocating, and read that deadline warning when it appears rather than
+past it. The scans make a collision rare; the claims below make it loud.
 
-Re-run the collision scan **at the merge gate too**, not only at allocation: a
-sibling PR can renumber onto your ID after you allocated, and once that sibling
-has merged, a cross-PR CI gate no longer sees the collision -- such gates
-compare open PRs against each other, never a PR against the default branch.
+### ID claims turn a collision into a git conflict
+
+When `tickets/.claims/` exists, `erg new` also writes `tickets/.claims/NNNN`:
+one line, the ticket's slug, a space and a random nonce. Two branches that took
+the same number add that same path with different content, so the second one
+to be merged or rebased meets an add/add conflict -- on the forge, which
+recomputes mergeability when the base moves, and locally, offline, with no CI
+and no forge call. The nonce makes every same-number pair conflict, even two
+sessions filing the same incident under the same slug.
+
+- **Stage the claim with the ticket.** `git add tickets/NNNN-*` misses it;
+  `erg new` prints the `git add` line naming both files, and the pre-commit
+  hook rejects a ticket staged without its claim.
+- **A claim conflict means renumber.** Never resolve it by keeping one side or
+  both (`-X ours`, a `merge=union` attribute): that silences the detection,
+  and `erg check` then fails the merged tree on a slug mismatch or a
+  multi-line claim.
+- **Claims are never deleted.** `erg close`, `erg rm` and `erg archive` leave
+  them, so the directory records every number ever used; a claim without a
+  ticket is legitimate.
+- **Switching on.** `erg init` creates `tickets/.claims/` in a new store;
+  `erg migrate --claims` switches an existing store on and claims every ticket
+  in it. Without the directory, nothing is claimed and a duplicate surfaces
+  only when `erg check` runs on a tree holding both tickets. After switching
+  on, a ticket made by an older erg has no claim and `erg check` rejects it,
+  printing the plain-file fix.
 
 ### Renumber clear of the frontier, never to the next free ID
 
-On collision, renumber (`git mv` plus fixing cross-references) to a number well
-clear of the high-water mark -- not to the next free ID. The next-free ID is
+On collision, the later claimant renumbers to a number well clear of the
+high-water mark -- not to the next free ID. The next-free ID is
 the most contended seat in the repo: every parallel session computes the same
 value and races for it, so renumbering to it is exactly as collision-prone as
 the allocation that just collided, and chasing the frontier cannot converge
@@ -149,6 +191,20 @@ while siblings are still filing. One filing has collided three times in a
 single session this way, leaving the default branch red on a duplicate ID
 twice; it settled on the first try once it jumped a dozen clear of the
 frontier.
+
+The rename covers everything that carries the number:
+
+- the ticket file (`git mv`) and its log;
+- its claim: in the conflicted `tickets/.claims/NNNN` keep the base's version
+  (it belongs to the ticket that landed first), and write a new claim for the
+  new number, `echo "SLUG $(date +%s)" > tickets/.claims/MMMM`;
+- references from other tickets on the branch (`Blocked-by:`, body text);
+- code comments and configuration that cite the number;
+- the branch name, and the pull request's title and close claim -- a stale
+  close claim on the old number would close the winner's ticket at merge.
+
+A slug rename rewrites the claim's first field too; `erg check` rejects a
+claim whose slug no longer matches its ticket.
 
 A jumped ID is gone for good, so weigh the jump rather than treating it as
 free. `erg new` returns max-plus-one, never the first gap, so the numbers you
@@ -161,33 +217,6 @@ This rule governs **collision recovery only**. Initial allocation stays dense:
 frontier at creation time is over-application, and its cost is real -- a store
 that allocates in round decades wastes most of its ID space and makes the
 sequence unreadable.
-
-### Scan for collisions with `gh pr view`, never `gh pr list --json files`
-
-`gh pr list` does not populate `files`, so a one-shot list-plus-filter returns
-empty regardless of content -- "no collision found" and "I never looked" are
-the same output. Enumerate, then query each PR:
-
-```sh
-for n in $(gh pr list --state open --limit 60 --json number --jq '.[].number'); do
-  gh pr view "$n" --json files --jq '.files[].path' | grep -q "tickets/$ID" && echo "PR $n uses $ID"
-done
-```
-
-General form of the trap: a check whose "all clear" is indistinguishable from
-its "I could not look" is not a check. Before trusting a scan that returns
-nothing, run it against a case known to be positive.
-
-(This is documentation, printed by `erg integration`. `erg` itself never shells
-out to a forge -- the core stays offline.)
-
-### After a ticket PR merges, run `erg check` against `origin/main`, not the branch
-
-A branch-local `erg check` passes by construction -- each branch's IDs are
-unique within itself -- so it structurally cannot see a duplicate created by
-another PR. Checking the merged `origin/main` is the only check that catches a
-duplicate that has already landed, and in a repo with no CI it is the only
-collision check there is.
 
 ### Decision records versus artifacts
 
@@ -258,6 +287,10 @@ To remove erg from your project, delete the binary and the two files
 ```sh
 rm tickets/.ergrc tickets/AGENTS.md tickets/.erg-assets tickets/erg
 ```
+
+`tickets/.claims/`, when present, is ticket data like the tickets themselves:
+the record of every number the store has used. Keep it with them, or remove it
+(`rm -r tickets/.claims`) to switch claims off.
 
 For the pre-commit hook, delete only the lines between the
 `# >>> erg managed >>>` and `# <<< erg managed <<<` markers -- this

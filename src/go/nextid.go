@@ -41,16 +41,28 @@ func parseIDFromFilename(name string) int {
 	return n
 }
 
-// maxIDInDir walks dir (and subdirectories) and returns the largest numeric
-// .erg filename prefix found, or 0 if dir does not exist or contains none.
-// Used by nextID for the local pass and for each sibling worktree pass.
+// idOfStorePath returns the ticket number a store path carries: the numeric
+// prefix of an .erg file, or the name of a claim (a file directly inside a
+// .claims/ directory, ticket 0306), or 0. Counting claims is what keeps a
+// removed ticket's number burned: its claim outlives it.
+func idOfStorePath(parent, name string) int {
+	if parent == claimsDirName {
+		return parseClaimName(name)
+	}
+	return parseIDFromFilename(name)
+}
+
+// maxIDInDir walks dir (and subdirectories) and returns the largest ticket
+// number found among .erg filename prefixes and claim names, or 0 if dir does
+// not exist or contains none. Used by nextID for the local pass and for each
+// sibling worktree pass.
 func maxIDInDir(dir string) int {
 	maxID := 0
-	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
 		}
-		if n := parseIDFromFilename(d.Name()); n > maxID {
+		if n := idOfStorePath(filepath.Base(filepath.Dir(p)), d.Name()); n > maxID {
 			maxID = n
 		}
 		return nil
@@ -92,7 +104,8 @@ func knownBranches(ctx context.Context, dir string) []string {
 	return refs
 }
 
-// maxIDInRef returns the largest ticket ID found in <ref>'s tree under
+// maxIDInRef returns the largest ticket ID (ticket file or claim) found in
+// <ref>'s tree under
 // <relpath> via `git ls-tree -r -z --name-only`. The command runs with -C
 // <repoTop> so the pathspec is anchored at the repo root (running it from a
 // subdir would interpret <relpath> relative to cwd, missing the tree).
@@ -113,7 +126,7 @@ func maxIDInRef(ctx context.Context, repoTop, ref, relpath string) int {
 		if name == "" {
 			continue
 		}
-		if n := parseIDFromFilename(path.Base(name)); n > maxID {
+		if n := idOfStorePath(path.Base(path.Dir(name)), path.Base(name)); n > maxID {
 			maxID = n
 		}
 	}
@@ -147,9 +160,10 @@ var errRangeExhausted = errors.New("next-id: range exhausted (max 4-digit ID is 
 // remote-tracking refs come from the local cache populated by the last fetch.
 //
 // Allocation is still optimistic: two concurrent invocations in different
-// worktrees may return the same ID. The pre-commit hook on merge catches
-// duplicates on the same branch; the cross-worktree window has narrowed but
-// is not eliminated.
+// worktrees may return the same ID. In a store with .claims/ (ticket 0306)
+// git then reports an add/add conflict on the claim when the second branch is
+// merged or rebased; without it, erg check reports the duplicate ID on the
+// merged tree.
 func nextID(dir string) (string, error) {
 	maxID := maxIDInDir(dir)
 
@@ -223,6 +237,9 @@ Print the next available ticket ID.
 
 Scans for the maximum ticket ID across three sources and returns max+1,
 zero-padded to 4 digits. Prints "0001" if no numbered tickets exist anywhere.
+In each source, a claim name (DIR/.claims/NNNN, see 'erg new') counts like a
+ticket, so a number whose ticket was removed stays used and a hole is never
+reused.
 
   1. DIR (default: auto-discovered tickets/) and its subdirectories -- the
      local filesystem walk.
@@ -249,8 +266,10 @@ view; next-id itself never makes a network call.
 
 ID allocation is still optimistic: two concurrent invocations in different
 worktrees may return the same ID -- the cross-worktree window has narrowed
-but is not eliminated. The pre-commit hook rejects duplicate IDs on merge;
-the losing agent renames its ticket with a new ID from a fresh invocation.
+but is not eliminated. In a store with .claims/, the second branch to merge
+or rebase then meets an add/add conflict on DIR/.claims/NNNN; without it,
+'erg check' reports the duplicate ID once both tickets share a tree. The
+later claimant renumbers clear of the frontier ('erg integration').
 `
 
 // cmdNextID implements `erg next-id [dir]`. See helpNextID for the user-facing summary.

@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -252,4 +253,35 @@ func TestCmdNewAuthorFlag(t *testing.T) {
 			t.Errorf("newline not stripped from author; got:\n%s", content)
 		}
 	})
+}
+
+// claimLine is the shape of a claim file written by erg new (ticket 0306): the
+// ticket's slug, one space, an 8-hex-digit nonce, one newline.
+var claimLine = regexp.MustCompile(`^claim-me [0-9a-f]{8}\n$`)
+
+func TestCmdNewWritesClaim(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, ".claims"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if code := cmdNew([]string{"claim me", dir, "--author", "alice"}); code != 0 {
+		t.Fatalf("cmdNew returned %d, want 0", code)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, ".claims", "0001"))
+	if err != nil {
+		t.Fatalf("claim for 0001 not written: %v", err)
+	}
+	if !claimLine.Match(data) {
+		t.Errorf("claim content %q does not match %s", data, claimLine)
+	}
+}
+
+func TestCmdNewNoClaimWithoutClaimsDir(t *testing.T) {
+	dir := t.TempDir()
+	if code := cmdNew([]string{"claim me", dir, "--author", "alice"}); code != 0 {
+		t.Fatalf("cmdNew returned %d, want 0", code)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".claims")); !os.IsNotExist(err) {
+		t.Errorf("a store without .claims/ gained one (err=%v)", err)
+	}
 }

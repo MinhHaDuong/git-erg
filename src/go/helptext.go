@@ -25,7 +25,7 @@ var commands = []commandEntry{
 	{"unlabel", "ID LABELNAME [DIR]", summaryUnlabel, helpUnlabel},
 	{"archive", "[ID...] [DIR]", summaryArchive, helpArchive},
 	{"rm", "ID|FILE [DIR] [--force]", summaryRm, helpRm},
-	{"migrate", "[DIR]", summaryMigrate, helpMigrate},
+	{"migrate", "[DIR] [--claims]", summaryMigrate, helpMigrate},
 	{"init", "[DIR]", summaryInit, helpInit},
 	{"install", "[DIR] [--hooks] [--push-hook] [--inject-agents] [--create-agents-md]", summaryInstall, helpInstall},
 	{"spec", "", summarySpec, helpSpec},
