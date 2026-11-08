@@ -12,7 +12,7 @@ public and the notes were never reviewed for publication.
 |---|---|---|
 | `~/.claude/projects/-home-haduong-CNRS-code-git-erg/memory/` (66 notes: by filename prefix 56 feedback, 5 project, 4 reference, 1 other, 52/5/3/6 by frontmatter type; plus a 70-line `MEMORY.md`, modified 2026-11-08) | Claude Code native auto-memory; the index is written by Claude Code sessions | Kept unchanged and still active. Not migrated, not quoted: the author triages it through smelt. Whether the index auto-loads in a session started in a worktree is unknown (not probed). |
 | `~/.agents/projects/-home-haduong-CNRS-code-git-erg/memory/` (65 notes plus `MEMORY.md`) | Export tracked in the maintainer's harness repository (last commit 8dee0831) | Differs from the native store by one newer native note and the index (`diff -rq`). Left untouched. |
-| `~/.claude/projects/-home-haduong-CNRS-code-git-erg--claude-worktrees-raid-255-256-278-279` (15 files, no `memory/` directory) | Claude Code project directory of an old raid worktree | Holds no memory. Not read. Worktree sessions of this project are keyed to their own directory, so notes written there would not reach the primary one. |
+| `~/.claude/projects/-home-haduong-CNRS-code-git-erg--claude-worktrees-raid-255-256-278-279` (15 files, no `memory/` directory) | Claude Code project directory of an old raid worktree | Holds no memory. Not read. That old worktree session got its own project directory; whether current worktree sessions do the same is unknown (not probed). |
 | Session transcripts (5 top-level `*.jsonl` in the native project directory, plus subdirectories) | Claude Code session history | Not memory sources; not read, not imported. |
 | [journal/2026/](journal/2026/) (2 entries, 2026-11-04 and 2026-11-08) | Roar captures, already v8-shaped (commit 8510a9b) | Kept in place, indexed. |
 | [STATE.md](../STATE.md), [AGENTS.md](../AGENTS.md) | Canonical status and policy | Linked as references, not copied. They govern over memory. |
@@ -22,17 +22,18 @@ public and the notes were never reviewed for publication.
 
 ## Audience
 
-The only content moved is index text and two journal entries that already
-live in this public repository. No native note text was imported, so no
-source needed encryption and no `.age` entry exists.
+No content was moved: the index and this inventory are new text, and the two
+journal entries already lived in this public repository. No native note text
+was imported, so no source needed encryption and no `.age` entry exists.
 
 ## Runtime limits
 
 - The v8 index is reached only by agents that load this repository's
   AGENTS.md; no hook injects it. The section sits before the final
-  `git-erg local tickets: see tickets/AGENTS.md` line, which `erg install
-  --inject-agents` manages by marker, and the shipped `tickets/AGENTS.md`
-  is untouched.
+  `git-erg local tickets: see tickets/AGENTS.md` line, erg's pointer text
+  (`agentsBody`, `src/go/install.go`) written here without the managed-block
+  markers, so `erg install --inject-agents` does not manage it. The shipped
+  `tickets/AGENTS.md` is untouched.
 - Claude Code native auto-memory remains a separate writer of a separate
   index. This adoption adds no writer: `memory/MEMORY.md` changes only
   through reviewed roar or smelt PRs.
