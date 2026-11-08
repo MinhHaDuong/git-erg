@@ -165,4 +165,31 @@ bootstrap binary can be stale when scripts are invoked directly.
 
 `make test` must enforce this with a grep check and fail fast if any
 script reintroduces the legacy default.
+
+## Project memory
+
+This section is for the maintainer's agent harness (the roar, smelt and Brood
+vocabulary below is its own); an adopter of erg can ignore it.
+
+Read [memory/MEMORY.md](memory/MEMORY.md) at task start when it exists. Open
+relevant themes before acting; search themes and the journal with `rg` or `grep`
+when the task or an obstacle calls for recall, including unconsolidated episodes.
+Search again when the task changes materially. Missing memory does not block
+work; report a known incomplete installation.
+
+At roar, save and commit significant facts in this project's repository;
+uncleared material enters only as age-encrypted `.age` ciphertext.
+Preserve journal entries; corrections link back from new entries. Bundle
+closure capture, tickets and docs into one PR when needed.
+Do not derive lessons, propose rules or write into the harness for another project.
+Smelt separately prunes, merges and refreshes consolidated memory, preserving
+sources and checking coherence with applicable rules. MEMORY.md is at most
+40 lines including headings and blank lines. No automatic rule proposals or timer.
+The smelt skill carries the consolidation detail; there is no project prompt.
+Accepted reports live in `memory/smelts/`.
+
+Explicit Brood may implement project improvements and nominate changes only
+to a named, authorized harness. Harness implementation is a separate task.
+Consolidated memory may decay on replacement evidence; journal sources stay.
+
 git-erg local tickets: see tickets/AGENTS.md

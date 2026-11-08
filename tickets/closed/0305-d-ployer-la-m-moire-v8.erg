@@ -1,0 +1,96 @@
+%erg 0.1
+Title: Déployer la mémoire v8
+Created: 2026-10-05
+Author: codex
+Closed: autoclosed — PR #384
+
+--- log ---
+2026-10-05T19:32Z codex created
+2026-11-08T19:32Z MinhHaDuong note convention update: memory/DREAM.md void (harness a1dbb4b8, e309df17, ticket 1451), index cap 40 lines (af95a78f); see body § Imagine
+2026-11-08T19:32Z MinhHaDuong note feasibility PASS: no test, Makefile target or CI job reads root AGENTS.md or memory/; root pointer line is unmarked legacy (install.go agentsMarkerSets), section goes before it; no cross-ticket registry
+2026-11-08T19:55Z MinhHaDuong closed — autoclosed — PR #384
+
+--- body ---
+
+--- body ---
+
+## Contexte
+Adopter progressivement la convention de mémoire Markdown v8 dans ce projet, après l’évaluation et avec une revue propre au dépôt. Le pilote de référence et ses limites sont décrits dans la [convention et ses gabarits](https://github.com/MinhHaDuong/ImperialDragonHarness/blob/main/docs/memory-v8/README.md), le [plan de livraison](https://github.com/MinhHaDuong/ImperialDragonHarness/blob/main/docs/2026-09-11-memory-implementation-plan.md) et le [ticket parent 0913](https://github.com/MinhHaDuong/ImperialDragonHarness/blob/main/tickets/closed/0913-retire-the-dead-retention-machinery-and.erg).
+
+Commencer par vérifier si ce dépôt est un projet actif. Pour un projet dormant ou remplacé, établir une disposition sourcée et ne pas simuler une migration. Ne pas importer les souvenirs d’un autre projet.
+
+## Critères de sortie
+- [ ] Inventorier les sources de mémoire et leurs consommateurs; consigner les correspondances, les dispositions et exceptions, la provenance, l’audience, les limites runtime et un rollback possible.
+- [ ] Intégrer les instructions de lecture v8 dans les instructions existantes sans les remplacer; créer ou adapter `memory/MEMORY.md` avec des liens vers les sources réelles (100 lignes maximum), `memory/DREAM.md` avec sa révision de référence, et les répertoires v8 utiles.
+- [ ] Examiner l’audience avant reprise de chaque source. Garder toute donnée privée uniquement comme `.age` chiffré dans le dépôt; ne jamais y enregistrer de plaintext ni de clé. Préserver les sources et provenance, traiter les inconnues comme inconnues.
+- [ ] Retirer une ancienne voie seulement après preuve de remplacement et de couverture de ses consommateurs. Ne pas introduire de TTL destructif, promotion automatique ou second écrivain d’index.
+- [ ] Vérifier les liens, les scénarios d’échec et les contrôles adaptés au diff; déposer les preuves dans la PR du projet.
+
+## Suivi GitHub
+
+Issue : https://github.com/MinhHaDuong/git-erg/issues/376
+
+## Imagine (raid 8b9a41, 2026-11-08)
+
+Verdict: PROCEED-NARROWED. The project is active (merges 2026-11-08) and roar
+already writes `memory/journal/2026/` (8510a9b) with no index and no reading
+section: a known incomplete installation.
+
+Convention changes since this ticket was dispatched (harness commits):
+- `memory/DREAM.md` is void: DREAM became HOARD then smelt (a1dbb4b8); since
+  harness ticket 1451 (e309df17) a project keeps no consolidation prompt. The
+  "révision de référence" is met by one MEMORY.md line naming the harness smelt
+  skill at a pinned commit.
+- Index cap is 40 lines (af95a78f, e309df17), stricter than the 100 asked.
+- Native auto-memory is kept and triaged by smelt for the author (harness
+  ticket 1350 option b, 9acf7493): inventory it, do not migrate notes now.
+
+Exit-criterion mapping: (1) `memory/SOURCES.md` inventory; (2) reading
+section in root AGENTS.md + `memory/MEMORY.md` (<=40 lines), no DREAM.md, no
+empty directories; (3) audience reviewed per source, no note text imported,
+so no `.age`; (4) native store explicitly not retired (1350), index written
+only through roar/smelt PRs, native index disclosed as a separate writer;
+(5) one-shot link check, `wc -l`, load probe, failure scenarios in the PR body.
+
+Blind-spot pass (folded in): record this convention update on the ticket so
+the gate reads the amended contract; git-erg is PUBLIC (padme, the precedent,
+is private), so frame the template's harness vocabulary for an adopter
+reading AGENTS.md; the likeliest reader of the section is Codex (audit
+2026-10-29 corrected figures: Codex reads the index or topics in about 25% of
+sessions, Claude Code 1 of 148), so the later census covers both runtimes;
+rollback reverts the index and section only, the journal stays.
+
+## Plan
+
+Actions:
+1. Root `AGENTS.md`: add `## Project memory` from the harness template
+   (conception/memory-v8/templates/AGENTS.md at 2ed015e6), before the final
+   `git-erg local tickets: see tickets/AGENTS.md` pointer line (erg's
+   pointer text, here unmarked, so install does not manage it); one framing sentence says
+   the vocabulary (roar, smelt, Brood) is the maintainer's agent harness and
+   that an adopter can ignore the section.
+2. `memory/MEMORY.md` (<=40 lines, ends in newline): canonical state
+   STATE.md, policy AGENTS.md, link to SOURCES.md, consolidation = harness
+   smelt skill at a named commit, reports would go in `memory/smelts/`,
+   recent journal entries linked, search the journal with `rg`.
+3. `memory/SOURCES.md`: per-source inventory (native store path and counts by
+   type, harness export path and commit, worktree-keyed native stores,
+   journal, STATE.md, AGENTS.md, tickets/, git history, Codex and Pi native
+   stores probed: unknown stays unknown), consumer per source, audience,
+   runtime limits, rollback, disposition (native store kept, smelt triage).
+4. Log the convention update on the ticket (`erg log 0305 ...`).
+5. PR body: link check output, `wc -l memory/MEMORY.md`, a load probe, failure
+   scenarios (memory absent; worktree session keyed to another native store),
+   and the later review below. `Closes #376`.
+
+Out of scope: src/go/, tickets/AGENTS.md (shipped asset), tickets/.ergrc, any
+checker script, topics/, smelts/, evidence/ directories, any native-note text.
+
+First test (evidence, not a suite): a one-shot command that resolves every
+relative link in memory/*.md and the new AGENTS.md section to an existing
+path, run once red (before files exist) and once green; `make test` and
+`make validate` stay green.
+
+Later review: about four weeks after merge, run the harness census
+`scripts/census/repo-memory-reads.py` on Claude Code and Codex for git-erg;
+report the read counts to the author as evidence for audit R4/R5.
