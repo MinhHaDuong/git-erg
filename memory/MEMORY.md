@@ -19,6 +19,7 @@ No consolidated themes yet: nothing has been smelted into `memory/topics/`.
 The journal in [journal/2026/](journal/2026/) holds every episode; search it
 with `rg`. Recent entries:
 
+- [2026-11-08 memory v8 adoption review rounds](journal/2026/2026-11-08-memory-v8-adoption-review-rounds.md)
 - [2026-11-08 dead hooksPath and post-merge amend](journal/2026/2026-11-08-dead-hookspath-and-post-merge-amend.md)
 - [2026-11-04 PR 377 attribution capture](journal/2026/2026-11-04-pr377-attribution.md)
 
