@@ -88,22 +88,62 @@ func claimContent(slug, nonce string) string {
 	return slug + " " + nonce + "\n"
 }
 
-// claimsIgnored reports whether git ignores the claim <store>/.claims/<id>,
-// which would leave it out of every commit while erg check passes locally on
-// the file on disk. erg new probes the id it is about to claim; init and
-// migrate probe one name for the whole directory. git runs from the store,
-// which exists, so the probe works before .claims/ is created. Outside a git
-// worktree, or without git, nothing is ignored.
-func claimsIgnored(store, id string) bool {
-	probe := filepath.ToSlash(filepath.Join(claimsDirName, id))
-	cmd := exec.Command("git", "-C", store, "check-ignore", "-q", "--", probe)
-	return cmd.Run() == nil
+// ignoredClaimFile returns the first of names (files inside
+// <store>/.claims/) that git ignores, or "" when git ignores none of them.
+// An ignored claim would be left out of every commit while erg check passes
+// locally on the file on disk. Each caller probes exactly the files it is
+// about to write: erg new its claim, init .keep, migrate .keep and every
+// claim. One git process answers for all names (check-ignore --stdin). git
+// runs from the store, which exists, so the probe works before .claims/ is
+// created. Outside a git worktree, or without git, nothing is ignored.
+func ignoredClaimFile(store string, names ...string) string {
+	var in strings.Builder
+	for _, n := range names {
+		in.WriteString(filepath.ToSlash(filepath.Join(claimsDirName, n)))
+		in.WriteByte('\n')
+	}
+	cmd := exec.Command("git", "-C", store, "check-ignore", "--stdin")
+	cmd.Stdin = strings.NewReader(in.String())
+	out, err := cmd.Output()
+	if err != nil {
+		// Exit 1: nothing ignored. 128 or no git: cannot tell, not ignored.
+		return ""
+	}
+	first, _, _ := strings.Cut(string(out), "\n")
+	if first == "" {
+		return ""
+	}
+	return filepath.Join(store, filepath.FromSlash(first))
 }
 
-// claimsIgnoredMessage is the shared refusal for an ignored claim path.
-func claimsIgnoredMessage(store, id string) string {
-	return fmt.Sprintf("git ignores %s, so the claim would never be committed -- un-ignore %s/ and the claims in it ('git check-ignore -v' names the rule), then retry",
-		filepath.Join(claimsDir(store), id), claimsDir(store))
+// claimsIgnoredMessage is the shared refusal for an ignored claim file.
+func claimsIgnoredMessage(store, ignored string) string {
+	return fmt.Sprintf("git ignores %s, so it would never be committed -- un-ignore %s/ and the files in it ('git check-ignore -v' names the rule), then retry",
+		ignored, claimsDir(store))
+}
+
+// ticketPathsByID maps each ticket number in store (open and closed, any
+// depth) to the paths of the ticket files that carry it.
+func ticketPathsByID(store string) (map[string][]string, error) {
+	byID := make(map[string][]string)
+	err := filepath.WalkDir(store, func(path string, d fs.DirEntry, werr error) error {
+		if werr != nil {
+			return werr
+		}
+		if d.IsDir() {
+			if path != store && d.Name() == claimsDirName {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if parseIDFromFilename(d.Name()) == 0 {
+			return nil
+		}
+		id := filenameID(d.Name())
+		byID[id] = append(byID[id], path)
+		return nil
+	})
+	return byID, err
 }
 
 // linkClaim publishes a claim; a seam so a test can simulate a filesystem
@@ -280,24 +320,7 @@ func migrateClaims(store string) (written, kept int, shared [][]string, err erro
 	if err := ensureClaimsDir(store); err != nil {
 		return 0, 0, nil, err
 	}
-	byID := make(map[string][]string)
-	walkErr := filepath.WalkDir(store, func(path string, d fs.DirEntry, werr error) error {
-		if werr != nil {
-			return werr
-		}
-		if d.IsDir() {
-			if path != store && d.Name() == claimsDirName {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if parseIDFromFilename(d.Name()) == 0 {
-			return nil
-		}
-		id := filenameID(d.Name())
-		byID[id] = append(byID[id], path)
-		return nil
-	})
+	byID, walkErr := ticketPathsByID(store)
 	if walkErr != nil {
 		return 0, 0, nil, walkErr
 	}

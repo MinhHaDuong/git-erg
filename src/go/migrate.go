@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -652,8 +653,18 @@ func hasStatusHeader(dir string) bool {
 
 // cmdMigrateClaims implements `erg migrate --claims [DIR]` (ticket 0306).
 func cmdMigrateClaims(dir string) int {
-	if claimsIgnored(dir, "0001") {
-		fmt.Fprintf(os.Stderr, "migrate: %s\n", claimsIgnoredMessage(dir, "0001"))
+	byID, err := ticketPathsByID(dir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "migrate: walk error: %v\n", err)
+		return 1
+	}
+	probe := []string{claimsKeepName}
+	for id := range byID {
+		probe = append(probe, id)
+	}
+	sort.Strings(probe)
+	if ignored := ignoredClaimFile(dir, probe...); ignored != "" {
+		fmt.Fprintf(os.Stderr, "migrate: %s\n", claimsIgnoredMessage(dir, ignored))
 		return 1
 	}
 	written, kept, shared, err := migrateClaims(dir)

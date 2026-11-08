@@ -175,10 +175,11 @@ sessions filing the same incident under the same slug.
   ticket is legitimate.
 - **Switching on.** `erg init` creates `tickets/.claims/` in a new store;
   `erg migrate --claims` switches an existing store on and claims every ticket
-  in it. Without the directory, nothing is claimed and a duplicate surfaces
-  only when `erg check` runs on a tree holding both tickets -- including the
-  duplicates that concurrent `erg new` runs in one checkout then produce. After switching
-  on, a ticket made by an older erg has no claim and `erg check` rejects it,
+  in it. Without the directory, nothing is claimed: `erg new` still keeps
+  concurrent runs in one checkout apart by a post-check retry, but two
+  checkouts that take one number under different titles surface only when
+  `erg check` runs on a tree holding both tickets. After switching on, a
+  ticket made by an older erg has no claim and `erg check` rejects it,
   printing the plain-file fix.
 
 ### Renumber clear of the frontier, never to the next free ID

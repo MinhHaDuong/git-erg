@@ -279,19 +279,20 @@ exclusive create (a hard link from a temp file, which fails like O_EXCL when
 the name exists), so two invocations racing for one number in the same
 checkout cannot both take it: the loser recomputes the next ID and retries
 (up to 20 attempts). The ticket file itself is created with O_EXCL, so an
-existing file is never clobbered. Two branches that take the same number add the same
-claim path with different content, so git reports an add/add conflict when
-the second one is merged or rebased. Stage both files: the 'git add' line is
-printed on stderr. new refuses when git ignores the claim path, since the
-claim would then never be committed.
+existing file is never clobbered. Two branches that take the same number add
+the same claim path with different content, so git reports an add/add
+conflict when the second one is merged or rebased. Stage both files: the
+'git add' line is printed on stderr. new refuses when git ignores the claim
+path, since the claim would then never be committed.
 
 Without .claims/, new writes no claim and prints a hint on stderr: run
-'erg migrate --claims' to switch claims on. Nothing then keeps concurrent
-invocations with different titles apart: erg new calls racing in one
-checkout (parallel agents filing into the same directory) take the same
-number under different slugs, every racer at once, and the duplicate surfaces only in 'erg check' (no file
-is clobbered). Before claims, a glob post-check retried that race; it is
-retired, so in such a store run erg new sequentially or switch claims on.
+'erg migrate --claims' to switch claims on. Such a store keeps the
+optimistic post-check retry loop: O_EXCL writes the file, then a glob for
+NNNN-*.erg checks that no concurrent invocation in the same directory took
+the same ID under another slug; the losing invocation removes its own file
+and retries with the next free ID (up to 20 attempts). Two checkouts that
+take the same number under different titles are not detected until a tree
+holding both tickets is checked ('erg check').
 
 The new file contains the required preamble headers (Title, Created, Author),
 an empty log section with a "created" entry, and an empty body section.

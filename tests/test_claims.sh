@@ -267,8 +267,8 @@ git init -q "$IGN"
 mkdir -p "$IGN/tickets/.claims"
 printf '*\n!tickets/\n!tickets/*.erg\n' > "$IGN/.gitignore"
 out=$(cd "$IGN" && "$ERG_ABS" new "ignored" tickets 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "git ignores" && ! ls "$IGN"/tickets/*.erg >/dev/null 2>&1; then
-    pass "ignored claim path: erg new refuses and writes nothing"
+if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "git ignores tickets/.claims/0001," && ! ls "$IGN"/tickets/*.erg >/dev/null 2>&1; then
+    pass "ignored claim path: erg new refuses, names the claim it would write, writes nothing"
 else
     fail "ignored claim path: erg new did not refuse (rc=$rc: $out)"
 fi
@@ -281,8 +281,8 @@ cp "$IGN/.gitignore" "$IGM/.gitignore"
 mkdir -p "$IGM/tickets"
 "$ERG_ABS" new "existing" "$IGM/tickets" >/dev/null 2>&1
 out=$(cd "$IGM" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "git ignores" && [ ! -e "$IGM/tickets/.claims" ]; then
-    pass "ignored claim path: migrate --claims refuses and creates nothing"
+if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "git ignores tickets/.claims/.keep," && [ ! -e "$IGM/tickets/.claims" ]; then
+    pass "ignored claim path: migrate --claims refuses, names a file it would write, creates nothing"
 else
     fail "ignored claim path: migrate --claims did not refuse (rc=$rc: $out)"
 fi
@@ -292,8 +292,9 @@ cp "$IGN/.gitignore" "$IGI/.gitignore"
 mkdir -p "$IGI/tickets"
 cp "$ERG_ABS" "$IGI/tickets/erg"
 out=$("$ERG_ABS" init "$IGI" 2>&1) || true
-if [ ! -e "$IGI/tickets/.claims" ] && echo "$out" | grep -qF "not creating tickets/.claims/"; then
-    pass "ignored claim path: init leaves claims off and says why"
+if [ ! -e "$IGI/tickets/.claims" ] && echo "$out" | grep -qF "not creating tickets/.claims/" &&
+    echo "$out" | grep -qF "tickets/.claims/.keep,"; then
+    pass "ignored claim path: init leaves claims off and names the .keep it would write"
 else
     fail "ignored claim path: init created .claims/ or stayed silent ($out)"
 fi

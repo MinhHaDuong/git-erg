@@ -172,73 +172,81 @@ rmdir "$SEQDIR" 2>/dev/null || true
 # --- Concurrent N=10: parallel erg new with distinct titles produces distinct IDs ---
 # Uses a named pipe barrier to start all workers simultaneously.
 # CDIR is outside the repo so nextID Pass 2/3 (sibling worktrees/branches) does
-# not inject existing IDs and break the assertions. CDIR holds .claims/: the
-# exclusive create of the claim is what keeps racing workers apart (ticket
-# 0306); a store without it no longer retries a same-number race.
-CDIR=$(mktemp -d)
-mkdir "$CDIR/.claims"
-OUTDIR=$(mktemp -d)
-BARRIER="$OUTDIR/barrier"
-mkfifo "$BARRIER"
+# not inject existing IDs and break the assertions. It runs on both kinds of
+# store (ticket 0306): with .claims/, the exclusive create of the claim keeps
+# racing workers apart; without it, the glob post-check does (a release that
+# dropped it gave all 10 workers one number).
+concurrent_n10() {
+    mode=$1
+    CDIR=$(mktemp -d)
+    [ "$mode" = claims ] && mkdir "$CDIR/.claims"
+    OUTDIR=$(mktemp -d)
+    BARRIER="$OUTDIR/barrier"
+    mkfifo "$BARRIER"
 
-# Start 10 workers; each blocks on the barrier FIFO read before invoking erg new.
-for i in 1 2 3 4 5 6 7 8 9 10; do
-    (
-        read -r _ < "$BARRIER" 2>/dev/null || true
-        $ERG new "Concurrent worker title $i" "$CDIR" > "$OUTDIR/out.$i" 2>&1
-    ) &
-done
+    # Start 10 workers; each blocks on the barrier FIFO read before invoking erg new.
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+        (
+            read -r _ < "$BARRIER" 2>/dev/null || true
+            $ERG new "Concurrent worker title $i" "$CDIR" > "$OUTDIR/out.$i" 2>/dev/null
+        ) &
+    done
 
-# Give workers time to reach the FIFO read, then release all simultaneously.
-# Writing once and closing the write end sends EOF to all blocked readers.
-sleep 0.2
-printf "go\n" > "$BARRIER"
+    # Give workers time to reach the FIFO read, then release all simultaneously.
+    # Writing once and closing the write end sends EOF to all blocked readers.
+    sleep 0.2
+    printf "go\n" > "$BARRIER"
 
-wait
+    wait
 
-rm -f "$BARRIER"
+    rm -f "$BARRIER"
 
-# Count how many workers produced a CREATED line.
-concurrent_created=0
-for i in 1 2 3 4 5 6 7 8 9 10; do
-    if grep -q "^CREATED " "$OUTDIR/out.$i" 2>/dev/null; then
-        concurrent_created=$((concurrent_created + 1))
+    # Count how many workers produced a CREATED line.
+    concurrent_created=0
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+        if grep -q "^CREATED " "$OUTDIR/out.$i" 2>/dev/null; then
+            concurrent_created=$((concurrent_created + 1))
+        fi
+    done
+
+    if [ "$concurrent_created" -eq 10 ]; then
+        pass "concurrent N=10 ($mode): all 10 workers produced CREATED"
+    else
+        fail "concurrent N=10 ($mode): only $concurrent_created/10 workers produced CREATED"
     fi
-done
 
-if [ "$concurrent_created" -eq 10 ]; then
-    pass "concurrent N=10: all 10 workers produced CREATED"
-else
-    fail "concurrent N=10: only $concurrent_created/10 workers produced CREATED"
-fi
+    # All 10 NNNN prefixes must be distinct.
+    CUNIQ=$(ls "$CDIR"/*.erg 2>/dev/null | xargs -I{} basename {} .erg | cut -d- -f1 | sort -u | wc -l)
+    if [ "$CUNIQ" -eq 10 ]; then
+        pass "concurrent N=10 ($mode): all 10 NNNN prefixes are distinct"
+    else
+        CTOTAL=$(ls "$CDIR"/*.erg 2>/dev/null | wc -l)
+        fail "concurrent N=10 ($mode): expected 10 distinct IDs, got $CUNIQ unique out of $CTOTAL files"
+    fi
 
-# All 10 NNNN prefixes must be distinct.
-CUNIQ=$(ls "$CDIR"/*.erg 2>/dev/null | xargs -I{} basename {} .erg | cut -d- -f1 | sort -u | wc -l)
-if [ "$CUNIQ" -eq 10 ]; then
-    pass "concurrent N=10: all 10 NNNN prefixes are distinct"
-else
-    CTOTAL=$(ls "$CDIR"/*.erg 2>/dev/null | wc -l)
-    fail "concurrent N=10: expected 10 distinct IDs, got $CUNIQ unique out of $CTOTAL files"
-fi
+    if [ "$mode" = claims ]; then
+        # Every worker's number is claimed exactly once.
+        CCLAIMS=$(ls "$CDIR/.claims" 2>/dev/null | wc -l)
+        if [ "$CCLAIMS" -eq 10 ]; then
+            pass "concurrent N=10 ($mode): 10 claims, one per ticket"
+        else
+            fail "concurrent N=10 ($mode): expected 10 claims, got $CCLAIMS"
+        fi
+    elif [ -e "$CDIR/.claims" ]; then
+        fail "concurrent N=10 ($mode): a claims-off store gained .claims/"
+    fi
 
-# Every worker's number is claimed exactly once.
-CCLAIMS=$(ls "$CDIR/.claims" 2>/dev/null | wc -l)
-if [ "$CCLAIMS" -eq 10 ]; then
-    pass "concurrent N=10: 10 claims, one per ticket"
-else
-    fail "concurrent N=10: expected 10 claims, got $CCLAIMS"
-fi
+    # erg check must pass on the resulting store.
+    if $ERG check "$CDIR" > /dev/null 2>&1; then
+        pass "concurrent N=10 ($mode): erg check passes on resulting store"
+    else
+        fail "concurrent N=10 ($mode): erg check fails on resulting store"
+    fi
 
-# erg check must pass on the resulting store.
-if $ERG check "$CDIR" > /dev/null 2>&1; then
-    pass "concurrent N=10: erg check passes on resulting store"
-else
-    fail "concurrent N=10: erg check fails on resulting store"
-fi
-
-rm -rf "$CDIR"
-find "$OUTDIR" -type f -delete 2>/dev/null || true
-rmdir "$OUTDIR" 2>/dev/null || true
+    rm -rf "$CDIR" "$OUTDIR"
+}
+concurrent_n10 claims
+concurrent_n10 no-claims
 
 # --- --author flag: explicit author header ---
 mkdir -p "$TDIR/flagauth"
