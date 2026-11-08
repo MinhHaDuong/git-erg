@@ -17,7 +17,7 @@ public and the notes were never reviewed for publication.
 | [journal/2026/](journal/2026/) (2 entries, 2026-11-04 and 2026-11-08) | Roar captures, already v8-shaped (commit 8510a9b) | Kept in place, indexed. |
 | [STATE.md](../STATE.md), [AGENTS.md](../AGENTS.md) | Canonical status and policy | Linked as references, not copied. They govern over memory. |
 | `tickets/` (2 open and 287 closed `.erg` files) and `git log` | Ticket store and history | Their own record. Not memory sources; not copied. |
-| `~/.codex` | Codex | No `memories/` directory. `memories_1.sqlite` (2026-10-05) holds 0 rows in `stage1_outputs` and `jobs`; 11 Codex session rollouts under `~/.codex/sessions/2026/09/` carry a `cwd` in this checkout (grep of the `"cwd"` field), none since; none was read. |
+| `~/.codex` | Codex | No `memories/` directory. `memories_1.sqlite` (2026-10-05) holds 0 rows in `stage1_outputs` and `jobs`; 11 Codex session rollouts under `~/.codex/sessions/2026/09/` carry a `cwd` starting with `/home/haduong/CNRS/code/git-erg` (grep of the `"cwd"` field), none since; none was read. |
 | `~/.pi/agent` | Pi | No session directory keyed to git-erg (`ls ~/.pi/agent/sessions`). No memory store found. |
 
 ## Audience
