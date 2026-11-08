@@ -2,12 +2,15 @@
 Title: Claim ticket numbers in tickets/.claims/NNNN so git detects a collision
 Created: 2026-10-21
 Author: MinhHaDuong
+Closed: claims shipped in PR #386 (raid 797d07)
 
 --- log ---
 2026-10-21T15:17Z MinhHaDuong created
 2026-11-08T20:52Z MinhHaDuong amended design after review and a 16-repo collision survey (see Evidence, Design (A) marks)
 2026-11-08T21:00Z MinhHaDuong raid 797d07 Imagine: Blind-Spot pass (gpt-6.1-sol) found 3 omissions; claim gets a nonce, activation by .claims/ presence, layout narrowed
 2026-11-08T21:07Z MinhHaDuong raid 797d07 Plan: plan and decisions recorded; feasibility PASS
+2026-11-08T21:57Z MinhHaDuong author go-ahead 2026-11-08: build it, since it retires more complicated or less reliable mechanisms; raid 797d07 run on the author's explicit request (pick gate does not apply)
+2026-11-08T21:57Z MinhHaDuong closed — claims shipped in PR #386 (raid 797d07)
 
 --- body ---
 ## Context
@@ -192,24 +195,27 @@ table, hook, migration idempotence (byte-identical), seam race test; test_integr
 updated. Measure `build/erg` size and `make test-scaling` before and after.
 
 ## Exit criteria
-- [ ] `erg new` writes `tickets/.claims/NNNN` (one line: slug and nonce) when `.claims/` exists, prints the `git add` line for both
+- [x] `erg new` writes `tickets/.claims/NNNN` (one line: slug and nonce) when `.claims/` exists, prints the `git add` line for both
       files, and refuses an ignored claim path; `erg close` and `erg rm` leave the claim in place.
-- [ ] A test with two branches adding the same number with different slugs: merge and rebase report an
+- [x] A test with two branches adding the same number with different slugs: merge and rebase report an
       add/add conflict on the claim file (positive control); claims with different numbers merge clean
       (negative control); same number and same slug with one copy closed also conflicts.
-- [ ] Without `.claims/`, `erg new` writes no claim and `erg check` requires none (an existing corpus
+- [x] Without `.claims/`, `erg new` writes no claim and `erg check` requires none (an existing corpus
       passes after a binary update).
-- [ ] `erg new` allocates above the highest ticket or claim number and never reuses a hole.
-- [ ] `erg check` rejects a multi-line claim, a slug mismatch, and a ticket without a claim (after
+- [x] `erg new` allocates above the highest ticket or claim number and never reuses a hole.
+- [x] `erg check` rejects a multi-line claim, a slug mismatch, and a ticket without a claim (after
       migration, with the plain-file fix in the message); a claim without a ticket passes. Tests cover the
       `-X ours` and `merge=union` silencings.
-- [ ] The pre-commit hook rejects a staged ticket whose claim is not staged.
-- [ ] The migration populates the claims for all existing tickets (open and closed), is idempotent, and
+- [x] The pre-commit hook rejects a staged ticket whose claim is not staged.
+- [x] The migration populates the claims for all existing tickets (open and closed), is idempotent, and
       refuses a number two tickets share.
-- [ ] `erg new`'s glob post-check retry loop is replaced by an O_EXCL create of the claim; a test races
+- [x] `erg new`'s glob post-check retry loop is replaced by an O_EXCL create of the claim; a test races
       two creations of the same number in one checkout.
-- [ ] The manual's ID-allocation section, `erg integration` (recovery: rename scope, claims; the three
+      (In stores with `.claims/` only; stores without keep the post-check, see Plan: measured regression.)
+- [x] The manual's ID-allocation section, `erg integration` (recovery: rename scope, claims; the three
       manual collision scans removed) and `tickets/AGENTS.md` describe the claims and the rename step.
-- [ ] A ticket filed in the IDH harness to retire its cross-PR collision gate once a git-erg release
+- [x] A ticket filed in the IDH harness to retire its cross-PR collision gate once a git-erg release
       carries the claims and the harness store is migrated.
-- [ ] `make check` passes; the bootstrap binary is rebuilt by the normal route.
+      (Filed: IDH harness ticket 1472, MinhHaDuong/ImperialDragonHarness#2277, ticket-only, not yet landed.)
+- [x] `make check` passes; the bootstrap binary is rebuilt by the normal route.
+      (make check PASS on d271988; the bootstrap binary is rebuilt by CI after merge, the normal route.)
