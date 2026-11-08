@@ -12,8 +12,8 @@ An agent-friendly local ticket system for development in disconnected environmen
   migration (0216), guard sweep, scope confinement (0237–0239), robustness raid
   (0248–0253), dyne design (0270), asset-machinery hardening (0278 and children
   0279/0280/0281/0283, plus 0282/0285/0287/0288/0289/0292/0296/0297) complete.
-- Queue: dyne phase 1 (0271–0275, 0271 ready) — untouched by the September raid
-  and now the only open work.
+- Dyne phase 1 (0271–0275) closed unbuilt in favour of documenting Git notes
+  review (#377, #380, #381). Open work: 0306, ticket-number claims.
 - Bar for new work: "verified empirical need" (AGENTS.md). Reaffirmed
   2026-09-16: the raid opened six tickets to close three at mid-point; two were
   closed wontfix on audit against the severity floor and three were dropped in
@@ -53,13 +53,4 @@ Premature, unproven, or waiting on evidence. Do not promote without AGENTS.md ba
 - audit: usage in idh.
 - feat: AI script to realign docs and code (partial: 0232)
 
-## Status
-<!-- generated 2026-09-17T13:05Z · as of e8f2e5b -->
-
-**Tickets:** 1 ready · 4 blocked — `erg ready tickets/` for full list
-  next: 0271 Write pep-dyne-v1.md, the dyne design rationale
-**In flight:** no open PRs · CI main: success
-**Recent (first-parent):**
-  e8f2e5b chore: rebuild bootstrap binary [skip ci]
-  cc69cbb Merge pull request #373 from MinhHaDuong/finition-372
-  fc7a9fa chore: rebuild bootstrap binary [skip ci]
+Live counts: `erg ready tickets/` · `erg list` · `/dashboard`.
