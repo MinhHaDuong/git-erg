@@ -667,7 +667,7 @@ func cmdMigrateClaims(dir string) int {
 		fmt.Fprintf(os.Stderr, "migrate: %s\n", claimsIgnoredMessage(dir, ignored))
 		return 1
 	}
-	written, kept, shared, err := migrateClaims(dir)
+	written, kept, shared, err := migrateClaims(dir, byID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "migrate: %v\n", err)
 		return 1

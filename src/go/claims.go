@@ -316,13 +316,12 @@ func claimViolations(dir string, tickets []Erg) []string {
 // each number that has none. Idempotent: an existing claim is never
 // rewritten. A number two tickets share gets no claim (one claim cannot hold
 // two slugs): both files are reported and the returned count is non-zero.
-func migrateClaims(store string) (written, kept int, shared [][]string, err error) {
+//
+// byID is ticketPathsByID(store), walked once by the caller, which also
+// needs it for the ignore probe: the store is not walked twice.
+func migrateClaims(store string, byID map[string][]string) (written, kept int, shared [][]string, err error) {
 	if err := ensureClaimsDir(store); err != nil {
 		return 0, 0, nil, err
-	}
-	byID, walkErr := ticketPathsByID(store)
-	if walkErr != nil {
-		return 0, 0, nil, walkErr
 	}
 	ids := make([]string, 0, len(byID))
 	for id := range byID {

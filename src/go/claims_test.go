@@ -227,7 +227,7 @@ func TestMigrateClaims(t *testing.T) {
 	dir := t.TempDir()
 	writeClaimTestTicket(t, dir, "0001-a.erg")
 	writeClaimTestTicket(t, dir, "closed/0002-b.erg")
-	written, kept, shared, err := migrateClaims(dir)
+	written, kept, shared, err := migrateClaims(dir, mustTicketPaths(t, dir))
 	if err != nil || written != 2 || kept != 0 || len(shared) != 0 {
 		t.Fatalf("first run: written=%d kept=%d shared=%v err=%v", written, kept, shared, err)
 	}
@@ -253,7 +253,7 @@ func TestMigrateClaims(t *testing.T) {
 	if v := claimViolations(dir, tickets); len(v) != 0 {
 		t.Errorf("migrated store fails the claim rules: %v", v)
 	}
-	written, kept, _, err = migrateClaims(dir)
+	written, kept, _, err = migrateClaims(dir, mustTicketPaths(t, dir))
 	if err != nil || written != 0 || kept != 2 {
 		t.Fatalf("second run: written=%d kept=%d err=%v", written, kept, err)
 	}
@@ -273,7 +273,7 @@ func TestMigrateClaimsRefusesSharedNumber(t *testing.T) {
 	writeClaimTestTicket(t, dir, "0001-a.erg")
 	writeClaimTestTicket(t, dir, "0002-b.erg")
 	writeClaimTestTicket(t, dir, "closed/0002-c.erg")
-	written, _, shared, err := migrateClaims(dir)
+	written, _, shared, err := migrateClaims(dir, mustTicketPaths(t, dir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,4 +319,13 @@ func TestWriteClaimWithoutHardLinks(t *testing.T) {
 	if err := writeClaim(dir, "0001", "b"); !os.IsExist(err) {
 		t.Errorf("second claim of 0001: err = %v, want EEXIST", err)
 	}
+}
+
+func mustTicketPaths(t *testing.T, dir string) map[string][]string {
+	t.Helper()
+	byID, err := ticketPathsByID(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return byID
 }
