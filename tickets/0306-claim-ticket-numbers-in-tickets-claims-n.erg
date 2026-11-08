@@ -7,6 +7,7 @@ Author: MinhHaDuong
 2026-10-21T15:17Z MinhHaDuong created
 2026-11-08T20:52Z MinhHaDuong amended design after review and a 16-repo collision survey (see Evidence, Design (A) marks)
 2026-11-08T21:00Z MinhHaDuong raid 797d07 Imagine: Blind-Spot pass (gpt-6.1-sol) found 3 omissions; claim gets a nonce, activation by .claims/ presence, layout narrowed
+2026-11-08T21:07Z MinhHaDuong raid 797d07 Plan: plan and decisions recorded; feasibility PASS
 
 --- body ---
 ## Context
@@ -152,6 +153,42 @@ central origin (push an atomic ref `refs/erg/id/NNNN`, git-erg#282) needs the ne
 Per `AGENTS.md` § Earning a feature the burden is on adding: if collisions stop biting, the ticket can be
 closed unbuilt.
 
+## Plan (raid 797d07, 2026-11-08; Plan seat opus, decisions checked by an advisor, fable)
+Feasibility: PASS (anchors verified: new.go:236 createExclusive, archive.go:39, atomicwrite.go:54,
+migrate.go:91, check.go:250, AGENTS.md 2393/2400 bytes, test_selfcoherence.sh:106 hook mirror,
+ADOPTER_STRINGS in test_integration.sh:125, Makefile TEST_SUITES and docs/regen-assets).
+
+Decisions:
+- Activation: `erg migrate --claims` (a flag on the existing verb; bare `erg migrate` stays the remedy
+  other warnings name and must not switch claims on). `erg init` creates `.claims/` only in an empty
+  store. Both write `.claims/.keep` (git does not carry an empty directory); dot names are ignored by
+  check and next-id.
+- Claim write: temp (dot-prefixed, in `.claims/`) then `os.Link` to `.claims/NNNN` (EEXIST is the
+  collision signal; no clobber, never a partial claim). A claim orphaned by a kill before the ticket is
+  written only burns a number, like a removed ticket's claim: not reported.
+- The glob post-check retry loop is retired fully. In a store without `.claims/` the same-checkout race
+  can produce two tickets with one number (no clobber; `erg check` reports it); the stderr hint names
+  that residual race. The N=10 race test moves onto a store with `.claims/`.
+- `erg new` stdout stays `CREATED <path>` alone (about 47 test sites parse it); the `git add` line and
+  the migrate hint go to stderr.
+- `spec-erg-v1.md` "Collision handling" documents claims: the plain-file contract changes.
+- git-erg's own store is not migrated in this PR (the committed bootstrap binary is rebuilt only after
+  merge); adoption per repo is the author's call.
+
+Actions: new `src/go/claims.go` (claimsDir with Lstat symlink refusal, claimsActive, parseClaimName,
+newNonce, claimIgnored via `git check-ignore`, writeClaim, claimViolations, migrateClaims); `new.go`
+cmdNew loop replaced, test seam `allocateID`; `nextid.go` maxIDInDir and maxIDInRef count claim names;
+`check.go` claimViolations beside assetViolations; help texts of rm/close/archive say the claim is kept;
+`init.go`; `migrate.go` flag parser and `--claims`, `helptext.go` Args; `install.go` hookBody block
+(POSIX sh) mirrored byte for byte in `integration.md` section 1; `integration.md` section 5 rewritten
+(the three manual scans and "No reservation machinery" removed, rename scope added, no adopter names);
+`src/go/assets/AGENTS.md` within its 2400-byte ceiling; `make regen-assets`, `make docs`.
+Tests: first red in new_test.go (claim content `^slug [0-9a-f]{8}$`); new suite `tests/test_claims.sh`
+in TEST_SUITES (bare origin plus two clones; merge and rebase conflict; negative control; same slug with
+one closed; `-X ours` and `merge=union` caught by the specific check messages); allocation, check-rule
+table, hook, migration idempotence (byte-identical), seam race test; test_integration.sh assertions
+updated. Measure `build/erg` size and `make test-scaling` before and after.
+
 ## Exit criteria
 - [ ] `erg new` writes `tickets/.claims/NNNN` (one line: slug and nonce) when `.claims/` exists, prints the `git add` line for both
       files, and refuses an ignored claim path; `erg close` and `erg rm` leave the claim in place.
@@ -171,6 +208,6 @@ closed unbuilt.
       two creations of the same number in one checkout.
 - [ ] The manual's ID-allocation section, `erg integration` (recovery: rename scope, claims; the three
       manual collision scans removed) and `tickets/AGENTS.md` describe the claims and the rename step.
-- [ ] A ticket filed in the IDH harness to retire its cross-PR collision gate, once a release carries
-      the claims.
+- [ ] A ticket filed in the IDH harness to retire its cross-PR collision gate once a git-erg release
+      carries the claims and the harness store is migrated.
 - [ ] `make check` passes; the bootstrap binary is rebuilt by the normal route.
