@@ -89,6 +89,15 @@ under DIR recursively and verifies invariants that require a global view:
   - No dependency cycles among Blocked-by edges.
   - All per-ticket format rules (delegates to validateCorpus, which folds in parser-emitted errors).
 
+  - ID claims, when DIR/.claims/ exists (see 'erg new'): every claim is
+    exactly one line; its first field is the slug of the ticket with its
+    number; every ticket has a claim (the message prints the plain-file fix,
+    so a hand-made ticket needs no binary). A claim without a ticket passes:
+    claims outlive close, rm and archive. These catch a silenced add/add
+    conflict on a claim: a merge with -X ours lands two tickets under one
+    claim (slug mismatch), a merge=union attribute writes a two-line claim.
+    Without .claims/, no claim is required.
+
   - Folder/header closure: open ticket in closed/ or closed ticket not in
     closed/ (a hand-edited Closed: header that was not filed -- erg close now
     files in one step; run 'erg close ID' or 'erg archive'). Also a ticket
@@ -220,6 +229,9 @@ Print the next available ticket ID.
 
 Scans for the maximum ticket ID across three sources and returns max+1,
 zero-padded to 4 digits. Prints "0001" if no numbered tickets exist anywhere.
+In each source, a claim name (DIR/.claims/NNNN, see 'erg new') counts like a
+ticket, so a number whose ticket was removed stays used and a hole is never
+reused.
 
   1. DIR (default: auto-discovered tickets/) and its subdirectories -- the
      local filesystem walk.
@@ -246,8 +258,10 @@ view; next-id itself never makes a network call.
 
 ID allocation is still optimistic: two concurrent invocations in different
 worktrees may return the same ID -- the cross-worktree window has narrowed
-but is not eliminated. The pre-commit hook rejects duplicate IDs on merge;
-the losing agent renames its ticket with a new ID from a fresh invocation.
+but is not eliminated. In a store with .claims/, the second branch to merge
+or rebase then meets an add/add conflict on DIR/.claims/NNNN; without it,
+'erg check' reports the duplicate ID once both tickets share a tree. The
+later claimant renumbers clear of the frontier ('erg integration').
 
 ## erg new TITLE [DIR] [--author NAME]
 
@@ -258,11 +272,27 @@ for the highest numeric .erg filename prefix, then creates a file named
 NNNN-{slug}.erg where the slug is the title lowercased and kebab-cased (truncated
 to 40 characters).
 
-Uses an optimistic post-check retry loop to handle concurrent invocations:
-O_EXCL writes the file, then a glob for NNNN-*.erg verifies uniqueness of the
-NNNN prefix. If a collision is detected (two concurrent invocations computed the
-same ID for different slugs), the losing invocation removes its file and retries
-with the next free ID. Up to 20 attempts are made before giving up.
+When DIR holds a .claims/ directory, ID claims are on (ticket 0306): new
+first creates DIR/.claims/NNNN, one line holding the slug, a space and a
+random 8-hex-digit nonce, then the ticket. The claim is published with an
+exclusive create (a hard link from a temp file, which fails like O_EXCL when
+the name exists), so two invocations racing for one number in the same
+checkout cannot both take it: the loser recomputes the next ID and retries
+(up to 20 attempts). The ticket file itself is created with O_EXCL, so an
+existing file is never clobbered. Two branches that take the same number add
+the same claim path with different content, so git reports an add/add
+conflict when the second one is merged or rebased. Stage both files: the
+'git add' line is printed on stderr. new refuses when git ignores the claim
+path, since the claim would then never be committed.
+
+Without .claims/, new writes no claim and prints a hint on stderr: run
+'erg migrate --claims' to switch claims on. Such a store keeps the
+optimistic post-check retry loop: O_EXCL writes the file, then a glob for
+NNNN-*.erg checks that no concurrent invocation in the same directory took
+the same ID under another slug; the losing invocation removes its own file
+and retries with the next free ID (up to 20 attempts). Two checkouts that
+take the same number under different titles are not detected until a tree
+holding both tickets is checked ('erg check').
 
 The new file contains the required preamble headers (Title, Created, Author),
 an empty log section with a "created" entry, and an empty body section.
@@ -305,6 +335,9 @@ under closed/ AND carries the Closed: header, close prints 'CLOSED (already)'
 and exits 0. A ticket that is closed by path but still missing the header gets
 the header (and REASON) written, so a supplied reason is never silently
 dropped. Step 3 (Blocked-by removal) is also idempotent.
+
+The ticket's claim (DIR/.claims/NNNN, when claims are on -- see 'erg new') is
+left in place: claims are never deleted, so the number stays used.
 
 ## erg log ID LINE [DIR] [--author NAME]
 
@@ -386,6 +419,9 @@ held open by a Blocked-by ref, then exits 0. This is the read-only listing the
 pre-push hook (erg install --push-hook) uses to warn about closed-but-
 unarchived tickets without mutating the working tree.
 
+Claims (DIR/.claims/NNNN, see 'erg new') are not moved: they sit at the store
+root and name the ticket by number and slug, which archiving does not change.
+
 ## erg rm ID|FILE [DIR] [--force]
 
 Delete a ticket file outright -- no Closed: header, no archive, no record.
@@ -411,7 +447,11 @@ the dependency graph before touching the filesystem:
 ID may be a 4-digit ticket ID or a full filename (e.g. 0042-some-title.erg).
 A non-existent or ambiguous ID is reported with the usual resolver error.
 
-## erg migrate [DIR]
+The ticket's claim (DIR/.claims/NNNN, when claims are on -- see 'erg new') is
+left in place: claims are never deleted, so the removed ticket's number stays
+used and 'erg new' never hands it out again.
+
+## erg migrate [DIR] [--claims]
 
 Convert legacy headers to %erg 0.1 format.
 
@@ -486,6 +526,18 @@ erg init bundles (ticket 0243):
 Does NOT commit. Exits 1 on archive/->closed/ filename collision (both directories are left untouched; the user must resolve manually). Exits 0 otherwise.
 Review the diff with 'git diff tickets/' and commit manually.
 
+  --claims
+      Switch ID claims on for the store (see 'erg new') and run nothing else:
+      create DIR/.claims/ with a .keep file, then write DIR/.claims/NNNN (the
+      slug and a random nonce) for every existing ticket, open and closed, so
+      the numbers already used are claimed from the first day. Idempotent: an
+      existing claim is never rewritten. A number that two tickets already
+      share gets no claim -- one claim cannot hold two slugs -- so both files
+      are reported and the command exits 1; renumber one of them clear of the
+      frontier ('erg integration'), then re-run. Commit DIR/.claims/ with the
+      tickets. Refuses, writing nothing, when git ignores the claims path.
+      Bare 'erg migrate' never switches claims on.
+
 ## erg init [DIR] [-n|--dry-run] [--force] [--show NAME]
 
 Unpack embedded bootstrap assets into the project.
@@ -500,6 +552,12 @@ binary's rev/date and the SHA-256 of each embedded asset. The manifest is
 committable durable state (not gitignored) and is invisible to erg check, so
 it never trips the pre-commit hook. It is deterministic: the same binary and
 assets always produce byte-identical content.
+
+In a store that holds no .erg file yet, init also creates tickets/.claims/
+(with a .keep file, since git carries no empty directory), which switches ID
+claims on (see 'erg new'), unless git ignores that path, which init reports
+instead. A store that already holds tickets is left as it is: switch claims
+on there with 'erg migrate --claims'.
 
 The format specification and setup guide are available on demand via
 erg spec and erg integration respectively.
@@ -637,10 +695,10 @@ the tickets/ directory uncluttered.
 
 Print the embedded long-form guide to stdout: the pre-commit hook and CI
 integration, then the working conventions that are too long to keep in
-tickets/AGENTS.md -- optimistic ID allocation and collision recovery, scanning
-open PRs for a colliding ID, checking the merged default branch after a ticket
-PR lands, decision records versus artifacts, the handoff-document section
-template, and where project-specific ticket lore belongs.
+tickets/AGENTS.md -- optimistic ID allocation, the ID claims that turn a
+collision into a git conflict, collision recovery and its rename scope,
+decision records versus artifacts, the handoff-document section template, and
+where project-specific ticket lore belongs.
 
 tickets/AGENTS.md is resident context, re-read at the start of every agent
 session, so it stays short and points here. This is the same content that older

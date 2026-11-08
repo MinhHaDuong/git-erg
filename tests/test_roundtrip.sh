@@ -97,7 +97,9 @@ fi
 BAD_ADDITIONS=""
 for line in $ADDED; do
     case "$line" in
-        ./tickets|./tickets/closed|./tickets/closed/*) ;;
+        # .claims/ is ticket data too (ticket 0306): the record of every
+        # number the store has used, created by init in a new store.
+        ./tickets|./tickets/closed|./tickets/closed/*|./tickets/.claims|./tickets/.claims/*) ;;
         *) BAD_ADDITIONS="$BAD_ADDITIONS $line" ;;
     esac
 done

@@ -66,11 +66,27 @@ for the highest numeric .erg filename prefix, then creates a file named
 NNNN-{slug}.erg where the slug is the title lowercased and kebab-cased (truncated
 to 40 characters).
 
-Uses an optimistic post-check retry loop to handle concurrent invocations:
-O_EXCL writes the file, then a glob for NNNN-*.erg verifies uniqueness of the
-NNNN prefix. If a collision is detected (two concurrent invocations computed the
-same ID for different slugs), the losing invocation removes its file and retries
-with the next free ID. Up to 20 attempts are made before giving up.
+When DIR holds a .claims/ directory, ID claims are on (ticket 0306): new
+first creates DIR/.claims/NNNN, one line holding the slug, a space and a
+random 8-hex-digit nonce, then the ticket. The claim is published with an
+exclusive create (a hard link from a temp file, which fails like O_EXCL when
+the name exists), so two invocations racing for one number in the same
+checkout cannot both take it: the loser recomputes the next ID and retries
+(up to 20 attempts). The ticket file itself is created with O_EXCL, so an
+existing file is never clobbered. Two branches that take the same number add
+the same claim path with different content, so git reports an add/add
+conflict when the second one is merged or rebased. Stage both files: the
+'git add' line is printed on stderr. new refuses when git ignores the claim
+path, since the claim would then never be committed.
+
+Without .claims/, new writes no claim and prints a hint on stderr: run
+'erg migrate --claims' to switch claims on. Such a store keeps the
+optimistic post-check retry loop: O_EXCL writes the file, then a glob for
+NNNN-*.erg checks that no concurrent invocation in the same directory took
+the same ID under another slug; the losing invocation removes its own file
+and retries with the next free ID (up to 20 attempts). Two checkouts that
+take the same number under different titles are not detected until a tree
+holding both tickets is checked ('erg check').
 
 The new file contains the required preamble headers (Title, Created, Author),
 an empty log section with a "created" entry, and an empty body section.
@@ -173,9 +189,15 @@ func cmdNew(args []string) int {
 	}
 	slug := slugify(title)
 
+	active, err := claimsActive(ticketDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "new: %v\n", err)
+		return 1
+	}
+
 	const maxAttempts = 20
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		id, err := nextID(ticketDir)
+		id, err := allocateID(ticketDir)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
@@ -184,41 +206,71 @@ func cmdNew(args []string) int {
 		filename := fmt.Sprintf("%s-%s.erg", id, slug)
 		path := filepath.Join(ticketDir, filename)
 
+		if active {
+			// Probe the real claim path: a claim git ignores would never
+			// be committed, while erg check passes on the file on disk.
+			if ignored := ignoredClaimFile(ticketDir, id); ignored != "" {
+				fmt.Fprintf(os.Stderr, "new: %s\n", claimsIgnoredMessage(ticketDir, ignored))
+				return 1
+			}
+			// The claim is the exclusive create: its path depends on the
+			// number alone, so EEXIST is exactly "this number is taken".
+			if err := writeClaim(ticketDir, id, slug); err != nil {
+				if os.IsExist(err) {
+					continue
+				}
+				fmt.Fprintf(os.Stderr, "new: cannot create claim %s: %v\n", filepath.Join(claimsDir(ticketDir), id), err)
+				return 1
+			}
+		}
+
 		now := time.Now().UTC()
 		today := now.Format("2006-01-02")
 		timestamp := now.Format("2006-01-02T15:04Z")
 		content := fmt.Sprintf("%%erg 0.1\nTitle: %s\nCreated: %s\nAuthor: %s\n\n%s\n%s %s created\n\n%s\n", title, today, author, separatorLog, timestamp, author, separatorBody)
 
 		if err := createExclusive(path, content); err != nil {
-			if !os.IsExist(err) {
-				// Real I/O error (permission denied, disk full, etc.) -- surface immediately.
-				fmt.Fprintf(os.Stderr, "new: cannot create %s: %v\n", path, err)
-				return 1
+			if os.IsExist(err) && !active {
+				// Same slug and same ID taken by a concurrent invocation; retry.
+				continue
 			}
-			// EEXIST: same slug + same ID claimed by a concurrent invocation; retry.
-			continue
-		}
-
-		// Optimistic post-check: glob for any NNNN-*.erg siblings. If more
-		// than one exists, a concurrent invocation with a different slug won
-		// the same ID. Delete our file and retry with the next free ID.
-		pattern := filepath.Join(ticketDir, id+"-*.erg")
-		siblings, err := filepath.Glob(pattern)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "new: cannot scan store for ID conflicts: %v\n", err)
-			os.Remove(path)
+			// With claims on, the number is ours, so an existing file at this
+			// path is not a race to retry; like any I/O error it is reported.
+			// A claim left without its ticket only burns the number.
+			fmt.Fprintf(os.Stderr, "new: cannot create %s: %v\n", path, err)
 			return 1
 		}
-		if len(siblings) > 1 {
-			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-				fmt.Fprintf(os.Stderr, "new: cannot remove conflicting file %s: %v\n", path, err)
+
+		if !active {
+			// No claim to hold the number: optimistic post-check. A glob
+			// for NNNN-*.erg siblings finds a concurrent invocation that
+			// took the same ID under another slug; delete our own file and
+			// retry with the next free ID. Retiring this for claims-off
+			// stores was measured: 10 concurrent erg new in one checkout
+			// all took one number (ticket 0306).
+			siblings, err := filepath.Glob(filepath.Join(ticketDir, id+"-*.erg"))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "new: cannot scan store for ID conflicts: %v\n", err)
+				os.Remove(path)
 				return 1
 			}
-			continue
+			if len(siblings) > 1 {
+				if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+					fmt.Fprintf(os.Stderr, "new: cannot remove conflicting file %s: %v\n", path, err)
+					return 1
+				}
+				continue
+			}
 		}
 
-		// Unique win: we are the sole holder of this NNNN prefix.
 		fmt.Printf("CREATED %s\n", filename)
+		if active {
+			cwd, _ := os.Getwd()
+			fmt.Fprintf(os.Stderr, "new: stage both files: git add %s %s\n",
+				displayPath(cwd, path), displayPath(cwd, filepath.Join(claimsDir(ticketDir), id)))
+		} else {
+			fmt.Fprintln(os.Stderr, "new: hint: this store has no .claims/, so other checkouts can take the same ID under different titles unnoticed until erg check; run 'erg migrate --claims' to claim IDs")
+		}
 		return 0
 	}
 
@@ -226,13 +278,16 @@ func cmdNew(args []string) int {
 	return 1
 }
 
+// allocateID is nextID behind a seam, so a test can make two creations
+// compute the same number and race for it.
+var allocateID = nextID
+
 // createExclusive writes content to a brand-new file at path, refusing to
 // touch an existing one. O_EXCL is the no-clobber guard: it never overwrites
-// an existing file at the exact same path (same ID + same slug). It does not
-// guard against two concurrent `erg new` invocations that computed the same
-// numeric ID but used different slugs -- that case is handled by cmdNew's
-// optimistic post-check glob loop, which detects NNNN-prefix collisions after
-// the O_EXCL write and retries with the next free ID.
+// an existing file at the exact same path (same ID + same slug). Two
+// invocations that computed the same number under different slugs are kept
+// apart by the claim (writeClaim), whose path depends on the number alone,
+// or, in a store without claims, by cmdNew's glob post-check.
 func createExclusive(path, content string) error {
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {

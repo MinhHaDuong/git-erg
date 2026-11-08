@@ -12,10 +12,10 @@ const helpIntegration = `## erg integration
 
 Print the embedded long-form guide to stdout: the pre-commit hook and CI
 integration, then the working conventions that are too long to keep in
-tickets/AGENTS.md -- optimistic ID allocation and collision recovery, scanning
-open PRs for a colliding ID, checking the merged default branch after a ticket
-PR lands, decision records versus artifacts, the handoff-document section
-template, and where project-specific ticket lore belongs.
+tickets/AGENTS.md -- optimistic ID allocation, the ID claims that turn a
+collision into a git conflict, collision recovery and its rename scope,
+decision records versus artifacts, the handoff-document section template, and
+where project-specific ticket lore belongs.
 
 tickets/AGENTS.md is resident context, re-read at the start of every agent
 session, so it stays short and points here. This is the same content that older

@@ -1,0 +1,221 @@
+%erg 0.1
+Title: Claim ticket numbers in tickets/.claims/NNNN so git detects a collision
+Created: 2026-10-21
+Author: MinhHaDuong
+Closed: claims shipped in PR #386 (raid 797d07)
+
+--- log ---
+2026-10-21T15:17Z MinhHaDuong created
+2026-11-08T20:52Z MinhHaDuong amended design after review and a 16-repo collision survey (see Evidence, Design (A) marks)
+2026-11-08T21:00Z MinhHaDuong raid 797d07 Imagine: Blind-Spot pass (gpt-6.1-sol) found 3 omissions; claim gets a nonce, activation by .claims/ presence, layout narrowed
+2026-11-08T21:07Z MinhHaDuong raid 797d07 Plan: plan and decisions recorded; feasibility PASS
+2026-11-08T21:57Z MinhHaDuong author go-ahead 2026-11-08: build it, since it retires more complicated or less reliable mechanisms; raid 797d07 run on the author's explicit request (pick gate does not apply)
+2026-11-08T21:57Z MinhHaDuong closed — claims shipped in PR #386 (raid 797d07)
+
+--- body ---
+## Context
+Asked by the author (2026-10-21), from the IDH harness repo, where the collision had to be policed by a CI job
+(`cross-pr-ticket-collision`: fail a pull request whose added ticket ID another open pull request also adds) that
+was switched off the same day with GitHub Actions. Evidence of the pain: `docs/erg-manual.md` (ID allocation is
+optimistic: two concurrent invocations in different checkouts can take the same number), the existing
+post-check retry loop, the 200 ms "branch-tip scan exceeded" warning of `erg new`, and the harness's own CI
+guard built for it (git-erg#282). Today two branches that each add `tickets/NNNN-slug-a.erg` and
+`tickets/NNNN-slug-b.erg` have different paths, so git sees no conflict; the duplicate surfaces only when the
+corpus check (`erg check`) runs on the merged tree.
+
+What the claim adds over the existing checks: the pre-commit hook does not run on a rebase or a forge-side
+merge, CI checks a merge ref that goes stale when a sibling lands, and the cross-PR job compares open pull
+requests only with each other. An add/add conflict needs none of them: the forge recomputes mergeability
+when the base moves, a local rebase stops, and it works offline and on any forge.
+
+## Evidence (2026-11-08 survey of the 16 ticket stores on padme)
+Method: git rename detection for ticket files whose number changed (collisions caught and renumbered),
+and `ls-tree` of every first-parent default-branch commit for two ticket files sharing a number
+(collisions that reached the default branch). Positive control: a duplicate made in a scratch repo was
+found. Duplicate counts are an upper bound: arena's one hit (1048, 2026-10-15) is a slug rename that left
+the old file behind for one commit, not a collision.
+
+| Repo | Renumbers (last) | Duplicate IDs on the default branch (last) |
+|---|---|---|
+| AEDIST-technical-report | 54 (2026-06-16) | 34 (2026-06-16) |
+| climate-finance-het | 29 (2026-10-23) | 6 (2026-07-27) |
+| IDH harness | 12 (2026-10-01) | 0 |
+| search-works-for-zotero | 6 (2026-09-09) | 5 (2026-09-09) |
+| chemin-de-voix | 1 (2026-04-29) | 6 (2026-05-17) |
+| padme | 1 (2026-08-21, a migrate) | 1 (2026-06-09) |
+| sen-causal-reading | 1 (2026-11-06) | 0 |
+| archiveCIRED | 1 (2026-06-24) | 0 |
+| git-erg, arena, DOIfetch, fuzzy-corpus, cadens, JETP-observer | 0 | 0 |
+
+Reading: collisions reached a default branch about 50 times from April to 2026-09-09 (commit messages
+confirm "main was red on a duplicate ID" in search-works-for-zotero and climate-finance-het), and none
+since. They still happen: two since the harness's CI job was switched off on 2026-10-21
+(climate-finance-het 2650->2700 on 2026-10-23, sen-causal-reading 0099->0102 on 2026-11-06), both caught
+before merge. So the current gates detect; what remains is the renumber cost, which the claim does not
+reduce, and the gates' dependence on CI and agent discipline, which the claim removes. Why duplicates
+stopped reaching main after September is not established.
+
+## Design
+Amended 2026-11-08 after a review of the author's design (2026-10-21); the changes are marked (A).
+
+- `erg new NNNN` also writes `tickets/.claims/NNNN`, a file of exactly one line: the ticket's slug, a
+  space, and a random nonce (8 hex digits, `crypto/rand`). (A: the slug alone is not enough, see below.)
+- Two branches claiming the same number create the same path with different content: git reports an add/add
+  conflict when the second one is merged or rebased. Tested 2026-11-08 in a scratch repo: merge and rebase
+  conflict on the claim; a different number merges clean.
+- Two claimants with the same number and the same slug (two sessions filing the same incident) do not
+  always share a ticket path: one may already be closed on its branch (`tickets/closed/`) while the other
+  is open. With slug-only claims, both claim files and both ticket paths then differ or agree in a way git
+  merges clean. (A, from the 2026-11-08 Blind-Spot pass: the earlier text relied on the ticket files
+  conflicting.) The nonce makes every claim unique, so every same-number pair conflicts on the claim.
+- Claims are never deleted, neither by `erg close` nor by `erg rm`: the directory is the record of numbers
+  ever used. A claim without a ticket is therefore legitimate, not an error. (A: the earlier text both kept
+  claims forever and reported a claim without a ticket.)
+- Allocation stays dense: `erg new` takes one above the highest number among the tickets and the claims
+  (base, sibling worktrees, branch tips, as today). (A: holes are never reused. The lowest hole is as
+  contended as the frontier, and a hole is usually a number an abandoned branch used, still cited by
+  branch names, pull request titles and commit messages; reusing it makes `git log --grep NNNN` ambiguous.)
+- Recovery: the later claimant renumbers to a number well clear of the high-water mark, per
+  `erg integration`, not to the next free one. (A: the earlier text said "next free number", the most
+  contended seat, which `erg integration` documents as the cause of a three-step collision chain.) The
+  rename covers the claim, the ticket file, its log, references from other tickets on the branch
+  (`Blocked-by:`, body), code comments and config that cite the number (climate-finance-het's
+  2650->2700 renumber edited two code files), the branch name, and the pull request's title and close
+  claim: a stale "Closes NNNN" would close the winner's ticket at merge.
+- A slug rename must rewrite the claim too; a rename that leaves the old file behind (arena, 2026-10-15)
+  then fails the slug-mismatch check below.
+
+### Backstops (A: required, not optional)
+The conflict can be silenced: a merge with `-X ours`, a conflict resolved by keeping one side, or a
+`merge=union` attribute on the claims all merge clean (tested 2026-11-08: `-X ours` lands both
+`NNNN-*.erg` files under one claim; union writes a two-line claim). `erg check` must therefore reject:
+- a claim that is not exactly one line;
+- a claim whose first field does not match its ticket file's slug (the nonce is not checked: a hand-made
+  claim may carry any second field);
+- a ticket without a claim (after migration), with an error that prints the plain-file fix
+  (`echo "SLUG $(date +%s)" > tickets/.claims/NNNN`), so a hand-made ticket still needs no binary (Agnostic invariant);
+- the existing duplicate-ID check stays.
+
+### Staging (A)
+`erg new` does not commit, and agents add the ticket by name (`git add tickets/NNNN-*` misses
+`tickets/.claims/NNNN`, tested). The claim then sits untracked: `erg check` passes locally because the file
+is on disk, and only a fresh clone in CI fails. So:
+- `erg new` prints the `git add` line naming both files;
+- the pre-commit hook rejects a staged ticket file whose claim is not in the index;
+- `erg new` runs `git check-ignore` on the claim path and refuses when it is ignored (some repos, the IDH
+  harness, ignore everything and allowlist paths).
+
+### Activation and layout (A, from the 2026-11-08 Blind-Spot pass)
+- Claims are on in a store exactly when its `.claims/` directory exists: a file-state switch, visible and
+  reversible by hand. `erg init` creates it; the migration creates it for an existing store. `erg new` in a
+  store without `.claims/` writes no claim and prints a hint to run the migration; `erg check` requires
+  claims only when the directory exists. So updating the binary never fails an existing corpus.
+- Mixed versions after activation: an old binary (an outstanding branch, a native macOS or Windows binary
+  that `erg sync` does not replace) creates a claimless ticket; `erg check` rejects it with the plain-file
+  fix. The harness retires its collision gate only once its store is migrated.
+- Claims live in `<store>/.claims/`, the store `erg new` resolved (auto-discovered or `DIR`). The numbering
+  space is that store, as `next-id` already scans it (recursively, `closed/` included). A store nested
+  inside another store is unsupported for claims; the survey found none (all 16 stores on padme hold only
+  `tickets/` and `tickets/closed/`). `next-id` counts claim numbers too, so a removed ticket's number stays
+  burned.
+
+### Migration
+The migration step (`erg migrate`, or its successor) writes `tickets/.claims/NNNN` (slug and nonce) for every
+existing ticket, open and closed, so the holes are real holes from the first day. It is idempotent. (A) When
+two tickets already share a number, it writes no claim for that number, reports both files and exits
+non-zero: one claim cannot hold two slugs. Re-running it never rewrites an existing claim.
+
+### Docs (A)
+`erg integration` says "No reservation machinery exists or is planned": reword it to describe the claims.
+
+### Retires (A: the condition the author set for building it, 2026-11-08)
+In git-erg, in this ticket:
+- `erg new`'s post-check retry loop (O_EXCL on the ticket path, glob `NNNN-*.erg`, delete and retry, up to
+  20 attempts; about 55 lines in `src/go/new.go`). The claim path depends on the number alone, so an
+  O_EXCL create of `tickets/.claims/NNNN` fails on exactly the collision the glob detects, without the
+  delete-and-retry race. Retired in stores with claims only; stores without `.claims/` keep it
+  (see Plan, Decisions).
+- Three manual disciplines in `erg integration`: re-running the collision scan at the merge gate, the
+  `gh pr view` loop over open pull requests, and "run `erg check` against `origin/main` after a merge,
+  the only collision check in a repo with no CI". The add/add conflict covers the base tip and the
+  sibling pull request (at the second merge, before any duplicate lands), with no forge call. The
+  renumber-clear-of-the-frontier rule stays.
+In the IDH harness, by a ticket filed there once a release carries the claims:
+- `scripts/check-cross-pr-ticket-collision.sh` (173 lines), its test (450 lines),
+  `.github/workflows/ticket-collision.yml`, the `scripts/local-ci.sh` wiring and its `tickets/LOCAL.md`
+  line: a forge-dependent gate (gh auth, network, self-PR ambiguity; harness ticket 1325) already
+  switched off.
+Gained where nothing ran: search-works-for-zotero has no CI, and five duplicates reached its main.
+Kept: the sibling-worktree and branch-tip scans of `next-id`. They lower how often collisions happen;
+the claim only detects them. Without the scans every parallel session would meet a rebase conflict and
+a renumber. The duplicate-ID check of `erg check` stays as the backstop.
+
+### Not in this ticket
+Detection happens when the second claimant reaches the base, not at allocation. The stronger option for a
+central origin (push an atomic ref `refs/erg/id/NNNN`, git-erg#282) needs the network.
+
+Per `AGENTS.md` § Earning a feature the burden is on adding: if collisions stop biting, the ticket can be
+closed unbuilt.
+
+## Plan (raid 797d07, 2026-11-08; Plan seat opus, decisions checked by an advisor, fable)
+Feasibility: PASS (anchors verified: new.go:236 createExclusive, archive.go:39, atomicwrite.go:54,
+migrate.go:91, check.go:250, AGENTS.md 2393/2400 bytes, test_selfcoherence.sh:106 hook mirror,
+ADOPTER_STRINGS in test_integration.sh:125, Makefile TEST_SUITES and docs/regen-assets).
+
+Decisions:
+- Activation: `erg migrate --claims` (a flag on the existing verb; bare `erg migrate` stays the remedy
+  other warnings name and must not switch claims on). `erg init` creates `.claims/` only in an empty
+  store. Both write `.claims/.keep` (git does not carry an empty directory); dot names are ignored by
+  check and next-id.
+- Claim write: temp (dot-prefixed, in `.claims/`) then `os.Link` to `.claims/NNNN` (EEXIST is the
+  collision signal; no clobber, never a partial claim). A claim orphaned by a kill before the ticket is
+  written only burns a number, like a removed ticket's claim: not reported.
+- The glob post-check retry loop is retired in stores with claims and kept for stores without, because
+  10 concurrent `erg new` in one claims-off checkout all took one number (measured by gaze and the
+  worker on PR #386), a regression for every unmigrated store. (Revised by the orchestrator after
+  that measurement; the first version retired it fully.) The N=10 race test runs on both kinds of store.
+- `erg new` stdout stays `CREATED <path>` alone (about 47 test sites parse it); the `git add` line and
+  the migrate hint go to stderr.
+- `spec-erg-v1.md` "Collision handling" documents claims: the plain-file contract changes.
+- git-erg's own store is not migrated in this PR (the committed bootstrap binary is rebuilt only after
+  merge); adoption per repo is the author's call.
+
+Actions: new `src/go/claims.go` (claimsDir with Lstat symlink refusal, claimsActive, parseClaimName,
+newNonce, claimIgnored via `git check-ignore`, writeClaim, claimViolations, migrateClaims); `new.go`
+cmdNew loop replaced, test seam `allocateID`; `nextid.go` maxIDInDir and maxIDInRef count claim names;
+`check.go` claimViolations beside assetViolations; help texts of rm/close/archive say the claim is kept;
+`init.go`; `migrate.go` flag parser and `--claims`, `helptext.go` Args; `install.go` hookBody block
+(POSIX sh) mirrored byte for byte in `integration.md` section 1; `integration.md` section 5 rewritten
+(the three manual scans and "No reservation machinery" removed, rename scope added, no adopter names);
+`src/go/assets/AGENTS.md` within its 2400-byte ceiling; `make regen-assets`, `make docs`.
+Tests: first red in new_test.go (claim content `^slug [0-9a-f]{8}$`); new suite `tests/test_claims.sh`
+in TEST_SUITES (bare origin plus two clones; merge and rebase conflict; negative control; same slug with
+one closed; `-X ours` and `merge=union` caught by the specific check messages); allocation, check-rule
+table, hook, migration idempotence (byte-identical), seam race test; test_integration.sh assertions
+updated. Measure `build/erg` size and `make test-scaling` before and after.
+
+## Exit criteria
+- [x] `erg new` writes `tickets/.claims/NNNN` (one line: slug and nonce) when `.claims/` exists, prints the `git add` line for both
+      files, and refuses an ignored claim path; `erg close` and `erg rm` leave the claim in place.
+- [x] A test with two branches adding the same number with different slugs: merge and rebase report an
+      add/add conflict on the claim file (positive control); claims with different numbers merge clean
+      (negative control); same number and same slug with one copy closed also conflicts.
+- [x] Without `.claims/`, `erg new` writes no claim and `erg check` requires none (an existing corpus
+      passes after a binary update).
+- [x] `erg new` allocates above the highest ticket or claim number and never reuses a hole.
+- [x] `erg check` rejects a multi-line claim, a slug mismatch, and a ticket without a claim (after
+      migration, with the plain-file fix in the message); a claim without a ticket passes. Tests cover the
+      `-X ours` and `merge=union` silencings.
+- [x] The pre-commit hook rejects a staged ticket whose claim is not staged.
+- [x] The migration populates the claims for all existing tickets (open and closed), is idempotent, and
+      refuses a number two tickets share.
+- [x] `erg new`'s glob post-check retry loop is replaced by an O_EXCL create of the claim; a test races
+      two creations of the same number in one checkout.
+      (In stores with `.claims/` only; stores without keep the post-check, see Plan: measured regression.)
+- [x] The manual's ID-allocation section, `erg integration` (recovery: rename scope, claims; the three
+      manual collision scans removed) and `tickets/AGENTS.md` describe the claims and the rename step.
+- [x] A ticket filed in the IDH harness to retire its cross-PR collision gate once a git-erg release
+      carries the claims and the harness store is migrated.
+      (Filed: IDH harness ticket 1472, MinhHaDuong/ImperialDragonHarness#2277, ticket-only, not yet landed.)
+- [x] `make check` passes; the bootstrap binary is rebuilt by the normal route.
+      (make check PASS on d271988; the bootstrap binary is rebuilt by CI after merge, the normal route.)

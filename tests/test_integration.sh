@@ -69,23 +69,29 @@ else
     fail "integration output missing the renumber-clear-of-the-frontier policy"
 fi
 
-if echo "$out" | grep -qF 'gh pr list --json files'; then
-    pass "integration output names the 'gh pr list --json files' trap"
+# Ticket 0306: the ID claims replace the three manual collision scans (the
+# merge-gate rescan, the per-PR 'gh pr view' loop, the post-merge 'erg check
+# origin/main'); the guide describes the claims and the full rename scope.
+
+if echo "$out" | grep -qF 'tickets/.claims/NNNN' && echo "$out" | grep -q "add/add conflict"; then
+    pass "integration output describes the ID claims and the add/add conflict"
 else
-    fail "integration output missing the 'gh pr list --json files' trap"
+    fail "integration output missing the ID claims"
 fi
 
-if echo "$out" | grep -qF 'gh pr view' && echo "$out" | grep -qF '.files[].path'; then
-    pass "integration output carries the per-PR 'gh pr view' enumeration recipe"
+if echo "$out" | grep -qF 'close claim' && echo "$out" | grep -qF 'Blocked-by:' && echo "$out" | grep -q "branch name"; then
+    pass "integration output carries the rename scope (references, branch, close claim)"
 else
-    fail "integration output missing the per-PR 'gh pr view' enumeration recipe"
+    fail "integration output missing the rename scope"
 fi
 
-if echo "$out" | grep -qF 'erg check' && echo "$out" | grep -qF 'origin/main'; then
-    pass "integration output carries the post-merge 'erg check origin/main' rule"
-else
-    fail "integration output missing the post-merge 'erg check origin/main' rule"
-fi
+for retired in 'gh pr view' 'gh pr list' 'No reservation machinery' 'at the merge gate too'; do
+    if echo "$out" | grep -qF "$retired"; then
+        fail "integration output still carries the retired '$retired'"
+    else
+        pass "integration output no longer carries '$retired'"
+    fi
+done
 
 if echo "$out" | grep -q "^## Handoff-document sections"; then
     pass "integration output carries the handoff-document section template"

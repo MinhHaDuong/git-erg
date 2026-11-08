@@ -313,6 +313,15 @@ under DIR recursively and verifies invariants that require a global view:
   - No dependency cycles among Blocked-by edges.
   - All per-ticket format rules (delegates to validateCorpus, which folds in parser-emitted errors).
 
+  - ID claims, when DIR/.claims/ exists (see 'erg new'): every claim is
+    exactly one line; its first field is the slug of the ticket with its
+    number; every ticket has a claim (the message prints the plain-file fix,
+    so a hand-made ticket needs no binary). A claim without a ticket passes:
+    claims outlive close, rm and archive. These catch a silenced add/add
+    conflict on a claim: a merge with -X ours lands two tickets under one
+    claim (slug mismatch), a merge=union attribute writes a two-line claim.
+    Without .claims/, no claim is required.
+
   - Folder/header closure: open ticket in closed/ or closed ticket not in
     closed/ (a hand-edited Closed: header that was not filed -- erg close now
     files in one step; run 'erg close ID' or 'erg archive'). Also a ticket
@@ -425,6 +434,9 @@ func cmdCheck(args []string) int {
 	assetViolations := assetLocalEditViolations(dir)
 
 	tickets, parseErrs := loadErgs(dir)
+	// Claims are store files, not tickets, so they join assetViolations: a
+	// malformed claim is as wrong in a store with no ticket yet (ticket 0306).
+	assetViolations = append(assetViolations, claimViolations(dir, tickets)...)
 	if len(tickets) == 0 {
 		fmt.Println("No .erg files found.")
 		// With no tickets loaded, corpusWarnings yields exactly its dir-based

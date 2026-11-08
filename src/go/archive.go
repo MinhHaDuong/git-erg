@@ -90,6 +90,9 @@ for each eligible ticket and "WOULD SKIP <file> (needed by ...)" for tickets
 held open by a Blocked-by ref, then exits 0. This is the read-only listing the
 pre-push hook (erg install --push-hook) uses to warn about closed-but-
 unarchived tickets without mutating the working tree.
+
+Claims (DIR/.claims/NNNN, see 'erg new') are not moved: they sit at the store
+root and name the ticket by number and slug, which archiving does not change.
 `
 
 // cmdArchive implements `erg archive [id...] [dir]`. See helpArchive for the user-facing summary.

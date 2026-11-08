@@ -70,7 +70,9 @@ var agentsMarkerSets = [][2]string{
 }
 
 // hookBody is the canonical content placed between the hook markers. It runs
-// erg validate + check on staged .erg files and rejects committing tickets/erg
+// erg validate + check on staged .erg files, rejects a staged ticket whose ID
+// claim is not staged (ticket 0306: erg check passes on the claim on disk, so
+// only a fresh clone would notice), and rejects committing tickets/erg
 // outside the repo's default branch (detected dynamically via origin/HEAD,
 // falling back to "main" for repos with no remote). It deliberately does NOT
 // run erg archive (charter blocker #2:
@@ -108,6 +110,24 @@ if [ -n "$erg_files" ]; then
         echo "  (make build there), or 'git pull' if your project vendors the committed binary." >&2
         exit 1
     fi
+fi
+
+# Reject a staged ticket whose ID claim is not staged. Claims are on when
+# tickets/.claims/ exists; 'git add tickets/NNNN-*' misses the claim.
+if [ -d tickets/.claims ]; then
+    for erg_f in $(git diff --cached --name-only --diff-filter=d -- 'tickets/*.erg'); do
+        erg_base=${erg_f##*/}
+        erg_id=${erg_base%%-*}
+        case $erg_id in
+            [0-9][0-9][0-9][0-9]) ;;
+            *) continue ;;
+        esac
+        if ! git cat-file -e ":tickets/.claims/$erg_id" 2>/dev/null; then
+            echo "pre-commit: $erg_f has no staged claim tickets/.claims/$erg_id." >&2
+            echo " Stage it: git add tickets/.claims/$erg_id" >&2
+            exit 1
+        fi
+    done
 fi`
 
 // pushHookBody is the canonical content placed between the pre-push hook

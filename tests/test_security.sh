@@ -354,7 +354,8 @@ fi
 
 # 6c — 10,000-char title via `erg new`: slug must truncate to <=40, no ReDoS.
 LONG=$(head -c 10000 /dev/zero | tr '\0' 'a')
-out=$(bounded 5 $ERG new "$LONG" "$WS/bigtitle" 2>&1) && rc=0 || rc=$?
+# stdout only: the CREATED line is the contract; stderr carries hints.
+out=$(bounded 5 $ERG new "$LONG" "$WS/bigtitle" 2>/dev/null) && rc=0 || rc=$?
 slug=$(echo "$out" | sed 's/^CREATED [0-9]*-//; s/\.erg$//')
 sluglen=$(printf '%s' "$slug" | wc -c)
 if [ "$rc" -eq 0 ] && [ "$sluglen" -le 40 ] && [ "$sluglen" -gt 0 ]; then

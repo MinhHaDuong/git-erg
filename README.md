@@ -208,8 +208,8 @@ global install, no version skew across machines or teammates.
 4. Run `tickets/erg install --hooks` to set up the pre-commit validation hook,
    and (for AI agents) `tickets/erg install --inject-agents` to point your root
    `AGENTS.md` at `tickets/AGENTS.md`. Run `erg integration` for the full guide:
-   setup, the long-form ticket conventions (ID-collision recovery, scanning open
-   PRs for a colliding ID) and the handoff-document template.
+   setup, the long-form ticket conventions (ID claims, ID-collision recovery and
+   its rename scope) and the handoff-document template.
 5. Optional: write your own project-specific ticket lore -- local CI job names,
    helper scripts, past incidents -- into `tickets/LOCAL.md`. erg never writes,
    reads or upgrades that file, and `erg check` ignores it. Keep it out of

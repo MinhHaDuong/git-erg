@@ -219,9 +219,28 @@ wall-clock deadline; on timeout, falls back to the worktree-level result with a 
 you want the freshest view of origin; otherwise an ID pushed to origin between fetches is
 invisible and may be re-allocated.
 
-**Collision handling:** optimistic. Two concurrent `next-id` calls in different worktrees
-can still return the same ID -- the cross-worktree window has narrowed but is not eliminated.
-The pre-commit validator rejects duplicates on merge; the losing agent renames and retries.
+**Collision handling:** optimistic allocation, detected by claims when they are on (below).
+Two concurrent `next-id` calls in different worktrees can still return the same ID -- the
+cross-worktree window has narrowed but is not eliminated.
+
+**ID claims.** Claims are on in a store exactly when its `.claims/` directory exists (the
+store root, beside the tickets; `.claims/.keep` keeps it in git). Each claim is a plain file
+`.claims/NNNN` holding exactly one line: the ticket's slug, a space, and a nonce (`erg new`
+writes 8 random hex digits; any non-empty second field is accepted, so a hand-made claim is
+`echo "SLUG $(date +%s)" > tickets/.claims/NNNN`). The nonce is required: without it two
+claims with one slug can be identical and merge clean. Names starting with `.` are not
+claims.
+
+- Two branches that take one number add the same claim path with different content: git
+  reports an add/add conflict when the second is merged or rebased. The later claimant
+  renumbers, claim included.
+- A claim counts as a used number for `next-id`, and claims are never deleted (close, rm and
+  archive leave them), so a removed ticket's number is never reused. A claim without a ticket
+  is valid.
+- With `.claims/` present, `erg check` rejects a claim that is not exactly one line of two
+  or more fields, a claim
+  whose first field is not its ticket's slug, and a ticket without a claim. Without it, no
+  claim is required. Duplicate IDs are rejected either way.
 
 ### Log section
 
