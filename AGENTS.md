@@ -165,6 +165,7 @@ bootstrap binary can be stale when scripts are invoked directly.
 
 `make test` must enforce this with a grep check and fail fast if any
 script reintroduces the legacy default.
+
 ## Project memory
 
 This section is for the maintainer's agent harness (the roar, smelt and Brood
