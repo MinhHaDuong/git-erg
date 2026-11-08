@@ -219,9 +219,9 @@ wall-clock deadline; on timeout, falls back to the worktree-level result with a 
 you want the freshest view of origin; otherwise an ID pushed to origin between fetches is
 invisible and may be re-allocated.
 
-**Collision handling:** optimistic allocation, detected by claims. Two concurrent `next-id`
-calls in different worktrees can still return the same ID -- the cross-worktree window has
-narrowed but is not eliminated.
+**Collision handling:** optimistic allocation, detected by claims when they are on (below).
+Two concurrent `next-id` calls in different worktrees can still return the same ID -- the
+cross-worktree window has narrowed but is not eliminated.
 
 **ID claims.** Claims are on in a store exactly when its `.claims/` directory exists (the
 store root, beside the tickets; `.claims/.keep` keeps it in git). Each claim is a plain file

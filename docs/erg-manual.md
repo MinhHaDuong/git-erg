@@ -287,9 +287,9 @@ claim would then never be committed.
 
 Without .claims/, new writes no claim and prints a hint on stderr: run
 'erg migrate --claims' to switch claims on. Nothing then keeps concurrent
-invocations apart: erg new calls racing in one checkout (parallel agents
-filing into the same directory) take the same number under different slugs,
-every racer at once, and the duplicate surfaces only in 'erg check' (no file
+invocations with different titles apart: erg new calls racing in one
+checkout (parallel agents filing into the same directory) take the same
+number under different slugs, every racer at once, and the duplicate surfaces only in 'erg check' (no file
 is clobbered). Before claims, a glob post-check retried that race; it is
 retired, so in such a store run erg new sequentially or switch claims on.
 

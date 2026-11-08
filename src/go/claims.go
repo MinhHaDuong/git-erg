@@ -100,10 +100,10 @@ func claimsIgnored(store, id string) bool {
 	return cmd.Run() == nil
 }
 
-// claimsIgnoredMessage is the shared refusal for an ignored claims path.
-func claimsIgnoredMessage(store string) string {
-	return fmt.Sprintf("git ignores the claims in %s, so a claim would never be committed -- un-ignore that directory and the files in it (see 'git check-ignore -v'), then retry",
-		claimsDir(store))
+// claimsIgnoredMessage is the shared refusal for an ignored claim path.
+func claimsIgnoredMessage(store, id string) string {
+	return fmt.Sprintf("git ignores %s, so the claim would never be committed -- un-ignore %s/ and the claims in it ('git check-ignore -v' names the rule), then retry",
+		filepath.Join(claimsDir(store), id), claimsDir(store))
 }
 
 // linkClaim publishes a claim; a seam so a test can simulate a filesystem

@@ -176,7 +176,8 @@ sessions filing the same incident under the same slug.
 - **Switching on.** `erg init` creates `tickets/.claims/` in a new store;
   `erg migrate --claims` switches an existing store on and claims every ticket
   in it. Without the directory, nothing is claimed and a duplicate surfaces
-  only when `erg check` runs on a tree holding both tickets. After switching
+  only when `erg check` runs on a tree holding both tickets -- including the
+  duplicates that concurrent `erg new` runs in one checkout then produce. After switching
   on, a ticket made by an older erg has no claim and `erg check` rejects it,
   printing the plain-file fix.
 

@@ -721,7 +721,7 @@ func initClaims(ticketsDir string, dryRun bool) int {
 	if claimsIgnored(ticketsDir, "0001") {
 		// Not an init failure: the store works without claims. Say why
 		// they stay off rather than create a switch git would never carry.
-		fmt.Fprintf(os.Stderr, "init: not creating %s: %s\n", rel, claimsIgnoredMessage(ticketsDir))
+		fmt.Fprintf(os.Stderr, "init: not creating %s: %s\n", rel, claimsIgnoredMessage(ticketsDir, "0001"))
 		return 0
 	}
 	if dryRun {
