@@ -191,9 +191,8 @@ func cmdNew(args []string) int {
 		fmt.Fprintf(os.Stderr, "new: %v\n", err)
 		return 1
 	}
-	if active && claimIgnored(filepath.Join(claimsDir(ticketDir), "0001")) {
-		fmt.Fprintf(os.Stderr, "new: git ignores the claims in %s, so a claim would never be committed -- un-ignore that directory and the files in it (see 'git check-ignore -v'), then retry\n",
-			claimsDir(ticketDir))
+	if active && claimsIgnored(ticketDir) {
+		fmt.Fprintf(os.Stderr, "new: %s\n", claimsIgnoredMessage(ticketDir))
 		return 1
 	}
 

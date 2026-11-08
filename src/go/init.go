@@ -92,8 +92,9 @@ assets always produce byte-identical content.
 
 In a store that holds no .erg file yet, init also creates tickets/.claims/
 (with a .keep file, since git carries no empty directory), which switches ID
-claims on (see 'erg new'). A store that already holds tickets is left as it
-is: switch claims on there with 'erg migrate --claims'.
+claims on (see 'erg new'), unless git ignores that path, which init reports
+instead. A store that already holds tickets is left as it is: switch claims
+on there with 'erg migrate --claims'.
 
 The format specification and setup guide are available on demand via
 erg spec and erg integration respectively.
@@ -717,6 +718,12 @@ func initClaims(ticketsDir string, dryRun bool) int {
 		return 0
 	}
 	rel := filepath.Join("tickets", claimsDirName) + "/"
+	if claimsIgnored(ticketsDir) {
+		// Not an init failure: the store works without claims. Say why
+		// they stay off rather than create a switch git would never carry.
+		fmt.Fprintf(os.Stderr, "init: not creating %s: %s\n", rel, claimsIgnoredMessage(ticketsDir))
+		return 0
+	}
 	if dryRun {
 		fmt.Fprintf(os.Stderr, "init (dry-run): would create %s (ID claims on)\n", rel)
 		return 0

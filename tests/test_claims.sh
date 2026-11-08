@@ -272,6 +272,32 @@ if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "git ignores" && ! ls "$IGN"/ticket
 else
     fail "ignored claim path: erg new did not refuse (rc=$rc: $out)"
 fi
+# The same ignore rules make migrate --claims refuse (before .claims/ exists,
+# which is where a probe run from inside .claims/ would see nothing) and make
+# init leave claims off rather than create a switch git would never carry.
+IGM="$TDIR/igm"
+git init -q "$IGM"
+cp "$IGN/.gitignore" "$IGM/.gitignore"
+mkdir -p "$IGM/tickets"
+"$ERG_ABS" new "existing" "$IGM/tickets" >/dev/null 2>&1
+out=$(cd "$IGM" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "git ignores" && [ ! -e "$IGM/tickets/.claims" ]; then
+    pass "ignored claim path: migrate --claims refuses and creates nothing"
+else
+    fail "ignored claim path: migrate --claims did not refuse (rc=$rc: $out)"
+fi
+IGI="$TDIR/igi"
+git init -q "$IGI"
+cp "$IGN/.gitignore" "$IGI/.gitignore"
+mkdir -p "$IGI/tickets"
+cp "$ERG_ABS" "$IGI/tickets/erg"
+out=$("$ERG_ABS" init "$IGI" 2>&1) || true
+if [ ! -e "$IGI/tickets/.claims" ] && echo "$out" | grep -qF "not creating tickets/.claims/"; then
+    pass "ignored claim path: init leaves claims off and says why"
+else
+    fail "ignored claim path: init created .claims/ or stayed silent ($out)"
+fi
+
 printf '!tickets/.claims/\n!tickets/.claims/*\n' >> "$IGN/.gitignore"
 if (cd "$IGN" && "$ERG_ABS" new "allowed" tickets >/dev/null 2>&1); then
     pass "ignored claim path: allowlisting .claims/ lets erg new proceed"

@@ -532,7 +532,8 @@ Review the diff with 'git diff tickets/' and commit manually.
       share gets no claim -- one claim cannot hold two slugs -- so both files
       are reported and the command exits 1; renumber one of them clear of the
       frontier ('erg integration'), then re-run. Commit DIR/.claims/ with the
-      tickets. Bare 'erg migrate' never switches claims on.
+      tickets. Refuses, writing nothing, when git ignores the claims path.
+      Bare 'erg migrate' never switches claims on.
 
 ## erg init [DIR] [-n|--dry-run] [--force] [--show NAME]
 
@@ -551,8 +552,9 @@ assets always produce byte-identical content.
 
 In a store that holds no .erg file yet, init also creates tickets/.claims/
 (with a .keep file, since git carries no empty directory), which switches ID
-claims on (see 'erg new'). A store that already holds tickets is left as it
-is: switch claims on there with 'erg migrate --claims'.
+claims on (see 'erg new'), unless git ignores that path, which init reports
+instead. A store that already holds tickets is left as it is: switch claims
+on there with 'erg migrate --claims'.
 
 The format specification and setup guide are available on demand via
 erg spec and erg integration respectively.

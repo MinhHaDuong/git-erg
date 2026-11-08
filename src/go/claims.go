@@ -88,20 +88,36 @@ func claimContent(slug, nonce string) string {
 	return slug + " " + nonce + "\n"
 }
 
-// claimIgnored reports whether git ignores path, which would leave the claim
-// out of every commit while erg check passes locally on the file on disk.
-// Outside a git worktree, or without git, nothing is ignored.
-func claimIgnored(path string) bool {
-	cmd := exec.Command("git", "-C", filepath.Dir(path), "check-ignore", "-q", "--", filepath.Base(path))
+// claimsIgnored reports whether git ignores the claims of store (probed on a
+// claim name inside .claims/), which would leave them out of every commit
+// while erg check passes locally on the files on disk. git runs from the
+// store, which exists, so the probe works before .claims/ is created (init,
+// migrate). Outside a git worktree, or without git, nothing is ignored.
+func claimsIgnored(store string) bool {
+	probe := filepath.ToSlash(filepath.Join(claimsDirName, "0001"))
+	cmd := exec.Command("git", "-C", store, "check-ignore", "-q", "--", probe)
 	return cmd.Run() == nil
 }
+
+// claimsIgnoredMessage is the shared refusal for an ignored claims path.
+func claimsIgnoredMessage(store string) string {
+	return fmt.Sprintf("git ignores the claims in %s, so a claim would never be committed -- un-ignore that directory and the files in it (see 'git check-ignore -v'), then retry",
+		claimsDir(store))
+}
+
+// linkClaim publishes a claim; a seam so a test can simulate a filesystem
+// without hard links.
+var linkClaim = os.Link
 
 // writeClaim creates <store>/.claims/<id> holding slug and a fresh nonce,
 // atomically and without clobbering: the content goes to a dot-prefixed temp
 // in .claims/, then os.Link publishes it under the final name. Link fails
 // with EEXIST when the number is already claimed -- the collision signal,
-// returned as is (os.IsExist) -- and a killed erg leaves at most a temp,
-// never a partial claim.
+// returned as is (os.IsExist) -- and a killed erg leaves at most a dot-named
+// temp (never read as a claim), never a partial claim. On a filesystem
+// without hard links (some FUSE, 9p or exFAT mounts) it falls back to an
+// O_EXCL create of the final name: still no clobber, and EEXIST still the
+// signal, at the price of a partial claim if killed mid-write.
 func writeClaim(store, id, slug string) error {
 	nonce, err := newNonce()
 	if err != nil {
@@ -129,7 +145,14 @@ func writeClaim(store, id, slug string) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Link(tmpName, filepath.Join(dir, id))
+	final := filepath.Join(dir, id)
+	if err := linkClaim(tmpName, final); err != nil {
+		if os.IsExist(err) {
+			return err
+		}
+		return createExclusive(final, claimContent(slug, nonce))
+	}
+	return nil
 }
 
 // ensureClaimsDir creates <store>/.claims/ and its .keep file. Idempotent:
@@ -205,9 +228,9 @@ func claimViolations(dir string, tickets []Erg) []string {
 		}
 		line := strings.TrimSuffix(string(data), "\n")
 		fields := strings.Fields(line)
-		if strings.Contains(line, "\n") || len(fields) == 0 {
+		if strings.Contains(line, "\n") || len(fields) < 2 {
 			errs = append(errs, fmt.Sprintf(
-				"%s: claim must be exactly one line (slug, a space, a nonce) -- a merge that kept both sides of a claim conflict? two tickets may share number %s",
+				"%s: claim must be exactly one line: slug, a space, a nonce -- a merge that kept both sides of a claim conflict, or a hand-made claim without its nonce? two tickets may share number %s",
 				path, e.Name()))
 			malformed[e.Name()] = true
 			continue

@@ -95,7 +95,8 @@ Review the diff with 'git diff tickets/' and commit manually.
       share gets no claim -- one claim cannot hold two slugs -- so both files
       are reported and the command exits 1; renumber one of them clear of the
       frontier ('erg integration'), then re-run. Commit DIR/.claims/ with the
-      tickets. Bare 'erg migrate' never switches claims on.
+      tickets. Refuses, writing nothing, when git ignores the claims path.
+      Bare 'erg migrate' never switches claims on.
 `
 
 // cmdMigrate implements `erg migrate [dir]`. See helpMigrate for the user-facing summary.
@@ -651,6 +652,10 @@ func hasStatusHeader(dir string) bool {
 
 // cmdMigrateClaims implements `erg migrate --claims [DIR]` (ticket 0306).
 func cmdMigrateClaims(dir string) int {
+	if claimsIgnored(dir) {
+		fmt.Fprintf(os.Stderr, "migrate: %s\n", claimsIgnoredMessage(dir))
+		return 1
+	}
 	written, kept, shared, err := migrateClaims(dir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "migrate: %v\n", err)

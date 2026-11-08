@@ -55,6 +55,8 @@ func TestClaimViolations(t *testing.T) {
 			[]string{"claim must be exactly one line"}},
 		{"empty claim", []string{"0001-a.erg"}, map[string]string{"0001": ""},
 			[]string{"claim must be exactly one line"}},
+		{"slug without nonce", []string{"0001-a.erg"}, map[string]string{"0001": "a\n"},
+			[]string{"claim must be exactly one line"}},
 		{"slug mismatch", []string{"0001-a.erg"}, map[string]string{"0001": "b x\n"},
 			[]string{`0001-a.erg: claim`, `names slug "b", not "a"`}},
 		{"two tickets under one claim (-X ours)", []string{"0001-a.erg", "0001-b.erg"}, map[string]string{"0001": "a x\n"},
@@ -274,5 +276,27 @@ func TestMigrateWithoutClaimsFlagLeavesClaimsOff(t *testing.T) {
 	}
 	if _, err := os.Stat(claimsDir(dir)); !os.IsNotExist(err) {
 		t.Errorf("bare erg migrate switched claims on (err=%v)", err)
+	}
+}
+
+// TestWriteClaimWithoutHardLinks simulates a filesystem that refuses hard
+// links: the claim is still written, and EEXIST is still the signal.
+func TestWriteClaimWithoutHardLinks(t *testing.T) {
+	orig := linkClaim
+	defer func() { linkClaim = orig }()
+	linkClaim = func(_, _ string) error { return &os.LinkError{Op: "link", Err: os.ErrPermission} }
+	dir := t.TempDir()
+	if err := os.Mkdir(claimsDir(dir), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeClaim(dir, "0001", "a"); err != nil {
+		t.Fatalf("writeClaim without hard links: %v", err)
+	}
+	data, _ := os.ReadFile(filepath.Join(claimsDir(dir), "0001"))
+	if !strings.HasPrefix(string(data), "a ") {
+		t.Errorf("claim = %q", data)
+	}
+	if err := writeClaim(dir, "0001", "b"); !os.IsExist(err) {
+		t.Errorf("second claim of 0001: err = %v, want EEXIST", err)
 	}
 }
