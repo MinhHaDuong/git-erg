@@ -5,6 +5,7 @@ Author: MinhHaDuong
 
 --- log ---
 2026-11-09T09:51Z MinhHaDuong created
+2026-11-09T10:20Z MinhHaDuong author confirmed: fail noncompliant stores, no legacy cruft, repair code is the migration code
 
 --- body ---
 ## Context
@@ -20,10 +21,17 @@ caught" leans on CI (hooks are per clone and do not run on a clean merge), and t
 - The `.gitignore` refusal names the fix clearly.
 - `erg migrate --claims` prechecks: it lists every blocker and writes nothing until the store is ready.
 - Close the CI dependence with local, offline checks (write-verb warnings, a pre-merge-commit hook).
-- Open, agent recommendation: `erg check` FAILS a store without `.claims/` (not a warning). Why: the
-  vendored binary changes only on a deliberate `erg sync`, so the failure arrives in the session that
-  upgraded, with a one-command fix printed; a warning is what let ~50 duplicates reach default
-  branches. Confirm before Execute.
+- `erg check` FAILS a store without `.claims/` (not a warning). Confirmed by the author 2026-11-09.
+  Why: the vendored binary changes only on a deliberate `erg sync`, so the failure arrives in the
+  session that upgraded, with a one-command fix printed; a warning is what let ~50 duplicates reach
+  default branches.
+- No legacy cruft (author, 2026-11-09): every claims-off code path, test and doc framing goes. No
+  "claims on/off" branch survives in the code; a store without `.claims/` is an error, not a mode.
+- The repair code is the migration code (author, 2026-11-09): `erg migrate --claims` is the single
+  repair path. It prechecks, lists every blocker, writes nothing until ready, and also repairs a
+  compliant store with unclaimed tickets (writes the missing claims). Every error message about a
+  missing `.claims/` or a missing claim names it; the plain-file `echo` fix may stay alongside so a
+  store stays repairable without the binary.
 
 ## Design
 1. Enforcement. `erg check` fails a store without `.claims/` with one message naming the fix
