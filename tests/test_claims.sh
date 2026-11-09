@@ -333,7 +333,7 @@ ln -s ../tools/erg-real "$SYM/tickets/erg"
     git add -A && git commit -q --no-verify -m evil && git checkout -q main &&
     echo note > NOTE && git add NOTE && git commit -q --no-verify -m note)
 msg=$(cd "$SYM" && git merge --no-ff --no-edit evil 2>&1) && rc=0 || rc=$?
-if [ ! -e "$TDIR/sym-marker" ] && [ "$rc" -eq 0 ] && echo "$msg" | grep -qF "no trusted tickets/erg to run (a symlink, not executable, or untracked and changed by this merge)"; then
+if [ ! -e "$TDIR/sym-marker" ] && [ "$rc" -eq 0 ] && echo "$msg" | grep -qF "no trusted tickets/erg to run (only one this merge cannot change runs"; then
     pass "merge hook: a symlinked tickets/erg is not followed; a claimed merge still lands"
 else
     fail "merge hook: symlink target ran ($([ -e "$TDIR/sym-marker" ] && echo yes || echo no)) or merge refused (rc=$rc: $msg)"

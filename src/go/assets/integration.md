@@ -118,27 +118,29 @@ if [ -n "$(git diff --cached --name-only HEAD -- tickets)" ]; then
     erg_bin=
     if git ls-tree HEAD -- tickets/erg | grep -q '^100755 blob '; then
         erg_bin=$(git rev-parse --git-path erg-merge-check)
+        erg_from="this clone's committed tickets/erg"
         if ! { git cat-file blob HEAD:tickets/erg > "$erg_bin" && chmod +x "$erg_bin"; }; then
-            rm -f "$erg_bin" 2>/dev/null
+            rm -f "$erg_bin" 2>/dev/null || :
             echo "pre-merge-commit: cannot copy this clone's tickets/erg to $erg_bin; refusing the merge." >&2
             echo " Free space or fix permissions in the git directory, then retry (bypass: git merge --no-verify)." >&2
             exit 1
         fi
     elif [ -x tickets/erg ] && [ ! -L tickets/erg ] && [ -z "$(git diff --cached --name-only HEAD -- tickets/erg)" ]; then
         erg_bin=tickets/erg
+        erg_from="the local tickets/erg build"
     fi
     if [ -n "$erg_bin" ]; then
         erg_rc=0
         "$erg_bin" check tickets/ || erg_rc=$?
         [ "$erg_bin" = tickets/erg ] || rm -f "$erg_bin"
         if [ "$erg_rc" -ne 0 ]; then
-            echo "pre-merge-commit: ticket corpus check failed on the merge result (checked by this clone's committed tickets/erg)." >&2
+            echo "pre-merge-commit: ticket corpus check failed on the merge result (checked by $erg_from)." >&2
             echo " Fix it and conclude with 'git commit', or abort: git merge --abort." >&2
             echo " If the merge brings a newer erg whose format this binary rejects, review it, then conclude with 'git commit'." >&2
             exit 1
         fi
     elif [ -e tickets/erg ]; then
-        echo "pre-merge-commit: no trusted tickets/erg to run (a symlink, not executable, or untracked and changed by this merge);" >&2
+        echo "pre-merge-commit: no trusted tickets/erg to run (only one this merge cannot change runs: HEAD's committed executable, or an untracked build the merge leaves alone, never a symlink);" >&2
         echo " the claim index check below still runs. Review the new binary before your next commit." >&2
     else
         echo "ERROR: tickets/erg not found. Build it from the git-erg source" >&2
