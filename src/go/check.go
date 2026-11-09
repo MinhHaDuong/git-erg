@@ -313,14 +313,16 @@ under DIR recursively and verifies invariants that require a global view:
   - No dependency cycles among Blocked-by edges.
   - All per-ticket format rules (delegates to validateCorpus, which folds in parser-emitted errors).
 
-  - ID claims, when DIR/.claims/ exists (see 'erg new'): every claim is
-    exactly one line; its first field is the slug of the ticket with its
+  - ID claims (see 'erg new'): DIR/.claims/ exists -- a store without it
+    fails, and the message names the repair, 'erg migrate --claims DIR';
+    every claim is exactly one line; its first field is the slug of the ticket with its
     number; every ticket has a claim (the message prints the plain-file fix,
     so a hand-made ticket needs no binary). A claim without a ticket passes:
     claims outlive close, rm and archive. These catch a silenced add/add
     conflict on a claim: a merge with -X ours lands two tickets under one
     claim (slug mismatch), a merge=union attribute writes a two-line claim.
-    Without .claims/, no claim is required.
+    DIR is the store root: a subdirectory such as DIR/closed/ is not a
+    store and fails for want of its .claims/.
 
   - Folder/header closure: open ticket in closed/ or closed ticket not in
     closed/ (a hand-edited Closed: header that was not filed -- erg close now

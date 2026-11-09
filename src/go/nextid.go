@@ -160,10 +160,8 @@ var errRangeExhausted = errors.New("next-id: range exhausted (max 4-digit ID is 
 // remote-tracking refs come from the local cache populated by the last fetch.
 //
 // Allocation is still optimistic: two concurrent invocations in different
-// worktrees may return the same ID. In a store with .claims/ (ticket 0306)
-// git then reports an add/add conflict on the claim when the second branch is
-// merged or rebased; without it, erg check reports the duplicate ID on the
-// merged tree.
+// worktrees may return the same ID. git then reports an add/add conflict on
+// the claim (ticket 0306) when the second branch is merged or rebased.
 func nextID(dir string) (string, error) {
 	maxID := maxIDInDir(dir)
 
@@ -266,10 +264,9 @@ view; next-id itself never makes a network call.
 
 ID allocation is still optimistic: two concurrent invocations in different
 worktrees may return the same ID -- the cross-worktree window has narrowed
-but is not eliminated. In a store with .claims/, the second branch to merge
-or rebase then meets an add/add conflict on DIR/.claims/NNNN; without it,
-'erg check' reports the duplicate ID once both tickets share a tree. The
-later claimant renumbers clear of the frontier ('erg integration').
+but is not eliminated. The second branch to merge or rebase then meets an
+add/add conflict on DIR/.claims/NNNN. The later claimant renumbers clear of
+the frontier ('erg integration').
 `
 
 // cmdNextID implements `erg next-id [dir]`. See helpNextID for the user-facing summary.

@@ -36,9 +36,9 @@ the dependency graph before touching the filesystem:
 ID may be a 4-digit ticket ID or a full filename (e.g. 0042-some-title.erg).
 A non-existent or ambiguous ID is reported with the usual resolver error.
 
-The ticket's claim (DIR/.claims/NNNN, when claims are on -- see 'erg new') is
-left in place: claims are never deleted, so the removed ticket's number stays
-used and 'erg new' never hands it out again.
+The ticket's claim (DIR/.claims/NNNN, see 'erg new') is left in place:
+claims are never deleted, so the removed ticket's number stays used and
+'erg new' never hands it out again.
 `
 
 // cmdRm implements `erg rm ID|FILE [DIR] [--force]`. See helpRm for the

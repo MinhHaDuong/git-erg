@@ -42,8 +42,8 @@ and exits 0. A ticket that is closed by path but still missing the header gets
 the header (and REASON) written, so a supplied reason is never silently
 dropped. Step 3 (Blocked-by removal) is also idempotent.
 
-The ticket's claim (DIR/.claims/NNNN, when claims are on -- see 'erg new') is
-left in place: claims are never deleted, so the number stays used.
+The ticket's claim (DIR/.claims/NNNN, see 'erg new') is left in place:
+claims are never deleted, so the number stays used.
 `
 
 // cmdClose implements `erg close ID|FILE REASON [DIR]`. See helpClose for the user-facing summary.

@@ -16,18 +16,18 @@ import (
 
 // ID claims (ticket 0306).
 //
-// A store whose .claims/ directory exists claims every ticket number it uses:
-// erg new writes <store>/.claims/NNNN, one line holding the ticket's slug, a
+// Every store claims every ticket number it uses (ticket 0307: claims are
+// required, a store without .claims/ is noncompliant, never a mode): erg new
+// writes <store>/.claims/NNNN, one line holding the ticket's slug, a
 // space and a random nonce. Two branches that take the same number then add
 // the same path with different content, and git reports an add/add conflict
 // when the second one is merged or rebased -- offline, on any forge, with no
 // CI. The nonce is what makes every same-number pair conflict, including two
 // claimants that share a slug.
 //
-// The directory is the switch: claims are on exactly when it exists, so a
-// binary update never fails an existing corpus, and the switch is a plain file
-// a human can see and remove. Claims are never deleted (close, rm and archive
-// leave them): the directory is the record of every number ever used, which
+// A store without .claims/ fails erg check and makes erg new refuse, each
+// naming the one repair: erg migrate --claims. Claims are never deleted
+// (close, rm and archive leave them): the directory is the record of every number ever used, which
 // is why next-id counts claim names and a claim without a ticket is legal.
 
 // claimsDirName is the claims directory, directly under the store root.
@@ -46,23 +46,28 @@ func claimsDir(store string) string {
 	return filepath.Join(store, claimsDirName)
 }
 
-// claimsActive reports whether claims are on for store: its .claims/ exists
-// and is a directory. A symlinked .claims is an error, never followed.
-func claimsActive(store string) (bool, error) {
+// errNoClaims is wrapped by requireClaims for a store without .claims/, so
+// the one caller that creates it (ensureClaimsDir) can tell that case apart.
+var errNoClaims = errors.New("ID claims are required")
+
+// requireClaims returns nil when store holds its .claims/ directory, and an
+// error naming the repair otherwise. A symlinked .claims is an error, never
+// followed.
+func requireClaims(store string) error {
 	fi, err := os.Lstat(claimsDir(store))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return false, nil
+			return fmt.Errorf("%s has no .claims/: %w -- run: erg migrate --claims %s", store, errNoClaims, store)
 		}
-		return false, err
+		return err
 	}
 	if fi.Mode()&os.ModeSymlink != 0 {
-		return false, errClaimsSymlink
+		return errClaimsSymlink
 	}
 	if !fi.IsDir() {
-		return false, fmt.Errorf("%s is not a directory", claimsDir(store))
+		return fmt.Errorf("%s is not a directory", claimsDir(store))
 	}
-	return true, nil
+	return nil
 }
 
 // parseClaimName returns the ticket number a claim file name carries
@@ -208,7 +213,7 @@ func writeClaim(store, id, slug, nonce string) error {
 // ensureClaimsDir creates <store>/.claims/ and its .keep file. Idempotent:
 // an existing .keep is left untouched.
 func ensureClaimsDir(store string) error {
-	if _, err := claimsActive(store); err != nil {
+	if err := requireClaims(store); err != nil && !errors.Is(err, errNoClaims) {
 		return err
 	}
 	if err := os.MkdirAll(claimsDir(store), 0o755); err != nil {
@@ -240,9 +245,10 @@ func claimFix(store, id, slug string) string {
 	return fmt.Sprintf(`echo "%s $(date +%%s)" > %s`, slug, filepath.Join(claimsDir(store), id))
 }
 
-// claimViolations returns the claim rules' violations for the store, or nil
-// when claims are off. The rules (spec-erg-v1.md "Collision handling"):
+// claimViolations returns the claim rules' violations for the store. The
+// rules (spec-erg-v1.md "Collision handling"):
 //
+//   - the store has its .claims/ directory;
 //   - a claim is exactly one line;
 //   - its first field is the slug of the ticket that carries its number (the
 //     second field is not checked: a hand-made claim may carry any);
@@ -252,12 +258,11 @@ func claimFix(store, id, slug string) string {
 // These catch the silenced conflicts: `-X ours` lands two tickets under one
 // claim (a slug mismatch), a merge=union attribute writes a two-line claim.
 func claimViolations(dir string, tickets []Erg) []string {
-	active, err := claimsActive(dir)
-	if err != nil {
+	if err := requireClaims(dir); err != nil {
+		if errors.Is(err, errNoClaims) {
+			return []string{err.Error()}
+		}
 		return []string{fmt.Sprintf("%s: %v", claimsDir(dir), err)}
-	}
-	if !active {
-		return nil
 	}
 	entries, err := os.ReadDir(claimsDir(dir))
 	if err != nil {
@@ -307,8 +312,8 @@ func claimViolations(dir string, tickets []Erg) []string {
 				continue
 			}
 			errs = append(errs, fmt.Sprintf(
-				"%s: ticket has no claim %s -- claims are on in this store; fix: %s",
-				name, filepath.Join(claimsDir(dir), id), claimFix(dir, id, slug)))
+				"%s: ticket has no claim %s -- fix: erg migrate --claims %s, or by hand: %s",
+				name, filepath.Join(claimsDir(dir), id), dir, claimFix(dir, id, slug)))
 			continue
 		}
 		if claimed != slug {
@@ -320,7 +325,7 @@ func claimViolations(dir string, tickets []Erg) []string {
 	return errs
 }
 
-// migrateClaims switches claims on for store and claims every ticket in it,
+// migrateClaims creates the store's .claims/ and claims every ticket in it,
 // open and closed: it creates .claims/ (with .keep) and writes a claim for
 // each number that has none. Idempotent: an existing claim is never
 // rewritten. A number two tickets share gets no claim (one claim cannot hold

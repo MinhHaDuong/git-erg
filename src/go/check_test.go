@@ -158,3 +158,26 @@ func TestLogPlacementWarnings(t *testing.T) {
 		}
 	})
 }
+
+// TestCheckFailsWithoutClaimsDir: claims are required (ticket 0307). A store
+// without .claims/ fails with the one message that names the repair; the
+// same store passes once it is claimed (control).
+func TestCheckFailsWithoutClaimsDir(t *testing.T) {
+	dir := t.TempDir()
+	writeClaimTestTicket(t, dir, "0001-a.erg")
+	var code int
+	stdout, stderr := captureOutput(t, func() { code = cmdCheck([]string{dir}) })
+	out := stdout + stderr
+	if code != 1 {
+		t.Errorf("erg check on a store without .claims/ = %d, want 1", code)
+	}
+	if !strings.Contains(out, "run: erg migrate --claims "+dir) {
+		t.Errorf("message does not name the repair: %s", out)
+	}
+	claimStore(t, dir)
+	stdout, stderr = captureOutput(t, func() { code = cmdCheck([]string{dir}) })
+	out = stdout + stderr
+	if code != 0 {
+		t.Errorf("control: erg check on the claimed store = %d, want 0: %s", code, out)
+	}
+}
