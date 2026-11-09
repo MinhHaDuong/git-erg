@@ -57,7 +57,8 @@ func requireClaims(store string) error {
 	fi, err := os.Lstat(claimsDir(store))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("%s has no .claims/: %w -- run: erg migrate --claims %s", store, errNoClaims, store)
+			return fmt.Errorf("%s has no .claims/: %w -- run: erg migrate --claims %s (without the binary: mkdir %s/.claims && touch %s/.claims/.keep, then claim each ticket: echo \"SLUG $(date +%%s)\" > %s/.claims/NNNN)",
+				store, errNoClaims, store, store, store, store)
 		}
 		return err
 	}
@@ -506,6 +507,9 @@ func migrateClaims(store string, byID map[string][]string) (written, kept int, b
 	for _, id := range ids {
 		path := byID[id][0]
 		slug := ticketSlug(filepath.Base(path))
+		// Parse errors are erg check's to report, not migrate's: a ticket
+		// without a Created header hashes an empty date, which is still the
+		// same bytes in every clone, so independent migrations still agree.
 		t, _ := parseErg(path)
 		werr := writeClaim(store, id, slug, migrationNonce(id, slug, t.Created))
 		switch {

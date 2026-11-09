@@ -289,6 +289,13 @@ if [ "$rc" -eq 0 ] && [ -x "$PUSH" ]; then
 else
     fail "--push-hook: pre-push not created (rc=$rc, out: $out)"
 fi
+# Scope: pre-merge-commit is written under --hooks only (ticket 0307).
+if [ ! -e "$REPO/.git/hooks/pre-merge-commit" ] && [ ! -e "$REPO/.git/hooks/pre-commit" ] &&
+    [ ! -e "$TDIR/createagents/.git/hooks/pre-merge-commit" ]; then
+    pass "--push-hook and --inject-agents alone write no pre-merge-commit (or pre-commit) hook"
+else
+    fail "a pre-merge-commit or pre-commit hook appeared without --hooks"
+fi
 # --hooks now includes the pre-push hook (ticket 0241).
 REPO2=$(new_repo hooksonly)
 $ERG install "$REPO2" --hooks >/dev/null 2>&1
