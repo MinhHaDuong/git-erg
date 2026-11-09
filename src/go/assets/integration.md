@@ -13,9 +13,9 @@ local edit. It is not a `.erg` ticket, so `erg check` ignores it.
 
 The hook prevents committing `tickets/erg` on feature branches -- CI
 rebuilds the binary after merge to main -- validates staged tickets, and
-rejects a commit whose index holds a ticket without its ID claim (the index,
-not the working tree: an untracked claim on disk would let `erg check` pass
-while the commit lacks it). See the `.gitignore` section below for the full
+rejects a commit whose index holds a ticket without its ID claim, or two
+tickets on one number (the index, not the working tree: an untracked claim
+on disk would let `erg check` pass while the commit lacks it). See the `.gitignore` section below for the full
 commit policy.
 
 Install the hooks after the store is migrated and that commit is made
@@ -101,18 +101,15 @@ fi
 
 A clean merge runs `pre-merge-commit`, not `pre-commit`, so `erg install
 --hooks` installs this block too, in `.git/hooks/pre-merge-commit`, with the
-same markers and the same in-place upgrade. When the merge changes
-`tickets/`, it runs `erg check` on the merge result, then the same index
-check: a merge that brings in an unclaimed ticket or a duplicate number is
+same markers and the same in-place upgrade. It runs the pre-commit block's
+index check: a merge that brings in an unclaimed ticket, or two tickets on
+one number (what a `-X ours` resolution of a claim conflict leaves), is
 refused before git records it, and `MERGE_HEAD` stays for you to fix and
 conclude with `git commit` (whose pre-commit check runs again) or to
-`git merge --abort`. It runs this clone's committed `tickets/erg` (the blob
-at `HEAD`, copied into the git directory), never the working tree's, which a
-merge that changes the binary would make the other side's, unreviewed; with
-no trusted binary (an untracked one the merge changes, or a symlink) it says
-so and only the index check (plain `sh` and `awk`) runs. If the copy itself
-fails, the merge is refused. A fast-forward and
-`git merge --no-verify` run no hook; CI is the backstop for those.
+`git merge --abort`. Plain `sh` and `awk`, no binary: the full corpus check
+(dangling references, cycles) runs at the next ticket commit and in CI. A
+fast-forward and `git merge --no-verify` run no hook; CI is the backstop for
+those.
 
 ```sh
 # >>> erg managed >>>

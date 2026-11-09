@@ -6,6 +6,7 @@ Author: MinhHaDuong
 --- log ---
 2026-11-09T09:51Z MinhHaDuong created
 2026-11-09T10:20Z MinhHaDuong author confirmed: fail noncompliant stores, no legacy cruft, repair code is the migration code
+2026-11-09T11:12Z MinhHaDuong design 6 simplified after structural review (gpt-6.1-sol ACCEPTABLE-WITH-CUTS; advisor Fable 5.1 agreed): the merge hook runs no binary; its index check also catches a number two tickets hold, which covers the duplicates a clean merge can bring in a claims store
 
 --- body ---
 ## Context
@@ -49,8 +50,10 @@ caught" leans on CI (hooks are per clone and do not run on a clean merge), and t
 5. Write verbs warn. `new`, `close`, `rm`, `archive` print on stderr the tickets of the store that
    have no claim (capped list), so any clone that uses erg sees one, hook or no hook, offline.
 6. Merge hook. `erg install --hooks` also installs (or upgrades in place) a managed
-   `pre-merge-commit` block running `erg check`, so a clean merge that brings in an unclaimed ticket
-   or a duplicate is refused locally. Mirrored byte for byte in integration.md.
+   `pre-merge-commit` block running the index check it shares with pre-commit, so a clean merge that
+   brings in an unclaimed ticket or two tickets on one number is refused locally. Plain sh and awk,
+   no binary; the full corpus check runs at the next ticket commit and in CI. Mirrored byte for byte
+   in integration.md.
 7. Docs say "required": spec-erg-v1.md, integration.md (drop the "Switching on" framing; collapse the
    catch rules to: `erg new` cannot produce an unclaimed ticket; anything else is reported by the next
    erg command, commit or merge in that clone; CI is a backstop), both AGENTS.md copies (2400-byte
