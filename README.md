@@ -259,13 +259,14 @@ the lines out by hand). Full semantics: `erg close --help` or
 `origin`; it does not check the git-erg project for a newer version. To import
 explicitly from git-erg, run `erg sync --upstream` and review or verify the
 resulting `tickets/erg` before executing it. `sync` always replaces that
-project/CI artifact, never a system-native `erg` used to launch it. On Linux
-x86-64, run `tickets/erg init` afterward to deliver embedded asset changes. On
-another platform, update or rebuild the native system `erg` from the same
-reviewed git-erg revision, then run `erg init`. A store from before ID claims
-fails `erg check` until migrated: run `erg migrate --claims tickets`, commit
-`tickets/.claims/`, then `erg install --hooks` (in that order: the hooks
-reject commits in an unmigrated store). Details: `erg sync --help` or
+project/CI artifact, never a system-native `erg` used to launch it. A store
+from before ID claims fails `erg check` until migrated: first run
+`tickets/erg migrate --claims tickets`. Then, on Linux x86-64, run
+`tickets/erg init` to deliver embedded doc changes (on another platform, update
+or rebuild the native system `erg` from the same reviewed git-erg revision,
+then run `erg init`). Commit `tickets/.claims/` with the refreshed docs; each
+clone then pulls and runs `erg install --hooks` once (after the migration: the
+hooks reject commits in an unmigrated store). Details: `erg sync --help` or
 `docs/erg-manual.md`.
 
 ## Binary policy

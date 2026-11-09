@@ -255,10 +255,16 @@ sessions filing the same incident under the same slug.
   fix, an ignored claim path) and writes nothing until there is none. Its
   claims are derived from each ticket (number, slug, `Created:`), so two
   clones that migrate the same tickets write the same bytes; still, migrate
-  once on the shared base (main), commit, then integrate branches. Upgrading
-  an existing project: `erg sync`, `erg init`, `erg migrate --claims
-  tickets`, commit, then `erg install --hooks` -- the hooks reject every
-  commit in a store whose tickets are not claimed yet.
+  once on the shared base (main), commit, then integrate branches.
+- **Upgrading an existing project.** Whoever imports the release, once:
+  `erg sync --upstream`, review the binary, `tickets/erg migrate --claims
+  tickets`, `tickets/erg init` (it refreshes the shipped docs, not the data;
+  `erg check` warns until it runs), commit. Every clone then gets the
+  binary, docs and claims by `git pull`, and runs `erg install --hooks` once
+  (hooks are per clone; after the migration, since they reject every commit
+  whose tickets are not claimed). A branch cut before the migration: after
+  rebasing it, run `erg migrate --claims tickets` again; it adds only the
+  missing claims, or lists what blocks it and writes nothing.
 
 ### Renumber clear of the frontier, never to the next free ID
 
@@ -419,6 +425,7 @@ first execution, and make it the version other clones of this project receive:
   erg sync --upstream
   git diff -- tickets/erg
   # review or verify the imported binary here
+  tickets/erg migrate --claims tickets   # once, if tickets/.claims/ is missing
   tickets/erg init
   git diff -- tickets/
   git commit
