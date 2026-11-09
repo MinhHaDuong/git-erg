@@ -165,6 +165,7 @@ func ignoredClaimRules(store string, names ...string) []claimIgnoreRule {
 	fields := strings.Split(string(out), "\x00")
 	var rules []claimIgnoreRule
 	index := make(map[string]int)
+	var top, real string // resolved once, on the first rule
 	for i := 0; i+3 < len(fields); i += 4 {
 		source, line, pattern, path := fields[i], fields[i+1], fields[i+2], fields[i+3]
 		if strings.HasPrefix(pattern, "!") {
@@ -173,7 +174,10 @@ func ignoredClaimRules(store string, names ...string) []claimIgnoreRule {
 		key := source + ":" + line
 		j, ok := index[key]
 		if !ok {
-			rules = append(rules, claimIgnoreRule{source: source, line: line, pattern: pattern, allow: claimAllowLines(store, source)})
+			if rules == nil {
+				top, real = storePaths(store)
+			}
+			rules = append(rules, claimIgnoreRule{source: source, line: line, pattern: pattern, allow: claimAllowLines(store, top, real, source)})
 			j = len(rules) - 1
 			index[key] = j
 		}
@@ -194,34 +198,50 @@ func ignoredClaimRules(store string, names ...string) []claimIgnoreRule {
 	return rules
 }
 
+// storePaths returns the repository top and the store's resolved absolute
+// path, "" for either one it cannot tell.
+func storePaths(store string) (top, real string) {
+	if out, err := exec.Command("git", "-C", store, "rev-parse", "--show-toplevel").Output(); err == nil {
+		top = strings.TrimSpace(string(out))
+	}
+	if abs, err := filepath.Abs(store); err == nil {
+		real = abs
+		if r, err := filepath.EvalSymlinks(abs); err == nil {
+			real = r
+		}
+	}
+	return top, real
+}
+
 // claimAllowLines returns the two lines that un-ignore store's .claims/ and
 // the files in it, written relative to the directory the ignoring file's
 // patterns are relative to: its own for a .gitignore (git reports it
 // repo-top-relative), the repository top for info/exclude and
 // core.excludesFile. Those two are told apart by name, not by an absolute
 // path: git reports info/exclude as ".git/info/exclude" in a plain checkout
-// and as an absolute path in a linked worktree.
-func claimAllowLines(store, source string) []string {
-	prefix := filepath.ToSlash(filepath.Clean(store)) + "/"
-	topOut, err := exec.Command("git", "-C", store, "rev-parse", "--show-toplevel").Output()
-	if err == nil {
-		base := strings.TrimSpace(string(topOut))
-		if filepath.Base(source) == ".gitignore" && !filepath.IsAbs(source) {
-			base = filepath.Join(base, filepath.Dir(filepath.FromSlash(source)))
-		}
-		if abs, aerr := filepath.Abs(store); aerr == nil {
-			if real, rerr := filepath.EvalSymlinks(abs); rerr == nil {
-				abs = real
-			}
-			if rel, rerr := filepath.Rel(base, abs); rerr == nil && rel != ".." && !strings.HasPrefix(rel, "../") {
-				prefix = filepath.ToSlash(rel) + "/"
-				if rel == "." {
-					prefix = ""
-				}
-			}
-		}
+// and as an absolute path in a linked worktree. top and real come from
+// storePaths; without them, or for a store outside the base, the lines name
+// the store as given.
+func claimAllowLines(store, top, real, source string) []string {
+	lines := func(prefix string) []string {
+		return []string{"!" + prefix + claimsDirName + "/", "!" + prefix + claimsDirName + "/*"}
 	}
-	return []string{"!" + prefix + claimsDirName + "/", "!" + prefix + claimsDirName + "/*"}
+	fallback := lines(filepath.ToSlash(filepath.Clean(store)) + "/")
+	if top == "" || real == "" {
+		return fallback
+	}
+	base := top
+	if filepath.Base(source) == ".gitignore" && !filepath.IsAbs(source) {
+		base = filepath.Join(top, filepath.Dir(filepath.FromSlash(source)))
+	}
+	rel, err := filepath.Rel(base, real)
+	switch {
+	case err != nil || rel == ".." || strings.HasPrefix(rel, "../"):
+		return fallback
+	case rel == ".":
+		return lines("")
+	}
+	return lines(filepath.ToSlash(rel) + "/")
 }
 
 // ticketPathsByID maps each ticket number in store (open and closed, any
