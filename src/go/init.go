@@ -721,27 +721,25 @@ func commandForOrphan(rel string) string {
 // path, new or existing, and on a write failure.
 func initClaims(ticketsDir string, dryRun bool) int {
 	err := requireClaims(ticketsDir)
-	if err == nil {
-		// An existing .claims/ that git ignores is refused like a new one:
-		// its claims would never be committed.
-		if rules := ignoredClaimRules(ticketsDir, claimsKeepName); len(rules) > 0 {
-			for _, r := range rules {
-				fmt.Fprintf(os.Stderr, "init: %s\n", r.message())
-			}
-			return 1
-		}
-		return 0
-	}
-	if !errors.Is(err, errNoClaims) || storeHasTickets(ticketsDir) {
+	if err != nil && (!errors.Is(err, errNoClaims) || storeHasTickets(ticketsDir)) {
 		fmt.Fprintf(os.Stderr, "init: %v\n", err)
 		return 1
 	}
 	rel := filepath.Join("tickets", claimsDirName) + "/"
+	// One refusal for an ignored claims path, existing or about to be
+	// created: its claims would never be committed.
 	if rules := ignoredClaimRules(ticketsDir, claimsKeepName); len(rules) > 0 {
+		prefix := "init: "
+		if err != nil {
+			prefix = "init: not creating " + rel + ": "
+		}
 		for _, r := range rules {
-			fmt.Fprintf(os.Stderr, "init: not creating %s: %s\n", rel, r.message())
+			fmt.Fprintf(os.Stderr, "%s%s\n", prefix, r.message())
 		}
 		return 1
+	}
+	if err == nil {
+		return 0
 	}
 	if dryRun {
 		fmt.Fprintf(os.Stderr, "init (dry-run): would create %s\n", rel)
