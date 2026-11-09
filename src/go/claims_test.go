@@ -321,15 +321,16 @@ func TestMigrateClaimsRefusesSharedNumber(t *testing.T) {
 	writeClaimTestTicket(t, dir, "0001-a.erg")
 	writeClaimTestTicket(t, dir, "0002-b.erg")
 	writeClaimTestTicket(t, dir, "closed/0002-c.erg")
-	written, _, shared, err := migrateClaims(dir, mustTicketPaths(t, dir))
+	written, _, blockers, err := migrateClaims(dir, mustTicketPaths(t, dir))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if written != 1 || len(shared) != 1 || len(shared[0]) != 2 {
-		t.Fatalf("written=%d shared=%v, want 1 written and one shared pair", written, shared)
+	if written != 0 || len(blockers) != 1 || !strings.Contains(blockers[0], "0002 is held by 2 tickets") {
+		t.Fatalf("written=%d blockers=%v, want nothing written and the shared pair as the one blocker", written, blockers)
 	}
-	if _, err := os.Stat(filepath.Join(claimsDir(dir), "0002")); !os.IsNotExist(err) {
-		t.Errorf("a claim was written for the shared number 0002 (err=%v)", err)
+	// The precheck writes nothing at all: not even 0001's claim or .claims/.
+	if _, err := os.Stat(claimsDir(dir)); !os.IsNotExist(err) {
+		t.Errorf("a blocked migrate created .claims/ (err=%v)", err)
 	}
 	if code := cmdMigrate([]string{"--claims", dir}); code == 0 {
 		t.Error("erg migrate --claims exited 0 on a shared number")

@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 )
 
@@ -89,18 +88,27 @@ Review the diff with 'git diff tickets/' and commit manually.
 
   --claims
       Bring the store to the required ID claims (see 'erg new') and run
-      nothing else: create DIR/.claims/ with a .keep file, then write DIR/.claims/NNNN (the
-      slug and a nonce derived from the ticket's number, slug and Created
-      date) for every existing ticket, open and closed, so the numbers already
-      used are claimed from the first day. The derived nonce makes two clones
-      that migrate the same base write identical claims, which merge clean;
-      erg new keeps a random nonce. Idempotent: an
-      existing claim is never rewritten. A number that two tickets already
-      share gets no claim -- one claim cannot hold two slugs -- so both files
-      are reported and the command exits 1; renumber one of them clear of the
-      frontier ('erg integration'), then re-run. Commit DIR/.claims/ with the
-      tickets. Refuses, writing nothing, when git ignores the claims path.
-      Bare 'erg migrate' never writes claims.
+      nothing else. This is the one repair for a store erg check fails over
+      its claims: a store without DIR/.claims/, or a ticket without its
+      claim. It first collects every blocker and, if there is any, prints
+      them all, writes nothing (not even DIR/.claims/) and exits 1:
+        - a number two or more tickets share: renumber all but one clear of
+          the frontier ('erg integration');
+        - a claim it cannot fix: malformed, a symlink, or naming another
+          ticket's slug; a malformed claim git does not track yet is named
+          as a likely partial write, with its recovery (rm it, re-run);
+        - a claim path git ignores.
+      On a clean precheck it creates DIR/.claims/ with a .keep file and
+      writes DIR/.claims/NNNN for every ticket, open and closed, that has
+      none: the slug and a nonce derived from the ticket's number, slug and
+      Created date, so the numbers already used are claimed from the first
+      day. The derived nonce makes two clones that migrate the same base
+      write identical claims, which merge clean; still, migrate once on the
+      shared base, then integrate. erg new keeps a random nonce. Idempotent:
+      an existing claim is never rewritten. Commit DIR/.claims/ with the
+      tickets, then run 'erg install --hooks' (the success line says so):
+      the hooks check claims on every commit and merge, so they come after
+      the migration. Bare 'erg migrate' never writes claims.
 `
 
 // cmdMigrate implements `erg migrate [dir]`. See helpMigrate for the user-facing summary.
@@ -654,34 +662,33 @@ func hasStatusHeader(dir string) bool {
 	return err == stopWalk
 }
 
-// cmdMigrateClaims implements `erg migrate --claims [DIR]` (ticket 0306).
+// cmdMigrateClaims implements `erg migrate --claims [DIR]` (tickets 0306,
+// 0307): it prechecks, lists every blocker and writes nothing until the
+// store is ready, so it is also the one repair path for a store erg check
+// fails over its claims.
 func cmdMigrateClaims(dir string) int {
 	byID, err := ticketPathsByID(dir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "migrate: walk error: %v\n", err)
 		return 1
 	}
-	probe := []string{claimsKeepName}
-	for id := range byID {
-		probe = append(probe, id)
-	}
-	sort.Strings(probe)
-	if ignored := ignoredClaimFile(dir, probe...); ignored != "" {
-		fmt.Fprintf(os.Stderr, "migrate: %s\n", claimsIgnoredMessage(dir, ignored))
-		return 1
-	}
-	written, kept, shared, err := migrateClaims(dir, byID)
+	written, kept, blockers, err := migrateClaims(dir, byID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "migrate: %v\n", err)
 		return 1
 	}
+	if len(blockers) > 0 {
+		for _, b := range blockers {
+			fmt.Fprintf(os.Stderr, "migrate: %s\n", b)
+		}
+		word := "blockers"
+		if len(blockers) == 1 {
+			word = "blocker"
+		}
+		fmt.Fprintf(os.Stderr, "migrate: nothing written (%d %s): fix them, then re-run 'erg migrate --claims %s'\n", len(blockers), word, dir)
+		return 1
+	}
 	fmt.Printf("claims: %d written, %d already present\n", written, kept)
-	if len(shared) == 0 {
-		return 0
-	}
-	for _, paths := range shared {
-		fmt.Fprintf(os.Stderr, "migrate: no claim written for %s: %d tickets share it: %s -- renumber all but one clear of the frontier, then re-run\n",
-			filenameID(filepath.Base(paths[0])), len(paths), strings.Join(paths, ", "))
-	}
-	return 1
+	fmt.Printf("Next: commit %s/ with the tickets, then run 'erg install --hooks' so every commit and merge checks the claims.\n", claimsDir(dir))
+	return 0
 }

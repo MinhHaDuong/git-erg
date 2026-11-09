@@ -106,15 +106,15 @@ func claimContent(slug, nonce string) string {
 	return slug + " " + nonce + "\n"
 }
 
-// ignoredClaimFile returns the first of names (files inside
-// <store>/.claims/) that git ignores, or "" when git ignores none of them.
-// An ignored claim would be left out of every commit while erg check passes
-// locally on the file on disk. Each caller probes exactly the files it is
-// about to write: erg new its claim, init .keep, migrate .keep and every
-// claim. One git process answers for all names (check-ignore --stdin). git
-// runs from the store, which exists, so the probe works before .claims/ is
-// created. Outside a git worktree, or without git, nothing is ignored.
-func ignoredClaimFile(store string, names ...string) string {
+// ignoredClaimFiles returns every one of names (files inside
+// <store>/.claims/) that git ignores, as store paths, or nil when git ignores
+// none of them. An ignored claim would be left out of every commit while erg
+// check passes locally on the file on disk. Each caller probes exactly the
+// files it is about to write: erg new its claim, init .keep, migrate .keep and
+// every claim. One git process answers for all names (check-ignore --stdin).
+// git runs from the store, which exists, so the probe works before .claims/
+// is created. Outside a git worktree, or without git, nothing is ignored.
+func ignoredClaimFiles(store string, names ...string) []string {
 	var in strings.Builder
 	for _, n := range names {
 		in.WriteString(filepath.ToSlash(filepath.Join(claimsDirName, n)))
@@ -125,13 +125,15 @@ func ignoredClaimFile(store string, names ...string) string {
 	out, err := cmd.Output()
 	if err != nil {
 		// Exit 1: nothing ignored. 128 or no git: cannot tell, not ignored.
-		return ""
+		return nil
 	}
-	first, _, _ := strings.Cut(string(out), "\n")
-	if first == "" {
-		return ""
+	var ignored []string
+	for _, line := range strings.Split(strings.TrimSuffix(string(out), "\n"), "\n") {
+		if line != "" {
+			ignored = append(ignored, filepath.Join(store, filepath.FromSlash(line)))
+		}
 	}
-	return filepath.Join(store, filepath.FromSlash(first))
+	return ignored
 }
 
 // claimsIgnoredMessage is the shared refusal for an ignored claim file.
@@ -245,32 +247,17 @@ func claimFix(store, id, slug string) string {
 	return fmt.Sprintf(`echo "%s $(date +%%s)" > %s`, slug, filepath.Join(claimsDir(store), id))
 }
 
-// claimViolations returns the claim rules' violations for the store. The
-// rules (spec-erg-v1.md "Collision handling"):
-//
-//   - the store has its .claims/ directory;
-//   - a claim is exactly one line;
-//   - its first field is the slug of the ticket that carries its number (the
-//     second field is not checked: a hand-made claim may carry any);
-//   - every ticket has a claim.
-//
-// A claim without a ticket passes: claims outlive close, rm and archive.
-// These catch the silenced conflicts: `-X ours` lands two tickets under one
-// claim (a slug mismatch), a merge=union attribute writes a two-line claim.
-func claimViolations(dir string, tickets []Erg) []string {
-	if err := requireClaims(dir); err != nil {
-		if errors.Is(err, errNoClaims) {
-			return []string{err.Error()}
-		}
-		return []string{fmt.Sprintf("%s: %v", claimsDir(dir), err)}
-	}
+// readClaims reads every claim in dir's .claims/ (which the caller has
+// checked exists): the slug each well-formed claim names, the numbers whose
+// claim is malformed or a symlink, and one message per bad claim. Shared by
+// check (claimViolations) and the migrate precheck (migrateBlockers).
+func readClaims(dir string) (claims map[string]string, malformed map[string]bool, errs []string) {
 	entries, err := os.ReadDir(claimsDir(dir))
 	if err != nil {
-		return []string{fmt.Sprintf("%s: cannot read: %v", claimsDir(dir), err)}
+		return nil, nil, []string{fmt.Sprintf("%s: cannot read: %v", claimsDir(dir), err)}
 	}
-	claims := make(map[string]string, len(entries))
-	malformed := make(map[string]bool)
-	var errs []string
+	claims = make(map[string]string, len(entries))
+	malformed = make(map[string]bool)
 	for _, e := range entries {
 		if e.IsDir() || parseClaimName(e.Name()) == 0 {
 			continue
@@ -299,6 +286,29 @@ func claimViolations(dir string, tickets []Erg) []string {
 		}
 		claims[e.Name()] = fields[0]
 	}
+	return claims, malformed, errs
+}
+
+// claimViolations returns the claim rules' violations for the store. The
+// rules (spec-erg-v1.md "Collision handling"):
+//
+//   - the store has its .claims/ directory;
+//   - a claim is exactly one line;
+//   - its first field is the slug of the ticket that carries its number (the
+//     second field is not checked: a hand-made claim may carry any);
+//   - every ticket has a claim.
+//
+// A claim without a ticket passes: claims outlive close, rm and archive.
+// These catch the silenced conflicts: `-X ours` lands two tickets under one
+// claim (a slug mismatch), a merge=union attribute writes a two-line claim.
+func claimViolations(dir string, tickets []Erg) []string {
+	if err := requireClaims(dir); err != nil {
+		if errors.Is(err, errNoClaims) {
+			return []string{err.Error()}
+		}
+		return []string{fmt.Sprintf("%s: %v", claimsDir(dir), err)}
+	}
+	claims, malformed, errs := readClaims(dir)
 	for i := range tickets {
 		name := tickets[i].Filename()
 		id := tickets[i].FilenameID()
@@ -317,23 +327,101 @@ func claimViolations(dir string, tickets []Erg) []string {
 			continue
 		}
 		if claimed != slug {
-			errs = append(errs, fmt.Sprintf(
-				"%s: claim %s names slug %q, not %q -- another ticket holds this number (renumber this one clear of the frontier), or the slug was renamed without its claim",
-				name, filepath.Join(claimsDir(dir), id), claimed, slug))
+			errs = append(errs, slugMismatchMessage(name, filepath.Join(claimsDir(dir), id), claimed, slug))
 		}
 	}
 	return errs
 }
 
-// migrateClaims creates the store's .claims/ and claims every ticket in it,
-// open and closed: it creates .claims/ (with .keep) and writes a claim for
-// each number that has none. Idempotent: an existing claim is never
-// rewritten. A number two tickets share gets no claim (one claim cannot hold
-// two slugs): both files are reported and the returned count is non-zero.
+// slugMismatchMessage is the violation for a claim naming another slug,
+// shared by check and the migrate precheck.
+func slugMismatchMessage(ticket, claim, claimed, slug string) string {
+	return fmt.Sprintf("%s: claim %s names slug %q, not %q -- another ticket holds this number (renumber this one clear of the frontier), or the slug was renamed without its claim",
+		ticket, claim, claimed, slug)
+}
+
+// claimUntracked reports whether git says the claim at path (inside store)
+// is not committed. Outside a git worktree, or without git, it says no.
+func claimUntracked(store, name string) bool {
+	rel := filepath.ToSlash(filepath.Join(claimsDirName, name))
+	err := exec.Command("git", "-C", store, "ls-files", "--error-unmatch", "--", rel).Run()
+	var exitErr *exec.ExitError
+	return errors.As(err, &exitErr) && exitErr.ExitCode() == 1
+}
+
+// migrateBlockers returns every reason erg migrate --claims must write
+// nothing, all of them, so one run lists the whole repair:
 //
-// byID is ticketPathsByID(store), walked once by the caller, which also
-// needs it for the ignore probe: the store is not walked twice.
-func migrateClaims(store string, byID map[string][]string) (written, kept int, shared [][]string, err error) {
+//   - a number two or more tickets share (one claim cannot hold two slugs);
+//   - a claim migrate cannot fix: malformed, a symlink, or naming another
+//     ticket's slug -- with the safe recovery for a partial claim an
+//     interrupted write left uncommitted;
+//   - a .claims that is not a plain directory;
+//   - a claim path git ignores.
+//
+// byID is ticketPathsByID(store), walked once by the caller.
+func migrateBlockers(store string, byID map[string][]string) []string {
+	ids := make([]string, 0, len(byID))
+	for id := range byID {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	var blockers []string
+	for _, id := range ids {
+		if paths := byID[id]; len(paths) > 1 {
+			sort.Strings(paths)
+			blockers = append(blockers, fmt.Sprintf("%s is held by %d tickets: %s -- renumber all but one clear of the frontier ('erg integration')",
+				id, len(paths), strings.Join(paths, ", ")))
+		}
+	}
+	switch err := requireClaims(store); {
+	case err == nil:
+		claims, malformed, errs := readClaims(store)
+		blockers = append(blockers, errs...)
+		names := make([]string, 0, len(malformed))
+		for name := range malformed {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			path := filepath.Join(claimsDir(store), name)
+			if fi, lerr := os.Lstat(path); lerr == nil && fi.Mode().IsRegular() && claimUntracked(store, name) {
+				blockers = append(blockers, fmt.Sprintf("%s is not committed: a partial write from an interrupted erg? rm %s, then re-run", path, path))
+			}
+		}
+		for _, id := range ids {
+			paths := byID[id]
+			if len(paths) != 1 {
+				continue
+			}
+			slug := ticketSlug(filepath.Base(paths[0]))
+			if claimed, ok := claims[id]; ok && claimed != slug {
+				blockers = append(blockers, slugMismatchMessage(paths[0], filepath.Join(claimsDir(store), id), claimed, slug))
+			}
+		}
+	case !errors.Is(err, errNoClaims):
+		blockers = append(blockers, fmt.Sprintf("%s: %v", claimsDir(store), err))
+	}
+	probe := append([]string{claimsKeepName}, ids...)
+	for _, ignored := range ignoredClaimFiles(store, probe...) {
+		blockers = append(blockers, claimsIgnoredMessage(store, ignored))
+	}
+	return blockers
+}
+
+// migrateClaims brings store to the required claims: it creates .claims/
+// (with .keep) and writes a claim, with a nonce derived from the ticket
+// (migrationNonce), for every ticket number, open and closed, that has none.
+// It first collects every blocker (migrateBlockers) and, on any, writes
+// nothing and returns them all. Idempotent: an existing claim is never
+// rewritten, and one naming the ticket's slug counts as kept. So the same
+// call repairs a compliant store whose tickets lack claims.
+//
+// byID is ticketPathsByID(store), walked once by the caller.
+func migrateClaims(store string, byID map[string][]string) (written, kept int, blockers []string, err error) {
+	if blockers := migrateBlockers(store, byID); len(blockers) > 0 {
+		return 0, 0, blockers, nil
+	}
 	if err := ensureClaimsDir(store); err != nil {
 		return 0, 0, nil, err
 	}
@@ -343,23 +431,24 @@ func migrateClaims(store string, byID map[string][]string) (written, kept int, s
 	}
 	sort.Strings(ids)
 	for _, id := range ids {
-		paths := byID[id]
-		if len(paths) > 1 {
-			sort.Strings(paths)
-			shared = append(shared, paths)
-			continue
-		}
-		slug := ticketSlug(filepath.Base(paths[0]))
-		t, _ := parseErg(paths[0])
+		path := byID[id][0]
+		slug := ticketSlug(filepath.Base(path))
+		t, _ := parseErg(path)
 		werr := writeClaim(store, id, slug, migrationNonce(id, slug, t.Created))
 		switch {
 		case werr == nil:
 			written++
 		case os.IsExist(werr):
+			// The precheck read this claim and found the slug; a claim that
+			// appeared since is checked again rather than counted blindly.
+			data, rerr := os.ReadFile(filepath.Join(claimsDir(store), id))
+			if f := strings.Fields(string(data)); rerr != nil || len(f) == 0 || f[0] != slug {
+				return written, kept, nil, fmt.Errorf("claim %s appeared during the run and does not name %q", id, slug)
+			}
 			kept++
 		default:
-			return written, kept, shared, fmt.Errorf("claim %s: %w", id, werr)
+			return written, kept, nil, fmt.Errorf("claim %s: %w", id, werr)
 		}
 	}
-	return written, kept, shared, nil
+	return written, kept, nil, nil
 }

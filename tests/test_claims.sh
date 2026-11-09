@@ -363,6 +363,57 @@ else
     fail "migrate --claims: shared number not refused (rc=$rc: $out)"
 fi
 
+# --- migrate --claims prechecks: every blocker in one run, nothing written ---
+# Two shared numbers (0002, 0004) and a root rule ignoring every dot path:
+# exit-code-only would be tautological (the 0306 binary exits 1 here too), so
+# the test reads every blocker off stderr and checks .claims/ was not created.
+PRE="$TDIR/pre"
+git init -q "$PRE"
+printf '.*\n!.gitignore\n' > "$PRE/.gitignore"
+plain_ticket "$PRE/tickets" 0001-alone
+plain_ticket "$PRE/tickets" 0002-left
+plain_ticket "$PRE/tickets" 0002-right
+plain_ticket "$PRE/tickets" 0003-other
+plain_ticket "$PRE/tickets" 0004-open
+plain_ticket "$PRE/tickets" 0004-shut 2026-11-08 closed
+out=$(cd "$PRE" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
+missing=""
+for want in tickets/0002-left.erg tickets/0002-right.erg tickets/0004-open.erg tickets/closed/0004-shut.erg \
+    "tickets/.claims/" "nothing written"; do
+    echo "$out" | grep -qF "$want" || missing="$missing [$want]"
+done
+if [ "$rc" -eq 1 ] && [ -z "$missing" ] && [ ! -e "$PRE/tickets/.claims" ]; then
+    pass "migrate --claims precheck: both shared pairs and the ignored path reported in one run; no .claims/ created"
+else
+    fail "migrate --claims precheck: rc=$rc, missing$missing, .claims exists: $([ -e "$PRE/tickets/.claims" ] && echo yes || echo no) ($out)"
+fi
+# A claim migrate cannot fix (another ticket's slug) is a blocker too, and a
+# partial claim left by an interrupted write names its safe recovery.
+FIX="$TDIR/fix"
+git init -q "$FIX"
+plain_ticket "$FIX/tickets" 0001-mine
+plain_ticket "$FIX/tickets" 0002-ours
+plain_ticket "$FIX/tickets" 0003-new
+mkdir -p "$FIX/tickets/.claims"
+echo "theirs 0123abcd" > "$FIX/tickets/.claims/0001"
+printf 'ours' > "$FIX/tickets/.claims/0002"
+out=$(cd "$FIX" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -qF 'names slug "theirs", not "mine"' &&
+    echo "$out" | grep -qF "rm tickets/.claims/0002" && [ ! -e "$FIX/tickets/.claims/0003" ]; then
+    pass "migrate --claims precheck: a foreign claim and a partial claim block, with the recovery; nothing written"
+else
+    fail "migrate --claims precheck: foreign/partial claim not reported, or 0003 written (rc=$rc: $out)"
+fi
+rm "$FIX/tickets/.claims/0002"
+echo "mine 0123abcd" > "$FIX/tickets/.claims/0001"
+out=$(cd "$FIX" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -qF "claims: 2 written, 1 already present" &&
+    echo "$out" | grep -qF "erg install --hooks"; then
+    pass "migrate --claims: repairs a compliant store's unclaimed tickets; the success line names the hook step"
+else
+    fail "migrate --claims: repair run (rc=$rc: $out)"
+fi
+
 # --- erg init: creates .claims/ in an empty store; refuses a populated one ---
 NEWP="$TDIR/newp"
 mkdir -p "$NEWP/tickets"
