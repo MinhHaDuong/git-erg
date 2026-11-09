@@ -273,6 +273,31 @@ else
     git merge --abort 2>/dev/null || true
 fi
 
+# The merge hook never executes a tickets/erg the merge itself brings in:
+# the incoming binary is the merged tree's, not this clone's. Here the side
+# branch swaps tickets/erg for a script that leaves a marker; the index
+# check still runs (pure sh and awk) and refuses the unclaimed ticket.
+EVL="$TDIR/evl"
+git init -q -b main "$EVL"
+plain_ticket "$EVL/tickets" 0001-base
+claim_store "$EVL/tickets"
+cp "$ERG_ABS" "$EVL/tickets/erg"
+(cd "$EVL" && git add -A && git commit -q -m base && "$ERG_ABS" install . --hooks >/dev/null 2>&1 &&
+    git checkout -q -b evil &&
+    printf '#!/bin/sh\ntouch "%s"\nexit 0\n' "$TDIR/evl-marker" > tickets/erg && chmod +x tickets/erg &&
+    plain_ticket tickets 0002-unclaimed &&
+    git add -A && git commit -q --no-verify -m evil && git checkout -q main &&
+    echo note > NOTE && git add NOTE && git commit -q -m note)
+msg=$(cd "$EVL" && git merge --no-ff --no-edit evil 2>&1) && rc=0 || rc=$?
+if [ ! -e "$TDIR/evl-marker" ] && [ "$rc" -ne 0 ] &&
+    echo "$msg" | grep -qF "tickets/erg changes in this merge" &&
+    echo "$msg" | grep -qxF "  tickets/0002-unclaimed.erg"; then
+    pass "merge hook: an incoming tickets/erg is not executed; the index check still refuses"
+else
+    fail "merge hook: incoming binary ran ($([ -e "$TDIR/evl-marker" ] && echo yes || echo no)) or no refusal (rc=$rc: $msg)"
+fi
+(cd "$EVL" && git merge --abort 2>/dev/null) || true
+
 # --- close and rm leave the claim; its number is never reused ---
 "$ERG_ABS" new "to remove" tickets > "$TDIR/r.out" 2>/dev/null
 NR=$(created_id "$TDIR/r.out")
@@ -345,6 +370,20 @@ if [ "$rc" -eq 1 ] && [ ! -e "$IGI/tickets/.claims" ] && echo "$out" | grep -qF 
     pass "ignored claim path: init exits 1, creates no .claims/, names the .keep it would write"
 else
     fail "ignored claim path: init created .claims/, exited 0 or stayed silent (rc=$rc: $out)"
+fi
+
+# init over an existing .claims/ that git ignores refuses too.
+IGE="$TDIR/ige"
+git init -q "$IGE"
+mkdir -p "$IGE/tickets/.claims"
+: > "$IGE/tickets/.claims/.keep"
+printf '.claims/\n' > "$IGE/tickets/.gitignore"
+cp "$ERG_ABS" "$IGE/tickets/erg"
+out=$("$ERG_ABS" init "$IGE" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -qF "by the rule tickets/.gitignore:1:.claims/"; then
+    pass "ignored claim path: init over an existing ignored .claims/ exits 1, naming the rule"
+else
+    fail "ignored claim path: init accepted an ignored existing .claims/ (rc=$rc: $out)"
 fi
 
 printf '!tickets/.claims/\n!tickets/.claims/*\n' >> "$IGN/.gitignore"
@@ -472,6 +511,19 @@ if (cd "$IEX/tickets" && "$ERG_ABS" migrate --claims . >/dev/null 2>&1); then
 else
     fail "ignored path: the info/exclude lines did not suffice ($(cat "$IEX/.git/info/exclude"))"
 fi
+# A rule that ignores the store directory itself cannot be undone by the
+# claim lines alone (git never re-includes a file under an excluded
+# directory): the refusal says so.
+PAR="$TDIR/par"
+git init -q "$PAR"
+plain_ticket "$PAR/tickets" 0001-one
+printf 'tickets/\n' > "$PAR/.gitignore"
+out=$(cd "$PAR" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -qF "git ignores the store directory tickets itself (rule .gitignore:1:tickets/)"; then
+    pass "ignored path: an ignored store directory is named, not just the claim lines"
+else
+    fail "ignored path: ignored store directory not named (rc=$rc: $out)"
+fi
 # A path matched only by a negation is not ignored (check-ignore -v prints
 # the negation and exits 0): no refusal.
 NEG="$TDIR/neg"
@@ -513,6 +565,15 @@ if [ -z "$loud" ] && [ -f "$WRN/closed/0003-three.erg" ] && [ ! -e "$WRN/0005-fi
     pass "write verbs: new, close, rm and archive name the unclaimed ticket and still succeed"
 else
     fail "write verbs: no warning or a refusal:$loud"
+fi
+# A FILE path inside closed/ names the store root, not closed/, in the
+# warning: no false "has no .claims/" and no stray closed/.claims/ advised.
+err=$( { "$ERG_ABS" close "$WRN/closed/0003-three.erg" again; "$ERG_ABS" rm "$WRN/closed/0003-three.erg"; } 2>&1 >/dev/null) || true
+if ! echo "$err" | grep -qF "has no .claims/" && echo "$err" | grep -qF "run: erg migrate --claims $WRN" &&
+    [ ! -e "$WRN/closed/0003-three.erg" ] && [ ! -e "$WRN/closed/.claims" ]; then
+    pass "write verbs: a FILE path inside closed/ warns about the store root"
+else
+    fail "write verbs: FILE path inside closed/ ($err)"
 fi
 NOC="$TDIR/noc"
 plain_ticket "$NOC" 0001-one

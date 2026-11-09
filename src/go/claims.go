@@ -113,6 +113,7 @@ type claimIgnoreRule struct {
 	source, line, pattern string   // as git check-ignore -v reports them
 	paths                 []string // the store paths it ignores
 	allow                 []string // the lines to append to source
+	store, storeRule      string   // the store, and the rule ignoring it, if any
 }
 
 // message is the refusal for one rule. Paths are capped: migrate probes
@@ -124,8 +125,14 @@ func (r claimIgnoreRule) message() string {
 		more = fmt.Sprintf(" and %d more", len(shown)-3)
 		shown = shown[:3]
 	}
-	return fmt.Sprintf("git ignores %s%s by the rule %s:%s:%s, so the claims would never be committed -- append these lines to %s, then retry:\n  %s",
-		strings.Join(shown, ", "), more, r.source, r.line, r.pattern, r.source, strings.Join(r.allow, "\n  "))
+	first := ""
+	if r.storeRule != "" {
+		// git never re-includes a file under an excluded directory, so
+		// the claim lines alone cannot work.
+		first = fmt.Sprintf("git ignores the store directory %s itself (rule %s): un-ignore it first, then ", r.store, r.storeRule)
+	}
+	return fmt.Sprintf("%sgit ignores %s%s by the rule %s:%s:%s, so the claims would never be committed -- append these lines to %s, then retry:\n  %s",
+		first, strings.Join(shown, ", "), more, r.source, r.line, r.pattern, r.source, strings.Join(r.allow, "\n  "))
 }
 
 // ignoredClaimRules returns the git ignore rules that ignore any of names
@@ -171,6 +178,18 @@ func ignoredClaimRules(store string, names ...string) []claimIgnoreRule {
 			index[key] = j
 		}
 		rules[j].paths = append(rules[j].paths, filepath.Join(store, filepath.FromSlash(path)))
+	}
+	if len(rules) > 0 {
+		// Only on the refusal path: is the store directory itself ignored?
+		probe := exec.Command("git", "-C", store, "check-ignore", "-v", "-z", "--stdin")
+		probe.Stdin = strings.NewReader(".\x00")
+		if out, err := probe.Output(); err == nil {
+			if f := strings.Split(string(out), "\x00"); len(f) >= 3 && !strings.HasPrefix(f[2], "!") {
+				for i := range rules {
+					rules[i].store, rules[i].storeRule = store, f[0]+":"+f[1]+":"+f[2]
+				}
+			}
+		}
 	}
 	return rules
 }
@@ -322,10 +341,17 @@ func readClaims(dir string) (claims map[string]string, malformed map[string]bool
 	claims = make(map[string]string, len(entries))
 	malformed = make(map[string]bool)
 	for _, e := range entries {
-		if e.IsDir() || parseClaimName(e.Name()) == 0 {
+		if parseClaimName(e.Name()) == 0 {
 			continue
 		}
 		path := filepath.Join(claimsDir(dir), e.Name())
+		if e.IsDir() {
+			// Named like a claim, so it holds the number's place: nothing
+			// can write the claim, and check must not call it missing.
+			errs = append(errs, fmt.Sprintf("%s: is a directory, not a claim file; remove it", path))
+			malformed[e.Name()] = true
+			continue
+		}
 		if e.Type()&fs.ModeSymlink != 0 {
 			// A claim is a plain committed file; a link would let check
 			// read, and a merge carry, content from outside the store.
@@ -566,6 +592,11 @@ func unclaimedTickets(dir string) []string {
 // callers (autoclose), and the warning reaches every clone that uses erg,
 // with or without hooks, offline. Silent in a compliant store.
 func warnUnclaimed(verb, dir string) {
+	// close and rm given a FILE inside closed/ resolve closed/ as their
+	// directory; the store, and its .claims/, is its parent.
+	if filepath.Base(filepath.Clean(dir)) == "closed" {
+		dir = filepath.Dir(filepath.Clean(dir))
+	}
 	if err := requireClaims(dir); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: warning: %v\n", verb, err)
 		return

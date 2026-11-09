@@ -153,14 +153,19 @@ fi`
 // hook markers (ticket 0307). A clean merge runs pre-merge-commit, not
 // pre-commit, so a merge that brings in an unclaimed ticket or a duplicate
 // number was refused nowhere but CI. When the merge changes tickets/ it runs
-// erg check on the merge result, then the shared index check. A fast-forward
+// erg check on the merge result, then the shared index check. It never runs a
+// tickets/erg the merge itself changes: that binary is the incoming side's,
+// unreviewed (gaze on PR #393); the index check, sh and awk only, still runs. A fast-forward
 // and --no-verify run no hook; concluding a refused merge with 'git commit'
 // runs pre-commit, whose index check is the backstop. Like hookBody it has
 // no 'exit 0', so third-party content after the block still runs.
 const mergeHookBody = `# Check the merge result before git records it: a clean merge runs this
 # hook, not pre-commit. A fast-forward or --no-verify runs neither.
 if [ -n "$(git diff --cached --name-only HEAD -- tickets)" ]; then
-    if [ -x tickets/erg ]; then
+    if [ -n "$(git diff --cached --name-only HEAD -- tickets/erg)" ]; then
+        echo "pre-merge-commit: tickets/erg changes in this merge, so the incoming binary is not run;" >&2
+        echo " the claim index check below still runs. Review the new binary before your next commit." >&2
+    elif [ -x tickets/erg ]; then
         if ! tickets/erg check tickets/; then
             echo "pre-merge-commit: ticket corpus check failed on the merge result." >&2
             echo " Fix it and conclude with 'git commit', or abort: git merge --abort" >&2
