@@ -1,0 +1,30 @@
+%erg 0.1
+Title: Drop the hook rule refusing tickets/erg on a branch
+Created: 2026-11-09
+Author: MinhHaDuong
+
+--- log ---
+2026-11-09T12:19Z MinhHaDuong created
+
+--- body ---
+## Context
+Found 2026-11-09 during the claims rollout (JETP-observer PR #285; the 0216 dogfood had hit the same rule in
+chemin-de-voix, ticket 0219). The managed pre-commit block refuses a commit staging `tickets/erg` on any branch
+but the default one, with "CI rebuilds the binary after merge". That reason holds in git-erg only, where
+rebuild-binary.yml commits the binary on main. An adopter vendors the binary by `erg sync` and lands it by pull
+request, as integration.md's upgrade recipe says; agents there work on branches and never commit to main. So in
+every adopter that installed the hooks, each binary refresh, the claims migration included, needs
+`--no-verify`, which also skips the claims index check the same block runs.
+
+## Decision
+The author, 2026-11-09: drop the rule from the managed block. git-erg needs no replacement: its CI rebuilds the
+binary on main after every merge whatever a pull request carried.
+
+## Exit criteria
+- [ ] The managed pre-commit block (install.go hookBody) no longer inspects `tickets/erg`; a rerun of
+      `erg install --hooks` replaces an installed block in place, so adopters pick up the change.
+- [ ] integration.md's snippet and prose, `erg install --help` and docs/erg-manual.md no longer state the rule.
+- [ ] Tests: the rule's tests are removed, and one test shows a hook-installed repo commits `tickets/erg` on a
+      feature branch.
+- [ ] CHANGELOG notes the change.
+- [ ] make check passes.
