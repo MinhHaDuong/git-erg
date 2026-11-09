@@ -358,11 +358,12 @@ func readClaims(dir string) (claims map[string]string, malformed map[string]bool
 //   - a claim is exactly one line;
 //   - its first field is the slug of the ticket that carries its number (the
 //     second field is not checked: a hand-made claim may carry any);
-//   - every ticket has a claim.
+//   - every ticket has a claim, except a number two tickets share, which
+//     the duplicate-ID rule reports with its fix (renumber).
 //
 // A claim without a ticket passes: claims outlive close, rm and archive.
-// These catch the silenced conflicts: `-X ours` lands two tickets under one
-// claim (a slug mismatch), a merge=union attribute writes a two-line claim.
+// These catch the silenced conflicts: `-X ours` lands two tickets on one
+// number (a duplicate ID), a merge=union attribute writes a two-line claim.
 func claimViolations(dir string, tickets []Erg) []string {
 	if err := requireClaims(dir); err != nil {
 		if errors.Is(err, errNoClaims) {
@@ -371,10 +372,20 @@ func claimViolations(dir string, tickets []Erg) []string {
 		return []string{fmt.Sprintf("%s: %v", claimsDir(dir), err)}
 	}
 	claims, malformed, errs := readClaims(dir)
+	// A number two tickets share is reported once, by the duplicate-ID rule,
+	// with its fix (renumber). A claim line for each ticket of the pair would
+	// prescribe the echo fix for both, which creates a fresh conflict.
+	held := make(map[string]int, len(tickets))
+	for i := range tickets {
+		held[tickets[i].FilenameID()]++
+	}
 	for i := range tickets {
 		name := tickets[i].Filename()
 		id := tickets[i].FilenameID()
 		if parseClaimName(id) == 0 {
+			continue
+		}
+		if held[id] > 1 {
 			continue
 		}
 		slug := ticketSlug(name)

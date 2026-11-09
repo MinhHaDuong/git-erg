@@ -88,8 +88,9 @@ func TestClaimViolations(t *testing.T) {
 			[]string{"claim must be exactly one line"}},
 		{"slug mismatch", []string{"0001-a.erg"}, map[string]string{"0001": "b x\n"},
 			[]string{`0001-a.erg: claim`, `names slug "b", not "a"`}},
-		{"two tickets under one claim (-X ours)", []string{"0001-a.erg", "0001-b.erg"}, map[string]string{"0001": "a x\n"},
-			[]string{`0001-b.erg: claim`}},
+		// Reported once, by the duplicate-ID rule with its renumber hint
+		// (TestCheckDuplicateHintSaysRenumber), not as a claim violation.
+		{"two tickets under one claim (-X ours): left to the duplicate rule", []string{"0001-a.erg", "0001-b.erg"}, map[string]string{"0001": "a x\n"}, nil},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -168,3 +168,35 @@ func TestCheckFailsWithoutClaimsDir(t *testing.T) {
 		t.Errorf("control: erg check on the claimed store = %d, want 0: %s", code, out)
 	}
 }
+
+// TestCheckDuplicateHintSaysRenumber: two tickets sharing a number get one
+// line, the duplicate, telling the user to renumber -- not the plain-file
+// claim fix, which written for both tickets of a pair would create a fresh
+// conflict (ticket 0307). Both with no claim for the number and with a claim
+// naming one of the two.
+func TestCheckDuplicateHintSaysRenumber(t *testing.T) {
+	for _, claimed := range []bool{false, true} {
+		dir := t.TempDir()
+		writeClaimTestTicket(t, dir, "0001-a.erg")
+		writeClaimTestTicket(t, dir, "0001-b.erg")
+		writeTestClaim(t, dir, claimsKeepName, "")
+		if claimed {
+			writeTestClaim(t, dir, "0001", "a 0123abcd\n")
+		}
+		var code int
+		stdout, stderr := captureOutput(t, func() { code = cmdCheck([]string{dir}) })
+		var renumber, echo int
+		for _, line := range strings.Split(stdout+stderr, "\n") {
+			if strings.Contains(line, "renumber") {
+				renumber++
+			}
+			if strings.Contains(line, `echo "`) {
+				echo++
+			}
+		}
+		if code != 1 || renumber != 1 || echo != 0 {
+			t.Errorf("claimed=%v: rc=%d, %d renumber lines (want 1), %d echo lines (want 0):\n%s%s",
+				claimed, code, renumber, echo, stdout, stderr)
+		}
+	}
+}

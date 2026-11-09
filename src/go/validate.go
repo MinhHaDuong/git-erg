@@ -142,7 +142,7 @@ func validateCorpus(tickets []Erg, parseErrs [][]string, cfg *Config) []string {
 		files := idToFiles[tid]
 		if len(files) > 1 {
 			errors = append(errors, fmt.Sprintf(
-				"duplicate ID '%s' in: %s", tid, strings.Join(files, ", ")))
+				"duplicate ID '%s' in: %s -- renumber all but one clear of the frontier ('erg integration'), then claim each new number", tid, strings.Join(files, ", ")))
 		}
 	}
 
