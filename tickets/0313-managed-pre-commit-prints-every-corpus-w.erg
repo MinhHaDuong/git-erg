@@ -5,6 +5,7 @@ Author: Claude (JETP-observer session)
 
 --- log ---
 2026-11-09T12:44Z Claude (JETP-observer session) created
+2026-11-09T13:30Z Claude note upgrade path for installed hooks (gaze, PR #404)
 
 --- body ---
 ## Context
@@ -21,3 +22,9 @@ bury the one line that matters (ERG CHECK: PASS/FAIL).
 - [ ] The managed pre-commit block shows errors in full but WARNs only as a count (or only when `check` fails)
 - [ ] `erg check` run by hand keeps its full output
 - [ ] A test pins the hook's quiet output on a corpus with warnings and its full output on a failing one
+
+## Notes
+
+The hook block is written at install time: a repo that already has it keeps
+the noisy version until `erg install --hooks` is run again. The fix should say
+so where adopters will see it (release notes, or the install output).
