@@ -173,6 +173,13 @@ sessions filing the same incident under the same slug.
 - **Claims are never deleted.** `erg close`, `erg rm` and `erg archive` leave
   them, so the directory records every number ever used; a claim without a
   ticket is legitimate.
+- **Picking a number by hand.** `erg next-id` prints the next number. Without
+  the binary, fetch and rebase onto the base branch, then take one past the
+  highest claim, `ls tickets/.claims | sort -n | tail -1`. That reads this
+  checkout only: unmerged branches and sibling worktrees, which
+  `erg next-id` scans, stay invisible, and the claim is what turns such a
+  collision into a conflict. Write it with the ticket's slug and a fresh
+  nonce, `echo "SLUG $(date +%s)" > tickets/.claims/NNNN`, and stage both.
 - **Switching on.** `erg init` creates `tickets/.claims/` in a new store;
   `erg migrate --claims` switches an existing store on and claims every ticket
   in it. Without the directory, nothing is claimed: `erg new` still keeps
