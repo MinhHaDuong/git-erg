@@ -315,7 +315,7 @@ The other levels raise efficiency and file referencing issues -- the idea is to 
 - **Discoverability:** An agent dropped into a new repo runs `ls`. It sees
   `tickets/`. Done. The directory name is the documentation. Hidden
   directories (`.ergs/`, `.claude/tickets/`) require prior knowledge.
-- **Interoperability:** Root-level project directories (`design/`, `scripts/`,
+- **Interoperability:** Root-level project directories (`docs/`, `scripts/`,
   `tests/`, `hooks/`) are a universal convention. `tickets/` fits the
   pattern. Any agent framework, CI script, or human finds it the same way.
 - **Ergonomics:** Tools co-located with data (`tickets/tools/` next to
