@@ -12,6 +12,26 @@ versioning is added for the embedded assets, and ticket autoclose is enforced by
 a required CI check rather than a bot. Sixteen PRs (#239-#254), each gated
 through `/verify`.
 
+### Added -- ID claims (2026-11-08)
+- **`tickets/.claims/NNNN`.** In a store whose `.claims/` directory exists,
+  `erg new` also writes a claim file: one line, the ticket's slug and a random
+  nonce. Two branches that take one number add that path with different
+  content, so git reports the collision as an add/add conflict at the second
+  merge or rebase -- offline, on any forge, with no CI. Claims are never
+  deleted, so `next-id` never reuses a removed ticket's number. (0306 -- #386)
+- **Switching on is per store.** `erg init` creates `.claims/` in a new store;
+  `erg migrate --claims` switches an existing store on and claims every ticket
+  in it. A store without `.claims/` behaves as before, keeping `erg new`'s
+  post-check retry. (0306 -- #386)
+- **`erg check`** rejects a claim that is multi-line, names another slug, or is
+  a symlink, and a ticket with no claim, printing a plain-file fix
+  (`echo "SLUG $(date +%s)" > tickets/.claims/NNNN`). This catches a conflict
+  silenced by `-X ours` or a `merge=union` attribute. (0306 -- #386)
+- **Pre-commit hook:** rejects a staged ticket whose claim is not staged.
+  Adopters pick it up by re-running `erg install --hooks`, which upgrades the
+  managed block in place. (0306 -- #386)
+- `erg integration` explains picking a number by hand under claims. (#390)
+
 ### Changed -- `erg sync` (2026-09-17)
 - **`erg update` is renamed `erg sync`.** The default mode aligns a clone with
   the binary its own project vendored at `origin`; `--upstream` is the explicit

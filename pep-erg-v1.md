@@ -90,7 +90,9 @@ runs `ls | sort | tail -1`, increments, and pads. Mnemonics (e.g., `afg`,
 which becomes fragile at scale.
 
 **Collision handling:** Optimistic concurrency. Two worktrees may pick the
-same number simultaneously. The pre-commit validator catches duplicates.
+same number simultaneously. Without claims, `erg check` (pre-commit hook,
+CI) rejects the duplicate only once one tree holds both tickets; with claims,
+git reports it at the merge itself (below).
 The agent that loses renames its ticket -- to a number well clear of the
 high-water mark, never to the next free ID, which is the seat every parallel
 session is racing for; `erg integration` carries the recovery procedure. This
