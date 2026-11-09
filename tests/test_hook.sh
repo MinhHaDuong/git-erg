@@ -112,6 +112,81 @@ else
     fail "closed-archived: commit must be allowed when ticket is properly archived"
 fi
 
+# --- Tests 7-8: the hook prints errors in full, warnings as a count (0313) ---
+# Fixture: two carriers committed past the hook (--no-verify), each with a blank
+# line inside its header block, which erg check reports as a warning but does
+# not reject. A fresh store has no warnings, so without carriers a quiet hook
+# and a noisy one look the same.
+for n in 0010 0011; do
+    cat > "tickets/$n-warn-carrier.erg" << ERG
+%erg 0.1
+Title: Warning carrier $n
+Created: 2026-06-09
+
+Author: test
+
+--- log ---
+2026-06-09T10:00Z test created
+
+--- body ---
+ERG
+done
+claim_store tickets
+git add tickets/0010-warn-carrier.erg tickets/0011-warn-carrier.erg tickets/.claims
+git commit -q --no-verify -m "warning carriers"
+
+# Test 7: a clean ticket commit passes; the hook shows the count, not the lines.
+cat > tickets/0012-clean.erg << 'ERG'
+%erg 0.1
+Title: Clean ticket
+Created: 2026-06-09
+Author: test
+
+--- log ---
+2026-06-09T10:00Z test created
+
+--- body ---
+ERG
+claim_store tickets
+git add tickets/0012-clean.erg tickets/.claims/0012
+msg=$(git commit -q -m "clean ticket" 2>&1) && rc=0 || rc=$?
+# Warnings print in four spellings (WARN x:, WARN:, WARNING:, NOTE), so the
+# match is unanchored: "^WARN " alone could never fail.
+if [ "$rc" -eq 0 ] && ! echo "$msg" | grep -qE 'WARN|NOTE' &&
+    echo "$msg" | grep -qF "ERG CHECK: PASS (" && echo "$msg" | grep -qF "2 warnings)"; then
+    pass "quiet pass: hook shows the warning count, not the warning lines"
+else
+    fail "quiet pass: hook must print no WARN/NOTE line and the PASS count (rc=$rc: $msg)"
+fi
+
+# Test 8: a failing corpus prints everything, warnings included.
+cat > tickets/0013-closed-unarchived.erg << 'ERG'
+%erg 0.1
+Title: Closed but not archived
+Created: 2026-06-09
+Author: test
+Closed: done
+
+--- log ---
+2026-06-09T10:00Z test created
+2026-06-09T10:01Z test closed - done
+
+--- body ---
+ERG
+claim_store tickets
+git add tickets/0013-closed-unarchived.erg tickets/.claims/0013
+head_before=$(git rev-parse HEAD)
+msg=$(git commit -q -m "failing corpus" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && [ "$(git rev-parse HEAD)" = "$head_before" ] &&
+    echo "$msg" | grep -qF "VIOLATION" &&
+    echo "$msg" | grep -qF "closed ticket not in closed/ directory" &&
+    echo "$msg" | grep -qF "WARN 0010-warn-carrier.erg" &&
+    echo "$msg" | grep -qF "WARN 0011-warn-carrier.erg"; then
+    pass "failing corpus: hook blocks and prints the violation and the warnings in full"
+else
+    fail "failing corpus: hook must block and print VIOLATION plus every WARN (rc=$rc: $msg)"
+fi
+
 echo ""
 echo "hook: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

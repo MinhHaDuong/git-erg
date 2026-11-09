@@ -1,0 +1,111 @@
+%erg 0.1
+Title: Managed pre-commit prints every corpus WARN on each ticket commit
+Created: 2026-11-09
+Author: Claude (JETP-observer session)
+Closed: autoclosed — PR #405
+
+--- log ---
+2026-11-09T12:44Z Claude (JETP-observer session) created
+2026-11-09T12:51Z Claude note upgrade path for installed hooks (gaze, PR #404)
+2026-11-09T13:10Z Claude raid f314e3 imagine: shell-only fix; blind-spot 2 findings folded in
+2026-11-09T13:12Z Claude raid f314e3 plan + feasibility: PASS
+2026-11-09T13:16Z MinhHaDuong closed — autoclosed — PR #405
+
+--- body ---
+## Context
+
+Reported from JETP-observer, 2026-11-09, after its ID-claims migration (its PR
+#285). On every commit that stages a `.erg` file, the managed pre-commit block
+runs `tickets/erg check tickets/`, which prints every corpus WARN: 236 in that
+repo, mostly "log entry after the entry run's terminal blank". That is about
+40 KB of output per ticket commit, enough to swamp an agent's tool output and
+bury the one line that matters (ERG CHECK: PASS/FAIL).
+
+## Exit criteria
+
+- [ ] The managed pre-commit block shows errors in full but WARNs only as a count (or only when `check` fails)
+- [ ] `erg check` run by hand keeps its full output
+- [ ] A test pins the hook's quiet output on a corpus with warnings and its full output on a failing one
+
+## Notes
+
+The hook block is written at install time: a repo that already has it keeps
+the noisy version until `erg install --hooks` is run again. The fix should say
+so where adopters will see it (release notes, or the install output).
+
+## Imagine (raid f314e3)
+
+Premise holds on main d364f2d: `hookBody` (src/go/install.go:102-105) runs
+`tickets/erg check tickets/` uncaptured; WARNs go to stderr, the
+`ERG CHECK: PASS (N tickets, M warnings)` line last on stdout.
+
+Path: change the hook's shell only, no new `check` flag. `install --hooks`
+rewrites the hook but never the vendored `tickets/erg`, and `cmdCheck` exits 1
+on an unknown flag, so a hook calling a new flag would fail every ticket commit
+where the vendored binary predates it. Capture check's combined output; on
+failure print it all, on pass print only the `^ERG CHECK` line (grep, not
+`tail -n 1`: on the empty-corpus path a WARN can come last). `erg check` by
+hand is untouched, which meets criterion 2 by construction.
+
+Change together: `hookBody`; its verbatim copy in src/go/assets/integration.md
+(byte-compared by tests/test_selfcoherence.sh (iv)); tests in tests/test_hook.sh.
+
+Blind spot 1 (decided: count only). The asset-drift WARN/NOTE lines
+(check.go:280, manifest.go:606/672/734) are the upgrade nudge that
+integration.md:248 promises ("`erg check` warns until it runs"); pre-commit is
+where adopters see it unasked. Count-only buries it. Kept count-only because it
+is criterion 1's letter; reword integration.md:248 so it does not imply the
+commit shows it. Letting drift lines through is a scope change left to the
+author.
+
+Blind spot 2 (test design). Warnings print indented two spaces in four
+spellings (`WARN x:`, `WARN:`, `WARNING:`, `NOTE`), so `^WARN ` cannot fail.
+The fixture must carry a real warning (a fresh store passes clean); assert no
+line matches `WARN|NOTE` and the PASS line reports N warnings; prove it red on
+the current hook first.
+
+Out of scope: this repo's 264 log-placement WARNs (a separate cleanup); the
+per-file `erg validate` output (bounded by staged files).
+
+## Plan (raid f314e3)
+
+Actions:
+1. src/go/install.go:99-102, inside `hookBody`: replace the `check` block with
+   ```
+   if ! erg_check_out=$(tickets/erg check tickets/ 2>&1); then
+       printf '%s\n' "$erg_check_out" >&2
+       echo "ERROR: ticket corpus check failed." >&2
+       exit 1
+   fi
+   printf '%s\n' "$erg_check_out" | grep '^ERG CHECK' || true
+   ```
+   plus a one-line comment. No `exit 0`; `claimsIndexCheck` untouched.
+2. src/go/assets/integration.md:47-50: the same lines, byte-identical
+   (test_selfcoherence.sh (iv) compares them).
+3. integration.md:247-248: "`erg check` run by hand warns until it runs, the
+   pre-commit hook shows only a warning count" (no date, no ticket number:
+   test_integration.sh:206-215).
+
+First test (tests/test_hook.sh, new Tests 7-8 after Test 6, written first):
+- Fixture: commit with `--no-verify` two warning carriers (0010, 0011), each with
+  a blank line inside the header block (`WARN ...: blank line inside header
+  block`). Not a stale Blocked-by: the hook's `erg validate` rejects it.
+- Test 7, quiet pass: stage only a clean 0012 (+ claim), commit through the
+  hook capturing `2>&1`; assert rc 0, no line matching unanchored
+  case-sensitive `WARN|NOTE`, and `ERG CHECK: PASS (` with `2 warnings)`.
+  Red on the current hook.
+- Test 8, failing corpus: stage a closed-unarchived 0013 (+ claim); assert rc
+  non-zero, HEAD unmoved, output holds `VIOLATION`, `closed ticket not in
+  closed/ directory`, and both carriers' `WARN` lines. Green on the current
+  hook too: a regression guard against an always-count-only fix, not a red test.
+
+Untouched: test_install.sh:422-445 ratchets; integration.md is not a deployed
+asset (no regen step). Optional dogfood: `build/erg install . --hooks`.
+Expected diff: ~75 lines over 3 files.
+
+## Feasibility (raid f314e3): PASS
+
+Paths and lines checked on d364f2d (install.go:99-102, integration.md:47-50 and
+246-248, test_selfcoherence.sh:106, test_hook.sh Test 6 at ~105,
+`ERG="${ERG_BIN:-build/erg}"`). No open PR touches these files; single-ticket
+wave, no shared registry.
