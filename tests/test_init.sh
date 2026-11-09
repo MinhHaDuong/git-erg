@@ -9,6 +9,10 @@ FAIL=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
+# Claims are required (ticket 0307): fixture stores are made compliant with
+# plain files (claim_store), so each case fails for its own defect.
+. "$(dirname "$0")/claims_fixture.sh"
+
 echo "=== erg init ==="
 
 TDIR=$(mktemp -d)
@@ -297,6 +301,7 @@ Closed: 2026-06-02
 --- body ---
 Closed ticket outside closed/ to trigger a folderClosure warning.
 ERGEOF
+claim_store "$CHAIN/tickets"
 OUT_CHAIN=$($ERG init "$CHAIN" 2>&1) && RC_CHAIN=0 || RC_CHAIN=$?
 if echo "$OUT_CHAIN" | grep -q "closed ticket not in closed/ directory"; then
     pass "chaining: init surfaces the corpus warning"

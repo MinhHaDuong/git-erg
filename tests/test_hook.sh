@@ -10,6 +10,10 @@ FAIL=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
+# Claims are required (ticket 0307): fixture stores are made compliant with
+# plain files (claim_store), so each case fails for its own defect.
+. "$(dirname "$0")/claims_fixture.sh"
+
 echo "=== pre-commit hook: tickets/erg guard ==="
 
 TDIR=$(mktemp -d)
@@ -17,6 +21,7 @@ trap 'rm -rf "$TDIR"' EXIT
 
 REPO="$TDIR/repo"
 mkdir -p "$REPO/tickets"
+claim_store "$REPO/tickets"
 cd "$REPO"
 git init -q -b main
 git config user.email "test@example.com"
@@ -90,7 +95,8 @@ Author: test
 --- body ---
 Test body.
 ERG
-git add tickets/0001-test-ticket.erg
+claim_store tickets
+git add tickets/0001-test-ticket.erg tickets/.claims
 if git commit -q -m "add ticket" 2>/dev/null; then
     pass "feature branch: .erg ticket files are allowed"
 else
@@ -113,11 +119,13 @@ Closed: done
 
 --- body ---
 ERG
-git add tickets/0002-closed-unarchived.erg
-if git commit -q -m "close without archive" 2>/dev/null; then
-    fail "closed-unarchived: commit must be rejected by pre-commit hook (0241)"
-else
+claim_store tickets
+git add tickets/0002-closed-unarchived.erg tickets/.claims/0002
+msg=$(git commit -q -m "close without archive" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$msg" | grep -qF "closed ticket not in closed/ directory"; then
     pass "closed-unarchived: pre-commit hook blocks closed-but-unarchived ticket"
+else
+    fail "closed-unarchived: commit must be rejected by pre-commit hook on folder closure (0241) (rc=$rc: $msg)"
 fi
 
 # --- Test 6: closed ticket properly archived → pre-commit allows ---

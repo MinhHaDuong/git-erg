@@ -22,6 +22,10 @@ export GIT_CONFIG_VALUE_0=always
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
+# Claims are required (ticket 0307): fixture stores are made compliant with
+# plain files (claim_store), so each case fails for its own defect.
+. "$(dirname "$0")/claims_fixture.sh"
+
 echo "=== erg sync/version ==="
 
 # git_init DIR — create a repo with signing/identity that works unattended,
@@ -529,6 +533,7 @@ git -C "$WORKSTALE/tickets/.erg-sync-stale" fetch --quiet --depth=1 "$UPSTREAM" 
 touch -d '1 hour ago' "$WORKSTALE/tickets/.erg-sync-stale"
 git init -q --bare "$WORKSTALE/tickets/.erg-sync-live"
 mkdir -p "$WORKSTALE/tickets/unrelated-dir/.erg-sync-nested"
+claim_store "$WORKSTALE/tickets"
 if (cd "$WORKSTALE" && "$ERG_ABS" check tickets/ >/dev/null 2>&1) && (cd "$WORKSTALE" && "$ERG_ABS" validate tickets/*.erg >/dev/null 2>&1); then
     pass "erg check and erg validate ignore a stale .erg-sync-* directory"
 else
@@ -797,6 +802,7 @@ fi
 WORKM="$WORKROOT/work-match"
 git clone -q "$REMOTE" "$WORKM"
 cp "$ERG_ABS" "$WORKM/tickets/erg"
+claim_store "$WORKM/tickets"
 $ERG init "$WORKM" >/dev/null 2>&1
 # Guard: this case is distinct from "no manifest -> no hint" only if init
 # actually stamped a matching manifest. Without the guard a silently-missing

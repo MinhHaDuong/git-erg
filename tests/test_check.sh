@@ -10,6 +10,10 @@ FAIL=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
+# Claims are required (ticket 0307): fixture stores are made compliant with
+# plain files (claim_store), so each case fails for its own defect.
+. "$(dirname "$0")/claims_fixture.sh"
+
 trap 'rm -rf "$FIXTURES"' EXIT
 
 echo "=== erg check ==="
@@ -32,6 +36,7 @@ Author: a
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/ok"
 if $ERG check "$FIXTURES/ok" >/dev/null 2>&1; then
     pass "explicit dir passes"
 else
@@ -66,6 +71,7 @@ Author: a
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/dup"
 if $ERG check "$FIXTURES/dup" >/dev/null 2>&1; then
     fail "duplicate IDs rejected"
 else
@@ -75,6 +81,7 @@ fi
 # --- exit-code coherence (ticket 0207): a violation is exit 1, never 2 ---
 # 1 is reserved for hard failures (violations); 2 means "init skipped a local
 # edit". check must never emit 2, so the shared table stays unambiguous.
+claim_store "$FIXTURES/dup"
 dup_rc=0; $ERG check "$FIXTURES/dup" >/dev/null 2>&1 || dup_rc=$?
 if [ "$dup_rc" -eq 1 ]; then
     pass "violation exits 1 (not 2 -- shared exit-code table is unambiguous)"
@@ -94,6 +101,7 @@ Author: a
 --- body ---
 EOF
 cp "$FIXTURES/xdup/0001-one.erg" "$FIXTURES/xdup/closed/0001-one.erg"
+claim_store "$FIXTURES/xdup"
 if $ERG check "$FIXTURES/xdup" 2>&1 | grep -q 'duplicate'; then
     pass "cross-directory duplicate ID rejected"
 else
@@ -122,6 +130,7 @@ Blocked-by: 0001
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/cycle"
 if $ERG check "$FIXTURES/cycle" >/dev/null 2>&1; then
     fail "dependency cycle rejected"
 else
@@ -150,6 +159,7 @@ Blocked-by: 0001
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/cross"
 if $ERG check "$FIXTURES/cross" >/dev/null 2>&1; then
     pass "blocked-by in closed subdir accepted"
 else
@@ -168,6 +178,7 @@ Blocked-by: github.com/other/repo#42
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/forge"
 if $ERG check "$FIXTURES/forge" >/dev/null 2>&1; then
     pass "forge ref does not cause local errors"
 else
@@ -185,6 +196,7 @@ Author: a
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/closure"
 rc=0; out=$($ERG check "$FIXTURES/closure" 2>&1) || rc=$?
 if echo "$out" | grep -q "VIOLATION.*open ticket in closed"; then
     pass "open ticket in closed/ is a violation"
@@ -209,6 +221,7 @@ Closed: done
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/closure2"
 rc=0; out=$($ERG check "$FIXTURES/closure2" 2>&1) || rc=$?
 if echo "$out" | grep -q "VIOLATION.*closed ticket not in closed"; then
     pass "closed-but-unarchived ticket is a violation"
@@ -234,6 +247,7 @@ Author: a
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/closure3"
 rc=0; out=$($ERG check "$FIXTURES/closure3" 2>&1) || rc=$?
 if echo "$out" | grep -q "VIOLATION.*filename reads as closed"; then
     pass "basename-only closed ticket is a violation"
@@ -268,6 +282,7 @@ Author: a
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/closure4"
 if $ERG check "$FIXTURES/closure4" >/dev/null 2>&1; then
     pass "disclosed/enclosed basenames are not flagged as closed"
 else
@@ -283,6 +298,7 @@ fi
 
 # --- Empty dir exits 0 ---
 mkdir -p "$FIXTURES/empty"
+claim_store "$FIXTURES/empty"
 if $ERG check "$FIXTURES/empty" >/dev/null 2>&1; then
     pass "empty dir exits 0"
 else
@@ -298,6 +314,7 @@ fi
 # and a store that is genuinely clean print the same thing.
 mkdir -p "$FIXTURES/ticketless-stray"
 touch "$FIXTURES/ticketless-stray/fake.go"
+claim_store "$FIXTURES/ticketless-stray"
 rc=0; out=$($ERG check "$FIXTURES/ticketless-stray" 2>&1) || rc=$?
 if echo "$out" | grep -qF "WARN: Go source files found in"; then
     pass "ticketless store: stray Go source still warns"
@@ -314,6 +331,7 @@ fi
 # must stay silent. Without it, an implementation that warns unconditionally
 # would pass the first arm and nothing would notice.
 mkdir -p "$FIXTURES/ticketless-clean"
+claim_store "$FIXTURES/ticketless-clean"
 rc=0; out=$($ERG check "$FIXTURES/ticketless-clean" 2>&1) || rc=$?
 if [ $rc -eq 0 ] && ! echo "$out" | grep -q "WARN"; then
     pass "ticketless store: a clean one warns about nothing"
@@ -334,6 +352,7 @@ Author: x
 --- body ---
 EOF
 touch "$FIXTURES/stray/tools/go/fake.go"
+claim_store "$FIXTURES/stray"
 rc=0; out=$($ERG check "$FIXTURES/stray" 2>&1) || rc=$?
 if echo "$out" | grep -qF "WARN: Go source files found in"; then
     pass "stray Go source warns"
@@ -359,6 +378,7 @@ Author: x
 --- body ---
 EOF
 touch "$FIXTURES/stray-toplevel/main.go"
+claim_store "$FIXTURES/stray-toplevel"
 rc=0; out=$($ERG check "$FIXTURES/stray-toplevel" 2>&1) || rc=$?
 if echo "$out" | grep -qF "WARN: Go source files found in"; then
     pass "stray Go source at tickets root warns"
@@ -388,6 +408,7 @@ module git-erg
 
 go 1.21
 EOF
+claim_store "$FIXTURES/gomod"
 rc=0; out=$($ERG check "$FIXTURES/gomod" 2>&1) || rc=$?
 if echo "$out" | grep -qF "WARN: Go source files found in"; then
     pass "tools/go go.mod warns (no module-name exception)"
@@ -424,6 +445,7 @@ Blocked-by: 0001
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/warn1"
 out=$($ERG check "$FIXTURES/warn1" 2>&1) || true
 if echo "$out" | grep -qF ", 1 warning)"; then
     pass "check: 1 warning uses singular"
@@ -469,6 +491,7 @@ Blocked-by: 0001
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/warn2"
 out=$($ERG check "$FIXTURES/warn2" 2>&1) || true
 if echo "$out" | grep -qF ", 2 warnings)"; then
     pass "check: 2 warnings uses plural"
@@ -487,6 +510,7 @@ Author: a
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/err1"
 out=$($ERG check "$FIXTURES/err1" 2>&1) || true
 if echo "$out" | grep -qF "FAILED (1 error)"; then
     pass "check: 1 error uses singular"
@@ -511,6 +535,7 @@ Label: bogus-label
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/err2"
 out=$($ERG check "$FIXTURES/err2" 2>&1) || true
 if echo "$out" | grep -qF "FAILED (2 errors)"; then
     pass "check: 2 errors uses plural"
@@ -530,6 +555,7 @@ Blocked-by: 0001
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/self-cycle"
 out=$($ERG check "$FIXTURES/self-cycle" 2>&1) && rc=0 || rc=$?
 if [ "$rc" -ne 0 ] && echo "$out" | grep -q "dependency cycle"; then
     pass "self-reference cycle detected"
@@ -569,6 +595,7 @@ Blocked-by: 0001
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/cycle3"
 out=$($ERG check "$FIXTURES/cycle3" 2>&1) && rc=0 || rc=$?
 if [ "$rc" -ne 0 ] && echo "$out" | grep -q "dependency cycle"; then
     pass "length-3 cycle detected"
@@ -598,6 +625,7 @@ Blocked-by: 0001
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/stale-blocked"
 rc=0; out=$($ERG check "$FIXTURES/stale-blocked" 2>&1) || rc=$?
 if echo "$out" | grep -q "Blocked-by 0001 is already closed"; then
     pass "stale Blocked-by warns"
@@ -631,6 +659,7 @@ Blocked-by: 0001
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/no-stale"
 rc=0; out=$($ERG check "$FIXTURES/no-stale" 2>&1) || rc=$?
 if echo "$out" | grep -q "is already closed"; then
     fail "no stale warn when blocker is open (got: $out)"
@@ -655,6 +684,7 @@ Blocked-by: github.com/other/repo#1
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/stale-forge"
 rc=0; out=$($ERG check "$FIXTURES/stale-forge" 2>&1) || rc=$?
 if echo "$out" | grep -q "is already closed"; then
     fail "forge ref skipped for stale check (got: $out)"
@@ -670,6 +700,7 @@ fi
 # --- Encoding warning: CRLF file warns ---
 mkdir -p "$FIXTURES/enc-crlf"
 printf '%%erg 0.1\r\nTitle: x\r\nCreated: 2026-01-01\r\nAuthor: x\r\n\r\n--- log ---\r\n--- body ---\r\n' > "$FIXTURES/enc-crlf/0001-crlf.erg"
+claim_store "$FIXTURES/enc-crlf"
 rc=0; out=$($ERG check "$FIXTURES/enc-crlf" 2>&1) || rc=$?
 if echo "$out" | grep -q "WARNING.*CRLF"; then
     pass "CRLF encoding warning emitted"
@@ -685,6 +716,7 @@ fi
 # --- Encoding warning: BOM file warns ---
 mkdir -p "$FIXTURES/enc-bom"
 printf '\357\273\277%%erg 0.1\nTitle: x\nCreated: 2026-01-01\nAuthor: x\n\n--- log ---\n--- body ---\n' > "$FIXTURES/enc-bom/0001-bom.erg"
+claim_store "$FIXTURES/enc-bom"
 rc=0; out=$($ERG check "$FIXTURES/enc-bom" 2>&1) || rc=$?
 if echo "$out" | grep -q "WARNING.*BOM"; then
     pass "BOM encoding warning emitted"
@@ -708,6 +740,7 @@ Author: a
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/enc-clean"
 out=$($ERG check "$FIXTURES/enc-clean" 2>&1)
 if echo "$out" | grep -q "WARNING.*BOM\|WARNING.*CRLF"; then
     fail "clean file has no encoding warning (got: $out)"
@@ -729,6 +762,7 @@ Label: needs-human
 --- body ---
 EOF
 rc=0
+claim_store "$FIXTURES/hdr-blank"
 out=$($ERG check "$FIXTURES/hdr-blank" 2>&1) || rc=$?
 if echo "$out" | grep -q "WARN .*: blank line inside header block"; then
     pass "check warns on interior header blank"
@@ -752,6 +786,7 @@ Author: a
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/hdr-clean"
 out=$($ERG check "$FIXTURES/hdr-clean" 2>&1)
 if echo "$out" | grep -q "blank line inside header block"; then
     fail "clean file must not warn on interior header blank (got: $out)"
@@ -770,6 +805,7 @@ Author: a
 --- log ---
 --- body ---
 EOF
+claim_store "$FIXTURES/title-rule"
 out=$($ERG check "$FIXTURES/title-rule" 2>&1) && rc=0 || rc=$?
 if [ "$rc" -ne 0 ] && echo "$out" | grep -q "status word 'open'"; then
     pass "rule 14: check surfaces title status word corpus-wide"
@@ -792,6 +828,7 @@ Closed: superseded
 2026-01-01T10:00Z a closed — superseded
 --- body ---
 EOF
+claim_store "$FIXTURES/title-gf"
 out=$($ERG check "$FIXTURES/title-gf" 2>&1) && rc=0 || rc=$?
 if [ "$rc" -eq 0 ]; then
     pass "rule 14: check grandfathers closed ticket"
@@ -831,6 +868,7 @@ Author: t
 --- body ---
 EOF
 printf '# erg provenance manifest -- do not edit\nrev: x\ndate: y\nassets:\n  .ergrc sha256:0000000000000000000000000000000000000000000000000000000000000000\n  AGENTS.md sha256:1111111111111111111111111111111111111111111111111111111111111111\n' > "$DRIFTDIR/.erg-assets"
+claim_store "$DRIFTDIR"
 rc=0; out=$($ERG check "$DRIFTDIR" 2>&1) || rc=$?
 if [ "$rc" -eq 0 ] && echo "$out" | grep -q "differs from the .erg-assets stamp"; then
     pass "drift: stamp != embedded emits a non-fatal warning"
@@ -850,6 +888,7 @@ ROLLDIR="$FIXTURES/rollback"
 mkdir -p "$ROLLDIR"
 cp "$DRIFTDIR/9001-x.erg" "$ROLLDIR/"
 printf '# erg provenance manifest -- do not edit\nrev: x\ndate: 2099-01-01T00:00:00Z\nassets:\n  .ergrc sha256:0000000000000000000000000000000000000000000000000000000000000000\n  AGENTS.md sha256:1111111111111111111111111111111111111111111111111111111111111111\n' > "$ROLLDIR/.erg-assets"
+claim_store "$ROLLDIR"
 rc=0; out=$($ERG check "$ROLLDIR" 2>&1) || rc=$?
 if [ "$rc" -eq 0 ] && echo "$out" | grep -q "run 'erg sync' first"; then
     pass "drift: stamp newer than the binary names 'erg sync'"
@@ -869,6 +908,7 @@ fi
 NODRIFT="$FIXTURES/nodrift"
 mkdir -p "$NODRIFT"
 cp "$DRIFTDIR/9001-x.erg" "$NODRIFT/"
+claim_store "$NODRIFT"
 out=$($ERG check "$NODRIFT" 2>&1 || true)
 if echo "$out" | grep -q "differs from the .erg-assets stamp"; then
     fail "drift: warned without a manifest (should not)"
@@ -889,6 +929,7 @@ STAMPLESS="$FIXTURES/stampless"
 mkdir -p "$STAMPLESS"
 cp "$DRIFTDIR/9001-x.erg" "$STAMPLESS/"
 printf '# an .ergrc that is not what this binary embeds\nlabels = whatever\n' > "$STAMPLESS/.ergrc"
+claim_store "$STAMPLESS"
 rc=0; out=$($ERG check "$STAMPLESS" 2>&1) || rc=$?
 if [ "$rc" -eq 0 ] && echo "$out" | grep -qF "no .erg-assets stamp"; then
     pass "stampless: diverged asset with no manifest is reported (non-fatal)"
@@ -929,6 +970,7 @@ STAMPMATCH="$FIXTURES/stampmatch"
 mkdir -p "$STAMPMATCH/tickets"
 touch "$STAMPMATCH/tickets/erg"
 cp "$DRIFTDIR/9001-x.erg" "$STAMPMATCH/tickets/"
+claim_store "$STAMPMATCH/tickets"
 $ERG init "$STAMPMATCH" >/dev/null 2>&1
 rm -f "$STAMPMATCH/tickets/.erg-assets"
 # Guard: the control is only meaningful if init actually laid the assets down.
@@ -936,6 +978,7 @@ rm -f "$STAMPMATCH/tickets/.erg-assets"
 if [ ! -f "$STAMPMATCH/tickets/.ergrc" ] || [ -f "$STAMPMATCH/tickets/.erg-assets" ]; then
     fail "stampless control: fixture is not a stampless store with assets present (test would be vacuous)"
 else
+    claim_store "$STAMPMATCH/tickets"
     rc=0; out=$($ERG check "$STAMPMATCH/tickets" 2>&1) || rc=$?
     if [ "$rc" -eq 0 ] && ! echo "$out" | grep -qF "no .erg-assets stamp"; then
         pass "stampless: assets matching the embedded copy exactly stay silent"
@@ -958,6 +1001,7 @@ PARTIAL="$FIXTURES/partial"
 mkdir -p "$PARTIAL/tickets"
 touch "$PARTIAL/tickets/erg"
 cp "$DRIFTDIR/9001-x.erg" "$PARTIAL/tickets/"
+claim_store "$PARTIAL/tickets"
 $ERG init "$PARTIAL" >/dev/null 2>&1
 # Drop AGENTS.md's line from the manifest init just wrote, then diverge it.
 grep -v "^  AGENTS\.md sha256:" "$PARTIAL/tickets/.erg-assets" > "$PARTIAL/manifest.tmp"
@@ -970,6 +1014,7 @@ if ! grep -q "^  \.ergrc sha256:" "$PARTIAL/tickets/.erg-assets" ||
     grep -q "^  AGENTS\.md sha256:" "$PARTIAL/tickets/.erg-assets"; then
     fail "partial: fixture is not a partially-stamped manifest (test would be vacuous)"
 else
+    claim_store "$PARTIAL/tickets"
     rc=0; out=$($ERG check "$PARTIAL/tickets" 2>&1) || rc=$?
     if [ "$rc" -eq 0 ] && echo "$out" | grep -qF "AGENTS.md: no .erg-assets stamp"; then
         pass "partial: an asset missing from an otherwise-valid manifest is reported"
@@ -986,6 +1031,7 @@ PARTIALOK="$FIXTURES/partial-match"
 mkdir -p "$PARTIALOK/tickets"
 touch "$PARTIALOK/tickets/erg"
 cp "$DRIFTDIR/9001-x.erg" "$PARTIALOK/tickets/"
+claim_store "$PARTIALOK/tickets"
 $ERG init "$PARTIALOK" >/dev/null 2>&1
 grep -v "^  AGENTS\.md sha256:" "$PARTIALOK/tickets/.erg-assets" > "$PARTIALOK/manifest.tmp"
 mv "$PARTIALOK/manifest.tmp" "$PARTIALOK/tickets/.erg-assets"
@@ -993,6 +1039,7 @@ if ! grep -q "^  \.ergrc sha256:" "$PARTIALOK/tickets/.erg-assets" ||
     [ ! -f "$PARTIALOK/tickets/AGENTS.md" ]; then
     fail "partial control: fixture is not a partially-stamped store with assets present (test would be vacuous)"
 else
+    claim_store "$PARTIALOK/tickets"
     rc=0; out=$($ERG check "$PARTIALOK/tickets" 2>&1) || rc=$?
     if [ "$rc" -eq 0 ] && ! echo "$out" | grep -qF "no .erg-assets stamp"; then
         pass "partial: an unstamped asset matching the embedded copy stays silent"
@@ -1016,6 +1063,7 @@ VENDORED="$FIXTURES/vendored"
 mkdir -p "$VENDORED"
 cp "$DRIFTDIR/9001-x.erg" "$VENDORED/"
 printf '#!/bin/sh\n# an old vendored erg-github, predating the 0255 fix\nexit 0\n' > "$VENDORED/erg-github"
+claim_store "$VENDORED"
 rc=0; out=$($ERG check "$VENDORED" 2>&1) || rc=$?
 if [ "$rc" -eq 0 ] && echo "$out" | grep -qF "it is vendored, so erg never writes it"; then
     pass "vendored: a stale erg-github is reported (non-fatal)"
@@ -1044,12 +1092,14 @@ VENDOREDSTAMP="$FIXTURES/vendored-stamped"
 mkdir -p "$VENDOREDSTAMP/tickets"
 touch "$VENDOREDSTAMP/tickets/erg"
 cp "$DRIFTDIR/9001-x.erg" "$VENDOREDSTAMP/tickets/"
+claim_store "$VENDOREDSTAMP/tickets"
 $ERG init "$VENDOREDSTAMP" >/dev/null 2>&1
 printf '#!/bin/sh\n# an old vendored erg-github, predating the 0255 fix\nexit 0\n' > "$VENDOREDSTAMP/tickets/erg-github"
 # Guard: the arm is only about a STAMPED store if init actually stamped one.
 if ! grep -qE "sha256:[0-9a-f]{64}" "$VENDOREDSTAMP/tickets/.erg-assets" 2>/dev/null; then
     fail "vendored: stamped fixture has no manifest (test would duplicate the stampless arm)"
 else
+    claim_store "$VENDOREDSTAMP/tickets"
     rc=0; out=$($ERG check "$VENDOREDSTAMP/tickets" 2>&1) || rc=$?
     if [ "$rc" -eq 0 ] && echo "$out" | grep -qF "it is vendored, so erg never writes it"; then
         pass "vendored: a stale erg-github is reported in a stamped store too"
@@ -1070,6 +1120,7 @@ cp src/go/assets/erg-github "$VENDOREDOK/erg-github"
 if [ ! -s "$VENDOREDOK/erg-github" ]; then
     fail "vendored control: fixture has no erg-github copy (test would be vacuous)"
 else
+    claim_store "$VENDOREDOK"
     rc=0; out=$($ERG check "$VENDOREDOK" 2>&1) || rc=$?
     if [ "$rc" -eq 0 ] && ! echo "$out" | grep -qF "it is vendored, so erg never writes it"; then
         pass "vendored: a copy identical to the shipped one stays silent"
@@ -1082,6 +1133,7 @@ fi
 # forge layer OPTIONAL -- erg core is offline and forge-blind, and a repo that
 # declined the forge helper must never be nagged into adopting it. $NODRIFT is
 # a store with no assets on disk whatsoever, so it is exactly that case.
+claim_store "$NODRIFT"
 out=$($ERG check "$NODRIFT" 2>&1 || true)
 if echo "$out" | grep -qF "it is vendored, so erg never writes it"; then
     fail "vendored: reported a store that carries no erg-github at all (should not)"
@@ -1099,11 +1151,13 @@ MATCHDIR="$FIXTURES/match"
 mkdir -p "$MATCHDIR/tickets"
 touch "$MATCHDIR/tickets/erg"
 cp "$DRIFTDIR/9001-x.erg" "$MATCHDIR/tickets/"
+claim_store "$MATCHDIR/tickets"
 $ERG init "$MATCHDIR" >/dev/null 2>&1
 # Guard: the test is only meaningful if init actually wrote a stamped manifest.
 if ! grep -q "sha256:[0-9a-f]" "$MATCHDIR/tickets/.erg-assets" 2>/dev/null; then
     fail "drift: matching fixture: init wrote no stamped manifest (test would be vacuous)"
 else
+    claim_store "$MATCHDIR/tickets"
     rc=0; out=$($ERG check "$MATCHDIR/tickets" 2>&1) || rc=$?
     if [ "$rc" -eq 0 ] && ! echo "$out" | grep -q "differs from the .erg-assets stamp"; then
         pass "drift: matching manifest -> no drift warning"

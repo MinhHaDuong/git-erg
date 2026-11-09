@@ -28,6 +28,10 @@ FAIL=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
+# Claims are required (ticket 0307): fixture stores are made compliant with
+# plain files (claim_store), so each case fails for its own defect.
+. "$(dirname "$0")/claims_fixture.sh"
+
 trap 'rm -rf "$FIXTURES"' EXIT
 
 echo "=== strict-write round-trip guard suite ==="
@@ -111,6 +115,7 @@ Tags: needs-human
 EOF
         ;;
     esac
+    claim_store "$ws"
 }
 
 # Helper: run command $2 against store $1.

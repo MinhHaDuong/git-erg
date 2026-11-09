@@ -133,6 +133,7 @@ func TestCmdNewAuthorFlag(t *testing.T) {
 
 	t.Run("--author sets Author header", func(t *testing.T) {
 		dir := t.TempDir()
+		claimStore(t, dir)
 		code := cmdNew([]string{"test title", dir, "--author", "alice"})
 		if code != 0 {
 			t.Fatalf("cmdNew returned %d, want 0", code)
@@ -151,6 +152,7 @@ func TestCmdNewAuthorFlag(t *testing.T) {
 
 	t.Run("-a sets Author header", func(t *testing.T) {
 		dir := t.TempDir()
+		claimStore(t, dir)
 		code := cmdNew([]string{"test title", dir, "-a", "bob"})
 		if code != 0 {
 			t.Fatalf("cmdNew returned %d, want 0", code)
@@ -163,6 +165,7 @@ func TestCmdNewAuthorFlag(t *testing.T) {
 
 	t.Run("--author=value sets Author header", func(t *testing.T) {
 		dir := t.TempDir()
+		claimStore(t, dir)
 		code := cmdNew([]string{"test title", dir, "--author=carol"})
 		if code != 0 {
 			t.Fatalf("cmdNew returned %d, want 0", code)
@@ -177,6 +180,7 @@ func TestCmdNewAuthorFlag(t *testing.T) {
 		os.Setenv("ERG_AUTHOR", "env-author")
 		defer os.Unsetenv("ERG_AUTHOR")
 		dir := t.TempDir()
+		claimStore(t, dir)
 		code := cmdNew([]string{"test title", dir, "--author", "flag-author"})
 		if code != 0 {
 			t.Fatalf("cmdNew returned %d, want 0", code)
@@ -189,6 +193,7 @@ func TestCmdNewAuthorFlag(t *testing.T) {
 
 	t.Run("empty --author value errors", func(t *testing.T) {
 		dir := t.TempDir()
+		claimStore(t, dir)
 		code := cmdNew([]string{"test title", dir, "--author", ""})
 		if code == 0 {
 			t.Fatal("cmdNew returned 0, want non-zero for empty --author")
@@ -202,6 +207,7 @@ func TestCmdNewAuthorFlag(t *testing.T) {
 
 	t.Run("whitespace-only --author value errors", func(t *testing.T) {
 		dir := t.TempDir()
+		claimStore(t, dir)
 		code := cmdNew([]string{"test title", dir, "--author", "   "})
 		if code == 0 {
 			t.Fatal("cmdNew returned 0, want non-zero for whitespace-only --author")
@@ -229,6 +235,7 @@ func TestCmdNewAuthorFlag(t *testing.T) {
 
 	t.Run("positional DIR still works without --author", func(t *testing.T) {
 		dir := t.TempDir()
+		claimStore(t, dir)
 		code := cmdNew([]string{"my ticket", dir})
 		if code != 0 {
 			t.Fatalf("cmdNew returned %d, want 0", code)
@@ -244,6 +251,7 @@ func TestCmdNewAuthorFlag(t *testing.T) {
 
 	t.Run("--author strips newlines from value", func(t *testing.T) {
 		dir := t.TempDir()
+		claimStore(t, dir)
 		code := cmdNew([]string{"test title", dir, "--author", "alice\nbob"})
 		if code != 0 {
 			t.Fatalf("cmdNew returned %d, want 0", code)
