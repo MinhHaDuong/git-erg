@@ -98,15 +98,20 @@ same markers and the same in-place upgrade. When the merge changes
 check: a merge that brings in an unclaimed ticket or a duplicate number is
 refused before git records it, and `MERGE_HEAD` stays for you to fix and
 conclude with `git commit` (whose pre-commit check runs again) or to
-`git merge --abort`. A fast-forward and `git merge --no-verify` run no
-hook; CI is the backstop for those.
+`git merge --abort`. It never runs a `tickets/erg` that the merge itself
+changes: that binary comes from the other side, unreviewed, so only the
+index check (plain `sh` and `awk`) runs for such a merge. A fast-forward and
+`git merge --no-verify` run no hook; CI is the backstop for those.
 
 ```sh
 # >>> erg managed >>>
 # Check the merge result before git records it: a clean merge runs this
 # hook, not pre-commit. A fast-forward or --no-verify runs neither.
 if [ -n "$(git diff --cached --name-only HEAD -- tickets)" ]; then
-    if [ -x tickets/erg ]; then
+    if [ -n "$(git diff --cached --name-only HEAD -- tickets/erg)" ]; then
+        echo "pre-merge-commit: tickets/erg changes in this merge, so the incoming binary is not run;" >&2
+        echo " the claim index check below still runs. Review the new binary before your next commit." >&2
+    elif [ -x tickets/erg ]; then
         if ! tickets/erg check tickets/; then
             echo "pre-merge-commit: ticket corpus check failed on the merge result." >&2
             echo " Fix it and conclude with 'git commit', or abort: git merge --abort" >&2

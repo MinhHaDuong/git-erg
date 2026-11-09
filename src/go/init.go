@@ -718,10 +718,18 @@ func commandForOrphan(rel string) string {
 // initClaims creates the claims directory in a store that holds no .erg file
 // yet. It returns 1, naming the repair, for a populated store without
 // .claims/ (migrate claims its tickets; init does not), for an ignored claims
-// path, and on a write failure.
+// path, new or existing, and on a write failure.
 func initClaims(ticketsDir string, dryRun bool) int {
 	err := requireClaims(ticketsDir)
 	if err == nil {
+		// An existing .claims/ that git ignores is refused like a new one:
+		// its claims would never be committed.
+		if rules := ignoredClaimRules(ticketsDir, claimsKeepName); len(rules) > 0 {
+			for _, r := range rules {
+				fmt.Fprintf(os.Stderr, "init: %s\n", r.message())
+			}
+			return 1
+		}
 		return 0
 	}
 	if !errors.Is(err, errNoClaims) || storeHasTickets(ticketsDir) {

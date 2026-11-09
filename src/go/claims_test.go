@@ -392,3 +392,22 @@ func mustTicketPaths(t *testing.T, dir string) map[string][]string {
 	}
 	return byID
 }
+
+// TestMigrateBlocksNumberedDirectory: a directory named like a claim inside
+// .claims/ is a blocker, not a claim migrate can write over (gaze finding on
+// PR #393: it slipped past the precheck and migrate failed halfway).
+func TestMigrateBlocksNumberedDirectory(t *testing.T) {
+	dir := t.TempDir()
+	writeClaimTestTicket(t, dir, "0001-a.erg")
+	writeClaimTestTicket(t, dir, "0002-b.erg")
+	if err := os.MkdirAll(filepath.Join(claimsDir(dir), "0002"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	written, _, blockers, err := migrateClaims(dir, mustTicketPaths(t, dir))
+	if err != nil || written != 0 || len(blockers) != 1 || !strings.Contains(blockers[0], "is a directory") {
+		t.Fatalf("written=%d blockers=%v err=%v, want the directory as the one blocker and nothing written", written, blockers, err)
+	}
+	if _, err := os.Stat(filepath.Join(claimsDir(dir), "0001")); !os.IsNotExist(err) {
+		t.Errorf("a blocked migrate wrote 0001 (err=%v)", err)
+	}
+}
