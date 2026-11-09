@@ -76,3 +76,50 @@ caught" leans on CI (hooks are per clone and do not run on a clean merge), and t
 - Possible monster: 15+ files. If the planner judges so, split hooks/warnings (5, 6) from
   enforcement/migrate/docs (1-4, 7, 8).
 - Adopters (the harness, ticket 1472) migrate after syncing a release that carries this.
+
+## Imagine (raid a59e5b, 2026-11-09)
+Imagine seat: Claude Opus 5.5. Blind-Spot seat: gpt-6.1-sol (OpenAI, cross-family).
+
+Approach (exit criteria unchanged):
+- One `requireClaims(store) error` replaces the `claimsActive` bool; every caller uses it; no mode
+  flag survives. Claims-off sites to delete: claims.go:25-29,51,233; new.go:82-89,233-262,271-272;
+  nextid.go:269-272; check.go:323; init.go:93-97,589-592,722 (an ignored .claims becomes a refusal);
+  install.go:117 and integration.md:66 (`if [ -d tickets/.claims ]`); migrate help "Switch on".
+- Verbs in a store without `.claims/`: check fails; new refuses; close/rm/archive warn with the
+  migrate command and proceed (refusing would break autoclose right after `erg sync`); list, ready,
+  show, validate untouched (they diagnose). Write-verb warnings about unclaimed tickets filter
+  `claimViolations`, no new scanner. init on a non-empty store without `.claims/` finishes its asset
+  work, prints the migrate command, exits 1; it does not run the precheck. A zero-ticket store fails
+  like any; migrate writes only `.keep`. A subdirectory is not a store (help text, no special case).
+- Migrate precheck blockers = duplicate IDs + every claim migrate cannot fix (mismatched slug,
+  malformed, symlink) + every ignored path. Today `migrateClaims` (claims.go:335-337) counts a
+  mismatched EEXIST as "already present": fix. Ignored paths: collect all, not the first
+  (`ignoredClaimFile`, claims.go:104); drop `check-ignore -v` lines that match a `!` negation (exit 0);
+  report once per rule, allowlist lines relative to the ignoring file named by `-v`.
+- Design 4: suppress the claim message for numbers already reported duplicate (validate.go:145); the
+  duplicate message carries the renumber hint.
+- Fixtures are the real cost: ~18 shell and 8 Go test files build stores without `.claims/`. Add one
+  shell helper (plain files, not the binary) and one Go helper; audit every negative test so it fails
+  for its intended defect, not for the missing `.claims/` (grep its message, not only the exit code).
+
+Blind-Spot findings folded in:
+- Independent migrations conflict: a fresh random nonce per existing ticket makes two clones or
+  branches that migrate the same base add/add-conflict on every claim. Make migration claims
+  deterministic for tickets that already exist (nonce derived from number, slug and Created, so the
+  same ticket gives the same claim everywhere), keep the random nonce for `erg new`; document
+  "migrate once on the shared base, then integrate". Test: migrate two branches from one base,
+  merge, no conflict.
+- The upgrade recipe must install the hooks: `erg sync`, `erg init`, `erg install --hooks`,
+  `erg migrate --claims`; migrate's success line names the hook step.
+- Merge-time checks must read the committed result, not the working tree: an untracked claim lets
+  `erg check` pass while the merge commit lacks it. The pre-merge-commit block (and the pre-commit
+  block) check the index: every `tickets/**.erg` in `git ls-files` has its `tickets/.claims/NNNN` in
+  the index. Test: merge an unclaimed ticket with a matching untracked claim present; refused.
+- Interrupted claim write: the no-hardlink fallback can leave a partial claim; the precheck must name
+  a safe recovery (an uncommitted partial claim may be removed, then re-run) rather than dead-end.
+- This PR's hooks run the committed old `tickets/erg` (0306) until CI rebuilds it after merge: check
+  that the old binary accepts the migrated store and the new assets (run it on the branch tree).
+
+Split: one PR, as the author asked; migrating git-erg's own store is its first implementation commit
+(291 generated claims). Later review: 30 days after adopters migrate, count CI-caught claim failures
+and write-verb warnings that fired; drop design 5 if none fired.
