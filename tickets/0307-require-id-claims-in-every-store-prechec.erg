@@ -177,3 +177,21 @@ Old-binary compatibility: `tickets/erg check tickets/` (0306 binary) exits 0 aft
 and `tickets/erg new` works in a scratch clone of the branch.
 Done: `make check`; `make test-claims test-new test-check test-init test-install test-hook
 test-selfcoherence test-integration test-docs`; `go test ./...`; `tickets/erg check tickets/`.
+
+## Feasibility (raid a59e5b; Sonnet 5.5) -- PASS with WARNs, no BLOCK
+- Citations PASS (planGitHook is install.go:268-307; AGENTS.md has 9 bytes of headroom and
+  tickets/AGENTS.md must change in lockstep). git-erg's store has no .claims/ yet (290 tickets).
+- check-ignore (git 2.43): sources are repo-top-relative (`tickets/.gitignore:1:...`), but
+  `.git/info/exclude` is absolute in a linked worktree and core.excludesFile is always absolute:
+  the step-6 parser handles both. Negation matches print with `!`, rc 0: dropping them is needed.
+- awk: mawk, busybox and nawk agree on a sample (closed/, 5-digit name, .keep). Embed the literal
+  program in the plan/test. `[0-9]` x4 stays.
+- Hooks: clean `merge --no-ff` runs pre-merge-commit; failure leaves MERGE_HEAD; fast-forward and
+  --no-verify skip it; concluding a refused merge with `git commit` runs pre-commit only, so the
+  pre-commit index check is the backstop.
+- Nonce literal verified; hash without a trailing newline (with one it is c17056d6).
+- Missed sites: `ensureClaimsDir` (claims.go:202) and migrate.go:666 also call the replaced
+  functions; tests creating tickets with erg new/cmdNew need claim fixtures too: test_pipeline,
+  test_strictwrite, test_roundtrip, test_stderr, test_security, claims_test, resolve_test; install
+  help (21-28) and summary strings, integration.md uninstall (304-315), test_install.sh 278-353 gain
+  pre-merge-commit; `make docs` regenerates the manual and spec copies.
