@@ -204,8 +204,12 @@ global install, no version skew across machines or teammates.
    build a *system* binary for your machine (clone this repo and `make build`, or
    ask your coding agent to) and put it on your PATH; don't overwrite `tickets/erg`.
    See **Binary policy** below.
-3. Run `tickets/erg init` to unpack `.ergrc` and `AGENTS.md`.
-4. Run `tickets/erg install --hooks` to set up the pre-commit validation hook,
+3. Run `tickets/erg init` to unpack `.ergrc` and `AGENTS.md` and create
+   `tickets/.claims/`: ID claims are required in every store. If the project
+   already has tickets, init says so; run `tickets/erg migrate --claims tickets`
+   and commit `tickets/.claims/` before the next step.
+4. Run `tickets/erg install --hooks` to set up the pre-commit, pre-merge-commit
+   and pre-push hooks,
    and (for AI agents) `tickets/erg install --inject-agents` to point your root
    `AGENTS.md` at `tickets/AGENTS.md`. Run `erg integration` for the full guide:
    setup, the long-form ticket conventions (ID claims, ID-collision recovery and
@@ -258,7 +262,10 @@ resulting `tickets/erg` before executing it. `sync` always replaces that
 project/CI artifact, never a system-native `erg` used to launch it. On Linux
 x86-64, run `tickets/erg init` afterward to deliver embedded asset changes. On
 another platform, update or rebuild the native system `erg` from the same
-reviewed git-erg revision, then run `erg init`. Details: `erg sync --help` or
+reviewed git-erg revision, then run `erg init`. A store from before ID claims
+fails `erg check` until migrated: run `erg migrate --claims tickets`, commit
+`tickets/.claims/`, then `erg install --hooks` (in that order: the hooks
+reject commits in an unmigrated store). Details: `erg sync --help` or
 `docs/erg-manual.md`.
 
 ## Binary policy

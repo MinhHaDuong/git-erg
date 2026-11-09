@@ -211,8 +211,8 @@ past it. The scans make a collision rare; the claims below make it loud.
 
 ### ID claims turn a collision into a git conflict
 
-When `tickets/.claims/` exists, `erg new` also writes `tickets/.claims/NNNN`:
-one line, the ticket's slug, a space and a random nonce. Two branches that took
+Every store has `tickets/.claims/`, and `erg new` writes `tickets/.claims/NNNN`
+before the ticket: one line, the ticket's slug, a space and a random nonce. Two branches that took
 the same number add that same path with different content, so the second one
 to be merged or rebased meets an add/add conflict -- on the forge, which
 recomputes mergeability when the base moves, and locally, offline, with no CI
@@ -221,10 +221,10 @@ sessions filing the same incident under the same slug.
 
 - **Stage the claim with the ticket.** `git add tickets/NNNN-*` misses it;
   `erg new` prints the `git add` line naming both files, and the pre-commit
-  hook rejects a ticket staged without its claim.
+  hook rejects a commit whose index holds a ticket without its claim.
 - **A claim conflict means renumber.** Never resolve it by keeping one side or
   both (`-X ours`, a `merge=union` attribute): that silences the detection,
-  and `erg check` then fails the merged tree on a slug mismatch or a
+  and `erg check` then fails the merged tree on a duplicate ID or a
   multi-line claim.
 - **Claims are never deleted.** `erg close`, `erg rm` and `erg archive` leave
   them, so the directory records every number ever used; a claim without a
@@ -236,14 +236,23 @@ sessions filing the same incident under the same slug.
   `erg next-id` scans, stay invisible, and the claim is what turns such a
   collision into a conflict. Write it with the ticket's slug and a fresh
   nonce, `echo "SLUG $(date +%s)" > tickets/.claims/NNNN`, and stage both.
-- **Switching on.** `erg init` creates `tickets/.claims/` in a new store;
-  `erg migrate --claims` switches an existing store on and claims every ticket
-  in it. Without the directory, nothing is claimed: `erg new` still keeps
-  concurrent runs in one checkout apart by a post-check retry, but two
-  checkouts that take one number under different titles surface only when
-  `erg check` runs on a tree holding both tickets. After switching on, a
-  ticket made by an older erg has no claim and `erg check` rejects it,
-  printing the plain-file fix.
+- **Claims are required.** `erg init` creates `tickets/.claims/` in a new
+  store. A store without it is noncompliant: `erg check` fails it and
+  `erg new` refuses there, each naming the repair. `erg new` cannot produce
+  an unclaimed ticket; anything else (a hand-made ticket, one from an older
+  erg, a branch committed without hooks) is reported by the next erg command,
+  commit or merge in that clone: `new`, `close`, `rm` and `archive` warn,
+  the pre-commit and pre-merge-commit hooks refuse. CI is a backstop.
+- **One repair: `erg migrate --claims tickets`.** It brings a store without
+  `.claims/` to compliance and claims a compliant store's unclaimed tickets.
+  It first lists every blocker (a number two tickets share, a claim it cannot
+  fix, an ignored claim path) and writes nothing until there is none. Its
+  claims are derived from each ticket (number, slug, `Created:`), so two
+  clones that migrate the same tickets write the same bytes; still, migrate
+  once on the shared base (main), commit, then integrate branches. Upgrading
+  an existing project: `erg sync`, `erg init`, `erg migrate --claims
+  tickets`, commit, then `erg install --hooks` -- the hooks reject every
+  commit in a store whose tickets are not claimed yet.
 
 ### Renumber clear of the frontier, never to the next free ID
 
@@ -353,9 +362,9 @@ To remove erg from your project, delete the binary and the two files
 rm tickets/.ergrc tickets/AGENTS.md tickets/.erg-assets tickets/erg
 ```
 
-`tickets/.claims/`, when present, is ticket data like the tickets themselves:
-the record of every number the store has used. Keep it with them, or remove it
-(`rm -r tickets/.claims`) to switch claims off.
+`tickets/.claims/` is ticket data like the tickets themselves: the record of
+every number the store has used. Keep it with them; a store without it fails
+`erg check`.
 
 For the pre-commit hook, delete only the lines between the
 `# >>> erg managed >>>` and `# <<< erg managed <<<` markers -- this

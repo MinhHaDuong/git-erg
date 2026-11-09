@@ -323,7 +323,7 @@ else
 fi
 # The same ignore rules make migrate --claims refuse (before .claims/ exists,
 # which is where a probe run from inside .claims/ would see nothing) and make
-# init leave claims off rather than create a switch git would never carry.
+# init refuse rather than create a .claims/ git would never carry.
 IGM="$TDIR/igm"
 git init -q "$IGM"
 cp "$IGN/.gitignore" "$IGM/.gitignore"
