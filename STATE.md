@@ -31,7 +31,6 @@ An agent-friendly local ticket system for development in disconnected environmen
 Premature, unproven, or waiting on evidence. Do not promote without AGENTS.md bar met.
 
 - feat: O(1) everything, tickets store cache.
-- feat: Pre-create 00XX-is-next-ticket.erg.
 - feat: Flag blocking tags as a first-class concept.
 - feat: erg new with body on the line.
 - audit: usage in idh.
