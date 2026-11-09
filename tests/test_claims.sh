@@ -274,9 +274,9 @@ else
 fi
 
 # The merge hook never executes a tickets/erg the merge itself brings in:
-# the incoming binary is the merged tree's, not this clone's. Here the side
-# branch swaps tickets/erg for a script that leaves a marker; the index
-# check still runs (pure sh and awk) and refuses the unclaimed ticket.
+# it runs this clone's committed binary (HEAD's blob) on the merge result.
+# Here the side branch swaps tickets/erg for a script that leaves a marker
+# and brings a duplicate number (claimed, so only erg check can see it).
 EVL="$TDIR/evl"
 git init -q -b main "$EVL"
 plain_ticket "$EVL/tickets" 0001-base
@@ -285,18 +285,38 @@ cp "$ERG_ABS" "$EVL/tickets/erg"
 (cd "$EVL" && git add -A && git commit -q -m base && "$ERG_ABS" install . --hooks >/dev/null 2>&1 &&
     git checkout -q -b evil &&
     printf '#!/bin/sh\ntouch "%s"\nexit 0\n' "$TDIR/evl-marker" > tickets/erg && chmod +x tickets/erg &&
-    plain_ticket tickets 0002-unclaimed &&
+    plain_ticket tickets 0001-dup &&
     git add -A && git commit -q --no-verify -m evil && git checkout -q main &&
     echo note > NOTE && git add NOTE && git commit -q -m note)
 msg=$(cd "$EVL" && git merge --no-ff --no-edit evil 2>&1) && rc=0 || rc=$?
-if [ ! -e "$TDIR/evl-marker" ] && [ "$rc" -ne 0 ] &&
-    echo "$msg" | grep -qF "tickets/erg changes in this merge" &&
-    echo "$msg" | grep -qxF "  tickets/0002-unclaimed.erg"; then
-    pass "merge hook: an incoming tickets/erg is not executed; the index check still refuses"
+if [ ! -e "$TDIR/evl-marker" ] && [ "$rc" -ne 0 ] && echo "$msg" | grep -qF "duplicate ID '0001'"; then
+    pass "merge hook: an incoming tickets/erg is not executed; this clone's binary refuses the duplicate"
 else
     fail "merge hook: incoming binary ran ($([ -e "$TDIR/evl-marker" ] && echo yes || echo no)) or no refusal (rc=$rc: $msg)"
 fi
 (cd "$EVL" && git merge --abort 2>/dev/null) || true
+# A committed tickets/erg symlink is never followed: the merge below changes
+# only its target, a script leaving a marker; the hook skips it, says so,
+# and the index check still runs.
+SYM="$TDIR/sym"
+git init -q -b main "$SYM"
+plain_ticket "$SYM/tickets" 0001-base
+claim_store "$SYM/tickets"
+mkdir -p "$SYM/tools"
+cp "$ERG_ABS" "$SYM/tools/erg-real"
+ln -s ../tools/erg-real "$SYM/tickets/erg"
+(cd "$SYM" && git add -A && git commit -q -m base && "$ERG_ABS" install . --hooks >/dev/null 2>&1 &&
+    git checkout -q -b evil &&
+    printf '#!/bin/sh\ntouch "%s"\nexit 0\n' "$TDIR/sym-marker" > tools/erg-real &&
+    plain_ticket tickets 0002-two && echo "two 00000000" > tickets/.claims/0002 &&
+    git add -A && git commit -q --no-verify -m evil && git checkout -q main &&
+    echo note > NOTE && git add NOTE && git commit -q --no-verify -m note)
+msg=$(cd "$SYM" && git merge --no-ff --no-edit evil 2>&1) && rc=0 || rc=$?
+if [ ! -e "$TDIR/sym-marker" ] && [ "$rc" -eq 0 ] && echo "$msg" | grep -qF "no trusted tickets/erg to run (it changes in this merge, or is a symlink)"; then
+    pass "merge hook: a symlinked tickets/erg is not followed; a claimed merge still lands"
+else
+    fail "merge hook: symlink target ran ($([ -e "$TDIR/sym-marker" ] && echo yes || echo no)) or merge refused (rc=$rc: $msg)"
+fi
 
 # --- close and rm leave the claim; its number is never reused ---
 "$ERG_ABS" new "to remove" tickets > "$TDIR/r.out" 2>/dev/null
@@ -519,7 +539,7 @@ git init -q "$PAR"
 plain_ticket "$PAR/tickets" 0001-one
 printf 'tickets/\n' > "$PAR/.gitignore"
 out=$(cd "$PAR" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
-if [ "$rc" -eq 1 ] && echo "$out" | grep -qF "git ignores the store directory tickets itself (rule .gitignore:1:tickets/)"; then
+if [ "$rc" -eq 1 ] && echo "$out" | grep -qF "git ignores the store directory tickets (rule .gitignore:1:tickets/, on it or a directory above it)"; then
     pass "ignored path: an ignored store directory is named, not just the claim lines"
 else
     fail "ignored path: ignored store directory not named (rc=$rc: $out)"

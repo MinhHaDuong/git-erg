@@ -216,6 +216,13 @@ func cmdNew(args []string) int {
 		}
 		if err := writeClaim(ticketDir, id, slug, nonce); err != nil {
 			if os.IsExist(err) {
+				// A directory named like the claim holds the number for
+				// good: name it rather than retry into "contention".
+				claim := filepath.Join(claimsDir(ticketDir), id)
+				if fi, lerr := os.Lstat(claim); lerr == nil && fi.IsDir() {
+					fmt.Fprintf(os.Stderr, "new: %s is a directory, not a claim file; remove it\n", claim)
+					return 1
+				}
 				continue
 			}
 			fmt.Fprintf(os.Stderr, "new: cannot create claim %s: %v\n", filepath.Join(claimsDir(ticketDir), id), err)

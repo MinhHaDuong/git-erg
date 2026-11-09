@@ -98,9 +98,11 @@ same markers and the same in-place upgrade. When the merge changes
 check: a merge that brings in an unclaimed ticket or a duplicate number is
 refused before git records it, and `MERGE_HEAD` stays for you to fix and
 conclude with `git commit` (whose pre-commit check runs again) or to
-`git merge --abort`. It never runs a `tickets/erg` that the merge itself
-changes: that binary comes from the other side, unreviewed, so only the
-index check (plain `sh` and `awk`) runs for such a merge. A fast-forward and
+`git merge --abort`. It runs this clone's committed `tickets/erg` (the blob
+at `HEAD`, copied into the git directory), never the working tree's, which a
+merge that changes the binary would make the other side's, unreviewed; with
+no trusted binary (an untracked one the merge changes, or a symlink) it says
+so and only the index check (plain `sh` and `awk`) runs. A fast-forward and
 `git merge --no-verify` run no hook; CI is the backstop for those.
 
 ```sh
@@ -108,15 +110,32 @@ index check (plain `sh` and `awk`) runs for such a merge. A fast-forward and
 # Check the merge result before git records it: a clean merge runs this
 # hook, not pre-commit. A fast-forward or --no-verify runs neither.
 if [ -n "$(git diff --cached --name-only HEAD -- tickets)" ]; then
-    if [ -n "$(git diff --cached --name-only HEAD -- tickets/erg)" ]; then
-        echo "pre-merge-commit: tickets/erg changes in this merge, so the incoming binary is not run;" >&2
-        echo " the claim index check below still runs. Review the new binary before your next commit." >&2
-    elif [ -x tickets/erg ]; then
-        if ! tickets/erg check tickets/; then
+    # Run this clone's committed binary (HEAD's blob), never the working
+    # tree's: a merge that changes tickets/erg would otherwise run the
+    # incoming side's binary, unreviewed. An untracked local build is used
+    # only when the merge leaves tickets/erg alone and it is no symlink.
+    erg_bin=
+    if git ls-tree HEAD -- tickets/erg | grep -q '^100755 blob '; then
+        erg_bin=$(git rev-parse --git-path erg-merge-check)
+        if ! { git cat-file blob HEAD:tickets/erg > "$erg_bin" && chmod +x "$erg_bin"; }; then
+            rm -f "$erg_bin"
+            erg_bin=
+        fi
+    elif [ -x tickets/erg ] && [ ! -L tickets/erg ] && [ -z "$(git diff --cached --name-only HEAD -- tickets/erg)" ]; then
+        erg_bin=tickets/erg
+    fi
+    if [ -n "$erg_bin" ]; then
+        erg_rc=0
+        "$erg_bin" check tickets/ || erg_rc=$?
+        [ "$erg_bin" = tickets/erg ] || rm -f "$erg_bin"
+        if [ "$erg_rc" -ne 0 ]; then
             echo "pre-merge-commit: ticket corpus check failed on the merge result." >&2
             echo " Fix it and conclude with 'git commit', or abort: git merge --abort" >&2
             exit 1
         fi
+    elif [ -e tickets/erg ]; then
+        echo "pre-merge-commit: no trusted tickets/erg to run (it changes in this merge, or is a symlink);" >&2
+        echo " the claim index check below still runs. Review the new binary before your next commit." >&2
     else
         echo "ERROR: tickets/erg not found. Build it from the git-erg source" >&2
         echo "  (make build there), or 'git pull' if your project vendors the committed binary." >&2

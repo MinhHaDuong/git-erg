@@ -411,3 +411,32 @@ func TestMigrateBlocksNumberedDirectory(t *testing.T) {
 		t.Errorf("a blocked migrate wrote 0001 (err=%v)", err)
 	}
 }
+
+// TestWarnUnclaimedStoreNamedClosed: the closed/ rule (a FILE inside a
+// store's closed/ resolves closed/ as its directory) must not misfire on a
+// store whose own directory is named closed.
+func TestWarnUnclaimedStoreNamedClosed(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "closed")
+	writeClaimTestTicket(t, dir, "0001-a.erg")
+	claimStore(t, dir)
+	writeClaimTestTicket(t, dir, "0002-b.erg")
+	_, stderr := captureOutput(t, func() { warnUnclaimed("close", dir) })
+	if !strings.Contains(stderr, "1 ticket without a claim: 0002-b.erg") || strings.Contains(stderr, "has no .claims/") {
+		t.Errorf("warning for a store named closed: %q", stderr)
+	}
+}
+
+// TestCmdNewNamesNumberedDirectory: a directory named like the next claim
+// makes new fail at once naming it, not after 20 "contention" retries.
+func TestCmdNewNamesNumberedDirectory(t *testing.T) {
+	dir := t.TempDir()
+	claimStore(t, dir)
+	if err := os.Mkdir(filepath.Join(claimsDir(dir), "0001"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var code int
+	_, stderr := captureOutput(t, func() { code = cmdNew([]string{"x", dir, "--author", "a"}) })
+	if code == 0 || !strings.Contains(stderr, "is a directory, not a claim file") {
+		t.Errorf("cmdNew = %d, stderr %q; want a refusal naming the directory", code, stderr)
+	}
+}

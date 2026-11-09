@@ -129,7 +129,7 @@ func (r claimIgnoreRule) message() string {
 	if r.storeRule != "" {
 		// git never re-includes a file under an excluded directory, so
 		// the claim lines alone cannot work.
-		first = fmt.Sprintf("git ignores the store directory %s itself (rule %s): un-ignore it first, then ", r.store, r.storeRule)
+		first = fmt.Sprintf("git ignores the store directory %s (rule %s, on it or a directory above it): un-ignore it first, then ", r.store, r.storeRule)
 	}
 	return fmt.Sprintf("%sgit ignores %s%s by the rule %s:%s:%s, so the claims would never be committed -- append these lines to %s, then retry:\n  %s",
 		first, strings.Join(shown, ", "), more, r.source, r.line, r.pattern, r.source, strings.Join(r.allow, "\n  "))
@@ -594,8 +594,10 @@ func unclaimedTickets(dir string) []string {
 func warnUnclaimed(verb, dir string) {
 	// close and rm given a FILE inside closed/ resolve closed/ as their
 	// directory; the store, and its .claims/, is its parent.
-	if filepath.Base(filepath.Clean(dir)) == "closed" {
-		dir = filepath.Dir(filepath.Clean(dir))
+	// A store whose own directory is named closed keeps its name: only a
+	// closed/ without .claims/ is taken for a store's subdirectory.
+	if c := filepath.Clean(dir); filepath.Base(c) == "closed" && requireClaims(c) != nil {
+		dir = filepath.Dir(c)
 	}
 	if err := requireClaims(dir); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: warning: %v\n", verb, err)

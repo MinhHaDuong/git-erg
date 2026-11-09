@@ -311,7 +311,8 @@ fi
 REPO=$(new_repo mergehook)
 $ERG install "$REPO" --hooks >/dev/null 2>&1
 MERGE="$REPO/.git/hooks/pre-merge-commit"
-if [ -x "$MERGE" ] && grep -q "tickets/erg check tickets/" "$MERGE" && grep -q "ls-files -- tickets" "$MERGE"; then
+if [ -x "$MERGE" ] && grep -qF '"$erg_bin" check tickets/' "$MERGE" && grep -qF 'git cat-file blob HEAD:tickets/erg' "$MERGE" &&
+    grep -q "ls-files -- tickets" "$MERGE"; then
     pass "--hooks installs an executable pre-merge-commit hook with check and the index claim check"
 else
     fail "--hooks did not install a complete pre-merge-commit hook"
