@@ -12,24 +12,47 @@ versioning is added for the embedded assets, and ticket autoclose is enforced by
 a required CI check rather than a bot. Sixteen PRs (#239-#254), each gated
 through `/verify`.
 
-### Added -- ID claims (2026-11-08)
-- **`tickets/.claims/NNNN`.** In a store whose `.claims/` directory exists,
-  `erg new` also writes a claim file: one line, the ticket's slug and a random
-  nonce. Two branches that take one number add that path with different
-  content, so git reports the collision as an add/add conflict at the second
-  merge or rebase -- offline, on any forge, with no CI. Claims are never
-  deleted, so `next-id` never reuses a removed ticket's number. (0306 -- #386)
-- **Switching on is per store.** `erg init` creates `.claims/` in a new store;
-  `erg migrate --claims` switches an existing store on and claims every ticket
-  in it. A store without `.claims/` behaves as before, keeping `erg new`'s
-  post-check retry. (0306 -- #386)
+### Added -- ID claims, required in every store (2026-11-08 .. 2026-11-09)
+- **Upgrade note.** After `erg sync`, run `erg init`, then
+  `erg migrate --claims tickets`, commit `tickets/.claims/` with the tickets,
+  and only then `erg install --hooks`: `erg check` fails a store without
+  `.claims/`, and the hooks reject every commit whose tickets are not claimed.
+  Migrate once on the shared base (main), then integrate branches; the
+  migration writes the same claims in every clone, so independent migrations
+  of one base also merge clean. (0307)
+- **`tickets/.claims/NNNN`.** `erg new` writes a claim file before the ticket:
+  one line, the ticket's slug and a random nonce. Two branches that take one
+  number add that path with different content, so git reports the collision
+  as an add/add conflict at the second merge or rebase -- offline, on any
+  forge, with no CI. Claims are never deleted, so `next-id` never reuses a
+  removed ticket's number. (0306 -- #386)
+- **Claims are required.** A store without `.claims/` is noncompliant:
+  `erg check` fails it, `erg new` refuses there, and `erg init` on a
+  populated store exits 1 after writing its assets; each names the one
+  repair, `erg migrate --claims DIR`. `erg init` creates `.claims/` in a new
+  store. (0306 -- #386, 0307)
+- **`erg migrate --claims`** prechecks: it lists every blocker (numbers two
+  tickets share, claims it cannot fix, ignored claim paths) and writes
+  nothing until the store is ready; it also repairs a compliant store whose
+  tickets lack claims. Each claim's nonce is derived from the ticket's
+  number, slug and Created date. (0306 -- #386, 0307)
 - **`erg check`** rejects a claim that is multi-line, names another slug, or is
-  a symlink, and a ticket with no claim, printing a plain-file fix
-  (`echo "SLUG $(date +%s)" > tickets/.claims/NNNN`). This catches a conflict
-  silenced by `-X ours` or a `merge=union` attribute. (0306 -- #386)
-- **Pre-commit hook:** rejects a staged ticket whose claim is not staged.
-  Adopters pick it up by re-running `erg install --hooks`, which upgrades the
-  managed block in place. (0306 -- #386)
+  a symlink, and a ticket with no claim, naming `erg migrate --claims` and a
+  plain-file fix (`echo "SLUG $(date +%s)" > tickets/.claims/NNNN`). This
+  catches a conflict silenced by a `merge=union` attribute; a `-X ours` merge
+  shows up as the duplicate ID it is, whose message says to renumber.
+  (0306 -- #386, 0307)
+- **Ignored claim paths** are refused by `new`, `init` and `migrate`, naming
+  the ignoring rule and the exact lines to append to its file. (0307)
+- **`new`, `close`, `rm` and `archive` warn** on stderr about the store's
+  tickets without a claim, in every clone, hook or no hook. (0307)
+- **Hooks.** The pre-commit block rejects a commit whose index holds a ticket
+  without its claim; `erg install --hooks` also installs a pre-merge-commit
+  block (erg check on the merge result, then the same index check), so a
+  clean merge bringing an unclaimed ticket or a duplicate is refused locally.
+  A fast-forward runs no hook; CI is the backstop. Re-run
+  `erg install --hooks` to upgrade the managed blocks in place.
+  (0306 -- #386, 0307)
 - `erg integration` explains picking a number by hand under claims. (#390)
 
 ### Changed -- `erg sync` (2026-09-17)
