@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-11-08T22:40Z — ticket-number claims shipped (0306, #386): `tickets/.claims/NNNN` (slug and nonce) makes two branches that take one number conflict in git, offline, on any forge; on in a store once `erg migrate --claims` creates `.claims/`. Built on a 16-store survey (about 50 duplicates reached default branches until 2026-09-09) and on retiring less reliable checks; the harness's cross-PR gate retires by its ticket 1472. No store is migrated yet, this one included: adoption per repo is the author's call._
+_Last updated: 2026-11-09T12:50Z — ID claims are required (0307, #393): `erg check` fails a store without `tickets/.claims/`, `erg new` refuses there, and `erg migrate --claims` is the single repair. This store is migrated. The rollout to the adopter repos on padme and doudou is driven by the harness session (its tracker; 1472 for the harness itself), pinned to binary sha256 6a104262 (revision 2d0dbea); sen-causal-reading and padme are migrated. A signed release follows once that binary has run a while._
 
 ## North star:
 
@@ -12,7 +12,9 @@ An agent-friendly local ticket system for development in disconnected environmen
   scope confinement (0237–0239), robustness raid (0248–0253), asset-machinery
   hardening (0278–0297), `erg sync` (0298–0303) complete.
 - Dyne phase 1 (0271–0275) closed unbuilt in favour of Git notes review
-  (#377, #380, #381). Ticket-number claims (0306, #386) shipped.
+  (#377, #380, #381). Ticket-number claims (0306, #386) shipped, required in
+  every store since 0307 (#393); the managed pre-commit block no longer
+  refuses `tickets/erg` on a branch (0311, #399).
 - Bar for new work: "verified empirical need" (AGENTS.md).
 
 ## Notes
@@ -24,7 +26,10 @@ An agent-friendly local ticket system for development in disconnected environmen
   an exit-0 no-op. Every known host runs 2.43 or later.
 - **ID allocation**: `erg new` returns max+1 over the store, sibling worktrees
   and every branch tip (claims included), never a gap. Claims detect a
-  collision at merge; a store without `.claims/` keeps the glob post-check.
+  collision at merge or rebase as an add/add conflict.
+- **Pre-sync binaries**: adopters vendoring a binary older than `erg sync`
+  import with `ERG_UPDATE_URL=https://github.com/MinhHaDuong/git-erg.git
+  tickets/erg update`.
 
 ## Deferred ideas
 
