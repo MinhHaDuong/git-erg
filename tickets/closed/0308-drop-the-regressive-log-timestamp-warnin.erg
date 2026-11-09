@@ -2,11 +2,13 @@
 Title: Drop the regressive log timestamp warning from erg check
 Created: 2026-11-09
 Author: claude
+Closed: fixed by PR #394: erg check no longer warns on regressive log timestamps
 
 --- log ---
 2026-11-09T10:37Z claude created
 2026-11-09T10:39Z MinhHaDuong imagine: PROCEED; blind-spot 2 omissions (harness test consumer, residual mid-log insert)
 2026-11-09T10:40Z MinhHaDuong plan + feasibility PASS
+2026-11-09T10:47Z MinhHaDuong closed — fixed by PR #394: erg check no longer warns on regressive log timestamps
 
 --- body ---
 ## Context
@@ -47,10 +49,10 @@ Author's request (2026-11-09): remove the noise.
 
 ## Exit criteria
 
-- [ ] erg check emits no regressive-timestamp warning
-- [ ] displaced-entry warning unchanged and still tested
-- [ ] docs mention of the regressive warning removed
-- [ ] make test and make validate pass
+- [x] erg check emits no regressive-timestamp warning
+- [x] displaced-entry warning unchanged and still tested
+- [x] docs mention of the regressive warning removed
+- [x] make test and make validate pass
 
 ## Imagine (raid aa12e2)
 
