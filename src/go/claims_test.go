@@ -25,6 +25,34 @@ func writeClaimTestTicket(t *testing.T, dir, name string) {
 	}
 }
 
+// claimStore makes dir a compliant store with plain files, as a hand would:
+// .claims/.keep and, for every ticket already in dir that has no claim, one
+// "SLUG 00000000" claim. Fixtures call it so a test fails for its own defect,
+// not for the store's missing .claims/ (ticket 0307).
+func claimStore(t testing.TB, dir string) {
+	t.Helper()
+	cd := claimsDir(dir)
+	if err := os.MkdirAll(cd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cd, claimsKeepName), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	byID, err := ticketPathsByID(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, paths := range byID {
+		p := filepath.Join(cd, id)
+		if _, err := os.Lstat(p); err == nil {
+			continue
+		}
+		if err := os.WriteFile(p, []byte(ticketSlug(filepath.Base(paths[0]))+" 00000000\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func writeTestClaim(t *testing.T, dir, id, content string) {
 	t.Helper()
 	if err := os.MkdirAll(claimsDir(dir), 0o755); err != nil {

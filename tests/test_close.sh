@@ -10,6 +10,10 @@ FAIL=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
+# Claims are required (ticket 0307): fixture stores are made compliant with
+# plain files (claim_store), so each case fails for its own defect.
+. "$(dirname "$0")/claims_fixture.sh"
+
 trap 'rm -rf "$FIXTURES"' EXIT
 
 echo "=== erg close ==="
@@ -495,6 +499,7 @@ case "$ERG" in
     /*) ERG_ABS="$ERG" ;;
     *)  ERG_ABS="$PWD/$ERG" ;;
 esac
+claim_store "$STORE"
 # Run from an unrelated ticket store; pass an absolute FILE path into STORE, no DIR.
 OUT=$(cd "$OTHER" && "$ERG_ABS" close "$STORE/0001-blocker.erg" "done")
 if [ "$OUT" = "CLOSED" ] && ! grep -q "Blocked-by: 0001" "$STORE/0002-dep.erg"; then

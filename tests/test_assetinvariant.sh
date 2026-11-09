@@ -135,6 +135,10 @@ FAIL=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
+# Claims are required (ticket 0307): fixture stores are made compliant with
+# plain files (claim_store), so each case fails for its own defect.
+. "$(dirname "$0")/claims_fixture.sh"
+
 # Coverage pin. `[ "$FAIL" -eq 0 ]` alone cannot see an assertion that stopped
 # running: comment out one audit_step call and this file exits 0 with two fewer
 # audits and no other signal. Ticket 0278's log cites the count as evidence, so
@@ -225,6 +229,7 @@ Author: a
 
 --- body ---
 ERGEOF
+claim_store "$REMOTE/tickets"
 git -C "$REMOTE" add -A
 git -C "$REMOTE" commit -qm init
 

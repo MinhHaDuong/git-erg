@@ -29,6 +29,9 @@ func stampedStoreDated(t *testing.T, date, ergrcDisk, agentsDisk, ergrcStamp, ag
 	if err := os.MkdirAll(ticketsDir, 0755); err != nil {
 		t.Fatal(err)
 	}
+	// A compliant store (ticket 0307), so every arm fails for its asset and
+	// never for a missing .claims/.
+	claimStore(t, ticketsDir)
 	if err := os.WriteFile(filepath.Join(ticketsDir, ".ergrc"), []byte(ergrcDisk), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -246,6 +249,7 @@ func TestCheckFailsOnLocallyEditedAgentsMd(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dir, "0001-fixture.erg"), []byte(ticket), 0644); err != nil {
 			t.Fatal(err)
 		}
+		claimStore(t, dir)
 	}
 
 	t.Run("noisy arm: exit 1 on a locally-edited AGENTS.md", func(t *testing.T) {

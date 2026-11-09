@@ -9,12 +9,17 @@ FAIL=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
+# Claims are required (ticket 0307): fixture stores are made compliant with
+# plain files (claim_store), so each case fails for its own defect.
+. "$(dirname "$0")/claims_fixture.sh"
+
 TDIR=$(mktemp -d)
 trap 'rm -rf "$TDIR"' EXIT
 
 echo "=== pipeline: new → log → close → archive ==="
 
 # 1. Create a ticket
+claim_store "$TDIR"
 FILE=$($ERG new "Pipeline smoke test" "$TDIR" | sed 's/^CREATED //')
 ID=$(echo "$FILE" | cut -c1-4)
 if [ -f "$TDIR/$FILE" ]; then

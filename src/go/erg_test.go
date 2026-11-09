@@ -1272,6 +1272,9 @@ func TestValidateAgreesWithCheck(t *testing.T) {
 			}
 			path := writeErg(t, store, "0001-make-the-store.erg",
 				"%erg 0.1\nTitle: Make the store ready\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n--- body ---\n")
+			// Claimed, so check fails on rule 14 alone, never on a missing
+			// .claims/ (ticket 0307).
+			claimStore(t, store)
 
 			var validateRC, checkRC int
 			outText, errText := captureOutput(t, func() { validateRC = cmdValidate([]string{path}) })
