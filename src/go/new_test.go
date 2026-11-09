@@ -284,8 +284,6 @@ func TestCmdNewWritesClaim(t *testing.T) {
 	}
 }
 
-// TestCmdNewRefusesWithoutClaimsDir: a store without .claims/ is
-// noncompliant (ticket 0307); new writes nothing there, not even .claims/.
 // TestCmdNewMissingDirSaysNoStore: an explicit DIR that does not exist is no
 // store, so the refusal must not prescribe a migration (following that advice
 // would create the directory the refusal just declined to make).
@@ -336,6 +334,39 @@ func TestCmdNewReversedArgsHint(t *testing.T) {
 	}
 }
 
+// TestLooksLikeStore covers both signs of a store, .claims/ and a ticket
+// file, and a plain directory that has neither.
+func TestLooksLikeStore(t *testing.T) {
+	withClaims := t.TempDir()
+	if err := os.Mkdir(filepath.Join(withClaims, claimsDirName), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	withTicket := t.TempDir()
+	if err := os.WriteFile(filepath.Join(withTicket, "0001-a.erg"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	plain := t.TempDir()
+	if err := os.WriteFile(filepath.Join(plain, "notes.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name string
+		path string
+		want bool
+	}{
+		{".claims/", withClaims, true},
+		{"ticket file", withTicket, true},
+		{"plain dir", plain, false},
+		{"missing", filepath.Join(plain, "nope"), false},
+	} {
+		if got := looksLikeStore(c.path); got != c.want {
+			t.Errorf("looksLikeStore(%s) = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+// TestCmdNewRefusesWithoutClaimsDir: a store without .claims/ is
+// noncompliant (ticket 0307); new writes nothing there, not even .claims/.
 func TestCmdNewRefusesWithoutClaimsDir(t *testing.T) {
 	dir := t.TempDir()
 	if code := cmdNew([]string{"claim me", dir, "--author", "alice"}); code == 0 {

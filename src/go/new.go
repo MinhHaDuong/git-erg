@@ -173,7 +173,9 @@ func cmdNew(args []string) int {
 		// A DIR that is no directory is no store: say so, never prescribe a
 		// migration (its mkdir advice would create the mistyped directory).
 		// A title naming a store is the likely cause: arguments reversed.
-		if fi, err := os.Stat(ticketDir); err != nil || !fi.IsDir() {
+		// Other Stat errors (permissions) fall through to requireClaims,
+		// which reports them as they are.
+		if fi, err := os.Stat(ticketDir); os.IsNotExist(err) || (err == nil && !fi.IsDir()) {
 			msg := fmt.Sprintf("new: no ticket store at %s", ticketDir)
 			if looksLikeStore(title) {
 				msg += " -- arguments reversed? usage: erg new TITLE [DIR]"
