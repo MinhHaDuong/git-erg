@@ -1,0 +1,33 @@
+%erg 0.1
+Title: Docs: one upgrade recipe for claims; init refreshes docs, not data
+Created: 2026-11-09
+Author: MinhHaDuong
+
+--- log ---
+2026-11-09T11:56Z MinhHaDuong created
+
+--- body ---
+## Context
+2026-11-09, after #393 made claims required. integration.md and the CHANGELOG gave the upgrade as
+`erg sync`, `erg init`, `erg migrate --claims`, commit, `erg install --hooks`. `erg init` is not
+needed for claims: it refreshes the shipped docs (tickets/AGENTS.md, .ergrc), and `erg check` warns
+until it runs. Tested on a store set up by the 0306 binary: migrate and check work without init.
+The author asked why init is needed and decided not to make `erg sync` refresh the docs (one
+command, once per release, for one person; the drift warning already names `erg init`).
+
+A planned `erg sync` hint ("run migrate") was dropped: the first upgrade to a claims release runs
+the OLD binary's sync, which cannot print it, and the new binary's first command (check, new, init)
+already names `erg migrate --claims`.
+
+## Design
+Docs only (integration.md "ID claims" and "Keeping a store current", CHANGELOG upgrade note):
+- Who does what. Whoever imports the release, once: `erg sync --upstream`, review,
+  `tickets/erg migrate --claims tickets`, `tickets/erg init` (docs), commit. Every clone: `git pull`
+  brings the binary, docs and claims; then `erg install --hooks` once (hooks are per clone).
+- A branch cut before the migration: after rebasing, run `erg migrate --claims tickets` again; it
+  adds only the missing claims.
+
+## Exit criteria
+- [ ] integration.md and CHANGELOG give the recipe above; no doc lists `erg init` as a claims step.
+- [ ] The old-branch rerun is documented.
+- [ ] `make check` passes.
