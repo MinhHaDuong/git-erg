@@ -197,8 +197,8 @@ func cmdNew(args []string) int {
 
 		// Probe the real claim path: a claim git ignores would never
 		// be committed, while erg check passes on the file on disk.
-		if ignored := ignoredClaimFile(ticketDir, id); ignored != "" {
-			fmt.Fprintf(os.Stderr, "new: %s\n", claimsIgnoredMessage(ticketDir, ignored))
+		if ignored := ignoredClaimFiles(ticketDir, id); len(ignored) > 0 {
+			fmt.Fprintf(os.Stderr, "new: %s\n", claimsIgnoredMessage(ticketDir, ignored[0]))
 			return 1
 		}
 		// The claim is the exclusive create: its path depends on the

@@ -728,8 +728,8 @@ func initClaims(ticketsDir string, dryRun bool) int {
 		return 1
 	}
 	rel := filepath.Join("tickets", claimsDirName) + "/"
-	if ignored := ignoredClaimFile(ticketsDir, claimsKeepName); ignored != "" {
-		fmt.Fprintf(os.Stderr, "init: not creating %s: %s\n", rel, claimsIgnoredMessage(ticketsDir, ignored))
+	if ignored := ignoredClaimFiles(ticketsDir, claimsKeepName); len(ignored) > 0 {
+		fmt.Fprintf(os.Stderr, "init: not creating %s: %s\n", rel, claimsIgnoredMessage(ticketsDir, ignored[0]))
 		return 1
 	}
 	if dryRun {
