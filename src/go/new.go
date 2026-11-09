@@ -13,6 +13,17 @@ var (
 	nonAlphaNum = regexp.MustCompile(`[^a-z0-9]+`)
 )
 
+// looksLikeStore reports whether path is a directory holding a .claims/
+// directory or a ticket file: a title that does is a store typed in the
+// wrong place.
+func looksLikeStore(path string) bool {
+	if fi, err := os.Stat(filepath.Join(path, claimsDirName)); err == nil && fi.IsDir() {
+		return true
+	}
+	tickets, _ := filepath.Glob(filepath.Join(path, "[0-9][0-9][0-9][0-9]-*.erg"))
+	return len(tickets) > 0
+}
+
 // slugify converts a title to a lowercase ASCII kebab-case slug, truncated to
 // 40 characters, never yielding a slug that would make the generated filename
 // read as a closed ticket (ticket 0256).
@@ -159,6 +170,19 @@ func cmdNew(args []string) int {
 		// unconfined surface needs attacker-controlled CLI args, not a committed
 		// .erg, so the parser-input attack surface is unaffected.
 		ticketDir = filepath.Clean(positional[1])
+		// A DIR that is no directory is no store: say so, never prescribe a
+		// migration (its mkdir advice would create the mistyped directory).
+		// A title naming a store is the likely cause: arguments reversed.
+		// Other Stat errors (permissions) fall through to requireClaims,
+		// which reports them as they are.
+		if fi, err := os.Stat(ticketDir); os.IsNotExist(err) || (err == nil && !fi.IsDir()) {
+			msg := fmt.Sprintf("new: no ticket store at %s", ticketDir)
+			if looksLikeStore(title) {
+				msg += " -- arguments reversed? usage: erg new TITLE [DIR]"
+			}
+			fmt.Fprintln(os.Stderr, msg)
+			return 1
+		}
 	} else {
 		var err error
 		ticketDir, err = findTicketsDir()

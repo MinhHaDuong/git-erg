@@ -1,0 +1,29 @@
+%erg 0.1
+Title: erg new: say when DIR is no store and hint at reversed arguments
+Created: 2026-11-09
+Author: MinhHaDuong
+Closed: fixed in PR (erg new names a missing store, hints at reversed arguments)
+
+--- log ---
+2026-11-09T11:42Z MinhHaDuong created
+2026-11-09T11:44Z MinhHaDuong closed — fixed in PR (erg new names a missing store, hints at reversed arguments)
+
+--- body ---
+## Context
+2026-11-09, while filing 0307, an agent typed `erg new tickets "Title"` (arguments reversed). The
+binary then in use silently created a directory named after the title at the repo root, holding
+`0001-tickets.erg`. Since #393 (0307) `erg new` refuses before creating anything, but its message
+reads the title as a store to migrate: `new: Some title here has no .claims/ ... run: erg migrate
+--claims Some title here (without the binary: mkdir Some title here/.claims ...)`. Following that
+advice recreates the stray directory. Evidence bar: a user (here an agent) hit the friction.
+
+## Design
+In `cmdNew`, for an explicit DIR that does not exist (or is not a directory), refuse with
+`new: no ticket store at DIR` instead of the claims message. When the title itself names a ticket
+store (a directory holding `.claims/` or `NNNN-*.erg` files), add `-- arguments reversed? usage:
+erg new TITLE [DIR]`. What `erg new` accepts does not change; nothing is created.
+
+## Exit criteria
+- [x] `erg new TITLE MISSING_DIR` exits 1, says "no ticket store", does not suggest migrate, creates nothing.
+- [x] `erg new STORE_DIR "Some title"` (reversed) exits 1 and the message says "arguments reversed".
+- [x] `make check` passes.

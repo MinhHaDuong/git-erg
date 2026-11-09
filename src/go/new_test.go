@@ -284,6 +284,87 @@ func TestCmdNewWritesClaim(t *testing.T) {
 	}
 }
 
+// TestCmdNewMissingDirSaysNoStore: an explicit DIR that does not exist is no
+// store, so the refusal must not prescribe a migration (following that advice
+// would create the directory the refusal just declined to make).
+func TestCmdNewMissingDirSaysNoStore(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "Some title here")
+	var code int
+	stderr := captureStderr(t, func() {
+		code = cmdNew([]string{"a title", missing, "--author", "alice"})
+	})
+	if code == 0 {
+		t.Fatal("cmdNew returned 0 for a DIR that does not exist")
+	}
+	if !strings.Contains(stderr, "no ticket store at") {
+		t.Errorf("stderr does not say there is no store:\n%s", stderr)
+	}
+	if strings.Contains(stderr, "migrate") || strings.Contains(stderr, "mkdir") {
+		t.Errorf("stderr prescribes creating a store at a mistyped DIR:\n%s", stderr)
+	}
+	if strings.Contains(stderr, "reversed") {
+		t.Errorf("no reversal hint expected when the title is no store:\n%s", stderr)
+	}
+	if _, err := os.Stat(missing); !os.IsNotExist(err) {
+		t.Errorf("a refused new created %s", missing)
+	}
+}
+
+// TestCmdNewReversedArgsHint: `erg new tickets "Title"` puts a store where the
+// title goes; the refusal names the likely cause.
+func TestCmdNewReversedArgsHint(t *testing.T) {
+	store := t.TempDir()
+	claimStore(t, store)
+	missing := filepath.Join(t.TempDir(), "Some title here")
+	var code int
+	stderr := captureStderr(t, func() {
+		code = cmdNew([]string{store, missing, "--author", "alice"})
+	})
+	if code == 0 {
+		t.Fatal("cmdNew returned 0 with reversed arguments")
+	}
+	if !strings.Contains(stderr, "arguments reversed?") || !strings.Contains(stderr, "erg new TITLE [DIR]") {
+		t.Errorf("stderr lacks the reversed-arguments hint:\n%s", stderr)
+	}
+	if _, err := os.Stat(missing); !os.IsNotExist(err) {
+		t.Errorf("a refused new created %s", missing)
+	}
+	if entries, _ := filepath.Glob(filepath.Join(store, "*.erg")); len(entries) != 0 {
+		t.Errorf("a refused new wrote into the store: %v", entries)
+	}
+}
+
+// TestLooksLikeStore covers both signs of a store, .claims/ and a ticket
+// file, and a plain directory that has neither.
+func TestLooksLikeStore(t *testing.T) {
+	withClaims := t.TempDir()
+	if err := os.Mkdir(filepath.Join(withClaims, claimsDirName), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	withTicket := t.TempDir()
+	if err := os.WriteFile(filepath.Join(withTicket, "0001-a.erg"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	plain := t.TempDir()
+	if err := os.WriteFile(filepath.Join(plain, "notes.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name string
+		path string
+		want bool
+	}{
+		{".claims/", withClaims, true},
+		{"ticket file", withTicket, true},
+		{"plain dir", plain, false},
+		{"missing", filepath.Join(plain, "nope"), false},
+	} {
+		if got := looksLikeStore(c.path); got != c.want {
+			t.Errorf("looksLikeStore(%s) = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
 // TestCmdNewRefusesWithoutClaimsDir: a store without .claims/ is
 // noncompliant (ticket 0307); new writes nothing there, not even .claims/.
 func TestCmdNewRefusesWithoutClaimsDir(t *testing.T) {
