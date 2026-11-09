@@ -230,7 +230,8 @@ echo "tickets/erg" >> .git/info/exclude
 NG=$(created_id "$TDIR/g.out")
 git add "tickets/$NG-hooked.erg"
 msg=$(git commit -m "hooked" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$msg" | grep -qF "has no staged claim tickets/.claims/$NG"; then
+if [ "$rc" -ne 0 ] && echo "$msg" | grep -qF "pre-commit: tickets without a claim in the index:" &&
+    echo "$msg" | grep -qxF "  tickets/$NG-hooked.erg"; then
     pass "hook: a ticket staged without its claim is rejected"
 else
     fail "hook: ticket without staged claim not rejected (rc=$rc: $msg)"
@@ -240,6 +241,36 @@ if git commit -q -m "hooked" >/dev/null 2>&1; then
     pass "hook: the same commit passes once the claim is staged"
 else
     fail "hook: commit with ticket and claim staged was rejected"
+fi
+
+# --- pre-merge-commit: a clean merge bringing an unclaimed ticket is refused ---
+# The side branch is committed without hooks (--no-verify: a clone that never
+# ran erg install). The matching claim sits untracked on disk on the merging
+# side, so erg check passes on the working tree: only an index check refuses.
+git checkout -q -b side
+plain_ticket tickets 0900-side-ticket
+git add tickets/0900-side-ticket.erg && git commit -q --no-verify -m "side ticket, no claim"
+git checkout -q g
+echo "side-ticket 00000000" > tickets/.claims/0900
+msg=$(git merge --no-ff --no-edit side 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && [ -f "$(git rev-parse --git-path MERGE_HEAD)" ] &&
+    echo "$msg" | grep -qF "pre-merge-commit: tickets without a claim in the index:" &&
+    "$ERG_ABS" check tickets >/dev/null 2>&1; then
+    pass "merge hook: an unclaimed ticket is refused on the index though erg check passes on disk"
+else
+    fail "merge hook: unclaimed ticket merged, or refused for another reason (rc=$rc: $msg)"
+fi
+git merge --abort 2>/dev/null || true
+rm -f tickets/.claims/0900
+git checkout -q side
+echo "side-ticket 00000000" > tickets/.claims/0900
+git add tickets/.claims/0900 && git commit -q -m "claim 0900"
+git checkout -q g
+if git merge -q --no-ff --no-edit side >/dev/null 2>&1; then
+    pass "merge hook: the same merge passes once the claim is committed (control)"
+else
+    fail "merge hook: a fully claimed merge was refused"
+    git merge --abort 2>/dev/null || true
 fi
 
 # --- close and rm leave the claim; its number is never reused ---

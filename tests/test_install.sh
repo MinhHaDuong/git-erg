@@ -298,6 +298,39 @@ else
     fail "--hooks did not install the pre-push hook"
 fi
 
+# --- --hooks installs the pre-merge-commit hook (ticket 0307) ---
+# A clean merge runs pre-merge-commit, not pre-commit: the block runs erg
+# check on the merge result and the index claim check.
+REPO=$(new_repo mergehook)
+$ERG install "$REPO" --hooks >/dev/null 2>&1
+MERGE="$REPO/.git/hooks/pre-merge-commit"
+if [ -x "$MERGE" ] && grep -q "tickets/erg check tickets/" "$MERGE" && grep -q "ls-files -- tickets" "$MERGE"; then
+    pass "--hooks installs an executable pre-merge-commit hook with check and the index claim check"
+else
+    fail "--hooks did not install a complete pre-merge-commit hook"
+fi
+if grep -q "ls-files -- tickets" "$REPO/.git/hooks/pre-commit"; then
+    pass "--hooks: the pre-commit hook carries the same index claim check"
+else
+    fail "--hooks: the pre-commit hook lacks the index claim check"
+fi
+# Upgrade in place: third-party content is kept, still runs (no exit 0 in
+# the block shadows it), and a rerun leaves one managed block.
+REPO=$(new_repo mergeprepend)
+( cd "$REPO" && git config user.email t@t && git config user.name t &&
+    git commit -q --allow-empty -m init )
+printf '#!/bin/sh\necho "THIRD-PARTY PRE-MERGE RAN"\n' > "$REPO/.git/hooks/pre-merge-commit"
+chmod +x "$REPO/.git/hooks/pre-merge-commit"
+$ERG install "$REPO" --hooks >/dev/null 2>&1
+$ERG install "$REPO" --hooks >/dev/null 2>&1
+n=$(grep -c '>>> erg managed >>>' "$REPO/.git/hooks/pre-merge-commit" || true)
+out=$( cd "$REPO" && sh .git/hooks/pre-merge-commit </dev/null 2>&1 ) && rc=0 || rc=$?
+if [ "$n" -eq 1 ] && [ "$rc" -eq 0 ] && echo "$out" | grep -q "THIRD-PARTY PRE-MERGE RAN"; then
+    pass "--hooks: pre-merge-commit upgrade keeps and still runs third-party content, one block"
+else
+    fail "--hooks: pre-merge-commit upgrade (blocks=$n, rc=$rc, out: $out)"
+fi
+
 # --- pre-push hook: warn-only, never blocks, mutates nothing ---
 REPO=$(new_repo pushwarn)
 ( cd "$REPO" && git config user.email t@t && git config user.name t )

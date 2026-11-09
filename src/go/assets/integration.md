@@ -12,9 +12,15 @@ local edit. It is not a `.erg` ticket, so `erg check` ignores it.
 ## 1. Pre-commit hook
 
 The hook prevents committing `tickets/erg` on feature branches -- CI
-rebuilds the binary after merge to main -- validates staged tickets, and,
-when ID claims are on, rejects a staged ticket whose claim is not staged.
-See the `.gitignore` section below for the full commit policy.
+rebuilds the binary after merge to main -- validates staged tickets, and
+rejects a commit whose index holds a ticket without its ID claim (the index,
+not the working tree: an untracked claim on disk would let `erg check` pass
+while the commit lacks it). See the `.gitignore` section below for the full
+commit policy.
+
+Install the hooks after the store is migrated and that commit is made
+(`erg migrate --claims`, see "ID claims" below): the claim check rejects
+every commit in a store whose tickets are not claimed yet.
 
 **Automated:** run `erg install --hooks`. It inserts the block below into
 `.git/hooks/pre-commit` between sentinel markers, right after the shebang
@@ -63,22 +69,72 @@ if [ -n "$erg_files" ]; then
     fi
 fi
 
-# Reject a staged ticket whose ID claim is not staged. Claims are on when
-# tickets/.claims/ exists; 'git add tickets/NNNN-*' misses the claim.
-if [ -d tickets/.claims ]; then
-    for erg_f in $(git diff --cached --name-only --diff-filter=d -- 'tickets/*.erg'); do
-        erg_base=${erg_f##*/}
-        erg_id=${erg_base%%-*}
-        case $erg_id in
-            [0-9][0-9][0-9][0-9]) ;;
-            *) continue ;;
-        esac
-        if ! git cat-file -e ":tickets/.claims/$erg_id" 2>/dev/null; then
-            echo "pre-commit: $erg_f has no staged claim tickets/.claims/$erg_id." >&2
-            echo " Stage it: git add tickets/.claims/$erg_id" >&2
+erg_hook=pre-commit
+# Every ticket in the index has its ID claim in the index. The index, not
+# the working tree: an untracked claim on disk lets erg check pass while
+# the commit lacks it.
+erg_unclaimed=$(git -c core.quotePath=false ls-files -- tickets | awk '
+    /^tickets\/\.claims\/[0-9][0-9][0-9][0-9]$/ { claimed[substr($0, length($0) - 3)] = 1; next }
+    /^tickets\/(.*\/)?[0-9][0-9][0-9][0-9]-[^\/]*\.erg$/ {
+        n = split($0, part, "/")
+        ticket[$0] = substr(part[n], 1, 4)
+    }
+    END { for (t in ticket) if (!(ticket[t] in claimed)) print t }' | sort)
+if [ -n "$erg_unclaimed" ]; then
+    echo "$erg_hook: tickets without a claim in the index:" >&2
+    echo "$erg_unclaimed" | sed 's/^/  /' >&2
+    echo " Stage each claim: git add tickets/.claims/NNNN (none yet? run: tickets/erg migrate --claims tickets)" >&2
+    exit 1
+fi
+# <<< erg managed <<<
+```
+
+### Pre-merge-commit hook
+
+A clean merge runs `pre-merge-commit`, not `pre-commit`, so `erg install
+--hooks` installs this block too, in `.git/hooks/pre-merge-commit`, with the
+same markers and the same in-place upgrade. When the merge changes
+`tickets/`, it runs `erg check` on the merge result, then the same index
+check: a merge that brings in an unclaimed ticket or a duplicate number is
+refused before git records it, and `MERGE_HEAD` stays for you to fix and
+conclude with `git commit` (whose pre-commit check runs again) or to
+`git merge --abort`. A fast-forward and `git merge --no-verify` run no
+hook; CI is the backstop for those.
+
+```sh
+# >>> erg managed >>>
+# Check the merge result before git records it: a clean merge runs this
+# hook, not pre-commit. A fast-forward or --no-verify runs neither.
+if [ -n "$(git diff --cached --name-only HEAD -- tickets)" ]; then
+    if [ -x tickets/erg ]; then
+        if ! tickets/erg check tickets/; then
+            echo "pre-merge-commit: ticket corpus check failed on the merge result." >&2
+            echo " Fix it and conclude with 'git commit', or abort: git merge --abort" >&2
             exit 1
         fi
-    done
+    else
+        echo "ERROR: tickets/erg not found. Build it from the git-erg source" >&2
+        echo "  (make build there), or 'git pull' if your project vendors the committed binary." >&2
+        exit 1
+    fi
+fi
+
+erg_hook=pre-merge-commit
+# Every ticket in the index has its ID claim in the index. The index, not
+# the working tree: an untracked claim on disk lets erg check pass while
+# the commit lacks it.
+erg_unclaimed=$(git -c core.quotePath=false ls-files -- tickets | awk '
+    /^tickets\/\.claims\/[0-9][0-9][0-9][0-9]$/ { claimed[substr($0, length($0) - 3)] = 1; next }
+    /^tickets\/(.*\/)?[0-9][0-9][0-9][0-9]-[^\/]*\.erg$/ {
+        n = split($0, part, "/")
+        ticket[$0] = substr(part[n], 1, 4)
+    }
+    END { for (t in ticket) if (!(ticket[t] in claimed)) print t }' | sort)
+if [ -n "$erg_unclaimed" ]; then
+    echo "$erg_hook: tickets without a claim in the index:" >&2
+    echo "$erg_unclaimed" | sed 's/^/  /' >&2
+    echo " Stage each claim: git add tickets/.claims/NNNN (none yet? run: tickets/erg migrate --claims tickets)" >&2
+    exit 1
 fi
 # <<< erg managed <<<
 ```
@@ -311,8 +367,9 @@ whole file:
 rm .git/hooks/pre-commit   # ONLY if it holds nothing but the erg block
 ```
 
-The pre-push hook (if you ran `--push-hook`) uses the same markers in
-`.git/hooks/pre-push`; remove its managed block the same way.
+The pre-merge-commit and pre-push hooks use the same markers in
+`.git/hooks/pre-merge-commit` and `.git/hooks/pre-push`; remove their managed
+blocks the same way.
 
 Likewise for the `AGENTS.md` pointer: delete only the lines between the
 `<!-- >>> erg managed >>> -->` and `<!-- <<< erg managed <<< -->` markers.
