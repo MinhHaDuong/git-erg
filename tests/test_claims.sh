@@ -371,6 +371,22 @@ else
     fail "no .claims/: erg check did not fail with the repair (rc=$rc: $out)"
 fi
 
+# The same message carries the plain-file route (Agnostic invariant): those
+# commands alone, no binary, make the store pass.
+HAND="$TDIR/hand"
+plain_ticket "$HAND" 0001-by-hand
+out=$("$ERG_ABS" check "$HAND" 2>&1) || true
+if echo "$out" | grep -qF "without the binary: mkdir $HAND/.claims && touch $HAND/.claims/.keep"; then
+    mkdir "$HAND/.claims" && touch "$HAND/.claims/.keep" && echo "by-hand $(date +%s)" > "$HAND/.claims/0001"
+    if "$ERG_ABS" check "$HAND" >/dev/null 2>&1; then
+        pass "no .claims/: the plain-file route in the message makes the store pass, no binary needed"
+    else
+        fail "no .claims/: the plain-file route did not satisfy check ($("$ERG_ABS" check "$HAND" 2>&1))"
+    fi
+else
+    fail "no .claims/: the message lacks the plain-file route ($out)"
+fi
+
 # --- migrate --claims: populates open and closed, idempotent, refuses shared ---
 plain_ticket "$OFF" 0002-second 2026-11-08 closed
 "$ERG_ABS" migrate --claims "$OFF" >/dev/null 2>&1 && rc=0 || rc=$?

@@ -315,6 +315,19 @@ func TestMigrationNonce(t *testing.T) {
 	if string(data) != "a b298394c\n" {
 		t.Errorf("migrated claim = %q, want the derived nonce", data)
 	}
+	// A ticket without a Created header still gets a deterministic claim:
+	// the nonce of an empty date, not a random one.
+	bare := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bare, "0002-b.erg"), []byte("%erg 0.1\nTitle: T\nAuthor: a\n\n--- log ---\n--- body ---\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := migrateClaims(bare, mustTicketPaths(t, bare)); err != nil {
+		t.Fatal(err)
+	}
+	data, _ = os.ReadFile(filepath.Join(claimsDir(bare), "0002"))
+	if want := "b " + migrationNonce("0002", "b", "") + "\n"; string(data) != want {
+		t.Errorf("claim for a ticket without Created = %q, want %q", data, want)
+	}
 }
 
 func TestMigrateClaimsRefusesSharedNumber(t *testing.T) {
