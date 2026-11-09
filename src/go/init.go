@@ -93,7 +93,8 @@ assets always produce byte-identical content.
 
 ID claims are required (see 'erg new'). In a store that holds no .erg file
 yet, init creates tickets/.claims/ (with a .keep file, since git carries no
-empty directory); it refuses, exiting 1, when git ignores that path. A store
+empty directory); it refuses, exiting 1, when git ignores that path, naming
+the ignoring rule and the exact lines to append to its file. A store
 that already holds tickets but no .claims/ gets its assets all the same, then
 init exits 1 naming the repair: 'erg migrate --claims tickets', which claims
 the tickets already there.
@@ -728,8 +729,10 @@ func initClaims(ticketsDir string, dryRun bool) int {
 		return 1
 	}
 	rel := filepath.Join("tickets", claimsDirName) + "/"
-	if ignored := ignoredClaimFiles(ticketsDir, claimsKeepName); len(ignored) > 0 {
-		fmt.Fprintf(os.Stderr, "init: not creating %s: %s\n", rel, claimsIgnoredMessage(ticketsDir, ignored[0]))
+	if rules := ignoredClaimRules(ticketsDir, claimsKeepName); len(rules) > 0 {
+		for _, r := range rules {
+			fmt.Fprintf(os.Stderr, "init: not creating %s: %s\n", rel, r.message())
+		}
 		return 1
 	}
 	if dryRun {

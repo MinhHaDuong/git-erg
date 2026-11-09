@@ -77,7 +77,8 @@ existing file is never clobbered. Two branches that take the same number add
 the same claim path with different content, so git reports an add/add
 conflict when the second one is merged or rebased. Stage both files: the
 'git add' line is printed on stderr. new refuses when git ignores the claim
-path, since the claim would then never be committed. new refuses, writing
+path, since the claim would then never be committed; the refusal names the
+ignoring rule (file:line:pattern) and the exact lines to append to that file. new refuses, writing
 nothing, in a store without .claims/; the message names the repair:
 'erg migrate --claims DIR'. new never creates the store: 'erg init' does.
 
@@ -197,8 +198,10 @@ func cmdNew(args []string) int {
 
 		// Probe the real claim path: a claim git ignores would never
 		// be committed, while erg check passes on the file on disk.
-		if ignored := ignoredClaimFiles(ticketDir, id); len(ignored) > 0 {
-			fmt.Fprintf(os.Stderr, "new: %s\n", claimsIgnoredMessage(ticketDir, ignored[0]))
+		if rules := ignoredClaimRules(ticketDir, id); len(rules) > 0 {
+			for _, r := range rules {
+				fmt.Fprintf(os.Stderr, "new: %s\n", r.message())
+			}
 			return 1
 		}
 		// The claim is the exclusive create: its path depends on the

@@ -16,6 +16,10 @@ FAIL=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
+# Claims are required (ticket 0307): fixture stores are made compliant with
+# plain files (claim_store), so each case fails for its own defect.
+. "$(dirname "$0")/claims_fixture.sh"
+
 echo "=== ID claims ==="
 
 TDIR=$(mktemp -d)
@@ -281,7 +285,7 @@ git init -q "$IGN"
 mkdir -p "$IGN/tickets/.claims"
 printf '*\n!tickets/\n!tickets/*.erg\n' > "$IGN/.gitignore"
 out=$(cd "$IGN" && "$ERG_ABS" new "ignored" tickets 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "git ignores tickets/.claims/0001," && ! ls "$IGN"/tickets/*.erg >/dev/null 2>&1; then
+if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "git ignores tickets/.claims/0001 by the rule .gitignore:1:*" && ! ls "$IGN"/tickets/*.erg >/dev/null 2>&1; then
     pass "ignored claim path: erg new refuses, names the claim it would write, writes nothing"
 else
     fail "ignored claim path: erg new did not refuse (rc=$rc: $out)"
@@ -294,7 +298,7 @@ git init -q "$IGM"
 cp "$IGN/.gitignore" "$IGM/.gitignore"
 plain_ticket "$IGM/tickets" 0001-existing
 out=$(cd "$IGM" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "git ignores tickets/.claims/.keep," && [ ! -e "$IGM/tickets/.claims" ]; then
+if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "git ignores tickets/.claims/.keep, tickets/.claims/0001 by the rule .gitignore:1:*" && [ ! -e "$IGM/tickets/.claims" ]; then
     pass "ignored claim path: migrate --claims refuses, names a file it would write, creates nothing"
 else
     fail "ignored claim path: migrate --claims did not refuse (rc=$rc: $out)"
@@ -306,7 +310,7 @@ mkdir -p "$IGI/tickets"
 cp "$ERG_ABS" "$IGI/tickets/erg"
 out=$("$ERG_ABS" init "$IGI" 2>&1) && rc=0 || rc=$?
 if [ "$rc" -eq 1 ] && [ ! -e "$IGI/tickets/.claims" ] && echo "$out" | grep -qF "not creating tickets/.claims/" &&
-    echo "$out" | grep -qF "tickets/.claims/.keep,"; then
+    echo "$out" | grep -qF "tickets/.claims/.keep by the rule .gitignore:1:*"; then
     pass "ignored claim path: init exits 1, creates no .claims/, names the .keep it would write"
 else
     fail "ignored claim path: init created .claims/, exited 0 or stayed silent (rc=$rc: $out)"
@@ -361,6 +365,76 @@ if [ "$rc" -ne 0 ] && [ ! -e "$DUP/.claims/0001" ] && echo "$out" | grep -qF "00
     pass "migrate --claims: refuses a number two tickets share, names both"
 else
     fail "migrate --claims: shared number not refused (rc=$rc: $out)"
+fi
+
+# --- an ignored claim path: the refusal names the rule and the exact fix ---
+# Root rule: the allowlist lines are relative to the root .gitignore, and
+# appending exactly the printed lines makes the re-run succeed.
+RUL="$TDIR/rul"
+git init -q "$RUL"
+printf '.*\n!.gitignore\n' > "$RUL/.gitignore"
+plain_ticket "$RUL/tickets" 0001-one
+out=$(cd "$RUL" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -qF ".gitignore:1:.*" &&
+    echo "$out" | grep -qxF '  !tickets/.claims/' && echo "$out" | grep -qxF '  !tickets/.claims/*' &&
+    [ "$(echo "$out" | grep -cF '.gitignore:1:.*')" -eq 1 ]; then
+    pass "ignored path: the refusal names the rule once and prints the allowlist lines"
+else
+    fail "ignored path: rule or allowlist lines missing (rc=$rc: $out)"
+fi
+echo "$out" | sed -n 's/^  \(!.*\)$/\1/p' >> "$RUL/.gitignore"
+if (cd "$RUL" && "$ERG_ABS" migrate --claims tickets >/dev/null 2>&1) && [ -f "$RUL/tickets/.claims/0001" ] &&
+    [ -z "$(cd "$RUL" && git check-ignore tickets/.claims/0001 tickets/.claims/.keep)" ]; then
+    pass "ignored path: appending the printed lines makes migrate succeed"
+else
+    fail "ignored path: the printed lines did not un-ignore the claims ($(cat "$RUL/.gitignore"))"
+fi
+# Nested rule: the lines are relative to tickets/.gitignore, which they go in.
+NST="$TDIR/nst"
+git init -q "$NST"
+plain_ticket "$NST/tickets" 0001-one
+printf '.claims/\n' > "$NST/tickets/.gitignore"
+out=$(cd "$NST" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -qF "tickets/.gitignore:1:.claims/" &&
+    echo "$out" | grep -qxF '  !.claims/' && echo "$out" | grep -qxF '  !.claims/*'; then
+    pass "ignored path: a nested rule gets allowlist lines relative to its own file"
+else
+    fail "ignored path: nested rule (rc=$rc: $out)"
+fi
+echo "$out" | sed -n 's/^  \(!.*\)$/\1/p' >> "$NST/tickets/.gitignore"
+if (cd "$NST" && "$ERG_ABS" migrate --claims tickets >/dev/null 2>&1); then
+    pass "ignored path: the nested allowlist lines make migrate succeed"
+else
+    fail "ignored path: the nested allowlist lines did not suffice ($(cat "$NST/tickets/.gitignore"))"
+fi
+# An absolute source (.git/info/exclude): its patterns are relative to the
+# repository top, and so are the printed lines.
+IEX="$TDIR/iex"
+git init -q "$IEX"
+plain_ticket "$IEX/tickets" 0001-one
+printf 'tickets/.claims/\n' >> "$IEX/.git/info/exclude"
+out=$(cd "$IEX/tickets" && "$ERG_ABS" migrate --claims . 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -qF "info/exclude:" && echo "$out" | grep -qxF '  !tickets/.claims/'; then
+    pass "ignored path: an info/exclude rule gets lines relative to the repository top"
+else
+    fail "ignored path: info/exclude rule (rc=$rc: $out)"
+fi
+echo "$out" | sed -n 's/^  \(!.*\)$/\1/p' >> "$IEX/.git/info/exclude"
+if (cd "$IEX/tickets" && "$ERG_ABS" migrate --claims . >/dev/null 2>&1); then
+    pass "ignored path: the info/exclude allowlist lines make migrate succeed"
+else
+    fail "ignored path: the info/exclude lines did not suffice ($(cat "$IEX/.git/info/exclude"))"
+fi
+# A path matched only by a negation is not ignored (check-ignore -v prints
+# the negation and exits 0): no refusal.
+NEG="$TDIR/neg"
+git init -q "$NEG"
+printf '!tickets/.claims/*\n' > "$NEG/.gitignore"
+claim_store "$NEG/tickets"
+if (cd "$NEG" && "$ERG_ABS" new "negated" tickets >/dev/null 2>&1); then
+    pass "ignored path: a negation-only match is not an ignore"
+else
+    fail "ignored path: a negation-only match was refused ($(cd "$NEG" && "$ERG_ABS" new "negated" tickets 2>&1))"
 fi
 
 # --- migrate --claims prechecks: every blocker in one run, nothing written ---
