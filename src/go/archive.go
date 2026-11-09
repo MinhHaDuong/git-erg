@@ -91,8 +91,11 @@ held open by a Blocked-by ref, then exits 0. This is the read-only listing the
 pre-push hook (erg install --push-hook) uses to warn about closed-but-
 unarchived tickets without mutating the working tree.
 
-Claims (DIR/.claims/NNNN, see 'erg new') are not moved: they sit at the store
-root and name the ticket by number and slug, which archiving does not change.
+Claims (DIR/.claims/NNNN, see 'erg new') are not moved: they sit at the
+store root and name the ticket by number and slug, which archiving does not
+change. archive then warns on stderr about the store's tickets that have no
+claim (at most five named), or, in a store without .claims/, prints
+'erg migrate --claims DIR'; the warning never changes the outcome.
 `
 
 // cmdArchive implements `erg archive [id...] [dir]`. See helpArchive for the user-facing summary.
@@ -120,6 +123,9 @@ func cmdArchive(args []string) int {
 		fmt.Fprintf(os.Stderr, "archive: %v\n", err)
 		return 1
 	}
+	// After the outcome, whatever it is: the store's unclaimed tickets
+	// (ticket 0307).
+	defer warnUnclaimed("archive", ticketDir)
 
 	// Load all tickets recursively (includes closed/) for building the
 	// reverse blocker index.

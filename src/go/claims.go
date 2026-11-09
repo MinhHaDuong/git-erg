@@ -525,3 +525,66 @@ func migrateClaims(store string, byID map[string][]string) (written, kept int, b
 	}
 	return written, kept, nil, nil
 }
+
+// unclaimedTickets returns the paths of the tickets in dir (which holds its
+// .claims/) whose number has no claim file, sorted. A number two tickets
+// share is left out: the duplicate-ID rule owns it. Names only: one walk of
+// the store and one read of .claims/, no ticket parsed and no claim read, so
+// a write verb pays almost nothing for it. A malformed claim still exists,
+// so its ticket is not listed here; erg check reports it.
+func unclaimedTickets(dir string) []string {
+	byID, err := ticketPathsByID(dir)
+	if err != nil {
+		return nil
+	}
+	entries, err := os.ReadDir(claimsDir(dir))
+	if err != nil {
+		return nil
+	}
+	claimed := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		claimed[e.Name()] = true
+	}
+	var out []string
+	for id, paths := range byID {
+		if len(paths) == 1 && !claimed[id] {
+			out = append(out, paths[0])
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// warnUnclaimed prints on stderr, for a write verb, the store's tickets that
+// have no claim (at most five, then a count), or, in a store without
+// .claims/, the migrate command. It never changes the verb's outcome:
+// refusing close, rm or archive right after an 'erg sync' would break their
+// callers (autoclose), and the warning reaches every clone that uses erg,
+// with or without hooks, offline. Silent in a compliant store.
+func warnUnclaimed(verb, dir string) {
+	if err := requireClaims(dir); err != nil {
+		fmt.Fprintf(os.Stderr, "%s: warning: %v\n", verb, err)
+		return
+	}
+	paths := unclaimedTickets(dir)
+	if len(paths) == 0 {
+		return
+	}
+	names := make([]string, 0, 5)
+	for i, p := range paths {
+		if i == 5 {
+			break
+		}
+		names = append(names, filepath.Base(p))
+	}
+	more := ""
+	if len(paths) > 5 {
+		more = fmt.Sprintf(" and %d more", len(paths)-5)
+	}
+	word := "tickets"
+	if len(paths) == 1 {
+		word = "ticket"
+	}
+	fmt.Fprintf(os.Stderr, "%s: warning: %d %s without a claim: %s%s -- run: erg migrate --claims %s\n",
+		verb, len(paths), word, strings.Join(names, ", "), more, dir)
+}

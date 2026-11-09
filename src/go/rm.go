@@ -38,7 +38,10 @@ A non-existent or ambiguous ID is reported with the usual resolver error.
 
 The ticket's claim (DIR/.claims/NNNN, see 'erg new') is left in place:
 claims are never deleted, so the removed ticket's number stays used and
-'erg new' never hands it out again.
+'erg new' never hands it out again. rm then warns on stderr about the
+store's tickets that have no claim (at most five named), or, in a store
+without .claims/, prints 'erg migrate --claims DIR'; the warning never
+changes the outcome.
 `
 
 // cmdRm implements `erg rm ID|FILE [DIR] [--force]`. See helpRm for the
@@ -93,12 +96,18 @@ func cmdRm(args []string) int {
 			fmt.Fprintf(os.Stderr, "rm: %v\n", err)
 			return 1
 		}
+		// After the outcome, whatever it is: the store's unclaimed tickets
+		// (ticket 0307).
+		defer warnUnclaimed("rm", ticketDir)
 	} else {
 		ticketDir, err = resolveDir(explicit)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "rm: %v\n", err)
 			return 1
 		}
+		// After the outcome, whatever it is: the store's unclaimed tickets
+		// (ticket 0307).
+		defer warnUnclaimed("rm", ticketDir)
 		ticketPath, err = resolveTicketByID(ticketDir, idOrFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "rm: %v\n", err)
