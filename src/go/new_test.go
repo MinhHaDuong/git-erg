@@ -286,6 +286,56 @@ func TestCmdNewWritesClaim(t *testing.T) {
 
 // TestCmdNewRefusesWithoutClaimsDir: a store without .claims/ is
 // noncompliant (ticket 0307); new writes nothing there, not even .claims/.
+// TestCmdNewMissingDirSaysNoStore: an explicit DIR that does not exist is no
+// store, so the refusal must not prescribe a migration (following that advice
+// would create the directory the refusal just declined to make).
+func TestCmdNewMissingDirSaysNoStore(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "Some title here")
+	var code int
+	stderr := captureStderr(t, func() {
+		code = cmdNew([]string{"a title", missing, "--author", "alice"})
+	})
+	if code == 0 {
+		t.Fatal("cmdNew returned 0 for a DIR that does not exist")
+	}
+	if !strings.Contains(stderr, "no ticket store at") {
+		t.Errorf("stderr does not say there is no store:\n%s", stderr)
+	}
+	if strings.Contains(stderr, "migrate") || strings.Contains(stderr, "mkdir") {
+		t.Errorf("stderr prescribes creating a store at a mistyped DIR:\n%s", stderr)
+	}
+	if strings.Contains(stderr, "reversed") {
+		t.Errorf("no reversal hint expected when the title is no store:\n%s", stderr)
+	}
+	if _, err := os.Stat(missing); !os.IsNotExist(err) {
+		t.Errorf("a refused new created %s", missing)
+	}
+}
+
+// TestCmdNewReversedArgsHint: `erg new tickets "Title"` puts a store where the
+// title goes; the refusal names the likely cause.
+func TestCmdNewReversedArgsHint(t *testing.T) {
+	store := t.TempDir()
+	claimStore(t, store)
+	missing := filepath.Join(t.TempDir(), "Some title here")
+	var code int
+	stderr := captureStderr(t, func() {
+		code = cmdNew([]string{store, missing, "--author", "alice"})
+	})
+	if code == 0 {
+		t.Fatal("cmdNew returned 0 with reversed arguments")
+	}
+	if !strings.Contains(stderr, "arguments reversed?") || !strings.Contains(stderr, "erg new TITLE [DIR]") {
+		t.Errorf("stderr lacks the reversed-arguments hint:\n%s", stderr)
+	}
+	if _, err := os.Stat(missing); !os.IsNotExist(err) {
+		t.Errorf("a refused new created %s", missing)
+	}
+	if entries, _ := filepath.Glob(filepath.Join(store, "*.erg")); len(entries) != 0 {
+		t.Errorf("a refused new wrote into the store: %v", entries)
+	}
+}
+
 func TestCmdNewRefusesWithoutClaimsDir(t *testing.T) {
 	dir := t.TempDir()
 	if code := cmdNew([]string{"claim me", dir, "--author", "alice"}); code == 0 {
