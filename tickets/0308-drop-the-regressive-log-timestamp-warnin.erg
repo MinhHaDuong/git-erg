@@ -1,0 +1,51 @@
+%erg 0.1
+Title: Drop the regressive log timestamp warning from erg check
+Created: 2026-11-09
+Author: claude
+
+--- log ---
+2026-11-09T10:37Z claude created
+
+--- body ---
+## Context
+
+`erg check` warns `regressive log timestamps -- routine after a git rebase
+replay; advisory only` when an older-stamped log entry follows a newer one
+(src/go/check.go, `logShapeIssues`, added by 0304). On this repo it fires on
+44 files.
+
+The spec (src/go/assets/spec-erg-v1.md, Log section) says only "Append-only"
+and "Lines are never edited or deleted": no MUST or SHOULD on chronological
+order. Append order is the record; a rebase replay legitimately appends an
+older stamp after a newer one.
+
+The warning has no legitimate remedy: the only way to silence it is to
+reorder log lines, which the spec forbids. A warning nobody may act on is
+noise, and it trains readers to skip the warnings that matter. The sibling
+"displaced log entry" warning has a remedy that edits no entry (move the
+blank) and stays.
+
+Author's request (2026-11-09): remove the noise.
+
+## Scope
+
+- Remove the regressive-timestamp detection and its WARN from erg check.
+- Keep the displaced-entry warning and its tests unchanged.
+- Update docs/erg-manual.md (the "Regressive log timestamps" bullet) and any
+  other mention; add a CHANGELOG line if the project records check-output
+  changes there.
+- Closed ticket 0304 stays as written (durable record).
+
+## Test
+
+- A file with regressive timestamps draws no warning from erg check (exit 0,
+  no "regressive" output); the existing regressive-fires test is inverted or
+  removed accordingly.
+- The displaced-entry warning still fires on its existing fixtures.
+
+## Exit criteria
+
+- [ ] erg check emits no regressive-timestamp warning
+- [ ] displaced-entry warning unchanged and still tested
+- [ ] docs mention of the regressive warning removed
+- [ ] make test and make validate pass
