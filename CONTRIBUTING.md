@@ -107,6 +107,4 @@ dispatched by the binary. Such a script must be: POSIX `sh` (`#!/bin/sh`,
 `set -eu`, no bashisms -- `[[`, `local`, arrays, `pipefail`), pure ASCII,
 committed executable (mode 100755), CWD-independent (resolve the repo via
 `git rev-parse --show-toplevel`), and covered by a `tests/test_<name>.sh` suite
-registered in `TEST_SUITES`. `erg` core must never depend on one. The
-pre-commit binary-reject rule anchors `^tickets/erg$` exactly, so a text helper
-like `tickets/erg-github` commits freely on any branch.
+registered in `TEST_SUITES`. `erg` core must never depend on one.

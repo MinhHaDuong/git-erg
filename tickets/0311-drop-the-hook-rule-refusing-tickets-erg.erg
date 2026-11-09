@@ -21,10 +21,12 @@ The author, 2026-11-09: drop the rule from the managed block. git-erg needs no r
 binary on main after every merge whatever a pull request carried.
 
 ## Exit criteria
-- [ ] The managed pre-commit block (install.go hookBody) no longer inspects `tickets/erg`; a rerun of
+- [x] The managed pre-commit block (install.go hookBody) no longer inspects `tickets/erg`; a rerun of
       `erg install --hooks` replaces an installed block in place, so adopters pick up the change.
-- [ ] integration.md's snippet and prose, `erg install --help` and docs/erg-manual.md no longer state the rule.
-- [ ] Tests: the rule's tests are removed, and one test shows a hook-installed repo commits `tickets/erg` on a
+- [x] integration.md's snippet and prose, `erg install --help` and docs/erg-manual.md no longer state the rule.
+- [x] Tests: the rule's tests are removed, and one test shows a hook-installed repo commits `tickets/erg` on a
       feature branch.
-- [ ] CHANGELOG notes the change.
-- [ ] make check passes.
+- [x] CHANGELOG notes the change.
+- [x] Bundled, same rollout: README and CHANGELOG name the import command for a binary older than `sync`
+      (`ERG_UPDATE_URL=... tickets/erg update`), the gap padme and JETP-observer hit on 2026-11-09.
+- [x] make check passes.
