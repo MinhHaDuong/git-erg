@@ -5,6 +5,7 @@ Author: claude
 
 --- log ---
 2026-11-09T10:37Z claude created
+2026-11-09T10:39Z MinhHaDuong imagine: PROCEED; blind-spot 2 omissions (harness test consumer, residual mid-log insert)
 
 --- body ---
 ## Context
@@ -49,3 +50,27 @@ Author's request (2026-11-09): remove the noise.
 - [ ] displaced-entry warning unchanged and still tested
 - [ ] docs mention of the regressive warning removed
 - [ ] make test and make validate pass
+
+## Imagine (raid aa12e2)
+
+Verdict PROCEED; premise holds (check.go untouched on log shape since 0304).
+Blind-spot: 2 omissions, neither reverses.
+
+- Collapse `logShapeIssues` to one bool (displaced); a never-read second
+  return is dead code. Reword the "two advisory shapes" comments.
+- Remove the regressive bullet from `helpCheck` and regenerate
+  docs/erg-manual.md with `make docs` (tests/test_docs.sh guards drift); no
+  hand edit.
+- check_test.go: invert "regressive timestamps warn" into a no-warning case;
+  drop "displaced and regressive on one file" and "equal consecutive
+  timestamps are not regressive".
+- No embedded asset, shell test, CHANGELOG or STATE mention.
+- Leave tickets/erg to its CI rebuild on main.
+- Cross-project consumer: the harness test
+  ~/.agents/tests/test_erg_log_placement.py:103-111 asserts the regressive
+  WARN; it reddens when the harness syncs this binary. Not editable from
+  here: a ticket goes to the harness store, named in the PR body.
+- Residual: a hand-edit inserting a line mid-log (forbidden by append-only)
+  is no longer flagged by anything; erg itself never produces it, and 44
+  false positives on this repo already drowned the signal. Say so in the
+  commit message.
