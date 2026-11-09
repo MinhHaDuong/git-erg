@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-11-09T19:39Z — ID claims are required (0307, #393): `erg check` fails a store without `tickets/.claims/`, `erg new` refuses there, and `erg migrate --claims` is the single repair. This store is migrated. The rollout to the adopter repos on padme and doudou, driven by the harness session (its tracker 1478), has met its exit criteria: every store on both hosts carries `tickets/.claims/` and the binary pinned in the harness `scripts/erg-pin`, sha256 89952604 (revision 4f2326e, the quieter managed pre-commit block of 0313). A signed release follows once that binary has run a while._
+_Last updated: 2026-11-09T19:55Z — ID claims are required (0307, #393): `erg check` fails a store without `tickets/.claims/`, `erg new` refuses there, and `erg migrate --claims` is the single repair. This store is migrated. The rollout to the adopter repos on padme and doudou, driven by the harness session (its tracker 1478), has met its exit criteria: every store on both hosts carries `tickets/.claims/` and the binary pinned in the harness `scripts/erg-pin`, sha256 89952604 (revision 4f2326e, the quieter managed pre-commit block of 0313). A signed release follows once that binary has run a while._
 
 ## North star:
 
@@ -15,7 +15,6 @@ An agent-friendly local ticket system for development in disconnected environmen
   (#377, #380, #381). Ticket-number claims (0306, #386) shipped, required in
   every store since 0307 (#393); the managed pre-commit block no longer
   refuses `tickets/erg` on a branch (0311, #399).
-- Bar for new work: "verified empirical need" (AGENTS.md).
 
 ## Notes
 
@@ -27,9 +26,6 @@ An agent-friendly local ticket system for development in disconnected environmen
 - **ID allocation**: `erg new` returns max+1 over the store, sibling worktrees
   and every branch tip (claims included), never a gap. Claims detect a
   collision at merge or rebase as an add/add conflict.
-- **Pre-sync binaries**: adopters vendoring a binary older than `erg sync`
-  import with `ERG_UPDATE_URL=https://github.com/MinhHaDuong/git-erg.git
-  tickets/erg update`.
 
 ## Deferred ideas
 
