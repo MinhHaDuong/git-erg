@@ -1,6 +1,6 @@
 # State — git-erg
 
-_Last updated: 2026-11-09T12:50Z — ID claims are required (0307, #393): `erg check` fails a store without `tickets/.claims/`, `erg new` refuses there, and `erg migrate --claims` is the single repair. This store is migrated. The rollout to the adopter repos on padme and doudou is driven by the harness session (its tracker; 1472 for the harness itself), pinned to binary sha256 513cd3c4 (revision bf71ab5); sen-causal-reading and padme are migrated. A signed release follows once that binary has run a while._
+_Last updated: 2026-11-09T19:39Z — ID claims are required (0307, #393): `erg check` fails a store without `tickets/.claims/`, `erg new` refuses there, and `erg migrate --claims` is the single repair. This store is migrated. The rollout to the adopter repos on padme and doudou, driven by the harness session (its tracker 1478), has met its exit criteria: every store on both hosts carries `tickets/.claims/` and the binary pinned in the harness `scripts/erg-pin`, sha256 89952604 (revision 4f2326e, the quieter managed pre-commit block of 0313). A signed release follows once that binary has run a while._
 
 ## North star:
 
