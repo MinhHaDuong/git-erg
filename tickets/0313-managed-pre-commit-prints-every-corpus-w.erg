@@ -1,0 +1,23 @@
+%erg 0.1
+Title: Managed pre-commit prints every corpus WARN on each ticket commit
+Created: 2026-11-09
+Author: Claude (JETP-observer session)
+
+--- log ---
+2026-11-09T12:44Z Claude (JETP-observer session) created
+
+--- body ---
+## Context
+
+Reported from JETP-observer, 2026-11-09, after its ID-claims migration (its PR
+#285). On every commit that stages a `.erg` file, the managed pre-commit block
+runs `tickets/erg check tickets/`, which prints every corpus WARN: 236 in that
+repo, mostly "log entry after the entry run's terminal blank". That is about
+40 KB of output per ticket commit, enough to swamp an agent's tool output and
+bury the one line that matters (ERG CHECK: PASS/FAIL).
+
+## Exit criteria
+
+- [ ] The managed pre-commit block shows errors in full but WARNs only as a count (or only when `check` fails)
+- [ ] `erg check` run by hand keeps its full output
+- [ ] A test pins the hook's quiet output on a corpus with warnings and its full output on a failing one
