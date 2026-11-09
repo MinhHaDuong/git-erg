@@ -106,32 +106,29 @@ func TestLogPlacementWarnings(t *testing.T) {
 		}
 	})
 
-	t.Run("regressive timestamps warn and stay advisory", func(t *testing.T) {
+	t.Run("regressive timestamps draw no warning", func(t *testing.T) {
+		// Append order is the record (spec: append-only); a rebase replay
+		// legitimately appends an older stamp after a newer one (ticket 0308).
 		dir := t.TempDir()
 		writeErg(t, dir, "0003-regressive.erg",
 			"%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n"+
 				"2024-01-02T10:00Z test created\n2024-01-01T09:00Z test note replayed\n\n--- body ---\n")
 		w := logPlacementWarnings(dir)
-		if len(w) != 1 {
-			t.Fatalf("got %d warnings, want 1: %v", len(w), w)
-		}
-		want := "WARN 0003-regressive.erg: regressive log timestamps"
-		if !strings.HasPrefix(w[0], want) {
-			t.Errorf("warning %q should have prefix %q", w[0], want)
+		if w != nil {
+			t.Errorf("regressive timestamps -> %v, want nil", w)
 		}
 	})
 
-	t.Run("displaced and regressive on one file warn in that order", func(t *testing.T) {
+	t.Run("displaced entry with an older stamp warns once", func(t *testing.T) {
 		dir := t.TempDir()
 		writeErg(t, dir, "0004-both.erg",
 			"%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n"+
 				"2024-01-02T10:00Z test created\n\n2024-01-01T09:00Z test note displaced\n--- body ---\n")
 		w := logPlacementWarnings(dir)
-		if len(w) != 2 {
-			t.Fatalf("got %d warnings, want 2: %v", len(w), w)
+		if len(w) != 1 {
+			t.Fatalf("got %d warnings, want 1: %v", len(w), w)
 		}
-		if !strings.HasPrefix(w[0], "WARN 0004-both.erg: log entry after") ||
-			!strings.HasPrefix(w[1], "WARN 0004-both.erg: regressive log timestamps") {
+		if !strings.HasPrefix(w[0], "WARN 0004-both.erg: log entry after") {
 			t.Errorf("unexpected warnings: %v", w)
 		}
 	})
@@ -145,16 +142,6 @@ func TestLogPlacementWarnings(t *testing.T) {
 				"2024-01-01T10:00Z test created\n\nstill the created entry\n\n--- body ---\n")
 		if w := logPlacementWarnings(dir); w != nil {
 			t.Errorf("continuation-only after blank -> %v, want nil", w)
-		}
-	})
-
-	t.Run("equal consecutive timestamps are not regressive", func(t *testing.T) {
-		dir := t.TempDir()
-		writeErg(t, dir, "0006-equal.erg",
-			"%erg 0.1\nTitle: T\nCreated: 2024-01-01\nAuthor: test\n\n--- log ---\n"+
-				"2024-01-01T10:00Z test created\n2024-01-01T10:00Z test note same minute\n\n--- body ---\n")
-		if w := logPlacementWarnings(dir); w != nil {
-			t.Errorf("equal timestamps -> %v, want nil", w)
 		}
 	})
 }

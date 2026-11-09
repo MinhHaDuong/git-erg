@@ -1,0 +1,116 @@
+%erg 0.1
+Title: Drop the regressive log timestamp warning from erg check
+Created: 2026-11-09
+Author: claude
+Closed: fixed by PR #394: erg check no longer warns on regressive log timestamps
+
+--- log ---
+2026-11-09T10:37Z claude created
+2026-11-09T10:39Z MinhHaDuong imagine: PROCEED; blind-spot 2 omissions (harness test consumer, residual mid-log insert)
+2026-11-09T10:40Z MinhHaDuong plan + feasibility PASS
+2026-11-09T10:47Z MinhHaDuong closed — fixed by PR #394: erg check no longer warns on regressive log timestamps
+
+--- body ---
+## Context
+
+`erg check` warns `regressive log timestamps -- routine after a git rebase
+replay; advisory only` when an older-stamped log entry follows a newer one
+(src/go/check.go, `logShapeIssues`, added by 0304). On this repo it fires on
+44 files.
+
+The spec (src/go/assets/spec-erg-v1.md, Log section) says only "Append-only"
+and "Lines are never edited or deleted": no MUST or SHOULD on chronological
+order. Append order is the record; a rebase replay legitimately appends an
+older stamp after a newer one.
+
+The warning has no legitimate remedy: the only way to silence it is to
+reorder log lines, which the spec forbids. A warning nobody may act on is
+noise, and it trains readers to skip the warnings that matter. The sibling
+"displaced log entry" warning has a remedy that edits no entry (move the
+blank) and stays.
+
+Author's request (2026-11-09): remove the noise.
+
+## Scope
+
+- Remove the regressive-timestamp detection and its WARN from erg check.
+- Keep the displaced-entry warning and its tests unchanged.
+- Update docs/erg-manual.md (the "Regressive log timestamps" bullet) and any
+  other mention; add a CHANGELOG line if the project records check-output
+  changes there.
+- Closed ticket 0304 stays as written (durable record).
+
+## Test
+
+- A file with regressive timestamps draws no warning from erg check (exit 0,
+  no "regressive" output); the existing regressive-fires test is inverted or
+  removed accordingly.
+- The displaced-entry warning still fires on its existing fixtures.
+
+## Exit criteria
+
+- [x] erg check emits no regressive-timestamp warning
+- [x] displaced-entry warning unchanged and still tested
+- [x] docs mention of the regressive warning removed
+- [x] make test and make validate pass
+
+## Imagine (raid aa12e2)
+
+Verdict PROCEED; premise holds (check.go untouched on log shape since 0304).
+Blind-spot: 2 omissions, neither reverses.
+
+- Collapse `logShapeIssues` to one bool (displaced); a never-read second
+  return is dead code. Reword the "two advisory shapes" comments.
+- Remove the regressive bullet from `helpCheck` and regenerate
+  docs/erg-manual.md with `make docs` (tests/test_docs.sh guards drift); no
+  hand edit.
+- check_test.go: invert "regressive timestamps warn" into a no-warning case;
+  drop "displaced and regressive on one file" and "equal consecutive
+  timestamps are not regressive".
+- No embedded asset, shell test, CHANGELOG or STATE mention.
+- Leave tickets/erg to its CI rebuild on main.
+- Cross-project consumer: the harness test
+  ~/.agents/tests/test_erg_log_placement.py:103-111 asserts the regressive
+  WARN; it reddens when the harness syncs this binary. Not editable from
+  here: a ticket goes to the harness store, named in the PR body.
+- Residual: a hand-edit inserting a line mid-log (forbidden by append-only)
+  is no longer flagged by anything; erg itself never produces it, and 44
+  false positives on this repo already drowned the signal. Say so in the
+  commit message.
+
+## Plan (raid aa12e2)
+
+Actions:
+1. src/go/check.go logShapeIssues (~193-243): return one bool (displaced);
+   delete prevTS/ts/regressive logic and the "ISO-8601 ... lexical" sentence;
+   update the doc comment (rename optional).
+2. src/go/check.go logPlacementWarnings (~158-190): drop the regressive WARN
+   block (184-187); reword the "two advisory shapes" comment to one shape.
+3. src/go/check.go helpCheck (~343-344): delete the regressive bullet.
+4. `make docs` regenerates docs/erg-manual.md (line 119); no hand edit.
+5. src/go/check_test.go TestLogPlacementWarnings: see First test.
+6. Commit message states the residual (mid-log hand insert no longer
+   flagged); PR body names the harness ticket for
+   ~/.agents/tests/test_erg_log_placement.py:103-111.
+
+First test (red): rename subtest "regressive timestamps warn and stay
+advisory" to "regressive timestamps draw no warning"; keep its
+0003-regressive.erg fixture; want w == nil and no "regressive" substring.
+Current code yields one WARN, so it fails for the targeted reason. Replace
+"displaced and regressive on one file warn in that order" with a
+displaced-with-older-stamp variant asserting exactly one WARN with the
+displaced prefix. Remove "equal consecutive timestamps are not regressive".
+
+Antipattern scan: the kept "displaced entry ... warns once" and the new
+displaced-with-older-stamp case pin the displaced WARN, so an implementation
+that deletes all warnings goes red; a message-text-only change fails w == nil.
+
+Verification: make test (runs tests/test_docs.sh); make validate;
+grep -ri regressive src docs (expect none).
+
+## Feasibility (raid aa12e2)
+
+PASS. Paths, line ranges and functions confirmed on 57d7be4 (check.go
+169/179/184/199/243/343; check_test.go 109/124/151; erg-manual.md 119;
+Makefile docs/test/validate targets). Single ticket: no cross-ticket
+conflict, no shared registry, no coordination PR.

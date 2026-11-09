@@ -155,17 +155,18 @@ func encodingWarnings(dir string) []string {
 	return warnings
 }
 
-// logPlacementWarnings scans .erg files for two advisory log-shape issues
+// logPlacementWarnings scans .erg files for one advisory log-shape issue
 // (ticket 0304, reported by the maintainer's harness as ticket 0879):
 // a log-format entry sitting after the entry run's terminal blank (the
 // displaced-entry shape appendLogLine produced before the normalise-then-
-// append fix), and regressive log timestamps (an older-stamped entry after
-// a newer one -- routine git-rebase replay). Non-fatal and advisory only:
-// both shapes parse identically, the displaced shape is the tool's own
-// systematic historical output (hundreds of corpus files carry it), and
-// refusing either would wedge every adopter's validate gate. WARN here so a
-// corpus scan surfaces the files; existing entries are never rewritten, and
-// moving the blank line below the last entry is a hand edit, not a rewrite.
+// append fix). Non-fatal and advisory only: the shape parses identically,
+// it is the tool's own systematic historical output (hundreds of corpus
+// files carry it), and refusing it would wedge every adopter's validate
+// gate. WARN here so a corpus scan surfaces the files; existing entries are
+// never rewritten, and moving the blank line below the last entry is a hand
+// edit, not a rewrite. Log timestamp order is deliberately not judged
+// (ticket 0308): the log is append-only, so a rebase replay legitimately
+// appends an older stamp after a newer one and no remedy exists.
 func logPlacementWarnings(dir string) []string {
 	var warnings []string
 	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
@@ -176,27 +177,21 @@ func logPlacementWarnings(dir string) []string {
 		if err != nil {
 			return nil
 		}
-		displaced, regressive := logShapeIssues(string(data))
-		if displaced {
+		if logHasDisplacedEntry(string(data)) {
 			warnings = append(warnings, fmt.Sprintf(
 				"WARN %s: log entry after the entry run's terminal blank -- move the blank below the last entry; entries are never rewritten", filepath.Base(path)))
-		}
-		if regressive {
-			warnings = append(warnings, fmt.Sprintf(
-				"WARN %s: regressive log timestamps -- routine after a git rebase replay; advisory only", filepath.Base(path)))
 		}
 		return nil
 	})
 	return warnings
 }
 
-// logShapeIssues reports whether the log section of a raw .erg file carries
-// a displaced entry or regressive timestamps. Works on the raw text rather
-// than the parsed Erg (parseErg drops blank lines, and the position of an
-// entry relative to the section's last blank is exactly what is being
-// judged). ISO-8601 stamps sort chronologically as strings, so the
-// comparison is lexical.
-func logShapeIssues(content string) (displaced, regressive bool) {
+// logHasDisplacedEntry reports whether the log section of a raw .erg file
+// carries an entry after the entry run's terminal blank. Works on the raw
+// text rather than the parsed Erg (parseErg drops blank lines, and the
+// position of an entry relative to the section's last blank is exactly what
+// is being judged).
+func logHasDisplacedEntry(content string) bool {
 	lines := strings.Split(content, "\n")
 	logIdx, bodyIdx := -1, -1
 	for i, line := range lines {
@@ -211,7 +206,7 @@ func logShapeIssues(content string) (displaced, regressive bool) {
 		}
 	}
 	if logIdx < 0 || bodyIdx < 0 {
-		return false, false
+		return false
 	}
 	// lastBlank is the entry run's terminal blank when nothing follows it;
 	// an entry after it is out of the run. lastBlank < 0 means the section
@@ -223,24 +218,18 @@ func logShapeIssues(content string) (displaced, regressive bool) {
 			lastBlank = i
 		}
 	}
-	var prevTS string
 	for i := logIdx + 1; i < bodyIdx; i++ {
 		trimmed := strings.TrimSpace(lines[i])
 		if trimmed == "" || !logLineRE.MatchString(trimmed) {
 			// Continuation lines and free text ride with the entry above
-			// them; only entry-format lines decide placement and order.
+			// them; only entry-format lines decide placement.
 			continue
 		}
 		if i > lastBlank {
-			displaced = true
+			return true
 		}
-		ts := trimmed[:16] // logLineRE guarantees the 16-char stamp prefix
-		if prevTS != "" && ts < prevTS {
-			regressive = true
-		}
-		prevTS = ts
 	}
-	return displaced, regressive
+	return false
 }
 
 // headerBlankWarnings scans .erg files for blank lines inside the header
@@ -340,8 +329,6 @@ Additionally emits warnings (non-fatal) for:
     terminal blank (advisory -- the shape parses identically and is the
     tool's own systematic historical output; move the blank below the last
     entry by hand, entries are never rewritten).
-  - Regressive log timestamps: an older-stamped entry follows a newer one
-    (advisory -- routine after a git rebase replay; never a rejection).
   - Asset drift: the .erg-assets stamp differs from this binary's embedded
     asset. The message names the direction, because the remedy differs and one
     of the two would destroy data if applied to the other:

@@ -116,8 +116,6 @@ Additionally emits warnings (non-fatal) for:
     terminal blank (advisory -- the shape parses identically and is the
     tool's own systematic historical output; move the blank below the last
     entry by hand, entries are never rewritten).
-  - Regressive log timestamps: an older-stamped entry follows a newer one
-    (advisory -- routine after a git rebase replay; never a rejection).
   - Asset drift: the .erg-assets stamp differs from this binary's embedded
     asset. The message names the direction, because the remedy differs and one
     of the two would destroy data if applied to the other:
