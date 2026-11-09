@@ -672,9 +672,18 @@ piece of wiring requires an explicit opt-in flag:
 
   --hooks              Install (or upgrade) the pre-commit hook (erg validate
                        + erg check on every commit, rejects tickets/erg on
-                       non-default branches) AND the pre-push hook (warns
-                       about closed-but-unarchived tickets, never blocks).
-                       Both are delimited by sentinel markers and inserted
+                       non-default branches, rejects a commit whose index
+                       holds a ticket without its ID claim), the
+                       pre-merge-commit hook (erg check on a merge result
+                       that changes tickets/, and the same index check, so
+                       a clean merge bringing an unclaimed ticket or a
+                       duplicate number is refused locally; a fast-forward
+                       runs no hook) AND the pre-push hook (warns about
+                       closed-but-unarchived tickets, never blocks). Run it
+                       after 'erg migrate --claims' and its commit: the
+                       claim check rejects every commit in a store whose
+                       tickets are not claimed yet.
+                       All three are delimited by sentinel markers and inserted
                        right after the shebang so they run before any
                        third-party hook content. Existing content outside
                        the markers is preserved.

@@ -103,10 +103,13 @@ else
     pass "negative control: a drifted copy is detected by cmp"
 fi
 
-# (iv) hookBody <-> integration.md coherence guard (ticket 0219).
-# The managed block installed into .git/hooks/pre-commit must be byte-for-byte
-# identical to the shell snippet in src/go/assets/integration.md between the
-# erg-managed markers. If one is updated without the other, this guard fails CI.
+# (iv) hook bodies <-> integration.md coherence guard (tickets 0219, 0307).
+# The managed blocks installed into .git/hooks/pre-commit and
+# .git/hooks/pre-merge-commit must be byte-for-byte identical to the first and
+# second shell blocks between the erg-managed markers in
+# src/go/assets/integration.md. If one is updated without the other, this
+# guard fails CI. Blocks are compared by index: concatenating every block in
+# the guide would compare two hooks against one.
 HOOKDIR=$(mktemp -d)
 trap 'rm -rf "$TDIR" "$PROBE" "$HOOKDIR"' EXIT
 mkdir -p "$HOOKDIR/tickets"
@@ -114,28 +117,39 @@ cp "$ERG_ABS" "$HOOKDIR/tickets/erg"
 git init -q -b main "$HOOKDIR" >/dev/null 2>&1
 $ERG install "$HOOKDIR" --hooks >/dev/null 2>&1
 
-# Extract the managed block from the installed hook (between the markers, exclusive).
-HOOK_BLOCK=$(awk '/^# >>> erg managed >>>/,/^# <<< erg managed <<</' "$HOOKDIR/.git/hooks/pre-commit" | grep -v '^# >>> erg managed >>>' | grep -v '^# <<< erg managed <<<')
-
-# Extract the snippet from integration.md (between the ``` fences that wrap the
-# managed block, stripping the fence lines and the marker lines themselves).
-# The block in integration.md looks like:
-#   ```sh
-#   # >>> erg managed >>>
-#   ...content...
-#   # <<< erg managed <<<
-#   ```
-MD_BLOCK=$(awk '/^# >>> erg managed >>>/,/^# <<< erg managed <<</' "$ROOT/src/go/assets/integration.md" | grep -v '^# >>> erg managed >>>' | grep -v '^# <<< erg managed <<<')
-
-if [ "$HOOK_BLOCK" = "$MD_BLOCK" ]; then
-    pass "hookBody (installed hook) matches integration.md managed block byte-for-byte"
+# block FILE N: the Nth "# >>> erg managed >>>" block of FILE, markers excluded.
+block() {
+    awk -v n="$2" '/^# >>> erg managed >>>/ { i++; inb = (i == n); next }
+        /^# <<< erg managed <<</ { inb = 0; next }
+        inb' "$1"
+}
+MD="$ROOT/src/go/assets/integration.md"
+MD_COUNT=$(grep -c '^# >>> erg managed >>>' "$MD")
+if [ "$MD_COUNT" -eq 2 ]; then
+    pass "integration.md holds exactly two managed hook blocks (pre-commit, pre-merge-commit)"
 else
-    fail "hookBody and integration.md managed block diverged -- edit both together"
-    echo "  === hook block ===" >&2
-    echo "$HOOK_BLOCK" >&2
-    echo "  === md block ===" >&2
-    echo "$MD_BLOCK" >&2
+    fail "integration.md holds $MD_COUNT managed hook blocks, want 2"
 fi
+for pair in "pre-commit 1" "pre-merge-commit 2"; do
+    hook=${pair% *}
+    n=${pair#* }
+    HOOK_BLOCK=$(block "$HOOKDIR/.git/hooks/$hook" 1)
+    MD_BLOCK=$(block "$MD" "$n")
+    if [ -n "$HOOK_BLOCK" ] && echo "$HOOK_BLOCK" | grep -q 'ls-files'; then
+        pass "$hook: the installed block is non-empty and carries the index claim check"
+    else
+        fail "$hook: the installed block is empty or lacks the index claim check"
+    fi
+    if [ "$HOOK_BLOCK" = "$MD_BLOCK" ]; then
+        pass "$hook: installed block matches integration.md block $n byte-for-byte"
+    else
+        fail "$hook: installed block and integration.md block $n diverged -- edit both together"
+        echo "  === hook block ===" >&2
+        echo "$HOOK_BLOCK" >&2
+        echo "  === md block ===" >&2
+        echo "$MD_BLOCK" >&2
+    fi
+done
 
 # Negative control: prove the comparison detects a difference.
 HOOK_BLOCK_MUTATED="${HOOK_BLOCK}

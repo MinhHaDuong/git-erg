@@ -21,9 +21,18 @@ piece of wiring requires an explicit opt-in flag:
 
   --hooks              Install (or upgrade) the pre-commit hook (erg validate
                        + erg check on every commit, rejects tickets/erg on
-                       non-default branches) AND the pre-push hook (warns
-                       about closed-but-unarchived tickets, never blocks).
-                       Both are delimited by sentinel markers and inserted
+                       non-default branches, rejects a commit whose index
+                       holds a ticket without its ID claim), the
+                       pre-merge-commit hook (erg check on a merge result
+                       that changes tickets/, and the same index check, so
+                       a clean merge bringing an unclaimed ticket or a
+                       duplicate number is refused locally; a fast-forward
+                       runs no hook) AND the pre-push hook (warns about
+                       closed-but-unarchived tickets, never blocks). Run it
+                       after 'erg migrate --claims' and its commit: the
+                       claim check rejects every commit in a store whose
+                       tickets are not claimed yet.
+                       All three are delimited by sentinel markers and inserted
                        right after the shebang so they run before any
                        third-party hook content. Existing content outside
                        the markers is preserved.
@@ -70,9 +79,10 @@ var agentsMarkerSets = [][2]string{
 }
 
 // hookBody is the canonical content placed between the hook markers. It runs
-// erg validate + check on staged .erg files, rejects a staged ticket whose ID
-// claim is not staged (ticket 0306: erg check passes on the claim on disk, so
-// only a fresh clone would notice), and rejects committing tickets/erg
+// erg validate + check on staged .erg files, rejects a commit whose index
+// holds a ticket without its claim (claimsIndexCheck; tickets 0306, 0307: erg
+// check passes on the claim on disk, so only a fresh clone would notice), and
+// rejects committing tickets/erg
 // outside the repo's default branch (detected dynamically via origin/HEAD,
 // falling back to "main" for repos with no remote). It deliberately does NOT
 // run erg archive (charter blocker #2:
@@ -112,23 +122,59 @@ if [ -n "$erg_files" ]; then
     fi
 fi
 
-# Reject a staged ticket whose ID claim is not staged. Claims are on when
-# tickets/.claims/ exists; 'git add tickets/NNNN-*' misses the claim.
-if [ -d tickets/.claims ]; then
-    for erg_f in $(git diff --cached --name-only --diff-filter=d -- 'tickets/*.erg'); do
-        erg_base=${erg_f##*/}
-        erg_id=${erg_base%%-*}
-        case $erg_id in
-            [0-9][0-9][0-9][0-9]) ;;
-            *) continue ;;
-        esac
-        if ! git cat-file -e ":tickets/.claims/$erg_id" 2>/dev/null; then
-            echo "pre-commit: $erg_f has no staged claim tickets/.claims/$erg_id." >&2
-            echo " Stage it: git add tickets/.claims/$erg_id" >&2
+erg_hook=pre-commit
+` + claimsIndexCheck
+
+// claimsIndexCheck is shared by the pre-commit and pre-merge-commit blocks
+// (ticket 0307): every ticket in the index has its claim in the index. It
+// reads the index, not the working tree, because an untracked claim on disk
+// lets erg check pass while the commit lacks it. The awk program is POSIX
+// (mawk, nawk and busybox agree): four [0-9] instead of an interval, and
+// "(.*\/)?" so tickets under closed/ or any subdirectory count. The caller
+// sets erg_hook to name itself in the message.
+const claimsIndexCheck = `# Every ticket in the index has its ID claim in the index. The index, not
+# the working tree: an untracked claim on disk lets erg check pass while
+# the commit lacks it.
+erg_unclaimed=$(git -c core.quotePath=false ls-files -- tickets | awk '
+    /^tickets\/\.claims\/[0-9][0-9][0-9][0-9]$/ { claimed[substr($0, length($0) - 3)] = 1; next }
+    /^tickets\/(.*\/)?[0-9][0-9][0-9][0-9]-[^\/]*\.erg$/ {
+        n = split($0, part, "/")
+        ticket[$0] = substr(part[n], 1, 4)
+    }
+    END { for (t in ticket) if (!(ticket[t] in claimed)) print t }' | sort)
+if [ -n "$erg_unclaimed" ]; then
+    echo "$erg_hook: tickets without a claim in the index:" >&2
+    echo "$erg_unclaimed" | sed 's/^/  /' >&2
+    echo " Stage each claim: git add tickets/.claims/NNNN (none yet? run: tickets/erg migrate --claims tickets)" >&2
+    exit 1
+fi`
+
+// mergeHookBody is the canonical content placed between the pre-merge-commit
+// hook markers (ticket 0307). A clean merge runs pre-merge-commit, not
+// pre-commit, so a merge that brings in an unclaimed ticket or a duplicate
+// number was refused nowhere but CI. When the merge changes tickets/ it runs
+// erg check on the merge result, then the shared index check. A fast-forward
+// and --no-verify run no hook; concluding a refused merge with 'git commit'
+// runs pre-commit, whose index check is the backstop. Like hookBody it has
+// no 'exit 0', so third-party content after the block still runs.
+const mergeHookBody = `# Check the merge result before git records it: a clean merge runs this
+# hook, not pre-commit. A fast-forward or --no-verify runs neither.
+if [ -n "$(git diff --cached --name-only HEAD -- tickets)" ]; then
+    if [ -x tickets/erg ]; then
+        if ! tickets/erg check tickets/; then
+            echo "pre-merge-commit: ticket corpus check failed on the merge result." >&2
+            echo " Fix it and conclude with 'git commit', or abort: git merge --abort" >&2
             exit 1
         fi
-    done
-fi`
+    else
+        echo "ERROR: tickets/erg not found. Build it from the git-erg source" >&2
+        echo "  (make build there), or 'git pull' if your project vendors the committed binary." >&2
+        exit 1
+    fi
+fi
+
+erg_hook=pre-merge-commit
+` + claimsIndexCheck
 
 // pushHookBody is the canonical content placed between the pre-push hook
 // markers. It is WARN-ONLY: it lists closed-but-unarchived tickets (via the
@@ -219,6 +265,13 @@ func cmdInstall(args []string) int {
 		} else {
 			plans = append(plans, plan)
 		}
+		// --hooks includes the pre-merge-commit hook (ticket 0307: a clean
+		// merge runs no pre-commit, so it was checked only by CI).
+		if plan, err := planMergeHook(root); err != nil {
+			perrs = append(perrs, err.Error())
+		} else {
+			plans = append(plans, plan)
+		}
 		// --hooks includes the pre-push hook (ticket 0241: close the
 		// close-without-archive escape by making the warning universal).
 		if plan, err := planPushHook(root); err != nil {
@@ -271,7 +324,8 @@ func cmdInstall(args []string) int {
 // after the shebang. It never writes; it returns an error if the markers in the
 // existing hook are unbalanced (which would make an in-place edit ambiguous).
 // summaryFmt receives the action ("created"/"managed block updated") and the
-// hook path. Shared by planHook (pre-commit) and planPushHook (pre-push).
+// hook path. Shared by planHook (pre-commit), planMergeHook
+// (pre-merge-commit) and planPushHook (pre-push).
 func planGitHook(root, hookName, body, summaryFmt string) (writePlan, error) {
 	hooksDir, err := resolveHooksDir(root)
 	if err != nil {
@@ -312,6 +366,13 @@ func planGitHook(root, hookName, body, summaryFmt string) (writePlan, error) {
 func planHook(root string) (writePlan, error) {
 	return planGitHook(root, "pre-commit", hookBody,
 		"install: pre-commit hook %s at %s (executable, runs on every commit; bypass with git commit --no-verify; uninstall: delete the lines between the erg managed markers)")
+}
+
+// planMergeHook computes the pre-merge-commit hook content with the merge
+// check block inserted after the shebang.
+func planMergeHook(root string) (writePlan, error) {
+	return planGitHook(root, "pre-merge-commit", mergeHookBody,
+		"install: pre-merge-commit hook %s at %s (executable, runs on every merge commit; a fast-forward runs no hook; bypass with git merge --no-verify; uninstall: delete the lines between the erg managed markers)")
 }
 
 // planPushHook computes the pre-push hook content with the warn-only managed
