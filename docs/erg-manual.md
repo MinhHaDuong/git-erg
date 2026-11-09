@@ -529,8 +529,11 @@ Review the diff with 'git diff tickets/' and commit manually.
   --claims
       Switch ID claims on for the store (see 'erg new') and run nothing else:
       create DIR/.claims/ with a .keep file, then write DIR/.claims/NNNN (the
-      slug and a random nonce) for every existing ticket, open and closed, so
-      the numbers already used are claimed from the first day. Idempotent: an
+      slug and a nonce derived from the ticket's number, slug and Created
+      date) for every existing ticket, open and closed, so the numbers already
+      used are claimed from the first day. The derived nonce makes two clones
+      that migrate the same base write identical claims, which merge clean;
+      erg new keeps a random nonce. Idempotent: an
       existing claim is never rewritten. A number that two tickets already
       share gets no claim -- one claim cannot hold two slugs -- so both files
       are reported and the command exits 1; renumber one of them clear of the
