@@ -106,40 +106,102 @@ func claimContent(slug, nonce string) string {
 	return slug + " " + nonce + "\n"
 }
 
-// ignoredClaimFiles returns every one of names (files inside
-// <store>/.claims/) that git ignores, as store paths, or nil when git ignores
-// none of them. An ignored claim would be left out of every commit while erg
-// check passes locally on the file on disk. Each caller probes exactly the
-// files it is about to write: erg new its claim, init .keep, migrate .keep and
-// every claim. One git process answers for all names (check-ignore --stdin).
-// git runs from the store, which exists, so the probe works before .claims/
-// is created. Outside a git worktree, or without git, nothing is ignored.
-func ignoredClaimFiles(store string, names ...string) []string {
+// claimIgnoreRule is one git ignore rule that ignores claim paths, with the
+// exact lines that un-ignore the claims when appended to its file.
+type claimIgnoreRule struct {
+	source, line, pattern string   // as git check-ignore -v reports them
+	paths                 []string // the store paths it ignores
+	allow                 []string // the lines to append to source
+}
+
+// message is the refusal for one rule. Paths are capped: migrate probes
+// every ticket number, and one rule usually ignores them all.
+func (r claimIgnoreRule) message() string {
+	shown := r.paths
+	more := ""
+	if len(shown) > 3 {
+		more = fmt.Sprintf(" and %d more", len(shown)-3)
+		shown = shown[:3]
+	}
+	return fmt.Sprintf("git ignores %s%s by the rule %s:%s:%s, so the claims would never be committed -- append these lines to %s, then retry:\n  %s",
+		strings.Join(shown, ", "), more, r.source, r.line, r.pattern, r.source, strings.Join(r.allow, "\n  "))
+}
+
+// ignoredClaimRules returns the git ignore rules that ignore any of names
+// (files inside <store>/.claims/), one per rule (source and line), in the
+// order git first reports them; nil when none does. An ignored claim would be
+// left out of every commit while erg check passes locally on the file on
+// disk. Each caller probes exactly the files it is about to write: erg new
+// its claim, init .keep, migrate .keep and every claim. One git process
+// answers for all names (check-ignore -v -z --stdin). git runs from the
+// store, which exists, so the probe works before .claims/ is created.
+// Outside a git worktree, or without git, nothing is ignored.
+//
+// check-ignore -v also reports a path whose last matching pattern is a
+// negation (exit 0, pattern starting with "!"): that path is not ignored, and
+// is dropped. The allowlist lines are computed for the base the rule's
+// patterns are relative to (claimAllowLines).
+func ignoredClaimRules(store string, names ...string) []claimIgnoreRule {
 	var in strings.Builder
 	for _, n := range names {
 		in.WriteString(filepath.ToSlash(filepath.Join(claimsDirName, n)))
-		in.WriteByte('\n')
+		in.WriteByte(0)
 	}
-	cmd := exec.Command("git", "-C", store, "check-ignore", "--stdin")
+	cmd := exec.Command("git", "-C", store, "check-ignore", "-v", "-z", "--stdin")
 	cmd.Stdin = strings.NewReader(in.String())
 	out, err := cmd.Output()
 	if err != nil {
-		// Exit 1: nothing ignored. 128 or no git: cannot tell, not ignored.
+		// Exit 1: nothing matched. 128 or no git: cannot tell, not ignored.
 		return nil
 	}
-	var ignored []string
-	for _, line := range strings.Split(strings.TrimSuffix(string(out), "\n"), "\n") {
-		if line != "" {
-			ignored = append(ignored, filepath.Join(store, filepath.FromSlash(line)))
+	fields := strings.Split(string(out), "\x00")
+	var rules []claimIgnoreRule
+	index := make(map[string]int)
+	for i := 0; i+3 < len(fields); i += 4 {
+		source, line, pattern, path := fields[i], fields[i+1], fields[i+2], fields[i+3]
+		if strings.HasPrefix(pattern, "!") {
+			continue
 		}
+		key := source + ":" + line
+		j, ok := index[key]
+		if !ok {
+			rules = append(rules, claimIgnoreRule{source: source, line: line, pattern: pattern, allow: claimAllowLines(store, source)})
+			j = len(rules) - 1
+			index[key] = j
+		}
+		rules[j].paths = append(rules[j].paths, filepath.Join(store, filepath.FromSlash(path)))
 	}
-	return ignored
+	return rules
 }
 
-// claimsIgnoredMessage is the shared refusal for an ignored claim file.
-func claimsIgnoredMessage(store, ignored string) string {
-	return fmt.Sprintf("git ignores %s, so it would never be committed -- un-ignore %s/ and the files in it ('git check-ignore -v' names the rule), then retry",
-		ignored, claimsDir(store))
+// claimAllowLines returns the two lines that un-ignore store's .claims/ and
+// the files in it, written relative to the directory the ignoring file's
+// patterns are relative to: its own for a .gitignore (git reports it
+// repo-top-relative), the repository top for info/exclude and
+// core.excludesFile. Those two are told apart by name, not by an absolute
+// path: git reports info/exclude as ".git/info/exclude" in a plain checkout
+// and as an absolute path in a linked worktree.
+func claimAllowLines(store, source string) []string {
+	prefix := filepath.ToSlash(filepath.Clean(store)) + "/"
+	topOut, err := exec.Command("git", "-C", store, "rev-parse", "--show-toplevel").Output()
+	if err == nil {
+		base := strings.TrimSpace(string(topOut))
+		if filepath.Base(source) == ".gitignore" && !filepath.IsAbs(source) {
+			base = filepath.Join(base, filepath.Dir(filepath.FromSlash(source)))
+		}
+		if abs, aerr := filepath.Abs(store); aerr == nil {
+			if real, rerr := filepath.EvalSymlinks(abs); rerr == nil {
+				abs = real
+			}
+			if rel, rerr := filepath.Rel(base, abs); rerr == nil && rel != ".." && !strings.HasPrefix(rel, "../") {
+				prefix = filepath.ToSlash(rel) + "/"
+				if rel == "." {
+					prefix = ""
+				}
+			}
+		}
+	}
+	return []string{"!" + prefix + claimsDirName + "/", "!" + prefix + claimsDirName + "/*"}
 }
 
 // ticketPathsByID maps each ticket number in store (open and closed, any
@@ -403,8 +465,8 @@ func migrateBlockers(store string, byID map[string][]string) []string {
 		blockers = append(blockers, fmt.Sprintf("%s: %v", claimsDir(store), err))
 	}
 	probe := append([]string{claimsKeepName}, ids...)
-	for _, ignored := range ignoredClaimFiles(store, probe...) {
-		blockers = append(blockers, claimsIgnoredMessage(store, ignored))
+	for _, rule := range ignoredClaimRules(store, probe...) {
+		blockers = append(blockers, rule.message())
 	}
 	return blockers
 }

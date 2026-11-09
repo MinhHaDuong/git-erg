@@ -282,7 +282,8 @@ existing file is never clobbered. Two branches that take the same number add
 the same claim path with different content, so git reports an add/add
 conflict when the second one is merged or rebased. Stage both files: the
 'git add' line is printed on stderr. new refuses when git ignores the claim
-path, since the claim would then never be committed. new refuses, writing
+path, since the claim would then never be committed; the refusal names the
+ignoring rule (file:line:pattern) and the exact lines to append to that file. new refuses, writing
 nothing, in a store without .claims/; the message names the repair:
 'erg migrate --claims DIR'. new never creates the store: 'erg init' does.
 
@@ -559,7 +560,8 @@ assets always produce byte-identical content.
 
 ID claims are required (see 'erg new'). In a store that holds no .erg file
 yet, init creates tickets/.claims/ (with a .keep file, since git carries no
-empty directory); it refuses, exiting 1, when git ignores that path. A store
+empty directory); it refuses, exiting 1, when git ignores that path, naming
+the ignoring rule and the exact lines to append to its file. A store
 that already holds tickets but no .claims/ gets its assets all the same, then
 init exits 1 naming the repair: 'erg migrate --claims tickets', which claims
 the tickets already there.
