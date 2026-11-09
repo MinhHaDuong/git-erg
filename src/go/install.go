@@ -20,8 +20,7 @@ By default -- with no flags -- install does nothing outside tickets/. Each
 piece of wiring requires an explicit opt-in flag:
 
   --hooks              Install (or upgrade) the pre-commit hook (erg validate
-                       + erg check on every commit, rejects tickets/erg on
-                       non-default branches, rejects a commit whose index
+                       + erg check on every commit, rejects a commit whose index
                        holds a ticket without its ID claim or a number two
                        tickets hold), the pre-merge-commit hook (the same
                        index check, plain sh and awk, no binary: a clean
@@ -81,28 +80,14 @@ var agentsMarkerSets = [][2]string{
 // hookBody is the canonical content placed between the hook markers. It runs
 // erg validate + check on staged .erg files, rejects a commit whose index
 // holds a ticket without its claim (claimsIndexCheck; tickets 0306, 0307: erg
-// check passes on the claim on disk, so only a fresh clone would notice), and
-// rejects committing tickets/erg
-// outside the repo's default branch (detected dynamically via origin/HEAD,
-// falling back to "main" for repos with no remote). It deliberately does NOT
+// check passes on the claim on disk, so only a fresh clone would notice). It
+// does not police tickets/erg: an adopter lands a binary refresh by pull
+// request like any change (ticket 0311). It deliberately does NOT
 // run erg archive (charter blocker #2:
 // archive in pre-commit corrupts the commit; autoarchive belongs in pre-push).
 // It contains no `exit 0`, so when it is prepended into a shared hook control
 // falls through to any third-party content after the block on success.
-const hookBody = `# Reject tickets/erg commit on non-default branches.
-# CI rebuilds the binary after merge; feature PRs must not include it.
-if git diff --cached --name-only | grep -q '^tickets/erg$'; then
-    default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
-    default_branch=${default_branch:-main}
-    branch=$(git branch --show-current)
-    if [ "$branch" != "$default_branch" ]; then
-        echo "pre-commit: do not commit tickets/erg in feature branches." >&2
-        echo " CI rebuilds the binary after merge. To override: git commit --no-verify" >&2
-        exit 1
-    fi
-fi
-
-# Validate staged .erg files and the corpus.
+const hookBody = `# Validate staged .erg files and the corpus.
 erg_files=$(git diff --cached --name-only | grep '\.erg$' || true)
 if [ -n "$erg_files" ]; then
     if [ -x tickets/erg ]; then

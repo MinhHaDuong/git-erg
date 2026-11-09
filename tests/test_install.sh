@@ -85,11 +85,6 @@ if grep -q "tickets/erg validate" "$HOOK" && grep -q "tickets/erg check" "$HOOK"
 else
     fail "--hooks: hook missing validate/check"
 fi
-if grep -q "tickets/erg" "$HOOK" && grep -q 'branch=' "$HOOK"; then
-    pass "--hooks: hook rejects tickets/erg outside main"
-else
-    fail "--hooks: hook missing binary-reject logic"
-fi
 if grep -q "erg archive" "$HOOK"; then
     fail "--hooks: hook must NOT run erg archive (blocker #2)"
 else
@@ -406,54 +401,18 @@ else
     fail "pre-push hook failed with binary absent (rc=$rc, out: $out)"
 fi
 
-# --- erg-github (a text script) is committable on a feature branch (Part E) ---
-# The binary-reject rule anchors ^tickets/erg$ exactly; erg-github must pass.
-REPO=$(new_repo ergghubcommit)
+# --- tickets/erg is committable on a feature branch (ticket 0311) ---
+# Adopters land a binary refresh by pull request; the installed hook must let
+# the vendored binary through on a branch that is not the default one.
+REPO=$(new_repo binaryonbranch)
 ( cd "$REPO" && git config user.email t@t && git config user.name t )
-cp "$ERG_ABS" "$REPO/tickets/erg"   # ensure present for hook
 $ERG install "$REPO" --hooks >/dev/null 2>&1
-cp "$(CDPATH= cd "$(dirname "$0")/.." && pwd)/tickets/erg-github" "$REPO/tickets/erg-github"
-( cd "$REPO" && git switch -q -c feature && git add tickets/erg-github ) >/dev/null 2>&1
-out=$( cd "$REPO" && git commit -q -m "add erg-github" 2>&1 ) && rc=0 || rc=$?
+( cd "$REPO" && git switch -q -c feature && git add tickets/erg ) >/dev/null 2>&1
+out=$( cd "$REPO" && git commit -q -m "refresh tickets/erg" 2>&1 ) && rc=0 || rc=$?
 if [ "$rc" -eq 0 ]; then
-    pass "committing tickets/erg-github on a feature branch is NOT rejected"
+    pass "committing tickets/erg on a feature branch is NOT rejected"
 else
-    fail "tickets/erg-github commit was wrongly rejected (rc=$rc, out: $out)"
-fi
-
-# --- master-default repo: tickets/erg commit allowed on master (ticket 0219) ---
-# Simulate a repo whose origin/HEAD resolves to master using git symbolic-ref.
-# The hook must allow tickets/erg on master and reject it on a feature branch.
-REPO=$(new_repo masterdefault)
-( cd "$REPO" && git config user.email t@t && git config user.name t )
-# Set origin/HEAD to point at master (no real remote needed; the hook only reads
-# refs/remotes/origin/HEAD via git symbolic-ref --short).
-git -C "$REPO" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
-# Install the hook.
-$ERG install "$REPO" --hooks >/dev/null 2>&1
-# Create and switch to master branch.
-git -C "$REPO" checkout -q -b master 2>/dev/null || true
-# Stage tickets/erg on master -> commit must SUCCEED.
-( cd "$REPO" && git add tickets/erg && git commit -q -m "erg refresh on master" ) && rc=0 || rc=$?
-if [ "$rc" -eq 0 ]; then
-    pass "master-default repo: tickets/erg commit allowed on master"
-else
-    fail "master-default repo: tickets/erg commit wrongly rejected on master (rc=$rc)"
-fi
-
-# --- master-default repo: tickets/erg commit rejected on feature branch ---
-# Fresh master-default repo; stay on the initial 'main' branch, which is NOT
-# the declared default ('master'), so the commit must be rejected.
-REPO2=$(new_repo masterdefault_feature)
-( cd "$REPO2" && git config user.email t@t && git config user.name t )
-git -C "$REPO2" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
-$ERG install "$REPO2" --hooks >/dev/null 2>&1
-# Stay on the initial 'main' branch (which is NOT the default 'master').
-( cd "$REPO2" && git add tickets/erg && git commit -q -m "erg on non-default branch" ) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ]; then
-    pass "master-default repo: tickets/erg commit rejected on non-default branch (main)"
-else
-    fail "master-default repo: tickets/erg commit was NOT rejected on non-default branch (expected rejection)"
+    fail "tickets/erg commit on a feature branch was rejected (rc=$rc, out: $out)"
 fi
 
 # --- ratchet: hook remediation text is build-system-agnostic (ticket 0242) ---
