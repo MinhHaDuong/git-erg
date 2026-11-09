@@ -35,21 +35,21 @@ else
     fail "--help --all: unexpected stderr: $stderr_out"
 fi
 
-# make docs produces a non-empty docs/erg-manual.md
+# make docs produces a non-empty design/erg-manual.md
 make docs >/dev/null 2>&1
-if [ -s docs/erg-manual.md ]; then
-    pass "make docs: docs/erg-manual.md is non-empty"
+if [ -s design/erg-manual.md ]; then
+    pass "make docs: design/erg-manual.md is non-empty"
 else
-    fail "make docs: docs/erg-manual.md is missing or empty"
+    fail "make docs: design/erg-manual.md is missing or empty"
 fi
 
-# make docs must leave no drift: the committed docs/erg-manual.md must match
+# make docs must leave no drift: the committed design/erg-manual.md must match
 # the freshly regenerated output (drift guard for PR #269 / ticket 0235 -- a
 # help-text change with no manual regen slipped past the non-empty check).
-if git diff --exit-code docs/erg-manual.md >/dev/null 2>&1; then
-    pass "make docs: docs/erg-manual.md is current (no drift)"
+if git diff --exit-code design/erg-manual.md >/dev/null 2>&1; then
+    pass "make docs: design/erg-manual.md is current (no drift)"
 else
-    fail "make docs: docs/erg-manual.md is stale -- run 'make docs' and commit"
+    fail "make docs: design/erg-manual.md is stale -- run 'make docs' and commit"
 fi
 
 # Every corpus-integrity violation folderClosure() can emit must be documented

@@ -106,4 +106,4 @@ binary's full SHA-256 (recomputable with stock tools); the planned controls
 (ticket 0151) close the rest — bit-for-bit reproducible builds (rebuild from
 `src/go/` and byte-compare) and signed release tags. The same property that
 makes adoption a no-brainer is why those controls are non-negotiable. See
-`docs/audit-infrastructure-class.md`.
+`design/audit-infrastructure-class.md`.

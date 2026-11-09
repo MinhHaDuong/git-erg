@@ -80,7 +80,7 @@ procedure is in `UX-PROCESS.md`. The security red-team procedure is in
 `SECURITY-PROCESS.md`. The foundations-coherence procedure is in
 `FOUNDATIONS-PROCESS.md`. A binary embarked in thousands of repos is a
 deliberate design-class choice, not measured adoption
-(see `docs/audit-infrastructure-class.md`); under that class the security bar
+(see `design/audit-infrastructure-class.md`); under that class the security bar
 is maximal — supply-chain and mass-RCE
 class — and reproducible builds are the keystone control, **verifiable locally
 and offline** (rebuild the in-repo `src/go/` with git+go; no phone-home). The

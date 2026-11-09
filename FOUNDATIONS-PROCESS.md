@@ -66,7 +66,7 @@ not ship a self-contradicting foundation.
 Check the canonical-source-plus-pointers structure: each contract has one
 home, and the other sites point to it rather than restating it (drift starts
 when a property is duplicated in full across sites). Flag any contract living
-ONLY in a decision record (`docs/erg-imagine-charter.md`) or `CHANGELOG.md` --
+ONLY in a decision record (`design/erg-imagine-charter.md`) or `CHANGELOG.md` --
 those are history, not the standing constitution; a live contract must be
 lifted into `AGENTS.md`, the spec, or a process doc, with the record left as
 provenance.

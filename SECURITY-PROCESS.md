@@ -15,14 +15,14 @@ agent, and how findings become tickets.
 
 ## Scope and threat model
 
-[`docs/threat-model.md`](docs/threat-model.md) -- assets, threat actors,
+[`design/threat-model.md`](design/threat-model.md) -- assets, threat actors,
 attack surfaces (S1--S5), severity multiplier, and the controls table.
 Read it before running; do not restate it in the run.
 
 ## Procedure
 
 The agent runs the items in
-[`docs/red-team-checklist.md`](docs/red-team-checklist.md) (S1--S5) and
+[`design/red-team-checklist.md`](design/red-team-checklist.md) (S1--S5) and
 records results in the run-log section of that file. The checklist is
 designed to be cheap: most items delegate to the existing CI test suites
 (`tests/test_security.sh`, `tests/test_sync.sh`, `make verify`).
@@ -31,7 +31,7 @@ Cold prompt for the red-team agent:
 
 > You are a security auditor red-teaming a small Go CLI tool (`erg`) whose
 > binary is committed to every repo that uses it. The threat model is at
-> `docs/threat-model.md`; the checklist is at `docs/red-team-checklist.md`.
+> `design/threat-model.md`; the checklist is at `design/red-team-checklist.md`.
 >
 > Task: run every item on the checklist against the binary built by
 > `make build` (at `build/erg`). For each item, record PASS or FAIL with
@@ -44,7 +44,7 @@ Cold prompt for the red-team agent:
 
 ## Output format
 
-The run-log in `docs/red-team-checklist.md` is the output. Each run
+The run-log in `design/red-team-checklist.md` is the output. Each run
 appends a section with:
 
 - Date, binary revision, and platform.
@@ -64,7 +64,7 @@ appends a section with:
    in the same PR as the run-log update.
 4. Threat-model changes (new surfaces, revised severity, control
    additions) are human-gated -- the agent proposes edits to
-   `docs/threat-model.md` but does not merge them unattended.
+   `design/threat-model.md` but does not merge them unattended.
 
 ## What CI checks independently
 

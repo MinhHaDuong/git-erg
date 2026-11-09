@@ -50,7 +50,7 @@
 #
 # THE TRAP THIS SUITE IS BUILT AROUND. `erg migrate` overwrites a diverged
 # tickets/AGENTS.md unconditionally. That is a SETTLED CHARTER DECISION (ticket
-# 0224, PR #275, docs/erg-imagine-charter.md L122-127), already guarded by
+# 0224, PR #275, design/erg-imagine-charter.md L122-127), already guarded by
 # src/go/migrate_test.go:448 and tests/test_migrate.sh:389: agent operating
 # instructions must track the binary. It is the WANTED outcome, and a naive
 # reading of "no tracked file is ever overwritten" would flag it as a regression
