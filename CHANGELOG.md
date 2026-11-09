@@ -13,13 +13,16 @@ a required CI check rather than a bot. Sixteen PRs (#239-#254), each gated
 through `/verify`.
 
 ### Added -- ID claims, required in every store (2026-11-08 .. 2026-11-09)
-- **Upgrade note.** After `erg sync`, run `erg init`, then
-  `erg migrate --claims tickets`, commit `tickets/.claims/` with the tickets,
-  and only then `erg install --hooks`: `erg check` fails a store without
-  `.claims/`, and the hooks reject every commit whose tickets are not claimed.
-  Migrate once on the shared base (main), then integrate branches; the
-  migration writes the same claims in every clone, so independent migrations
-  of one base also merge clean. (0307)
+- **Upgrade note.** Whoever imports the release, once: `erg sync --upstream`,
+  review the binary, `tickets/erg migrate --claims tickets`, `tickets/erg init`
+  (shipped docs only), commit `tickets/.claims/` with the tickets. Every clone
+  then pulls and runs `erg install --hooks` once, after the migration:
+  `erg check` fails a store without `.claims/`, and the hooks reject every
+  commit whose tickets are not claimed. Migrate once on the shared base
+  (main), then integrate branches; the migration writes the same claims in
+  every clone, so independent migrations of one base also merge clean. A
+  branch cut before the migration reruns `erg migrate --claims tickets` after
+  rebasing. (0307, 0310)
 - **`tickets/.claims/NNNN`.** `erg new` writes a claim file before the ticket:
   one line, the ticket's slug and a random nonce. Two branches that take one
   number add that path with different content, so git reports the collision
