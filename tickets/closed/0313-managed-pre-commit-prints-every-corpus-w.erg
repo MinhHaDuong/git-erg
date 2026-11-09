@@ -2,12 +2,14 @@
 Title: Managed pre-commit prints every corpus WARN on each ticket commit
 Created: 2026-11-09
 Author: Claude (JETP-observer session)
+Closed: autoclosed — PR #405
 
 --- log ---
 2026-11-09T12:44Z Claude (JETP-observer session) created
 2026-11-09T12:51Z Claude note upgrade path for installed hooks (gaze, PR #404)
 2026-11-09T13:10Z Claude raid f314e3 imagine: shell-only fix; blind-spot 2 findings folded in
 2026-11-09T13:12Z Claude raid f314e3 plan + feasibility: PASS
+2026-11-09T13:16Z MinhHaDuong closed — autoclosed — PR #405
 
 --- body ---
 ## Context
