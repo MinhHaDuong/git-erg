@@ -6,6 +6,7 @@ Author: Claude (JETP-observer session)
 --- log ---
 2026-11-09T12:44Z Claude (JETP-observer session) created
 2026-11-09T12:51Z Claude note upgrade path for installed hooks (gaze, PR #404)
+2026-11-09T13:10Z Claude raid f314e3 imagine: shell-only fix; blind-spot 2 findings folded in
 
 --- body ---
 ## Context
@@ -28,3 +29,37 @@ bury the one line that matters (ERG CHECK: PASS/FAIL).
 The hook block is written at install time: a repo that already has it keeps
 the noisy version until `erg install --hooks` is run again. The fix should say
 so where adopters will see it (release notes, or the install output).
+
+## Imagine (raid f314e3)
+
+Premise holds on main d364f2d: `hookBody` (src/go/install.go:102-105) runs
+`tickets/erg check tickets/` uncaptured; WARNs go to stderr, the
+`ERG CHECK: PASS (N tickets, M warnings)` line last on stdout.
+
+Path: change the hook's shell only, no new `check` flag. `install --hooks`
+rewrites the hook but never the vendored `tickets/erg`, and `cmdCheck` exits 1
+on an unknown flag, so a hook calling a new flag would fail every ticket commit
+where the vendored binary predates it. Capture check's combined output; on
+failure print it all, on pass print only the `^ERG CHECK` line (grep, not
+`tail -n 1`: on the empty-corpus path a WARN can come last). `erg check` by
+hand is untouched, which meets criterion 2 by construction.
+
+Change together: `hookBody`; its verbatim copy in src/go/assets/integration.md
+(no byte-level drift guard exists, compare by hand); tests in tests/test_hook.sh.
+
+Blind spot 1 (decided: count only). The asset-drift WARN/NOTE lines
+(check.go:280, manifest.go:606/672/734) are the upgrade nudge that
+integration.md:248 promises ("`erg check` warns until it runs"); pre-commit is
+where adopters see it unasked. Count-only buries it. Kept count-only because it
+is criterion 1's letter; reword integration.md:248 so it does not imply the
+commit shows it. Letting drift lines through is a scope change left to the
+author.
+
+Blind spot 2 (test design). Warnings print indented two spaces in four
+spellings (`WARN x:`, `WARN:`, `WARNING:`, `NOTE`), so `^WARN ` cannot fail.
+The fixture must carry a real warning (a fresh store passes clean); assert no
+line matches `WARN|NOTE` and the PASS line reports N warnings; prove it red on
+the current hook first.
+
+Out of scope: this repo's 264 log-placement WARNs (a separate cleanup); the
+per-file `erg validate` output (bounded by staged files).
