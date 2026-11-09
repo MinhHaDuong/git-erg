@@ -96,10 +96,14 @@ if [ -n "$erg_files" ]; then
             echo "ERROR: ticket validation failed." >&2
             exit 1
         fi
-        if ! tickets/erg check tickets/; then
+        # A passing check shows its summary line only: a corpus can carry
+        # hundreds of warnings. A failing check shows everything.
+        if ! erg_check_out=$(tickets/erg check tickets/ 2>&1); then
+            printf '%s\n' "$erg_check_out" >&2
             echo "ERROR: ticket corpus check failed." >&2
             exit 1
         fi
+        printf '%s\n' "$erg_check_out" | grep '^ERG CHECK' || true
     else
         echo "ERROR: tickets/erg not found. Build it from the git-erg source" >&2
         echo "  (make build there), or 'git pull' if your project vendors the committed binary." >&2

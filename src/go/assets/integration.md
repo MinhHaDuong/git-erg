@@ -44,10 +44,14 @@ if [ -n "$erg_files" ]; then
             echo "ERROR: ticket validation failed." >&2
             exit 1
         fi
-        if ! tickets/erg check tickets/; then
+        # A passing check shows its summary line only: a corpus can carry
+        # hundreds of warnings. A failing check shows everything.
+        if ! erg_check_out=$(tickets/erg check tickets/ 2>&1); then
+            printf '%s\n' "$erg_check_out" >&2
             echo "ERROR: ticket corpus check failed." >&2
             exit 1
         fi
+        printf '%s\n' "$erg_check_out" | grep '^ERG CHECK' || true
     else
         echo "ERROR: tickets/erg not found. Build it from the git-erg source" >&2
         echo "  (make build there), or 'git pull' if your project vendors the committed binary." >&2
@@ -245,7 +249,8 @@ sessions filing the same incident under the same slug.
 - **Upgrading an existing project.** Whoever imports the release, once:
   `erg sync --upstream`, review the binary, `tickets/erg migrate --claims
   tickets`, `tickets/erg init` (it refreshes the shipped docs, not the data;
-  `erg check` warns until it runs), commit. Every clone then gets the
+  `erg check` run by hand warns until it runs; the pre-commit hook shows
+  only a warning count), commit. Every clone then gets the
   binary, docs and claims by `git pull`, and runs `erg install --hooks` once
   (hooks are per clone; after the migration, since they reject every commit
   whose tickets are not claimed). A branch cut before the migration: after
