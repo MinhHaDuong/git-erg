@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -83,6 +84,18 @@ func newNonce() (string, error) {
 	return hex.EncodeToString(b[:]), nil
 }
 
+// migrationNonce is the nonce erg migrate --claims writes for a ticket that
+// already exists: the first 8 hex digits of sha256("NNNN slug Created"). It
+// is derived, not random, so two clones or branches that migrate the same
+// base write the same bytes and merge clean; a random one would make every
+// claim an add/add conflict. The title is left out because branches edit it.
+// erg new keeps the random nonce: a fresh ticket must conflict with another
+// fresh ticket of the same number, even one sharing its slug and day.
+func migrationNonce(id, slug, created string) string {
+	sum := sha256.Sum256([]byte(id + " " + slug + " " + created))
+	return hex.EncodeToString(sum[:4])
+}
+
 // claimContent is the one-line claim for slug.
 func claimContent(slug, nonce string) string {
 	return slug + " " + nonce + "\n"
@@ -150,7 +163,7 @@ func ticketPathsByID(store string) (map[string][]string, error) {
 // without hard links.
 var linkClaim = os.Link
 
-// writeClaim creates <store>/.claims/<id> holding slug and a fresh nonce,
+// writeClaim creates <store>/.claims/<id> holding slug and nonce,
 // atomically and without clobbering: the content goes to a dot-prefixed temp
 // in .claims/, then os.Link publishes it under the final name. Link fails
 // with EEXIST when the number is already claimed -- the collision signal,
@@ -159,11 +172,7 @@ var linkClaim = os.Link
 // without hard links (some FUSE, 9p or exFAT mounts) it falls back to an
 // O_EXCL create of the final name: still no clobber, and EEXIST still the
 // signal, at the price of a partial claim if killed mid-write.
-func writeClaim(store, id, slug string) error {
-	nonce, err := newNonce()
-	if err != nil {
-		return err
-	}
+func writeClaim(store, id, slug, nonce string) error {
 	dir := claimsDir(store)
 	tmp, err := os.CreateTemp(dir, "."+id+".tmp-*")
 	if err != nil {
@@ -335,7 +344,9 @@ func migrateClaims(store string, byID map[string][]string) (written, kept int, s
 			shared = append(shared, paths)
 			continue
 		}
-		werr := writeClaim(store, id, ticketSlug(filepath.Base(paths[0])))
+		slug := ticketSlug(filepath.Base(paths[0]))
+		t, _ := parseErg(paths[0])
+		werr := writeClaim(store, id, slug, migrationNonce(id, slug, t.Created))
 		switch {
 		case werr == nil:
 			written++

@@ -268,6 +268,25 @@ func TestMigrateClaims(t *testing.T) {
 	}
 }
 
+// TestMigrationNonce pins the derived nonce to a literal computed outside
+// the function (printf '0001 a 2026-11-08' | sha256sum | cut -c1-8): two
+// clones that migrate the same ticket must write the same claim, or their
+// independent migrations add/add-conflict on every claim.
+func TestMigrationNonce(t *testing.T) {
+	if got := migrationNonce("0001", "a", "2026-11-08"); got != "b298394c" {
+		t.Errorf("migrationNonce = %q, want b298394c", got)
+	}
+	dir := t.TempDir()
+	writeClaimTestTicket(t, dir, "0001-a.erg")
+	if _, _, _, err := migrateClaims(dir, mustTicketPaths(t, dir)); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(claimsDir(dir), "0001"))
+	if string(data) != "a b298394c\n" {
+		t.Errorf("migrated claim = %q, want the derived nonce", data)
+	}
+}
+
 func TestMigrateClaimsRefusesSharedNumber(t *testing.T) {
 	dir := t.TempDir()
 	writeClaimTestTicket(t, dir, "0001-a.erg")
@@ -309,14 +328,14 @@ func TestWriteClaimWithoutHardLinks(t *testing.T) {
 	if err := os.Mkdir(claimsDir(dir), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeClaim(dir, "0001", "a"); err != nil {
+	if err := writeClaim(dir, "0001", "a", "0123abcd"); err != nil {
 		t.Fatalf("writeClaim without hard links: %v", err)
 	}
 	data, _ := os.ReadFile(filepath.Join(claimsDir(dir), "0001"))
 	if !strings.HasPrefix(string(data), "a ") {
 		t.Errorf("claim = %q", data)
 	}
-	if err := writeClaim(dir, "0001", "b"); !os.IsExist(err) {
+	if err := writeClaim(dir, "0001", "b", "0123abcd"); !os.IsExist(err) {
 		t.Errorf("second claim of 0001: err = %v, want EEXIST", err)
 	}
 }

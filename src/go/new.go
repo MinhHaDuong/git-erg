@@ -215,7 +215,12 @@ func cmdNew(args []string) int {
 			}
 			// The claim is the exclusive create: its path depends on the
 			// number alone, so EEXIST is exactly "this number is taken".
-			if err := writeClaim(ticketDir, id, slug); err != nil {
+			nonce, err := newNonce()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "new: %v\n", err)
+				return 1
+			}
+			if err := writeClaim(ticketDir, id, slug, nonce); err != nil {
 				if os.IsExist(err) {
 					continue
 				}

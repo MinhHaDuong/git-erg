@@ -367,6 +367,30 @@ else
     fail "erg init: .claims/ creation wrong (new: $(ls -A "$NEWP/tickets"), old: $(ls -A "$OLDP/tickets"))"
 fi
 
+# --- two branches migrate one base: the claims are identical, no conflict ---
+# A migration claim's nonce is derived from the ticket (number, slug,
+# Created), so the same base migrated twice writes the same bytes.
+TWO="$TDIR/two"
+git init -q "$TWO"
+mkdir -p "$TWO/tickets/closed"
+for t in 0001-first 0002-second; do
+    printf '%%erg 0.1\nTitle: %s\nCreated: 2026-11-08\nAuthor: a\n\n--- log ---\n2026-11-08T00:00Z a created\n\n--- body ---\n' "$t" > "$TWO/tickets/$t.erg"
+done
+printf '%%erg 0.1\nTitle: third\nCreated: 2026-11-07\nAuthor: a\nClosed: done\n\n--- log ---\n2026-11-07T00:00Z a created\n\n--- body ---\n' > "$TWO/tickets/closed/0003-third.erg"
+(cd "$TWO" && git add tickets && git commit -q -m base &&
+    git checkout -q -b x && "$ERG_ABS" migrate --claims tickets >/dev/null 2>&1 &&
+    git add tickets && git commit -q -m "migrate on x" &&
+    git checkout -q -b y main && "$ERG_ABS" migrate --claims tickets >/dev/null 2>&1 &&
+    git add tickets && git commit -q -m "migrate on y" && git checkout -q x)
+if (cd "$TWO" && git merge -q --no-edit y >/dev/null 2>&1) &&
+    [ -z "$(cd "$TWO" && git diff x@{1} HEAD -- tickets/.claims)" ] &&
+    [ -f "$TWO/tickets/.claims/0003" ]; then
+    pass "two independent migrations of one base merge clean, claims identical"
+else
+    fail "two independent migrations of one base conflict ($(cd "$TWO" && git status --porcelain | tr '\n' ' '))"
+    (cd "$TWO" && git merge --abort 2>/dev/null) || true
+fi
+
 echo ""
 echo "claims: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
