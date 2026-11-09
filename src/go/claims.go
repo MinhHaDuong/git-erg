@@ -614,16 +614,13 @@ func warnUnclaimed(verb, dir string) {
 	if len(paths) == 0 {
 		return
 	}
-	names := make([]string, 0, 5)
-	for i, p := range paths {
-		if i == 5 {
-			break
-		}
-		names = append(names, filepath.Base(p))
-	}
-	more := ""
+	shown, more := paths, ""
 	if len(paths) > 5 {
-		more = fmt.Sprintf(" and %d more", len(paths)-5)
+		shown, more = paths[:5], fmt.Sprintf(" and %d more", len(paths)-5)
+	}
+	names := make([]string, len(shown))
+	for i, p := range shown {
+		names[i] = filepath.Base(p)
 	}
 	word := "tickets"
 	if len(paths) == 1 {

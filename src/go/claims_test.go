@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -438,5 +439,20 @@ func TestCmdNewNamesNumberedDirectory(t *testing.T) {
 	_, stderr := captureOutput(t, func() { code = cmdNew([]string{"x", dir, "--author", "a"}) })
 	if code == 0 || !strings.Contains(stderr, "is a directory, not a claim file") {
 		t.Errorf("cmdNew = %d, stderr %q; want a refusal naming the directory", code, stderr)
+	}
+}
+
+// TestWarnUnclaimedCapsTheList pins the capped list: five names in order,
+// then a count of the rest.
+func TestWarnUnclaimedCapsTheList(t *testing.T) {
+	dir := t.TempDir()
+	claimStore(t, dir)
+	for i := 1; i <= 7; i++ {
+		writeClaimTestTicket(t, dir, fmt.Sprintf("%04d-t%d.erg", i, i))
+	}
+	_, stderr := captureOutput(t, func() { warnUnclaimed("close", dir) })
+	want := "close: warning: 7 tickets without a claim: 0001-t1.erg, 0002-t2.erg, 0003-t3.erg, 0004-t4.erg, 0005-t5.erg and 2 more -- run: erg migrate --claims " + dir + "\n"
+	if stderr != want {
+		t.Errorf("warning =\n%q\nwant\n%q", stderr, want)
 	}
 }
