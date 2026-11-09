@@ -2,9 +2,11 @@
 Title: erg new: say when DIR is no store and hint at reversed arguments
 Created: 2026-11-09
 Author: MinhHaDuong
+Closed: fixed in PR (erg new names a missing store, hints at reversed arguments)
 
 --- log ---
 2026-11-09T11:42Z MinhHaDuong created
+2026-11-09T11:44Z MinhHaDuong closed — fixed in PR (erg new names a missing store, hints at reversed arguments)
 
 --- body ---
 ## Context
@@ -22,6 +24,6 @@ store (a directory holding `.claims/` or `NNNN-*.erg` files), add `-- arguments 
 erg new TITLE [DIR]`. What `erg new` accepts does not change; nothing is created.
 
 ## Exit criteria
-- [ ] `erg new TITLE MISSING_DIR` exits 1, says "no ticket store", does not suggest migrate, creates nothing.
-- [ ] `erg new STORE_DIR "Some title"` (reversed) exits 1 and the message says "arguments reversed".
-- [ ] `make check` passes.
+- [x] `erg new TITLE MISSING_DIR` exits 1, says "no ticket store", does not suggest migrate, creates nothing.
+- [x] `erg new STORE_DIR "Some title"` (reversed) exits 1 and the message says "arguments reversed".
+- [x] `make check` passes.
