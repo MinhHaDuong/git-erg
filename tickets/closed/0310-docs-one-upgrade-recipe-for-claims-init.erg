@@ -2,9 +2,11 @@
 Title: Docs: one upgrade recipe for claims; init refreshes docs, not data
 Created: 2026-11-09
 Author: MinhHaDuong
+Closed: docs landed (one upgrade recipe; init refreshes docs)
 
 --- log ---
 2026-11-09T11:56Z MinhHaDuong created
+2026-11-09T11:58Z MinhHaDuong closed — docs landed (one upgrade recipe; init refreshes docs)
 
 --- body ---
 ## Context
@@ -28,6 +30,6 @@ Docs only (integration.md "ID claims" and "Keeping a store current", CHANGELOG u
   adds only the missing claims.
 
 ## Exit criteria
-- [ ] integration.md and CHANGELOG give the recipe above; no doc lists `erg init` as a claims step.
-- [ ] The old-branch rerun is documented.
-- [ ] `make check` passes.
+- [x] integration.md and CHANGELOG give the recipe above; no doc lists `erg init` as a claims step.
+- [x] The old-branch rerun is documented.
+- [x] `make check` passes.
