@@ -11,11 +11,10 @@ local edit. It is not a `.erg` ticket, so `erg check` ignores it.
 
 ## 1. Pre-commit hook
 
-The hook prevents committing `tickets/erg` on feature branches -- CI
-rebuilds the binary after merge to main -- validates staged tickets, and
-rejects a commit whose index holds a ticket without its ID claim, or two
-tickets on one number (the index, not the working tree: an untracked claim
-on disk would let `erg check` pass while the commit lacks it). See the `.gitignore` section below for the full
+The hook validates staged tickets and rejects a commit whose index holds
+a ticket without its ID claim, or two tickets on one number (the index, not
+the working tree: an untracked claim on disk would let `erg check` pass
+while the commit lacks it). See the `.gitignore` section below for the full
 commit policy.
 
 Install the hooks after the store is migrated and that commit is made
@@ -36,19 +35,6 @@ upgrade.
 
 ```sh
 # >>> erg managed >>>
-# Reject tickets/erg commit on non-default branches.
-# CI rebuilds the binary after merge; feature PRs must not include it.
-if git diff --cached --name-only | grep -q '^tickets/erg$'; then
-    default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
-    default_branch=${default_branch:-main}
-    branch=$(git branch --show-current)
-    if [ "$branch" != "$default_branch" ]; then
-        echo "pre-commit: do not commit tickets/erg in feature branches." >&2
-        echo " CI rebuilds the binary after merge. To override: git commit --no-verify" >&2
-        exit 1
-    fi
-fi
-
 # Validate staged .erg files and the corpus.
 erg_files=$(git diff --cached --name-only | grep '\.erg$' || true)
 if [ -n "$erg_files" ]; then

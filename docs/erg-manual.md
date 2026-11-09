@@ -671,8 +671,7 @@ By default -- with no flags -- install does nothing outside tickets/. Each
 piece of wiring requires an explicit opt-in flag:
 
   --hooks              Install (or upgrade) the pre-commit hook (erg validate
-                       + erg check on every commit, rejects tickets/erg on
-                       non-default branches, rejects a commit whose index
+                       + erg check on every commit, rejects a commit whose index
                        holds a ticket without its ID claim or a number two
                        tickets hold), the pre-merge-commit hook (the same
                        index check, plain sh and awk, no binary: a clean

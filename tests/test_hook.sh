@@ -1,5 +1,5 @@
 #!/bin/sh
-# Integration tests for: pre-commit hook — reject tickets/erg on feature branches
+# Integration tests for: the pre-commit hook installed by erg install --hooks
 set -eu
 
 ERG="${ERG_BIN:-build/erg}"
@@ -14,7 +14,7 @@ fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 # plain files (claim_store), so each case fails for its own defect.
 . "$(dirname "$0")/claims_fixture.sh"
 
-echo "=== pre-commit hook: tickets/erg guard ==="
+echo "=== pre-commit hook ==="
 
 TDIR=$(mktemp -d)
 trap 'rm -rf "$TDIR"' EXIT
@@ -43,41 +43,15 @@ echo "init" > README
 git add README
 git commit -q -m "init"
 
-# --- Test 1: tickets/erg staged on feature branch → rejected ---
+# --- Test 1: tickets/erg staged on a feature branch -> allowed (ticket 0311) ---
+# An adopter lands a binary refresh by pull request, so the hook must not
+# refuse the vendored binary on a branch.
 git checkout -q -b feature/test
 git add tickets/erg
-if git commit -q -m "add binary" 2>/dev/null; then
-    fail "feature branch: commit with tickets/erg must be rejected"
+if msg=$(git commit -q -m "refresh binary" 2>&1); then
+    pass "feature branch: commit with tickets/erg is allowed"
 else
-    pass "feature branch: commit with tickets/erg is rejected"
-fi
-
-# --- Test 2: error message names the right remedy ---
-git add tickets/erg
-msg=$(git commit -m "add binary" 2>&1 || true)
-if echo "$msg" | grep -q "do not commit tickets/erg"; then
-    pass "feature branch: error message names the tickets/erg guard"
-else
-    fail "feature branch: error message names the tickets/erg guard (got: $msg)"
-fi
-if echo "$msg" | grep -q "CI rebuilds the binary after merge"; then
-    pass "feature branch: error message explains CI rebuild"
-else
-    fail "feature branch: error message explains CI rebuild (got: $msg)"
-fi
-if echo "$msg" | grep -q "no-verify"; then
-    pass "feature branch: error message mentions --no-verify override"
-else
-    fail "feature branch: error message mentions --no-verify override (got: $msg)"
-fi
-
-# --- Test 3: tickets/erg staged on main → allowed ---
-git checkout -q main
-git add tickets/erg
-if git commit -q -m "CI rebuild binary" 2>/dev/null; then
-    pass "main: commit with tickets/erg is allowed"
-else
-    fail "main: commit with tickets/erg must be allowed"
+    fail "feature branch: commit with tickets/erg must be allowed (got: $msg)"
 fi
 
 # --- Test 4: .erg ticket files on feature branch → allowed ---

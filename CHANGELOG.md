@@ -12,6 +12,14 @@ versioning is added for the embedded assets, and ticket autoclose is enforced by
 a required CI check rather than a bot. Sixteen PRs (#239-#254), each gated
 through `/verify`.
 
+### Changed -- the managed pre-commit block lets `tickets/erg` through (2026-11-09)
+- The block `erg install --hooks` writes no longer refuses a commit staging
+  `tickets/erg` outside the default branch. That rule fit git-erg alone, whose
+  CI rebuilds the binary on main; an adopter lands a binary refresh by pull
+  request, and the rule forced `--no-verify`, which also skipped the claims
+  check. Rerun `erg install --hooks` with the new binary before committing it:
+  the block is replaced in place. (0311)
+
 ### Added -- ID claims, required in every store (2026-11-08 .. 2026-11-09)
 - **Upgrade note.** Whoever imports the release, once: `erg sync --upstream`,
   review the binary, `tickets/erg migrate --claims tickets`, `tickets/erg init`
@@ -22,7 +30,9 @@ through `/verify`.
   (main), then integrate branches; the migration writes the same claims in
   every clone, so independent migrations of one base also merge clean. A
   branch cut before the migration reruns `erg migrate --claims tickets` after
-  rebasing. (0307, 0310)
+  rebasing. A binary older than `sync` imports with
+  `ERG_UPDATE_URL=https://github.com/MinhHaDuong/git-erg.git tickets/erg update`.
+  (0307, 0310, 0311)
 - **`tickets/.claims/NNNN`.** `erg new` writes a claim file before the ticket:
   one line, the ticket's slug and a random nonce. Two branches that take one
   number add that path with different content, so git reports the collision

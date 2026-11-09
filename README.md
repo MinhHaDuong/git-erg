@@ -258,7 +258,9 @@ the lines out by hand). Full semantics: `erg close --help` or
 `erg sync` aligns a clone with the binary vendored in the current project's
 `origin`; it does not check the git-erg project for a newer version. To import
 explicitly from git-erg, run `erg sync --upstream` and review or verify the
-resulting `tickets/erg` before executing it. `sync` always replaces that
+resulting `tickets/erg` before executing it. A binary older than `sync` has
+`update` instead: `ERG_UPDATE_URL=https://github.com/MinhHaDuong/git-erg.git
+tickets/erg update` imports the same way. `sync` always replaces that
 project/CI artifact, never a system-native `erg` used to launch it. A store
 from before ID claims fails `erg check` until migrated: first run
 `tickets/erg migrate --claims tickets`. Then, on Linux x86-64, run
