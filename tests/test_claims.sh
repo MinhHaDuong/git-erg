@@ -295,6 +295,27 @@ else
     fail "merge hook: incoming binary ran ($([ -e "$TDIR/evl-marker" ] && echo yes || echo no)) or no refusal (rc=$rc: $msg)"
 fi
 (cd "$EVL" && git merge --abort 2>/dev/null) || true
+# If this clone's binary cannot be copied out for the run, the merge is
+# refused rather than checked by the index alone (a claimed duplicate
+# would pass that). A directory at the copy's path makes the copy fail.
+CPY="$TDIR/cpy"
+git init -q -b main "$CPY"
+plain_ticket "$CPY/tickets" 0001-base
+claim_store "$CPY/tickets"
+cp "$ERG_ABS" "$CPY/tickets/erg"
+(cd "$CPY" && git add -A && git commit -q -m base && "$ERG_ABS" install . --hooks >/dev/null 2>&1 &&
+    git checkout -q -b side && plain_ticket tickets 0002-two && echo "two 00000000" > tickets/.claims/0002 &&
+    git add -A && git commit -q -m side && git checkout -q main &&
+    echo note > NOTE && git add NOTE && git commit -q -m note &&
+    mkdir "$(git rev-parse --git-path erg-merge-check)")
+msg=$(cd "$CPY" && git merge --no-ff --no-edit side 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$msg" | grep -qF "cannot copy this clone's tickets/erg"; then
+    pass "merge hook: a failed copy of this clone's binary refuses the merge"
+else
+    fail "merge hook: a failed copy fell back to the index check (rc=$rc: $msg)"
+fi
+(cd "$CPY" && git merge --abort 2>/dev/null) || true
+
 # A committed tickets/erg symlink is never followed: the merge below changes
 # only its target, a script leaving a marker; the hook skips it, says so,
 # and the index check still runs.
@@ -312,7 +333,7 @@ ln -s ../tools/erg-real "$SYM/tickets/erg"
     git add -A && git commit -q --no-verify -m evil && git checkout -q main &&
     echo note > NOTE && git add NOTE && git commit -q --no-verify -m note)
 msg=$(cd "$SYM" && git merge --no-ff --no-edit evil 2>&1) && rc=0 || rc=$?
-if [ ! -e "$TDIR/sym-marker" ] && [ "$rc" -eq 0 ] && echo "$msg" | grep -qF "no trusted tickets/erg to run (it changes in this merge, or is a symlink)"; then
+if [ ! -e "$TDIR/sym-marker" ] && [ "$rc" -eq 0 ] && echo "$msg" | grep -qF "no trusted tickets/erg to run (a symlink, not executable, or untracked and changed by this merge)"; then
     pass "merge hook: a symlinked tickets/erg is not followed; a claimed merge still lands"
 else
     fail "merge hook: symlink target ran ($([ -e "$TDIR/sym-marker" ] && echo yes || echo no)) or merge refused (rc=$rc: $msg)"
