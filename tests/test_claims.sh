@@ -230,8 +230,8 @@ echo "tickets/erg" >> .git/info/exclude
 NG=$(created_id "$TDIR/g.out")
 git add "tickets/$NG-hooked.erg"
 msg=$(git commit -m "hooked" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$msg" | grep -qF "pre-commit: tickets without a claim in the index:" &&
-    echo "$msg" | grep -qxF "  tickets/$NG-hooked.erg"; then
+if [ "$rc" -ne 0 ] && echo "$msg" | grep -qF "pre-commit: the index breaks the ID claim rules:" &&
+    echo "$msg" | grep -qxF "  tickets/$NG-hooked.erg has no claim"; then
     pass "hook: a ticket staged without its claim is rejected"
 else
     fail "hook: ticket without staged claim not rejected (rc=$rc: $msg)"
@@ -254,7 +254,7 @@ git checkout -q g
 echo "side-ticket 00000000" > tickets/.claims/0900
 msg=$(git merge --no-ff --no-edit side 2>&1) && rc=0 || rc=$?
 if [ "$rc" -ne 0 ] && [ -f "$(git rev-parse --git-path MERGE_HEAD)" ] &&
-    echo "$msg" | grep -qF "pre-merge-commit: tickets without a claim in the index:" &&
+    echo "$msg" | grep -qF "pre-merge-commit: the index breaks the ID claim rules:" &&
     "$ERG_ABS" check tickets >/dev/null 2>&1; then
     pass "merge hook: an unclaimed ticket is refused on the index though erg check passes on disk"
 else
@@ -273,71 +273,28 @@ else
     git merge --abort 2>/dev/null || true
 fi
 
-# The merge hook never executes a tickets/erg the merge itself brings in:
-# it runs this clone's committed binary (HEAD's blob) on the merge result.
-# Here the side branch swaps tickets/erg for a script that leaves a marker
-# and brings a duplicate number (claimed, so only erg check can see it).
-EVL="$TDIR/evl"
-git init -q -b main "$EVL"
-plain_ticket "$EVL/tickets" 0001-base
-claim_store "$EVL/tickets"
-cp "$ERG_ABS" "$EVL/tickets/erg"
-(cd "$EVL" && git add -A && git commit -q -m base && "$ERG_ABS" install . --hooks >/dev/null 2>&1 &&
-    git checkout -q -b evil &&
-    printf '#!/bin/sh\ntouch "%s"\nexit 0\n' "$TDIR/evl-marker" > tickets/erg && chmod +x tickets/erg &&
-    plain_ticket tickets 0001-dup &&
-    git add -A && git commit -q --no-verify -m evil && git checkout -q main &&
-    echo note > NOTE && git add NOTE && git commit -q -m note)
-msg=$(cd "$EVL" && git merge --no-ff --no-edit evil 2>&1) && rc=0 || rc=$?
-if [ ! -e "$TDIR/evl-marker" ] && [ "$rc" -ne 0 ] && echo "$msg" | grep -qF "duplicate ID '0001'"; then
-    pass "merge hook: an incoming tickets/erg is not executed; this clone's binary refuses the duplicate"
+# A -X ours merge of two tickets that took one number keeps one claim and
+# both tickets: no claim is missing, so only a number-keyed index check sees
+# it. The repository has no tickets/erg at all: the merge hook runs no binary.
+XO="$TDIR/xo"
+git init -q -b main "$XO"
+plain_ticket "$XO/tickets" 0001-base
+claim_store "$XO/tickets"
+# install wants tickets/erg present; it is removed once the hooks are in.
+(cd "$XO" && git add -A && git commit -q -m base &&
+    cp "$ERG_ABS" tickets/erg && "$ERG_ABS" install . --hooks >/dev/null 2>&1 && rm tickets/erg)
+(cd "$XO" && git checkout -q -b left && plain_ticket tickets 0002-left && echo "left 1111aaaa" > tickets/.claims/0002 &&
+    git add -A && git commit -q --no-verify -m left &&
+    git checkout -q -b right main && plain_ticket tickets 0002-right 2026-11-08 closed && echo "right 2222bbbb" > tickets/.claims/0002 &&
+    git add -A && git commit -q --no-verify -m right && git checkout -q left)
+msg=$(cd "$XO" && git merge --no-ff --no-edit -X ours right 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && [ -f "$XO/tickets/closed/0002-right.erg" ] &&
+    echo "$msg" | grep -qF "0002 is held by 2 tickets: tickets/0002-left.erg tickets/closed/0002-right.erg"; then
+    pass "merge hook: a -X ours merge of two same-number tickets is refused, with no binary"
 else
-    fail "merge hook: incoming binary ran ($([ -e "$TDIR/evl-marker" ] && echo yes || echo no)) or no refusal (rc=$rc: $msg)"
+    fail "merge hook: -X ours duplicate not refused by the index check (rc=$rc: $msg)"
 fi
-(cd "$EVL" && git merge --abort 2>/dev/null) || true
-# If this clone's binary cannot be copied out for the run, the merge is
-# refused rather than checked by the index alone (a claimed duplicate
-# would pass that). A directory at the copy's path makes the copy fail.
-CPY="$TDIR/cpy"
-git init -q -b main "$CPY"
-plain_ticket "$CPY/tickets" 0001-base
-claim_store "$CPY/tickets"
-cp "$ERG_ABS" "$CPY/tickets/erg"
-(cd "$CPY" && git add -A && git commit -q -m base && "$ERG_ABS" install . --hooks >/dev/null 2>&1 &&
-    git checkout -q -b side && plain_ticket tickets 0002-two && echo "two 00000000" > tickets/.claims/0002 &&
-    git add -A && git commit -q -m side && git checkout -q main &&
-    echo note > NOTE && git add NOTE && git commit -q -m note &&
-    mkdir "$(git rev-parse --git-path erg-merge-check)")
-msg=$(cd "$CPY" && git merge --no-ff --no-edit side 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$msg" | grep -qF "cannot copy this clone's tickets/erg"; then
-    pass "merge hook: a failed copy of this clone's binary refuses the merge"
-else
-    fail "merge hook: a failed copy fell back to the index check (rc=$rc: $msg)"
-fi
-(cd "$CPY" && git merge --abort 2>/dev/null) || true
-
-# A committed tickets/erg symlink is never followed: the merge below changes
-# only its target, a script leaving a marker; the hook skips it, says so,
-# and the index check still runs.
-SYM="$TDIR/sym"
-git init -q -b main "$SYM"
-plain_ticket "$SYM/tickets" 0001-base
-claim_store "$SYM/tickets"
-mkdir -p "$SYM/tools"
-cp "$ERG_ABS" "$SYM/tools/erg-real"
-ln -s ../tools/erg-real "$SYM/tickets/erg"
-(cd "$SYM" && git add -A && git commit -q -m base && "$ERG_ABS" install . --hooks >/dev/null 2>&1 &&
-    git checkout -q -b evil &&
-    printf '#!/bin/sh\ntouch "%s"\nexit 0\n' "$TDIR/sym-marker" > tools/erg-real &&
-    plain_ticket tickets 0002-two && echo "two 00000000" > tickets/.claims/0002 &&
-    git add -A && git commit -q --no-verify -m evil && git checkout -q main &&
-    echo note > NOTE && git add NOTE && git commit -q --no-verify -m note)
-msg=$(cd "$SYM" && git merge --no-ff --no-edit evil 2>&1) && rc=0 || rc=$?
-if [ ! -e "$TDIR/sym-marker" ] && [ "$rc" -eq 0 ] && echo "$msg" | grep -qF "no trusted tickets/erg to run (only one this merge cannot change runs"; then
-    pass "merge hook: a symlinked tickets/erg is not followed; a claimed merge still lands"
-else
-    fail "merge hook: symlink target ran ($([ -e "$TDIR/sym-marker" ] && echo yes || echo no)) or merge refused (rc=$rc: $msg)"
-fi
+(cd "$XO" && git merge --abort 2>/dev/null) || true
 
 # --- close and rm leave the claim; its number is never reused ---
 "$ERG_ABS" new "to remove" tickets > "$TDIR/r.out" 2>/dev/null

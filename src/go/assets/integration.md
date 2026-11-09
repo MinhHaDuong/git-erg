@@ -70,20 +70,28 @@ if [ -n "$erg_files" ]; then
 fi
 
 erg_hook=pre-commit
-# Every ticket in the index has its ID claim in the index. The index, not
-# the working tree: an untracked claim on disk lets erg check pass while
-# the commit lacks it.
-erg_unclaimed=$(git -c core.quotePath=false ls-files -- tickets | awk '
+# The index keeps the ID claim rules: every ticket number has its claim,
+# and no number is held by two tickets. The index, not the working tree: an
+# untracked claim on disk lets erg check pass while the commit lacks it.
+erg_index=$(git -c core.quotePath=false ls-files -- tickets | awk '
     /^tickets\/\.claims\/[0-9][0-9][0-9][0-9]$/ { claimed[substr($0, length($0) - 3)] = 1; next }
     /^tickets\/(.*\/)?[0-9][0-9][0-9][0-9]-[^\/]*\.erg$/ {
         n = split($0, part, "/")
-        ticket[$0] = substr(part[n], 1, 4)
+        id = substr(part[n], 1, 4)
+        count[id]++
+        held[id] = (count[id] > 1) ? held[id] " " $0 : $0
     }
-    END { for (t in ticket) if (!(ticket[t] in claimed)) print t }' | sort)
-if [ -n "$erg_unclaimed" ]; then
-    echo "$erg_hook: tickets without a claim in the index:" >&2
-    echo "$erg_unclaimed" | sed 's/^/  /' >&2
-    echo " Stage each claim: git add tickets/.claims/NNNN (none yet? run: tickets/erg migrate --claims tickets)" >&2
+    END {
+        for (id in count) {
+            if (count[id] > 1) print "  " id " is held by " count[id] " tickets: " held[id]
+            else if (!(id in claimed)) print "  " held[id] " has no claim"
+        }
+    }' | sort)
+if [ -n "$erg_index" ]; then
+    echo "$erg_hook: the index breaks the ID claim rules:" >&2
+    echo "$erg_index" >&2
+    echo " Stage each missing claim: git add tickets/.claims/NNNN (none yet? run: tickets/erg migrate --claims tickets)." >&2
+    echo " Renumber all but one ticket of a shared number clear of the frontier ('erg integration')." >&2
     exit 1
 fi
 # <<< erg managed <<<
@@ -109,61 +117,32 @@ fails, the merge is refused. A fast-forward and
 ```sh
 # >>> erg managed >>>
 # Check the merge result before git records it: a clean merge runs this
-# hook, not pre-commit. A fast-forward or --no-verify runs neither.
-if [ -n "$(git diff --cached --name-only HEAD -- tickets)" ]; then
-    # Run this clone's committed binary (HEAD's blob), never the working
-    # tree's: a merge that changes tickets/erg would otherwise run the
-    # incoming side's binary, unreviewed. An untracked local build is used
-    # only when the merge leaves tickets/erg alone and it is no symlink.
-    erg_bin=
-    if git ls-tree HEAD -- tickets/erg | grep -q '^100755 blob '; then
-        erg_bin=$(git rev-parse --git-path erg-merge-check)
-        erg_from="this clone's committed tickets/erg"
-        if ! { git cat-file blob HEAD:tickets/erg > "$erg_bin" && chmod +x "$erg_bin"; }; then
-            rm -f "$erg_bin" 2>/dev/null || :
-            echo "pre-merge-commit: cannot copy this clone's tickets/erg to $erg_bin; refusing the merge." >&2
-            echo " Free space or fix permissions in the git directory, then retry (bypass: git merge --no-verify)." >&2
-            exit 1
-        fi
-    elif [ -x tickets/erg ] && [ ! -L tickets/erg ] && [ -z "$(git diff --cached --name-only HEAD -- tickets/erg)" ]; then
-        erg_bin=tickets/erg
-        erg_from="the local tickets/erg build"
-    fi
-    if [ -n "$erg_bin" ]; then
-        erg_rc=0
-        "$erg_bin" check tickets/ || erg_rc=$?
-        [ "$erg_bin" = tickets/erg ] || rm -f "$erg_bin"
-        if [ "$erg_rc" -ne 0 ]; then
-            echo "pre-merge-commit: ticket corpus check failed on the merge result (checked by $erg_from)." >&2
-            echo " Fix it and conclude with 'git commit', or abort: git merge --abort." >&2
-            echo " If the merge brings a newer erg whose format this binary rejects, review it, then conclude with 'git commit'." >&2
-            exit 1
-        fi
-    elif [ -e tickets/erg ]; then
-        echo "pre-merge-commit: no trusted tickets/erg to run (only one this merge cannot change runs: HEAD's committed executable, or an untracked build the merge leaves alone, never a symlink);" >&2
-        echo " the claim index check below still runs. Review the new binary before your next commit." >&2
-    else
-        echo "ERROR: tickets/erg not found. Build it from the git-erg source" >&2
-        echo "  (make build there), or 'git pull' if your project vendors the committed binary." >&2
-        exit 1
-    fi
-fi
-
+# hook, not pre-commit. A fast-forward or --no-verify runs neither. Plain sh
+# and awk, no binary; the full corpus check runs at the next ticket commit
+# and in CI.
 erg_hook=pre-merge-commit
-# Every ticket in the index has its ID claim in the index. The index, not
-# the working tree: an untracked claim on disk lets erg check pass while
-# the commit lacks it.
-erg_unclaimed=$(git -c core.quotePath=false ls-files -- tickets | awk '
+# The index keeps the ID claim rules: every ticket number has its claim,
+# and no number is held by two tickets. The index, not the working tree: an
+# untracked claim on disk lets erg check pass while the commit lacks it.
+erg_index=$(git -c core.quotePath=false ls-files -- tickets | awk '
     /^tickets\/\.claims\/[0-9][0-9][0-9][0-9]$/ { claimed[substr($0, length($0) - 3)] = 1; next }
     /^tickets\/(.*\/)?[0-9][0-9][0-9][0-9]-[^\/]*\.erg$/ {
         n = split($0, part, "/")
-        ticket[$0] = substr(part[n], 1, 4)
+        id = substr(part[n], 1, 4)
+        count[id]++
+        held[id] = (count[id] > 1) ? held[id] " " $0 : $0
     }
-    END { for (t in ticket) if (!(ticket[t] in claimed)) print t }' | sort)
-if [ -n "$erg_unclaimed" ]; then
-    echo "$erg_hook: tickets without a claim in the index:" >&2
-    echo "$erg_unclaimed" | sed 's/^/  /' >&2
-    echo " Stage each claim: git add tickets/.claims/NNNN (none yet? run: tickets/erg migrate --claims tickets)" >&2
+    END {
+        for (id in count) {
+            if (count[id] > 1) print "  " id " is held by " count[id] " tickets: " held[id]
+            else if (!(id in claimed)) print "  " held[id] " has no claim"
+        }
+    }' | sort)
+if [ -n "$erg_index" ]; then
+    echo "$erg_hook: the index breaks the ID claim rules:" >&2
+    echo "$erg_index" >&2
+    echo " Stage each missing claim: git add tickets/.claims/NNNN (none yet? run: tickets/erg migrate --claims tickets)." >&2
+    echo " Renumber all but one ticket of a shared number clear of the frontier ('erg integration')." >&2
     exit 1
 fi
 # <<< erg managed <<<

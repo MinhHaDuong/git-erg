@@ -306,14 +306,14 @@ else
 fi
 
 # --- --hooks installs the pre-merge-commit hook (ticket 0307) ---
-# A clean merge runs pre-merge-commit, not pre-commit: the block runs erg
-# check on the merge result and the index claim check.
+# A clean merge runs pre-merge-commit, not pre-commit: the block runs the
+# index claim check, plain sh and awk, and no binary.
 REPO=$(new_repo mergehook)
 $ERG install "$REPO" --hooks >/dev/null 2>&1
 MERGE="$REPO/.git/hooks/pre-merge-commit"
-if [ -x "$MERGE" ] && grep -qF '"$erg_bin" check tickets/' "$MERGE" && grep -qF 'git cat-file blob HEAD:tickets/erg' "$MERGE" &&
-    grep -q "ls-files -- tickets" "$MERGE"; then
-    pass "--hooks installs an executable pre-merge-commit hook with check and the index claim check"
+if [ -x "$MERGE" ] && grep -q "ls-files -- tickets" "$MERGE" &&
+    ! grep -v -e '^[[:space:]]*#' -e 'echo ' "$MERGE" | grep -q 'tickets/erg [a-z]'; then
+    pass "--hooks installs an executable pre-merge-commit hook: the index claim check, no binary run"
 else
     fail "--hooks did not install a complete pre-merge-commit hook"
 fi

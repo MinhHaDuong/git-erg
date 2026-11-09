@@ -22,12 +22,12 @@ piece of wiring requires an explicit opt-in flag:
   --hooks              Install (or upgrade) the pre-commit hook (erg validate
                        + erg check on every commit, rejects tickets/erg on
                        non-default branches, rejects a commit whose index
-                       holds a ticket without its ID claim), the
-                       pre-merge-commit hook (erg check on a merge result
-                       that changes tickets/, and the same index check, so
-                       a clean merge bringing an unclaimed ticket or a
-                       duplicate number is refused locally; a fast-forward
-                       runs no hook) AND the pre-push hook (warns about
+                       holds a ticket without its ID claim or a number two
+                       tickets hold), the pre-merge-commit hook (the same
+                       index check, plain sh and awk, no binary: a clean
+                       merge bringing an unclaimed ticket or a duplicate
+                       number is refused locally; a fast-forward runs no
+                       hook) AND the pre-push hook (warns about
                        closed-but-unarchived tickets, never blocks). Run it
                        after 'erg migrate --claims' and its commit: the
                        claim check rejects every commit in a store whose
@@ -126,82 +126,54 @@ erg_hook=pre-commit
 ` + claimsIndexCheck
 
 // claimsIndexCheck is shared by the pre-commit and pre-merge-commit blocks
-// (ticket 0307): every ticket in the index has its claim in the index. It
-// reads the index, not the working tree, because an untracked claim on disk
-// lets erg check pass while the commit lacks it. The awk program is POSIX
-// (mawk, nawk and busybox agree): four [0-9] instead of an interval, and
-// "(.*\/)?" so tickets under closed/ or any subdirectory count. The caller
-// sets erg_hook to name itself in the message.
-const claimsIndexCheck = `# Every ticket in the index has its ID claim in the index. The index, not
-# the working tree: an untracked claim on disk lets erg check pass while
-# the commit lacks it.
-erg_unclaimed=$(git -c core.quotePath=false ls-files -- tickets | awk '
+// (ticket 0307). It reads the index, not the working tree, because an
+// untracked claim on disk lets erg check pass while the commit lacks it, and
+// reports, keyed by number and wherever the files sit (closed/ included):
+// a ticket whose number has no claim, and a number two or more tickets hold
+// -- what a -X ours merge of a claim conflict leaves behind. The awk program
+// is POSIX (mawk, nawk and busybox agree): four [0-9] instead of an
+// interval, and "(.*\/)?" for any subdirectory. The caller sets erg_hook to
+// name itself in the message.
+const claimsIndexCheck = `# The index keeps the ID claim rules: every ticket number has its claim,
+# and no number is held by two tickets. The index, not the working tree: an
+# untracked claim on disk lets erg check pass while the commit lacks it.
+erg_index=$(git -c core.quotePath=false ls-files -- tickets | awk '
     /^tickets\/\.claims\/[0-9][0-9][0-9][0-9]$/ { claimed[substr($0, length($0) - 3)] = 1; next }
     /^tickets\/(.*\/)?[0-9][0-9][0-9][0-9]-[^\/]*\.erg$/ {
         n = split($0, part, "/")
-        ticket[$0] = substr(part[n], 1, 4)
+        id = substr(part[n], 1, 4)
+        count[id]++
+        held[id] = (count[id] > 1) ? held[id] " " $0 : $0
     }
-    END { for (t in ticket) if (!(ticket[t] in claimed)) print t }' | sort)
-if [ -n "$erg_unclaimed" ]; then
-    echo "$erg_hook: tickets without a claim in the index:" >&2
-    echo "$erg_unclaimed" | sed 's/^/  /' >&2
-    echo " Stage each claim: git add tickets/.claims/NNNN (none yet? run: tickets/erg migrate --claims tickets)" >&2
+    END {
+        for (id in count) {
+            if (count[id] > 1) print "  " id " is held by " count[id] " tickets: " held[id]
+            else if (!(id in claimed)) print "  " held[id] " has no claim"
+        }
+    }' | sort)
+if [ -n "$erg_index" ]; then
+    echo "$erg_hook: the index breaks the ID claim rules:" >&2
+    echo "$erg_index" >&2
+    echo " Stage each missing claim: git add tickets/.claims/NNNN (none yet? run: tickets/erg migrate --claims tickets)." >&2
+    echo " Renumber all but one ticket of a shared number clear of the frontier ('erg integration')." >&2
     exit 1
 fi`
 
 // mergeHookBody is the canonical content placed between the pre-merge-commit
 // hook markers (ticket 0307). A clean merge runs pre-merge-commit, not
 // pre-commit, so a merge that brings in an unclaimed ticket or a duplicate
-// number was refused nowhere but CI. When the merge changes tickets/ it runs
-// erg check on the merge result, then the shared index check. It runs this
-// clone's committed binary (HEAD's blob, copied into the git directory), never
-// the working tree's, which a merge that changes tickets/erg would make the
-// incoming side's, unreviewed (gaze on PR #393). With no trusted binary, the
-// index check (sh and awk only) still runs. A fast-forward
-// and --no-verify run no hook; concluding a refused merge with 'git commit'
-// runs pre-commit, whose index check is the backstop. Like hookBody it has
-// no 'exit 0', so third-party content after the block still runs.
+// number was refused nowhere but CI. In a claims store a clean merge brings a
+// duplicate only through a missing claim or a silenced claim conflict (-X
+// ours, merge=union), and the shared index check catches the first two in sh
+// and awk; it runs no binary, so the merged tree's tickets/erg is never
+// executed. Other corpus defects (dangling refs, cycles) are left to
+// pre-commit's erg check at the next ticket commit and to CI. A fast-forward
+// and --no-verify run no hook. Like hookBody it has no 'exit 0', so
+// third-party content after the block still runs.
 const mergeHookBody = `# Check the merge result before git records it: a clean merge runs this
-# hook, not pre-commit. A fast-forward or --no-verify runs neither.
-if [ -n "$(git diff --cached --name-only HEAD -- tickets)" ]; then
-    # Run this clone's committed binary (HEAD's blob), never the working
-    # tree's: a merge that changes tickets/erg would otherwise run the
-    # incoming side's binary, unreviewed. An untracked local build is used
-    # only when the merge leaves tickets/erg alone and it is no symlink.
-    erg_bin=
-    if git ls-tree HEAD -- tickets/erg | grep -q '^100755 blob '; then
-        erg_bin=$(git rev-parse --git-path erg-merge-check)
-        erg_from="this clone's committed tickets/erg"
-        if ! { git cat-file blob HEAD:tickets/erg > "$erg_bin" && chmod +x "$erg_bin"; }; then
-            rm -f "$erg_bin" 2>/dev/null || :
-            echo "pre-merge-commit: cannot copy this clone's tickets/erg to $erg_bin; refusing the merge." >&2
-            echo " Free space or fix permissions in the git directory, then retry (bypass: git merge --no-verify)." >&2
-            exit 1
-        fi
-    elif [ -x tickets/erg ] && [ ! -L tickets/erg ] && [ -z "$(git diff --cached --name-only HEAD -- tickets/erg)" ]; then
-        erg_bin=tickets/erg
-        erg_from="the local tickets/erg build"
-    fi
-    if [ -n "$erg_bin" ]; then
-        erg_rc=0
-        "$erg_bin" check tickets/ || erg_rc=$?
-        [ "$erg_bin" = tickets/erg ] || rm -f "$erg_bin"
-        if [ "$erg_rc" -ne 0 ]; then
-            echo "pre-merge-commit: ticket corpus check failed on the merge result (checked by $erg_from)." >&2
-            echo " Fix it and conclude with 'git commit', or abort: git merge --abort." >&2
-            echo " If the merge brings a newer erg whose format this binary rejects, review it, then conclude with 'git commit'." >&2
-            exit 1
-        fi
-    elif [ -e tickets/erg ]; then
-        echo "pre-merge-commit: no trusted tickets/erg to run (only one this merge cannot change runs: HEAD's committed executable, or an untracked build the merge leaves alone, never a symlink);" >&2
-        echo " the claim index check below still runs. Review the new binary before your next commit." >&2
-    else
-        echo "ERROR: tickets/erg not found. Build it from the git-erg source" >&2
-        echo "  (make build there), or 'git pull' if your project vendors the committed binary." >&2
-        exit 1
-    fi
-fi
-
+# hook, not pre-commit. A fast-forward or --no-verify runs neither. Plain sh
+# and awk, no binary; the full corpus check runs at the next ticket commit
+# and in CI.
 erg_hook=pre-merge-commit
 ` + claimsIndexCheck
 

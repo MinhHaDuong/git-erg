@@ -47,9 +47,10 @@ through `/verify`.
 - **`new`, `close`, `rm` and `archive` warn** on stderr about the store's
   tickets without a claim, in every clone, hook or no hook. (0307)
 - **Hooks.** The pre-commit block rejects a commit whose index holds a ticket
-  without its claim; `erg install --hooks` also installs a pre-merge-commit
-  block (erg check on the merge result, then the same index check), so a
-  clean merge bringing an unclaimed ticket or a duplicate is refused locally.
+  without its claim or a number two tickets hold; `erg install --hooks` also
+  installs a pre-merge-commit block running the same index check (plain sh
+  and awk, no binary), so a clean merge bringing an unclaimed ticket or a
+  duplicate is refused locally.
   A fast-forward runs no hook; CI is the backstop. Re-run
   `erg install --hooks` to upgrade the managed blocks in place.
   (0306 -- #386, 0307)
