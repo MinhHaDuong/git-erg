@@ -6,6 +6,7 @@ Author: claude
 --- log ---
 2026-11-09T10:37Z claude created
 2026-11-09T10:39Z MinhHaDuong imagine: PROCEED; blind-spot 2 omissions (harness test consumer, residual mid-log insert)
+2026-11-09T10:40Z MinhHaDuong plan + feasibility PASS
 
 --- body ---
 ## Context
@@ -74,3 +75,40 @@ Blind-spot: 2 omissions, neither reverses.
   is no longer flagged by anything; erg itself never produces it, and 44
   false positives on this repo already drowned the signal. Say so in the
   commit message.
+
+## Plan (raid aa12e2)
+
+Actions:
+1. src/go/check.go logShapeIssues (~193-243): return one bool (displaced);
+   delete prevTS/ts/regressive logic and the "ISO-8601 ... lexical" sentence;
+   update the doc comment (rename optional).
+2. src/go/check.go logPlacementWarnings (~158-190): drop the regressive WARN
+   block (184-187); reword the "two advisory shapes" comment to one shape.
+3. src/go/check.go helpCheck (~343-344): delete the regressive bullet.
+4. `make docs` regenerates docs/erg-manual.md (line 119); no hand edit.
+5. src/go/check_test.go TestLogPlacementWarnings: see First test.
+6. Commit message states the residual (mid-log hand insert no longer
+   flagged); PR body names the harness ticket for
+   ~/.agents/tests/test_erg_log_placement.py:103-111.
+
+First test (red): rename subtest "regressive timestamps warn and stay
+advisory" to "regressive timestamps draw no warning"; keep its
+0003-regressive.erg fixture; want w == nil and no "regressive" substring.
+Current code yields one WARN, so it fails for the targeted reason. Replace
+"displaced and regressive on one file warn in that order" with a
+displaced-with-older-stamp variant asserting exactly one WARN with the
+displaced prefix. Remove "equal consecutive timestamps are not regressive".
+
+Antipattern scan: the kept "displaced entry ... warns once" and the new
+displaced-with-older-stamp case pin the displaced WARN, so an implementation
+that deletes all warnings goes red; a message-text-only change fails w == nil.
+
+Verification: make test (runs tests/test_docs.sh); make validate;
+grep -ri regressive src docs (expect none).
+
+## Feasibility (raid aa12e2)
+
+PASS. Paths, line ranges and functions confirmed on 57d7be4 (check.go
+169/179/184/199/243/343; check_test.go 109/124/151; erg-manual.md 119;
+Makefile docs/test/validate targets). Single ticket: no cross-ticket
+conflict, no shared registry, no coordination PR.
