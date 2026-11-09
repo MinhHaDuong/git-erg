@@ -130,10 +130,10 @@ fi
 git checkout -q -b b-ours b
 if git merge -q --no-edit -X ours origin/main >/dev/null 2>&1; then
     out=$("$ERG_ABS" check tickets 2>&1) && rc=0 || rc=$?
-    if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "names slug \"beta\", not \"alpha\""; then
-        pass "-X ours: two tickets under one claim fail erg check on the slug mismatch"
+    if [ "$rc" -ne 0 ] && echo "$out" | grep -F "duplicate ID '$NB'" | grep -qF "renumber all but one"; then
+        pass "-X ours: two tickets under one claim fail erg check as a duplicate, with the renumber fix"
     else
-        fail "-X ours: erg check did not report the slug mismatch (rc=$rc: $out)"
+        fail "-X ours: erg check did not report the duplicate with its renumber fix (rc=$rc: $out)"
     fi
 else
     fail "-X ours: the merge did not go through, so the silencing is untested"
