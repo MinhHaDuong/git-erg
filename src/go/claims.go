@@ -461,11 +461,7 @@ func claimUntracked(store, name string) bool {
 //
 // byID is ticketPathsByID(store), walked once by the caller.
 func migrateBlockers(store string, byID map[string][]string) []string {
-	ids := make([]string, 0, len(byID))
-	for id := range byID {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
+	ids := sortedKeys(byID)
 	var blockers []string
 	for _, id := range ids {
 		if paths := byID[id]; len(paths) > 1 {
@@ -478,12 +474,7 @@ func migrateBlockers(store string, byID map[string][]string) []string {
 	case err == nil:
 		claims, malformed, errs := readClaims(store)
 		blockers = append(blockers, errs...)
-		names := make([]string, 0, len(malformed))
-		for name := range malformed {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		for _, name := range names {
+		for _, name := range sortedKeys(malformed) {
 			path := filepath.Join(claimsDir(store), name)
 			if fi, lerr := os.Lstat(path); lerr == nil && fi.Mode().IsRegular() && claimUntracked(store, name) {
 				blockers = append(blockers, fmt.Sprintf("%s is not committed: a partial write from an interrupted erg? rm %s, then re-run", path, path))
@@ -525,11 +516,7 @@ func migrateClaims(store string, byID map[string][]string) (written, kept int, b
 	if err := ensureClaimsDir(store); err != nil {
 		return 0, 0, nil, err
 	}
-	ids := make([]string, 0, len(byID))
-	for id := range byID {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
+	ids := sortedKeys(byID)
 	for _, id := range ids {
 		path := byID[id][0]
 		slug := ticketSlug(filepath.Base(path))
