@@ -35,6 +35,20 @@ export ERG_AUTHOR=tester
 # created FILE-OF-STDOUT -> the NNNN of the CREATED line
 created_id() { sed -n 's/^CREATED \([0-9][0-9][0-9][0-9]\)-.*/\1/p' "$1"; }
 
+# plain_ticket DIR NNNN-slug [DATE [closed]]: a hand-written ticket, so a
+# store without .claims/ can be populated without the binary (which refuses
+# there, ticket 0307).
+plain_ticket() {
+    d=${3:-2026-11-08}
+    if [ "${4:-}" = closed ]; then
+        mkdir -p "$1/closed"
+        printf '%%erg 0.1\nTitle: %s\nCreated: %s\nAuthor: a\nClosed: done\n\n--- log ---\n%sT00:00Z a created\n\n--- body ---\n' "$2" "$d" "$d" > "$1/closed/$2.erg"
+    else
+        mkdir -p "$1"
+        printf '%%erg 0.1\nTitle: %s\nCreated: %s\nAuthor: a\n\n--- log ---\n%sT00:00Z a created\n\n--- body ---\n' "$2" "$d" "$d" > "$1/$2.erg"
+    fi
+}
+
 # conflicted PATH: is PATH an unmerged add/add ("AA") entry right now?
 conflicted() { git status --porcelain -- "$1" | grep -q "^AA "; }
 
@@ -278,8 +292,7 @@ fi
 IGM="$TDIR/igm"
 git init -q "$IGM"
 cp "$IGN/.gitignore" "$IGM/.gitignore"
-mkdir -p "$IGM/tickets"
-"$ERG_ABS" new "existing" "$IGM/tickets" >/dev/null 2>&1
+plain_ticket "$IGM/tickets" 0001-existing
 out=$(cd "$IGM" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
 if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "git ignores tickets/.claims/.keep," && [ ! -e "$IGM/tickets/.claims" ]; then
     pass "ignored claim path: migrate --claims refuses, names a file it would write, creates nothing"
@@ -291,12 +304,12 @@ git init -q "$IGI"
 cp "$IGN/.gitignore" "$IGI/.gitignore"
 mkdir -p "$IGI/tickets"
 cp "$ERG_ABS" "$IGI/tickets/erg"
-out=$("$ERG_ABS" init "$IGI" 2>&1) || true
-if [ ! -e "$IGI/tickets/.claims" ] && echo "$out" | grep -qF "not creating tickets/.claims/" &&
+out=$("$ERG_ABS" init "$IGI" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && [ ! -e "$IGI/tickets/.claims" ] && echo "$out" | grep -qF "not creating tickets/.claims/" &&
     echo "$out" | grep -qF "tickets/.claims/.keep,"; then
-    pass "ignored claim path: init leaves claims off and names the .keep it would write"
+    pass "ignored claim path: init exits 1, creates no .claims/, names the .keep it would write"
 else
-    fail "ignored claim path: init created .claims/ or stayed silent ($out)"
+    fail "ignored claim path: init created .claims/, exited 0 or stayed silent (rc=$rc: $out)"
 fi
 
 printf '!tickets/.claims/\n!tickets/.claims/*\n' >> "$IGN/.gitignore"
@@ -306,25 +319,25 @@ else
     fail "ignored claim path: still refused after allowlisting .claims/"
 fi
 
-# --- without .claims/: no claim, no requirement, a hint ---
+# --- without .claims/: the store is noncompliant; new and check name the repair ---
 OFF="$TDIR/off"
-mkdir -p "$OFF"
-out=$("$ERG_ABS" new "plain" "$OFF" 2>&1 >/dev/null)
-if [ ! -e "$OFF/.claims" ] && echo "$out" | grep -qF "erg migrate --claims"; then
-    pass "claims off: erg new writes no claim and hints at the migration"
+plain_ticket "$OFF" 0001-plain
+out=$("$ERG_ABS" new "refused" "$OFF" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && [ ! -e "$OFF/.claims" ] && [ "$(ls "$OFF")" = "0001-plain.erg" ] &&
+    echo "$out" | grep -qF "run: erg migrate --claims $OFF"; then
+    pass "no .claims/: erg new refuses, writes nothing, names erg migrate --claims"
 else
-    fail "claims off: unexpected claim or missing hint ($out)"
+    fail "no .claims/: erg new did not refuse cleanly (rc=$rc: $out)"
 fi
-if "$ERG_ABS" check "$OFF" >/dev/null 2>&1; then
-    pass "claims off: erg check requires no claim"
+out=$("$ERG_ABS" check "$OFF" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "has no .claims/: ID claims are required -- run: erg migrate --claims $OFF"; then
+    pass "no .claims/: erg check fails, naming erg migrate --claims"
 else
-    fail "claims off: erg check failed on a claimless store"
+    fail "no .claims/: erg check did not fail with the repair (rc=$rc: $out)"
 fi
 
 # --- migrate --claims: populates open and closed, idempotent, refuses shared ---
-mkdir -p "$OFF/closed"
-"$ERG_ABS" new "second" "$OFF" >/dev/null 2>&1
-"$ERG_ABS" close 0002 "done" "$OFF" >/dev/null 2>&1
+plain_ticket "$OFF" 0002-second 2026-11-08 closed
 "$ERG_ABS" migrate --claims "$OFF" >/dev/null 2>&1 && rc=0 || rc=$?
 if [ "$rc" -eq 0 ] && grep -q '^plain ' "$OFF/.claims/0001" && grep -q '^second ' "$OFF/.claims/0002" &&
     "$ERG_ABS" check "$OFF" >/dev/null 2>&1; then
@@ -341,8 +354,7 @@ else
     fail "migrate --claims: a second run changed .claims/"
 fi
 DUP="$TDIR/dup"
-mkdir -p "$DUP"
-"$ERG_ABS" new "one" "$DUP" >/dev/null 2>&1
+plain_ticket "$DUP" 0001-one
 cp "$DUP/0001-one.erg" "$DUP/0001-other.erg"
 out=$("$ERG_ABS" migrate --claims "$DUP" 2>&1) && rc=0 || rc=$?
 if [ "$rc" -ne 0 ] && [ ! -e "$DUP/.claims/0001" ] && echo "$out" | grep -qF "0001-other.erg"; then
@@ -351,7 +363,7 @@ else
     fail "migrate --claims: shared number not refused (rc=$rc: $out)"
 fi
 
-# --- erg init switches claims on only in an empty store ---
+# --- erg init: creates .claims/ in an empty store; refuses a populated one ---
 NEWP="$TDIR/newp"
 mkdir -p "$NEWP/tickets"
 cp "$ERG_ABS" "$NEWP/tickets/erg"
@@ -359,12 +371,18 @@ cp "$ERG_ABS" "$NEWP/tickets/erg"
 OLDP="$TDIR/oldp"
 mkdir -p "$OLDP/tickets"
 cp "$ERG_ABS" "$OLDP/tickets/erg"
-"$ERG_ABS" new "existing" "$OLDP/tickets" >/dev/null 2>&1
-"$ERG_ABS" init "$OLDP" >/dev/null 2>&1 || true
-if [ -f "$NEWP/tickets/.claims/.keep" ] && [ ! -e "$OLDP/tickets/.claims" ]; then
-    pass "erg init: creates .claims/.keep in an empty store, not in one with tickets"
+plain_ticket "$OLDP/tickets" 0001-existing
+out=$(cd "$OLDP" && "$ERG_ABS" init 2>&1) && rc=0 || rc=$?
+if [ -f "$NEWP/tickets/.claims/.keep" ]; then
+    pass "erg init: creates .claims/.keep in an empty store"
 else
-    fail "erg init: .claims/ creation wrong (new: $(ls -A "$NEWP/tickets"), old: $(ls -A "$OLDP/tickets"))"
+    fail "erg init: no .claims/.keep in an empty store ($(ls -A "$NEWP/tickets"))"
+fi
+if [ "$rc" -eq 1 ] && [ ! -e "$OLDP/tickets/.claims" ] && [ -f "$OLDP/tickets/AGENTS.md" ] &&
+    echo "$out" | grep -qF "run: erg migrate --claims tickets"; then
+    pass "erg init: a populated store without .claims/ gets its assets, then exit 1 naming migrate"
+else
+    fail "erg init: populated store without .claims/ (rc=$rc, assets: $(ls -A "$OLDP/tickets"): $out)"
 fi
 
 # --- two branches migrate one base: the claims are identical, no conflict ---
@@ -372,11 +390,9 @@ fi
 # Created), so the same base migrated twice writes the same bytes.
 TWO="$TDIR/two"
 git init -q "$TWO"
-mkdir -p "$TWO/tickets/closed"
-for t in 0001-first 0002-second; do
-    printf '%%erg 0.1\nTitle: %s\nCreated: 2026-11-08\nAuthor: a\n\n--- log ---\n2026-11-08T00:00Z a created\n\n--- body ---\n' "$t" > "$TWO/tickets/$t.erg"
-done
-printf '%%erg 0.1\nTitle: third\nCreated: 2026-11-07\nAuthor: a\nClosed: done\n\n--- log ---\n2026-11-07T00:00Z a created\n\n--- body ---\n' > "$TWO/tickets/closed/0003-third.erg"
+plain_ticket "$TWO/tickets" 0001-first
+plain_ticket "$TWO/tickets" 0002-second
+plain_ticket "$TWO/tickets" 0003-third 2026-11-07 closed
 (cd "$TWO" && git add tickets && git commit -q -m base &&
     git checkout -q -b x && "$ERG_ABS" migrate --claims tickets >/dev/null 2>&1 &&
     git add tickets && git commit -q -m "migrate on x" &&

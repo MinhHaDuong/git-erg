@@ -284,12 +284,15 @@ func TestCmdNewWritesClaim(t *testing.T) {
 	}
 }
 
-func TestCmdNewNoClaimWithoutClaimsDir(t *testing.T) {
+// TestCmdNewRefusesWithoutClaimsDir: a store without .claims/ is
+// noncompliant (ticket 0307); new writes nothing there, not even .claims/.
+func TestCmdNewRefusesWithoutClaimsDir(t *testing.T) {
 	dir := t.TempDir()
-	if code := cmdNew([]string{"claim me", dir, "--author", "alice"}); code != 0 {
-		t.Fatalf("cmdNew returned %d, want 0", code)
+	if code := cmdNew([]string{"claim me", dir, "--author", "alice"}); code == 0 {
+		t.Fatal("cmdNew returned 0 in a store without .claims/")
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".claims")); !os.IsNotExist(err) {
-		t.Errorf("a store without .claims/ gained one (err=%v)", err)
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 0 {
+		t.Errorf("a refused new wrote %v", entries)
 	}
 }

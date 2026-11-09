@@ -70,7 +70,8 @@ func TestClaimViolations(t *testing.T) {
 		claims  map[string]string // id -> content; nil map = no .claims/
 		want    []string          // substrings, one per expected violation
 	}{
-		{"claims off: no claim required", []string{"0001-a.erg"}, nil, nil},
+		{"no .claims/: the store fails, naming the repair", []string{"0001-a.erg"}, nil,
+			[]string{"has no .claims/: ID claims are required -- run: erg migrate --claims"}},
 		{"claimed ticket passes", []string{"0001-a.erg"}, map[string]string{"0001": "a 0123abcd\n"}, nil},
 		{"closed ticket claimed passes", []string{"closed/0001-a.erg"}, map[string]string{"0001": "a 0123abcd\n"}, nil},
 		{"any second field accepted", []string{"0001-a.erg"}, map[string]string{"0001": "a 1762560000\n"}, nil},
@@ -154,8 +155,8 @@ func TestClaimsSymlinkRefused(t *testing.T) {
 	if err := os.Symlink(outside, claimsDir(dir)); err != nil {
 		t.Skip("symlinks unsupported:", err)
 	}
-	if _, err := claimsActive(dir); err == nil {
-		t.Fatal("claimsActive followed a symlinked .claims")
+	if err := requireClaims(dir); err == nil {
+		t.Fatal("requireClaims followed a symlinked .claims")
 	}
 	if code := cmdNew([]string{"x", dir, "--author", "a"}); code == 0 {
 		t.Fatal("erg new wrote through a symlinked .claims")

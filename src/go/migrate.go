@@ -88,8 +88,8 @@ Does NOT commit. Exits 1 on archive/->closed/ filename collision (both directori
 Review the diff with 'git diff tickets/' and commit manually.
 
   --claims
-      Switch ID claims on for the store (see 'erg new') and run nothing else:
-      create DIR/.claims/ with a .keep file, then write DIR/.claims/NNNN (the
+      Bring the store to the required ID claims (see 'erg new') and run
+      nothing else: create DIR/.claims/ with a .keep file, then write DIR/.claims/NNNN (the
       slug and a nonce derived from the ticket's number, slug and Created
       date) for every existing ticket, open and closed, so the numbers already
       used are claimed from the first day. The derived nonce makes two clones
@@ -100,7 +100,7 @@ Review the diff with 'git diff tickets/' and commit manually.
       are reported and the command exits 1; renumber one of them clear of the
       frontier ('erg integration'), then re-run. Commit DIR/.claims/ with the
       tickets. Refuses, writing nothing, when git ignores the claims path.
-      Bare 'erg migrate' never switches claims on.
+      Bare 'erg migrate' never writes claims.
 `
 
 // cmdMigrate implements `erg migrate [dir]`. See helpMigrate for the user-facing summary.

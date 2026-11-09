@@ -181,10 +181,9 @@ find "$SEQDIR" -delete 2>/dev/null || true
 # --- Concurrent N=10: parallel erg new with distinct titles produces distinct IDs ---
 # Uses a named pipe barrier to start all workers simultaneously.
 # CDIR is outside the repo so nextID Pass 2/3 (sibling worktrees/branches) does
-# not inject existing IDs and break the assertions. It runs on both kinds of
-# store (ticket 0306): with .claims/, the exclusive create of the claim keeps
-# racing workers apart; without it, the glob post-check does (a release that
-# dropped it gave all 10 workers one number).
+# not inject existing IDs and break the assertions. In a claims store (every
+# store, ticket 0307) the exclusive create of the claim keeps racing workers
+# apart; a store without .claims/ refuses every worker and gains nothing.
 concurrent_n10() {
     mode=$1
     CDIR=$(mktemp -d)
@@ -197,7 +196,7 @@ concurrent_n10() {
     for i in 1 2 3 4 5 6 7 8 9 10; do
         (
             read -r _ < "$BARRIER" 2>/dev/null || true
-            $ERG new "Concurrent worker title $i" "$CDIR" > "$OUTDIR/out.$i" 2>/dev/null
+            $ERG new "Concurrent worker title $i" "$CDIR" > "$OUTDIR/out.$i" 2> "$OUTDIR/err.$i"
         ) &
     done
 
@@ -210,13 +209,29 @@ concurrent_n10() {
 
     rm -f "$BARRIER"
 
-    # Count how many workers produced a CREATED line.
+    # Count how many workers produced a CREATED line, and how many were
+    # refused for the missing .claims/.
     concurrent_created=0
+    concurrent_refused=0
     for i in 1 2 3 4 5 6 7 8 9 10; do
         if grep -q "^CREATED " "$OUTDIR/out.$i" 2>/dev/null; then
             concurrent_created=$((concurrent_created + 1))
         fi
+        if grep -qF "has no .claims/: ID claims are required -- run: erg migrate --claims $CDIR" "$OUTDIR/err.$i" 2>/dev/null; then
+            concurrent_refused=$((concurrent_refused + 1))
+        fi
     done
+    CTOTAL=$(ls "$CDIR"/*.erg 2>/dev/null | wc -l)
+
+    if [ "$mode" = no-claims ]; then
+        if [ "$concurrent_refused" -eq 10 ] && [ "$CTOTAL" -eq 0 ] && [ ! -e "$CDIR/.claims" ]; then
+            pass "concurrent N=10 (no .claims/): all 10 workers refused, naming the repair; nothing written"
+        else
+            fail "concurrent N=10 (no .claims/): refused=$concurrent_refused files=$CTOTAL, want 10 refusals and no file"
+        fi
+        rm -rf "$CDIR" "$OUTDIR"
+        return 0
+    fi
 
     if [ "$concurrent_created" -eq 10 ]; then
         pass "concurrent N=10 ($mode): all 10 workers produced CREATED"
@@ -229,20 +244,15 @@ concurrent_n10() {
     if [ "$CUNIQ" -eq 10 ]; then
         pass "concurrent N=10 ($mode): all 10 NNNN prefixes are distinct"
     else
-        CTOTAL=$(ls "$CDIR"/*.erg 2>/dev/null | wc -l)
         fail "concurrent N=10 ($mode): expected 10 distinct IDs, got $CUNIQ unique out of $CTOTAL files"
     fi
 
-    if [ "$mode" = claims ]; then
-        # Every worker's number is claimed exactly once.
-        CCLAIMS=$(ls "$CDIR/.claims" 2>/dev/null | wc -l)
-        if [ "$CCLAIMS" -eq 10 ]; then
-            pass "concurrent N=10 ($mode): 10 claims, one per ticket"
-        else
-            fail "concurrent N=10 ($mode): expected 10 claims, got $CCLAIMS"
-        fi
-    elif [ -e "$CDIR/.claims" ]; then
-        fail "concurrent N=10 ($mode): a claims-off store gained .claims/"
+    # Every worker's number is claimed exactly once.
+    CCLAIMS=$(ls "$CDIR/.claims" 2>/dev/null | wc -l)
+    if [ "$CCLAIMS" -eq 10 ]; then
+        pass "concurrent N=10 ($mode): 10 claims, one per ticket"
+    else
+        fail "concurrent N=10 ($mode): expected 10 claims, got $CCLAIMS"
     fi
 
     # erg check must pass on the resulting store.
