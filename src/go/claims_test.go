@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,6 +26,34 @@ func writeClaimTestTicket(t *testing.T, dir, name string) {
 	}
 }
 
+// claimStore makes dir a compliant store with plain files, as a hand would:
+// .claims/.keep and, for every ticket already in dir that has no claim, one
+// "SLUG 00000000" claim. Fixtures call it so a test fails for its own defect,
+// not for the store's missing .claims/ (ticket 0307).
+func claimStore(t testing.TB, dir string) {
+	t.Helper()
+	cd := claimsDir(dir)
+	if err := os.MkdirAll(cd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cd, claimsKeepName), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	byID, err := ticketPathsByID(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, paths := range byID {
+		p := filepath.Join(cd, id)
+		if _, err := os.Lstat(p); err == nil {
+			continue
+		}
+		if err := os.WriteFile(p, []byte(ticketSlug(filepath.Base(paths[0]))+" 00000000\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func writeTestClaim(t *testing.T, dir, id, content string) {
 	t.Helper()
 	if err := os.MkdirAll(claimsDir(dir), 0o755); err != nil {
@@ -42,7 +71,8 @@ func TestClaimViolations(t *testing.T) {
 		claims  map[string]string // id -> content; nil map = no .claims/
 		want    []string          // substrings, one per expected violation
 	}{
-		{"claims off: no claim required", []string{"0001-a.erg"}, nil, nil},
+		{"no .claims/: the store fails, naming the repair", []string{"0001-a.erg"}, nil,
+			[]string{"has no .claims/: ID claims are required -- run: erg migrate --claims"}},
 		{"claimed ticket passes", []string{"0001-a.erg"}, map[string]string{"0001": "a 0123abcd\n"}, nil},
 		{"closed ticket claimed passes", []string{"closed/0001-a.erg"}, map[string]string{"0001": "a 0123abcd\n"}, nil},
 		{"any second field accepted", []string{"0001-a.erg"}, map[string]string{"0001": "a 1762560000\n"}, nil},
@@ -59,8 +89,9 @@ func TestClaimViolations(t *testing.T) {
 			[]string{"claim must be exactly one line"}},
 		{"slug mismatch", []string{"0001-a.erg"}, map[string]string{"0001": "b x\n"},
 			[]string{`0001-a.erg: claim`, `names slug "b", not "a"`}},
-		{"two tickets under one claim (-X ours)", []string{"0001-a.erg", "0001-b.erg"}, map[string]string{"0001": "a x\n"},
-			[]string{`0001-b.erg: claim`}},
+		// Reported once, by the duplicate-ID rule with its renumber hint
+		// (TestCheckDuplicateHintSaysRenumber), not as a claim violation.
+		{"two tickets under one claim (-X ours): left to the duplicate rule", []string{"0001-a.erg", "0001-b.erg"}, map[string]string{"0001": "a x\n"}, nil},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -126,8 +157,8 @@ func TestClaimsSymlinkRefused(t *testing.T) {
 	if err := os.Symlink(outside, claimsDir(dir)); err != nil {
 		t.Skip("symlinks unsupported:", err)
 	}
-	if _, err := claimsActive(dir); err == nil {
-		t.Fatal("claimsActive followed a symlinked .claims")
+	if err := requireClaims(dir); err == nil {
+		t.Fatal("requireClaims followed a symlinked .claims")
 	}
 	if code := cmdNew([]string{"x", dir, "--author", "a"}); code == 0 {
 		t.Fatal("erg new wrote through a symlinked .claims")
@@ -268,20 +299,53 @@ func TestMigrateClaims(t *testing.T) {
 	}
 }
 
+// TestMigrationNonce pins the derived nonce to a literal computed outside
+// the function (printf '0001 a 2026-11-08' | sha256sum | cut -c1-8): two
+// clones that migrate the same ticket must write the same claim, or their
+// independent migrations add/add-conflict on every claim.
+func TestMigrationNonce(t *testing.T) {
+	if got := migrationNonce("0001", "a", "2026-11-08"); got != "b298394c" {
+		t.Errorf("migrationNonce = %q, want b298394c", got)
+	}
+	dir := t.TempDir()
+	writeClaimTestTicket(t, dir, "0001-a.erg")
+	if _, _, _, err := migrateClaims(dir, mustTicketPaths(t, dir)); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(claimsDir(dir), "0001"))
+	if string(data) != "a b298394c\n" {
+		t.Errorf("migrated claim = %q, want the derived nonce", data)
+	}
+	// A ticket without a Created header still gets a deterministic claim:
+	// the nonce of an empty date, not a random one.
+	bare := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bare, "0002-b.erg"), []byte("%erg 0.1\nTitle: T\nAuthor: a\n\n--- log ---\n--- body ---\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := migrateClaims(bare, mustTicketPaths(t, bare)); err != nil {
+		t.Fatal(err)
+	}
+	data, _ = os.ReadFile(filepath.Join(claimsDir(bare), "0002"))
+	if want := "b " + migrationNonce("0002", "b", "") + "\n"; string(data) != want {
+		t.Errorf("claim for a ticket without Created = %q, want %q", data, want)
+	}
+}
+
 func TestMigrateClaimsRefusesSharedNumber(t *testing.T) {
 	dir := t.TempDir()
 	writeClaimTestTicket(t, dir, "0001-a.erg")
 	writeClaimTestTicket(t, dir, "0002-b.erg")
 	writeClaimTestTicket(t, dir, "closed/0002-c.erg")
-	written, _, shared, err := migrateClaims(dir, mustTicketPaths(t, dir))
+	written, _, blockers, err := migrateClaims(dir, mustTicketPaths(t, dir))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if written != 1 || len(shared) != 1 || len(shared[0]) != 2 {
-		t.Fatalf("written=%d shared=%v, want 1 written and one shared pair", written, shared)
+	if written != 0 || len(blockers) != 1 || !strings.Contains(blockers[0], "0002 is held by 2 tickets") {
+		t.Fatalf("written=%d blockers=%v, want nothing written and the shared pair as the one blocker", written, blockers)
 	}
-	if _, err := os.Stat(filepath.Join(claimsDir(dir), "0002")); !os.IsNotExist(err) {
-		t.Errorf("a claim was written for the shared number 0002 (err=%v)", err)
+	// The precheck writes nothing at all: not even 0001's claim or .claims/.
+	if _, err := os.Stat(claimsDir(dir)); !os.IsNotExist(err) {
+		t.Errorf("a blocked migrate created .claims/ (err=%v)", err)
 	}
 	if code := cmdMigrate([]string{"--claims", dir}); code == 0 {
 		t.Error("erg migrate --claims exited 0 on a shared number")
@@ -309,14 +373,14 @@ func TestWriteClaimWithoutHardLinks(t *testing.T) {
 	if err := os.Mkdir(claimsDir(dir), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeClaim(dir, "0001", "a"); err != nil {
+	if err := writeClaim(dir, "0001", "a", "0123abcd"); err != nil {
 		t.Fatalf("writeClaim without hard links: %v", err)
 	}
 	data, _ := os.ReadFile(filepath.Join(claimsDir(dir), "0001"))
 	if !strings.HasPrefix(string(data), "a ") {
 		t.Errorf("claim = %q", data)
 	}
-	if err := writeClaim(dir, "0001", "b"); !os.IsExist(err) {
+	if err := writeClaim(dir, "0001", "b", "0123abcd"); !os.IsExist(err) {
 		t.Errorf("second claim of 0001: err = %v, want EEXIST", err)
 	}
 }
@@ -328,4 +392,67 @@ func mustTicketPaths(t *testing.T, dir string) map[string][]string {
 		t.Fatal(err)
 	}
 	return byID
+}
+
+// TestMigrateBlocksNumberedDirectory: a directory named like a claim inside
+// .claims/ is a blocker, not a claim migrate can write over (gaze finding on
+// PR #393: it slipped past the precheck and migrate failed halfway).
+func TestMigrateBlocksNumberedDirectory(t *testing.T) {
+	dir := t.TempDir()
+	writeClaimTestTicket(t, dir, "0001-a.erg")
+	writeClaimTestTicket(t, dir, "0002-b.erg")
+	if err := os.MkdirAll(filepath.Join(claimsDir(dir), "0002"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	written, _, blockers, err := migrateClaims(dir, mustTicketPaths(t, dir))
+	if err != nil || written != 0 || len(blockers) != 1 || !strings.Contains(blockers[0], "is a directory") {
+		t.Fatalf("written=%d blockers=%v err=%v, want the directory as the one blocker and nothing written", written, blockers, err)
+	}
+	if _, err := os.Stat(filepath.Join(claimsDir(dir), "0001")); !os.IsNotExist(err) {
+		t.Errorf("a blocked migrate wrote 0001 (err=%v)", err)
+	}
+}
+
+// TestWarnUnclaimedStoreNamedClosed: the closed/ rule (a FILE inside a
+// store's closed/ resolves closed/ as its directory) must not misfire on a
+// store whose own directory is named closed.
+func TestWarnUnclaimedStoreNamedClosed(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "closed")
+	writeClaimTestTicket(t, dir, "0001-a.erg")
+	claimStore(t, dir)
+	writeClaimTestTicket(t, dir, "0002-b.erg")
+	_, stderr := captureOutput(t, func() { warnUnclaimed("close", dir) })
+	if !strings.Contains(stderr, "1 ticket without a claim: 0002-b.erg") || strings.Contains(stderr, "has no .claims/") {
+		t.Errorf("warning for a store named closed: %q", stderr)
+	}
+}
+
+// TestCmdNewNamesNumberedDirectory: a directory named like the next claim
+// makes new fail at once naming it, not after 20 "contention" retries.
+func TestCmdNewNamesNumberedDirectory(t *testing.T) {
+	dir := t.TempDir()
+	claimStore(t, dir)
+	if err := os.Mkdir(filepath.Join(claimsDir(dir), "0001"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var code int
+	_, stderr := captureOutput(t, func() { code = cmdNew([]string{"x", dir, "--author", "a"}) })
+	if code == 0 || !strings.Contains(stderr, "is a directory, not a claim file") {
+		t.Errorf("cmdNew = %d, stderr %q; want a refusal naming the directory", code, stderr)
+	}
+}
+
+// TestWarnUnclaimedCapsTheList pins the capped list: five names in order,
+// then a count of the rest.
+func TestWarnUnclaimedCapsTheList(t *testing.T) {
+	dir := t.TempDir()
+	claimStore(t, dir)
+	for i := 1; i <= 7; i++ {
+		writeClaimTestTicket(t, dir, fmt.Sprintf("%04d-t%d.erg", i, i))
+	}
+	_, stderr := captureOutput(t, func() { warnUnclaimed("close", dir) })
+	want := "close: warning: 7 tickets without a claim: 0001-t1.erg, 0002-t2.erg, 0003-t3.erg, 0004-t4.erg, 0005-t5.erg and 2 more -- run: erg migrate --claims " + dir + "\n"
+	if stderr != want {
+		t.Errorf("warning =\n%q\nwant\n%q", stderr, want)
+	}
 }

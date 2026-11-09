@@ -78,7 +78,9 @@ Corpus-level integrity checks across the full ticket store.
 Unlike erg validate (which checks individual files), check loads all .erg files
 under DIR recursively and verifies invariants that require a global view:
 
-  - No duplicate ticket IDs across the corpus.
+  - No duplicate ticket IDs across the corpus. The message says to renumber
+    all but one clear of the frontier; a number two tickets share gets no
+    claim message, since a claim written for both would conflict again.
   - All Blocked-by local refs point to tickets that exist in the corpus.
   - tickets/AGENTS.md is not locally edited. erg ships and upgrades that file,
     so a local edit is lost at the next init; put project-specific lore in
@@ -89,14 +91,17 @@ under DIR recursively and verifies invariants that require a global view:
   - No dependency cycles among Blocked-by edges.
   - All per-ticket format rules (delegates to validateCorpus, which folds in parser-emitted errors).
 
-  - ID claims, when DIR/.claims/ exists (see 'erg new'): every claim is
-    exactly one line; its first field is the slug of the ticket with its
-    number; every ticket has a claim (the message prints the plain-file fix,
-    so a hand-made ticket needs no binary). A claim without a ticket passes:
-    claims outlive close, rm and archive. These catch a silenced add/add
-    conflict on a claim: a merge with -X ours lands two tickets under one
-    claim (slug mismatch), a merge=union attribute writes a two-line claim.
-    Without .claims/, no claim is required.
+  - ID claims (see 'erg new'): DIR/.claims/ exists -- a store without it
+    fails, and the message names the repair, 'erg migrate --claims DIR';
+    every claim is exactly one line; its first field is the slug of the
+    ticket with its number; every ticket has a claim (the message names
+    'erg migrate --claims DIR' and the plain-file fix, so a hand-made ticket
+    needs no binary). A claim without a ticket passes: claims outlive close,
+    rm and archive. These catch a silenced add/add conflict on a claim: a
+    merge with -X ours lands two tickets on one number (a duplicate ID), a
+    merge=union attribute writes a two-line claim.
+    DIR is the store root: a subdirectory such as DIR/closed/ is not a
+    store and fails for want of its .claims/.
 
   - Folder/header closure: open ticket in closed/ or closed ticket not in
     closed/ (a hand-edited Closed: header that was not filed -- erg close now
@@ -256,10 +261,9 @@ view; next-id itself never makes a network call.
 
 ID allocation is still optimistic: two concurrent invocations in different
 worktrees may return the same ID -- the cross-worktree window has narrowed
-but is not eliminated. In a store with .claims/, the second branch to merge
-or rebase then meets an add/add conflict on DIR/.claims/NNNN; without it,
-'erg check' reports the duplicate ID once both tickets share a tree. The
-later claimant renumbers clear of the frontier ('erg integration').
+but is not eliminated. The second branch to merge or rebase then meets an
+add/add conflict on DIR/.claims/NNNN. The later claimant renumbers clear of
+the frontier ('erg integration').
 
 ## erg new TITLE [DIR] [--author NAME]
 
@@ -270,8 +274,8 @@ for the highest numeric .erg filename prefix, then creates a file named
 NNNN-{slug}.erg where the slug is the title lowercased and kebab-cased (truncated
 to 40 characters).
 
-When DIR holds a .claims/ directory, ID claims are on (ticket 0306): new
-first creates DIR/.claims/NNNN, one line holding the slug, a space and a
+ID claims are required (tickets 0306, 0307): new first creates
+DIR/.claims/NNNN, one line holding the slug, a space and a
 random 8-hex-digit nonce, then the ticket. The claim is published with an
 exclusive create (a hard link from a temp file, which fails like O_EXCL when
 the name exists), so two invocations racing for one number in the same
@@ -281,16 +285,13 @@ existing file is never clobbered. Two branches that take the same number add
 the same claim path with different content, so git reports an add/add
 conflict when the second one is merged or rebased. Stage both files: the
 'git add' line is printed on stderr. new refuses when git ignores the claim
-path, since the claim would then never be committed.
-
-Without .claims/, new writes no claim and prints a hint on stderr: run
-'erg migrate --claims' to switch claims on. Such a store keeps the
-optimistic post-check retry loop: O_EXCL writes the file, then a glob for
-NNNN-*.erg checks that no concurrent invocation in the same directory took
-the same ID under another slug; the losing invocation removes its own file
-and retries with the next free ID (up to 20 attempts). Two checkouts that
-take the same number under different titles are not detected until a tree
-holding both tickets is checked ('erg check').
+path, since the claim would then never be committed; the refusal names the
+ignoring rule (file:line:pattern) and the exact lines to append to that file. new refuses, writing
+nothing, in a store without .claims/; the message names the repair:
+'erg migrate --claims DIR'. new never creates the store: 'erg init' does.
+After creating, new warns on stderr about the store's other tickets that
+have no claim (at most five named), as close, rm and archive do; the warning
+never changes the outcome.
 
 The new file contains the required preamble headers (Title, Created, Author),
 an empty log section with a "created" entry, and an empty body section.
@@ -334,8 +335,11 @@ and exits 0. A ticket that is closed by path but still missing the header gets
 the header (and REASON) written, so a supplied reason is never silently
 dropped. Step 3 (Blocked-by removal) is also idempotent.
 
-The ticket's claim (DIR/.claims/NNNN, when claims are on -- see 'erg new') is
-left in place: claims are never deleted, so the number stays used.
+The ticket's claim (DIR/.claims/NNNN, see 'erg new') is left in place:
+claims are never deleted, so the number stays used. close then warns on
+stderr about the store's tickets that have no claim (at most five named),
+or, in a store without .claims/, prints 'erg migrate --claims DIR'; the
+warning never changes the outcome.
 
 ## erg log ID LINE [DIR] [--author NAME]
 
@@ -417,8 +421,11 @@ held open by a Blocked-by ref, then exits 0. This is the read-only listing the
 pre-push hook (erg install --push-hook) uses to warn about closed-but-
 unarchived tickets without mutating the working tree.
 
-Claims (DIR/.claims/NNNN, see 'erg new') are not moved: they sit at the store
-root and name the ticket by number and slug, which archiving does not change.
+Claims (DIR/.claims/NNNN, see 'erg new') are not moved: they sit at the
+store root and name the ticket by number and slug, which archiving does not
+change. archive then warns on stderr about the store's tickets that have no
+claim (at most five named), or, in a store without .claims/, prints
+'erg migrate --claims DIR'; the warning never changes the outcome.
 
 ## erg rm ID|FILE [DIR] [--force]
 
@@ -445,9 +452,12 @@ the dependency graph before touching the filesystem:
 ID may be a 4-digit ticket ID or a full filename (e.g. 0042-some-title.erg).
 A non-existent or ambiguous ID is reported with the usual resolver error.
 
-The ticket's claim (DIR/.claims/NNNN, when claims are on -- see 'erg new') is
-left in place: claims are never deleted, so the removed ticket's number stays
-used and 'erg new' never hands it out again.
+The ticket's claim (DIR/.claims/NNNN, see 'erg new') is left in place:
+claims are never deleted, so the removed ticket's number stays used and
+'erg new' never hands it out again. rm then warns on stderr about the
+store's tickets that have no claim (at most five named), or, in a store
+without .claims/, prints 'erg migrate --claims DIR'; the warning never
+changes the outcome.
 
 ## erg migrate [DIR] [--claims]
 
@@ -525,16 +535,28 @@ Does NOT commit. Exits 1 on archive/->closed/ filename collision (both directori
 Review the diff with 'git diff tickets/' and commit manually.
 
   --claims
-      Switch ID claims on for the store (see 'erg new') and run nothing else:
-      create DIR/.claims/ with a .keep file, then write DIR/.claims/NNNN (the
-      slug and a random nonce) for every existing ticket, open and closed, so
-      the numbers already used are claimed from the first day. Idempotent: an
-      existing claim is never rewritten. A number that two tickets already
-      share gets no claim -- one claim cannot hold two slugs -- so both files
-      are reported and the command exits 1; renumber one of them clear of the
-      frontier ('erg integration'), then re-run. Commit DIR/.claims/ with the
-      tickets. Refuses, writing nothing, when git ignores the claims path.
-      Bare 'erg migrate' never switches claims on.
+      Bring the store to the required ID claims (see 'erg new') and run
+      nothing else. This is the one repair for a store erg check fails over
+      its claims: a store without DIR/.claims/, or a ticket without its
+      claim. It first collects every blocker and, if there is any, prints
+      them all, writes nothing (not even DIR/.claims/) and exits 1:
+        - a number two or more tickets share: renumber all but one clear of
+          the frontier ('erg integration');
+        - a claim it cannot fix: malformed, a symlink, or naming another
+          ticket's slug; a malformed claim git does not track yet is named
+          as a likely partial write, with its recovery (rm it, re-run);
+        - a claim path git ignores.
+      On a clean precheck it creates DIR/.claims/ with a .keep file and
+      writes DIR/.claims/NNNN for every ticket, open and closed, that has
+      none: the slug and a nonce derived from the ticket's number, slug and
+      Created date, so the numbers already used are claimed from the first
+      day. The derived nonce makes two clones that migrate the same base
+      write identical claims, which merge clean; still, migrate once on the
+      shared base, then integrate. erg new keeps a random nonce. Idempotent:
+      an existing claim is never rewritten. Commit DIR/.claims/ with the
+      tickets, then run 'erg install --hooks' (the success line says so):
+      the hooks check claims on every commit and merge, so they come after
+      the migration. Bare 'erg migrate' never writes claims.
 
 ## erg init [DIR] [-n|--dry-run] [--force] [--show NAME]
 
@@ -551,11 +573,13 @@ committable durable state (not gitignored) and is invisible to erg check, so
 it never trips the pre-commit hook. It is deterministic: the same binary and
 assets always produce byte-identical content.
 
-In a store that holds no .erg file yet, init also creates tickets/.claims/
-(with a .keep file, since git carries no empty directory), which switches ID
-claims on (see 'erg new'), unless git ignores that path, which init reports
-instead. A store that already holds tickets is left as it is: switch claims
-on there with 'erg migrate --claims'.
+ID claims are required (see 'erg new'). In a store that holds no .erg file
+yet, init creates tickets/.claims/ (with a .keep file, since git carries no
+empty directory); it refuses, exiting 1, when git ignores that path, naming
+the ignoring rule and the exact lines to append to its file. A store
+that already holds tickets but no .claims/ gets its assets all the same, then
+init exits 1 naming the repair: 'erg migrate --claims tickets', which claims
+the tickets already there.
 
 The format specification and setup guide are available on demand via
 erg spec and erg integration respectively.
@@ -648,9 +672,18 @@ piece of wiring requires an explicit opt-in flag:
 
   --hooks              Install (or upgrade) the pre-commit hook (erg validate
                        + erg check on every commit, rejects tickets/erg on
-                       non-default branches) AND the pre-push hook (warns
-                       about closed-but-unarchived tickets, never blocks).
-                       Both are delimited by sentinel markers and inserted
+                       non-default branches, rejects a commit whose index
+                       holds a ticket without its ID claim or a number two
+                       tickets hold), the pre-merge-commit hook (the same
+                       index check, plain sh and awk, no binary: a clean
+                       merge bringing an unclaimed ticket or a duplicate
+                       number is refused locally; a fast-forward runs no
+                       hook) AND the pre-push hook (warns about
+                       closed-but-unarchived tickets, never blocks). Run it
+                       after 'erg migrate --claims' and its commit: the
+                       claim check rejects every commit in a store whose
+                       tickets are not claimed yet.
+                       All three are delimited by sentinel markers and inserted
                        right after the shebang so they run before any
                        third-party hook content. Existing content outside
                        the markers is preserved.

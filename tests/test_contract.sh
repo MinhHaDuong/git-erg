@@ -26,6 +26,10 @@ SRC=src/go
 PASS=0; FAIL=0; SKIP=0; WARN=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
+
+# Claims are required (ticket 0307): fixture stores are made compliant with
+# plain files (claim_store), so each case fails for its own defect.
+. "$(dirname "$0")/claims_fixture.sh"
 skip() { SKIP=$((SKIP + 1)); echo "  SKIP: $1"; }
 warn() { WARN=$((WARN + 1)); echo "  WARN: $1"; }
 
@@ -247,6 +251,7 @@ Blocked-by: 0001
 
 --- body ---
 EOF
+claim_store "$STORE4"
 FAKEHOME="$WORK/stateless/home"; mkdir -p "$FAKEHOME"
 RUNCWD="$WORK/stateless/cwd"; mkdir -p "$RUNCWD"
 
@@ -350,6 +355,7 @@ Body text for synthetic ticket $ID.
 ERGEOF
     i=$((i + 1))
 done
+claim_store "$FAST_STORE"
 
 FAST_CEILING=10   # seconds — ~10x headroom over typical <1s runtime
 START_TS=$(date +%s)

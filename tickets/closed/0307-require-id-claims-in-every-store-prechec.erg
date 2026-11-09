@@ -1,0 +1,202 @@
+%erg 0.1
+Title: Require ID claims in every store; precheck migrate; close the CI gaps
+Created: 2026-11-09
+Author: MinhHaDuong
+Closed: require ID claims shipped in PR #393 (raid a59e5b)
+
+--- log ---
+2026-11-09T09:51Z MinhHaDuong created
+2026-11-09T10:20Z MinhHaDuong author confirmed: fail noncompliant stores, no legacy cruft, repair code is the migration code
+2026-11-09T11:12Z MinhHaDuong design 6 simplified after structural review (gpt-6.1-sol ACCEPTABLE-WITH-CUTS; advisor Fable 5.1 agreed): the merge hook runs no binary; its index check also catches a number two tickets hold, which covers the duplicates a clean merge can bring in a claims store
+2026-11-09T11:18Z MinhHaDuong closed — require ID claims shipped in PR #393 (raid a59e5b)
+
+--- body ---
+## Context
+Follow-up to 0306 (#386). The author reviewed the shipped behaviour on 2026-11-09 and ruled that ID
+claims are not optional: the PEP (§3, amended in this PR) now says every store has `tickets/.claims/`.
+The binary still treats a store without `.claims/` as claims-off: `erg check` passes it silently and
+only `erg new` prints a hint. The review also found that the guarantee "a ticket without its claim is
+caught" leans on CI (hooks are per clone and do not run on a clean merge), and that
+`erg migrate --claims` migrates partway when duplicates remain.
+
+## Author decisions (2026-11-09)
+- Claims are required. A store without `.claims/` is noncompliant.
+- The `.gitignore` refusal names the fix clearly.
+- `erg migrate --claims` prechecks: it lists every blocker and writes nothing until the store is ready.
+- Close the CI dependence with local, offline checks (write-verb warnings, a pre-merge-commit hook).
+- `erg check` FAILS a store without `.claims/` (not a warning). Confirmed by the author 2026-11-09.
+  Why: the vendored binary changes only on a deliberate `erg sync`, so the failure arrives in the
+  session that upgraded, with a one-command fix printed; a warning is what let ~50 duplicates reach
+  default branches.
+- No legacy cruft (author, 2026-11-09): every claims-off code path, test and doc framing goes. No
+  "claims on/off" branch survives in the code; a store without `.claims/` is an error, not a mode.
+- The repair code is the migration code (author, 2026-11-09): `erg migrate --claims` is the single
+  repair path. It prechecks, lists every blocker, writes nothing until ready, and also repairs a
+  compliant store with unclaimed tickets (writes the missing claims). Every error message about a
+  missing `.claims/` or a missing claim names it; the plain-file `echo` fix may stay alongside so a
+  store stays repairable without the binary.
+
+## Design
+1. Enforcement. `erg check` fails a store without `.claims/` with one message naming the fix
+   (`erg migrate --claims DIR`). `erg new` refuses in such a store with the same message. The
+   claims-off post-check retry loop in new.go and its tests are retired: no compliant store reaches it.
+   `erg init` on an existing store without `.claims/` says the store must be migrated.
+2. Migrate precheck. `erg migrate --claims` first collects every blocker -- each ignored claim path,
+   each number shared by two or more tickets (with all their paths) -- prints them all, writes
+   nothing, exits 1. Only a clean precheck writes `.claims/` and every claim. Still idempotent.
+3. Name the ignore fix. Every refusal over an ignored claim path (new, init, migrate) prints the exact
+   lines to add, computed for the store path, e.g. `!tickets/.claims/` and `!tickets/.claims/*`, and
+   the file and rule that ignore it (from `git check-ignore -v`).
+4. Correct `erg check`'s hint for a duplicated number: renumber all but one clear of the frontier,
+   not `echo` a claim (doing that for both tickets of a pair creates a fresh conflict).
+5. Write verbs warn. `new`, `close`, `rm`, `archive` print on stderr the tickets of the store that
+   have no claim (capped list), so any clone that uses erg sees one, hook or no hook, offline.
+6. Merge hook. `erg install --hooks` also installs (or upgrades in place) a managed
+   `pre-merge-commit` block running the index check it shares with pre-commit, so a clean merge that
+   brings in an unclaimed ticket or two tickets on one number is refused locally. Plain sh and awk,
+   no binary; the full corpus check runs at the next ticket commit and in CI. Mirrored byte for byte
+   in integration.md.
+7. Docs say "required": spec-erg-v1.md, integration.md (drop the "Switching on" framing; collapse the
+   catch rules to: `erg new` cannot produce an unclaimed ticket; anything else is reported by the next
+   erg command, commit or merge in that clone; CI is a backstop), both AGENTS.md copies (2400-byte
+   budget), README, helptext, CHANGELOG (upgrade note: after `erg sync`, run
+   `erg migrate --claims`), regenerated manual.
+8. Migrate git-erg's own store in this PR (`erg migrate --claims tickets/`), since its check would
+   otherwise fail.
+
+## Exit criteria
+- [x] `erg check` fails a store without `.claims/`, naming the fix; `erg new` refuses there.
+- [x] The claims-off retry loop and its tests are gone; the 10-way race test runs on a claims store.
+- [x] `erg migrate --claims` on a store with two duplicate pairs and an ignored path reports all three
+      blockers in one run and writes nothing (no `.claims/` created).
+- [x] Every ignored-path refusal prints the exact allowlist lines and the ignoring rule.
+- [x] `erg check`'s hint for a duplicated number says renumber.
+- [x] `new`/`close`/`rm`/`archive` warn about unclaimed tickets; tested.
+- [x] `erg install --hooks` installs and upgrades the pre-merge-commit block; a scratch clean merge
+      bringing an unclaimed ticket is refused.
+- [x] Docs per Design 7 say "required"; no "opt-in"/"switching on" framing left (grep).
+- [x] git-erg's own store is migrated; `make check` passes.
+
+## Notes
+- Possible monster: 15+ files. If the planner judges so, split hooks/warnings (5, 6) from
+  enforcement/migrate/docs (1-4, 7, 8).
+- Adopters (the harness, ticket 1472) migrate after syncing a release that carries this.
+
+## Imagine (raid a59e5b, 2026-11-09)
+Imagine seat: Claude Opus 5.5. Blind-Spot seat: gpt-6.1-sol (OpenAI, cross-family).
+
+Approach (exit criteria unchanged):
+- One `requireClaims(store) error` replaces the `claimsActive` bool; every caller uses it; no mode
+  flag survives. Claims-off sites to delete: claims.go:25-29,51,233; new.go:82-89,233-262,271-272;
+  nextid.go:269-272; check.go:323; init.go:93-97,589-592,722 (an ignored .claims becomes a refusal);
+  install.go:117 and integration.md:66 (`if [ -d tickets/.claims ]`); migrate help "Switch on".
+- Verbs in a store without `.claims/`: check fails; new refuses; close/rm/archive warn with the
+  migrate command and proceed (refusing would break autoclose right after `erg sync`); list, ready,
+  show, validate untouched (they diagnose). Write-verb warnings about unclaimed tickets filter
+  `claimViolations`, no new scanner. init on a non-empty store without `.claims/` finishes its asset
+  work, prints the migrate command, exits 1; it does not run the precheck. A zero-ticket store fails
+  like any; migrate writes only `.keep`. A subdirectory is not a store (help text, no special case).
+- Migrate precheck blockers = duplicate IDs + every claim migrate cannot fix (mismatched slug,
+  malformed, symlink) + every ignored path. Today `migrateClaims` (claims.go:335-337) counts a
+  mismatched EEXIST as "already present": fix. Ignored paths: collect all, not the first
+  (`ignoredClaimFile`, claims.go:104); drop `check-ignore -v` lines that match a `!` negation (exit 0);
+  report once per rule, allowlist lines relative to the ignoring file named by `-v`.
+- Design 4: suppress the claim message for numbers already reported duplicate (validate.go:145); the
+  duplicate message carries the renumber hint.
+- Fixtures are the real cost: ~18 shell and 8 Go test files build stores without `.claims/`. Add one
+  shell helper (plain files, not the binary) and one Go helper; audit every negative test so it fails
+  for its intended defect, not for the missing `.claims/` (grep its message, not only the exit code).
+
+Blind-Spot findings folded in:
+- Independent migrations conflict: a fresh random nonce per existing ticket makes two clones or
+  branches that migrate the same base add/add-conflict on every claim. Make migration claims
+  deterministic for tickets that already exist (nonce derived from number, slug and Created, so the
+  same ticket gives the same claim everywhere), keep the random nonce for `erg new`; document
+  "migrate once on the shared base, then integrate". Test: migrate two branches from one base,
+  merge, no conflict.
+- The upgrade recipe must install the hooks: `erg sync`, `erg init`, `erg install --hooks`,
+  `erg migrate --claims`; migrate's success line names the hook step.
+- Merge-time checks must read the committed result, not the working tree: an untracked claim lets
+  `erg check` pass while the merge commit lacks it. The pre-merge-commit block (and the pre-commit
+  block) check the index: every `tickets/**.erg` in `git ls-files` has its `tickets/.claims/NNNN` in
+  the index. Test: merge an unclaimed ticket with a matching untracked claim present; refused.
+- Interrupted claim write: the no-hardlink fallback can leave a partial claim; the precheck must name
+  a safe recovery (an uncommitted partial claim may be removed, then re-run) rather than dead-end.
+- This PR's hooks run the committed old `tickets/erg` (0306) until CI rebuilds it after merge: check
+  that the old binary accepts the migrated store and the new assets (run it on the branch tree).
+
+Split: one PR, as the author asked; migrating git-erg's own store is its first implementation commit
+(291 generated claims). Later review: 30 days after adopters migrate, count CI-caught claim failures
+and write-verb warnings that fired; drop design 5 if none fired.
+
+## Plan (raid a59e5b; Plan seat: Claude Opus 5.5)
+Ordered commits, each green, `make docs` in any commit that edits help text (test_docs.sh:46-52):
+1. Deterministic migration nonce: `migrationNonce(id, slug, created)` = first 8 hex of
+   sha256("NNNN slug Created") (title excluded: branches edit it); `writeClaim` takes the nonce;
+   `erg new` keeps the random one; check unchanged (reads first field, needs >= 2 fields). First
+   test: literal `migrationNonce("0001","a","2026-11-08")=="b298394c"` (from sha256sum, not the
+   function); then test_claims.sh: two branches migrate one plain-file base, merge exits 0, no diff
+   under tickets/.claims.
+2. Migrate git-erg's own store with the freshly built binary (`build/erg migrate --claims tickets/`),
+   not the vendored 0306 one (random nonces). Proof: both `tickets/erg check` and `build/erg check`
+   exit 0; a re-run writes 0.
+3. Fixture helpers: tests/claims_fixture.sh (sourced, not `test_*`) `claim_store DIR` writes plain
+   files (`.keep`, `SLUG 00000000`); Go `claimStore(t, dir)`. Every fixture claimed unless the test
+   is about claims. Green on old code; lands before enforcement.
+4. `requireClaims` replaces `claimsActive` (claims.go:48-65); message
+   `<store> has no .claims/: ID claims are required -- run: erg migrate --claims <store>`; new refuses
+   before MkdirAll and loses the retry loop (new.go:233-236,244-264,271-273); init on a populated
+   store without .claims/ exits 1 after its asset work; ignored .claims exits 1. First test
+   `TestCheckFailsWithoutClaimsDir` (rc 1, message names the command; control after claimStore rc 0);
+   new_test.go:279 and test_new.sh:179-250 inverted (10 refusals, 0 files).
+5. Migrate precheck: collect blockers (shared numbers, mismatched/malformed/symlinked claims, ignored
+   paths), write nothing on any; fix claims.go:342 (mismatched EEXIST counted as present); partial
+   untracked claim -> "partial write? rm PATH, re-run"; success line names the hook step. First test:
+   pairs 0002, 0004 and `.*` ignored -> rc 1, all four paths and the rule on stderr, no .claims/
+   created (exit-code-only would be tautological: old code exits 1 too).
+6. `ignoredClaimRules` replaces `ignoredClaimFile` (claims.go:99): `check-ignore -v --stdin`, parse,
+   drop `!` patterns, once per source:line, allowlist lines relative to the ignoring file's dir (repo
+   top for info/exclude, core.excludesFile). First test: root `.*` -> stderr names `.gitignore:1:.*`
+   and the two `!` lines; appending them makes the re-run succeed. Also a nested tickets/.gitignore
+   and a negation-only match.
+7. Duplicate hint: claimViolations skips numbers held twice; validate.go:145 adds "renumber all but
+   one clear of the frontier". Test: one line has "renumber", none has `echo "`.
+8. Write-verb warnings: `warnUnclaimed(verb, dir)` filters the unclaimed list (cap 5 + "and N more");
+   new/close/rm/archive; without .claims/ they print the migrate command and proceed. Test: hand-made
+   0009; `erg close 0001` rc 0, stderr names 0009; claimed control silent.
+9. Hooks: one Go constant `claimsIndexCheck` (POSIX sh + awk over `git ls-files -- tickets`,
+   `[0-9]` x4 for mawk, `(.*/)?` for closed/) in the pre-commit body and a new pre-merge-commit body
+   (which first runs `tickets/erg check tickets/`); `planMergeHook` via `planGitHook`. Fix
+   test_selfcoherence.sh:106-133 to compare each block by index and assert two non-empty blocks
+   containing `ls-files`. First test: merge an unclaimed ticket with the matching claim untracked on
+   disk -> merge refused, MERGE_HEAD present, erg check passes there (proves index). Control: claim
+   committed -> merge succeeds. Upgrade keeps third-party content. Doc: fast-forward runs no hook.
+10. Docs + CHANGELOG (rewrite the unreleased 0306 entry): spec "required" + derived nonce;
+   integration catch rules, "migrate once on the shared base"; both AGENTS.md (2400-byte cap at
+   test_integration.sh:108; drop "If `tickets/.claims/` exists,"); README. Ratchet grep:
+   `claims are on|switch(es|ing)? (claims )?on|claims off` finds nothing.
+Orchestrator amendment: the upgrade recipe is `erg sync`, `erg init`, `erg migrate --claims`, commit,
+THEN `erg install --hooks` -- the new pre-commit block rejects every commit in an unmigrated store,
+so hooks come after migration; migrate's success line says so.
+Old-binary compatibility: `tickets/erg check tickets/` (0306 binary) exits 0 after commits 2, 9, 10,
+and `tickets/erg new` works in a scratch clone of the branch.
+Done: `make check`; `make test-claims test-new test-check test-init test-install test-hook
+test-selfcoherence test-integration test-docs`; `go test ./...`; `tickets/erg check tickets/`.
+
+## Feasibility (raid a59e5b; Sonnet 5.5) -- PASS with WARNs, no BLOCK
+- Citations PASS (planGitHook is install.go:268-307; AGENTS.md has 9 bytes of headroom and
+  tickets/AGENTS.md must change in lockstep). git-erg's store has no .claims/ yet (290 tickets).
+- check-ignore (git 2.43): sources are repo-top-relative (`tickets/.gitignore:1:...`), but
+  `.git/info/exclude` is absolute in a linked worktree and core.excludesFile is always absolute:
+  the step-6 parser handles both. Negation matches print with `!`, rc 0: dropping them is needed.
+- awk: mawk, busybox and nawk agree on a sample (closed/, 5-digit name, .keep). Embed the literal
+  program in the plan/test. `[0-9]` x4 stays.
+- Hooks: clean `merge --no-ff` runs pre-merge-commit; failure leaves MERGE_HEAD; fast-forward and
+  --no-verify skip it; concluding a refused merge with `git commit` runs pre-commit only, so the
+  pre-commit index check is the backstop.
+- Nonce literal verified; hash without a trailing newline (with one it is c17056d6).
+- Missed sites: `ensureClaimsDir` (claims.go:202) and migrate.go:666 also call the replaced
+  functions; tests creating tickets with erg new/cmdNew need claim fixtures too: test_pipeline,
+  test_strictwrite, test_roundtrip, test_stderr, test_security, claims_test, resolve_test; install
+  help (21-28) and summary strings, integration.md uninstall (304-315), test_install.sh 278-353 gain
+  pre-merge-commit; `make docs` regenerates the manual and spec copies.

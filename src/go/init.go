@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -90,11 +91,13 @@ committable durable state (not gitignored) and is invisible to erg check, so
 it never trips the pre-commit hook. It is deterministic: the same binary and
 assets always produce byte-identical content.
 
-In a store that holds no .erg file yet, init also creates tickets/.claims/
-(with a .keep file, since git carries no empty directory), which switches ID
-claims on (see 'erg new'), unless git ignores that path, which init reports
-instead. A store that already holds tickets is left as it is: switch claims
-on there with 'erg migrate --claims'.
+ID claims are required (see 'erg new'). In a store that holds no .erg file
+yet, init creates tickets/.claims/ (with a .keep file, since git carries no
+empty directory); it refuses, exiting 1, when git ignores that path, naming
+the ignoring rule and the exact lines to append to its file. A store
+that already holds tickets but no .claims/ gets its assets all the same, then
+init exits 1 naming the repair: 'erg migrate --claims tickets', which claims
+the tickets already there.
 
 The format specification and setup guide are available on demand via
 erg spec and erg integration respectively.
@@ -586,18 +589,19 @@ func cmdInit(args []string) int {
 
 	cleanOrphanAssets(root, dryRun)
 
-	// A new store starts with claims on (ticket 0306); an existing one is
-	// switched on only by 'erg migrate --claims', so an init after a binary
-	// update never changes what erg check requires of a corpus.
-	if code := initClaims(filepath.Join(root, "tickets"), dryRun); code != 0 {
-		return code
-	}
+	// A new store gets its .claims/ here; a populated store without one is
+	// repaired by 'erg migrate --claims' alone (ticket 0307), so its verdict
+	// is held until the asset summary has been printed.
+	claimsRC := initClaims(filepath.Join(root, "tickets"), dryRun)
 
 	if dryRun {
 		// "preserved", not "local edits": a file is also skipped when it is
 		// newer than this binary, and the per-file lines above already gave
 		// each skip its own reason (ticket 0279).
 		fmt.Printf("init (dry-run): %d to create, %d to refresh, %d to skip (preserved), %d unchanged\n", created, refreshed, skipped, unchanged)
+		if claimsRC != 0 {
+			return claimsRC
+		}
 		if skipped > 0 {
 			return 2
 		}
@@ -605,6 +609,9 @@ func cmdInit(args []string) int {
 	}
 
 	fmt.Printf("init: %d created, %d refreshed, %d skipped (preserved), %d unchanged\n", created, refreshed, skipped, unchanged)
+	if claimsRC != 0 {
+		return claimsRC
+	}
 	if skipped > 0 {
 		return 2
 	}
@@ -709,30 +716,40 @@ func commandForOrphan(rel string) string {
 }
 
 // initClaims creates the claims directory in a store that holds no .erg file
-// yet. Returns non-zero only on a write failure.
+// yet. It returns 1, naming the repair, for a populated store without
+// .claims/ (migrate claims its tickets; init does not), for an ignored claims
+// path, new or existing, and on a write failure.
 func initClaims(ticketsDir string, dryRun bool) int {
-	if active, err := claimsActive(ticketsDir); err != nil {
+	err := requireClaims(ticketsDir)
+	if err != nil && (!errors.Is(err, errNoClaims) || storeHasTickets(ticketsDir)) {
 		fmt.Fprintf(os.Stderr, "init: %v\n", err)
 		return 1
-	} else if active || storeHasTickets(ticketsDir) {
-		return 0
 	}
 	rel := filepath.Join("tickets", claimsDirName) + "/"
-	if ignored := ignoredClaimFile(ticketsDir, claimsKeepName); ignored != "" {
-		// Not an init failure: the store works without claims. Say why
-		// they stay off rather than create a switch git would never carry.
-		fmt.Fprintf(os.Stderr, "init: not creating %s: %s\n", rel, claimsIgnoredMessage(ticketsDir, ignored))
+	// One refusal for an ignored claims path, existing or about to be
+	// created: its claims would never be committed.
+	if rules := ignoredClaimRules(ticketsDir, claimsKeepName); len(rules) > 0 {
+		prefix := "init: "
+		if err != nil {
+			prefix = "init: not creating " + rel + ": "
+		}
+		for _, r := range rules {
+			fmt.Fprintf(os.Stderr, "%s%s\n", prefix, r.message())
+		}
+		return 1
+	}
+	if err == nil {
 		return 0
 	}
 	if dryRun {
-		fmt.Fprintf(os.Stderr, "init (dry-run): would create %s (ID claims on)\n", rel)
+		fmt.Fprintf(os.Stderr, "init (dry-run): would create %s\n", rel)
 		return 0
 	}
 	if err := ensureClaimsDir(ticketsDir); err != nil {
 		fmt.Fprintf(os.Stderr, "init: cannot create %s: %v\n", rel, err)
 		return 1
 	}
-	fmt.Fprintf(os.Stderr, "init: created %s (ID claims on; commit %s%s)\n", rel, rel, claimsKeepName)
+	fmt.Fprintf(os.Stderr, "init: created %s (commit %s%s)\n", rel, rel, claimsKeepName)
 	return 0
 }
 

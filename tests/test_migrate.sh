@@ -10,6 +10,10 @@ FAIL=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
+# Claims are required (ticket 0307): fixture stores are made compliant with
+# plain files (claim_store), so each case fails for its own defect.
+. "$(dirname "$0")/claims_fixture.sh"
+
 trap 'rm -rf "$FIXTURES"' EXIT
 
 echo "=== erg migrate ==="
@@ -164,6 +168,7 @@ Status: open
 --- body ---
 EOF
 $ERG migrate "$CLEANDIR" >/dev/null 2>&1
+claim_store "$CLEANDIR"
 out=$($ERG check "$CLEANDIR" 2>&1); rc=$?
 if [ "$rc" -eq 0 ] && ! echo "$out" | grep -qi "Status:"; then
     pass "formerly-Status ticket passes check after migration"

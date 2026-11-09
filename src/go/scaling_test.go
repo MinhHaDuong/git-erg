@@ -120,6 +120,8 @@ func buildCorpus(t *testing.T, dir string, n int) {
 			t.Fatalf("write %s: %v", name, err)
 		}
 	}
+	// A compliant store (ticket 0307): check must scale over the claims too.
+	claimStore(t, dir)
 }
 
 // measure runs fn once with stdout and stderr discarded and returns the

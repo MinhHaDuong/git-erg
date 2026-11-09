@@ -10,6 +10,10 @@ FAIL=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
+# Claims are required (ticket 0307): fixture stores are made compliant with
+# plain files (claim_store), so each case fails for its own defect.
+. "$(dirname "$0")/claims_fixture.sh"
+
 trap 'rm -rf "$FIXTURES"' EXIT
 
 echo "=== erg rm ==="
@@ -161,6 +165,7 @@ rm -rf "$GHOST"
 CLOSED_DIR=$(mktemp -d)
 write_open                  "$CLOSED_DIR/0001-blocker.erg"           "Blocker"
 write_closed_blocked_by     "$CLOSED_DIR/0003-closed-dependent.erg" "Closed dependent" "0001"
+claim_store "$CLOSED_DIR"
 
 out=$($ERG rm 0001 "$CLOSED_DIR" 2>&1) && rc=0 || rc=$?
 if [ "$rc" -ne 0 ] && echo "$out" | grep -q "0003"; then
@@ -233,6 +238,7 @@ Blocked-by : 0001
 
 --- body ---
 EOF
+claim_store "$WS"
 out=$($ERG rm --force 0001 "$WS" 2>&1) && rc=0 || rc=$?
 if [ "$rc" -eq 0 ] && ! grep -Eq "^Blocked-by" "$WS/0002-ws-dep.erg"; then
     pass "force: clears 'Blocked-by : 0001' (whitespace-before-colon) line"

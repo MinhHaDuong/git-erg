@@ -37,7 +37,7 @@ Rules agents must know:
 - Log entries are append-only: `YYYY-MM-DDTHH:MMZ author verb detail`
 - Ticket IDs are atomic 4-digit numbers -- never suffix them (`0134a`, `0134b`). To split a ticket, create new numbered tickets with descriptive slugs that cross-reference the parent in their body.
 - A ticket's artifacts (reports, data, generated files, scripts) live in their natural place in the tree, referenced from the body by path: not embedded, not a `0002-slug.md` sidecar.
-- If `tickets/.claims/` exists, commit `.claims/NNNN` with ticket NNNN; a git conflict on it means the number is taken: renumber yours (`erg integration`).
+- Commit `tickets/.claims/NNNN` with ticket NNNN; a git conflict on it means the number is taken: renumber yours (`erg integration`).
 
 On GitHub, `erg-github install` (a separate committed helper, not an `erg` subcommand) can add a `verify` check that fails a PR referencing a still-open ticket. Either way, close the ticket in the same PR (`erg close`).
 

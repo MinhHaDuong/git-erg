@@ -27,6 +27,10 @@ FAIL=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
+# Claims are required (ticket 0307): fixture stores are made compliant with
+# plain files (claim_store), so each case fails for its own defect.
+. "$(dirname "$0")/claims_fixture.sh"
+
 cleanup() { rm -rf -- "$FIXTURES"; }
 trap cleanup EXIT
 
@@ -34,7 +38,10 @@ echo "=== check-store (local store-shape gate) ==="
 
 # gate runs `make check-store STORE=<dir>` from the repo root, reusing the
 # already-built binary under test (ERG_BIN), and returns the target's exit code.
+# Each fixture is claimed first (claim_store), so a planted violation is the
+# only reason the gate can fail.
 gate() {
+    claim_store "$1"
     ( cd "$ROOT" && make --no-print-directory check-store \
         ERG_BIN="$ERG_ABS" STORE="$1" >/dev/null 2>&1 )
 }

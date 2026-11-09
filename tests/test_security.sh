@@ -29,6 +29,10 @@ FAIL=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
+# Claims are required (ticket 0307): fixture stores are made compliant with
+# plain files (claim_store), so each case fails for its own defect.
+. "$(dirname "$0")/claims_fixture.sh"
+
 # `timeout` is GNU coreutils, not POSIX (AGENTS.md standalone/POSIX constraint).
 # bounded SECS CMD... runs CMD under `timeout` when available (exit 124 on
 # expiry); on a POSIX-only box without it, runs CMD directly and post-measures
@@ -237,6 +241,10 @@ fi
 # ---------------------------------------------------------------------------
 WS="$FIXTURES/newconfine"
 mkdir -p "$WS"
+# new writes only into a compliant store (ticket 0307); the DIR forms are what
+# is under test, so each target store is claimed first.
+claim_store "$WS/sub/dir"
+claim_store "$WS/abs"
 # `|| true`: under `set -e`, a non-zero exit from this standalone subshell would
 # abort the whole script — silently skipping the rest of this group, Groups 5-7,
 # the intended fail diagnostic below, and the summary. The `if ls` check is the
@@ -354,6 +362,7 @@ fi
 
 # 6c — 10,000-char title via `erg new`: slug must truncate to <=40, no ReDoS.
 LONG=$(head -c 10000 /dev/zero | tr '\0' 'a')
+claim_store "$WS/bigtitle"
 # stdout only: the CREATED line is the contract; stderr carries hints.
 out=$(bounded 5 $ERG new "$LONG" "$WS/bigtitle" 2>/dev/null) && rc=0 || rc=$?
 slug=$(echo "$out" | sed 's/^CREATED [0-9]*-//; s/\.erg$//')

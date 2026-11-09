@@ -16,6 +16,10 @@ FAIL=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
+# Claims are required (ticket 0307): fixture stores are made compliant with
+# plain files (claim_store), so each case fails for its own defect.
+. "$(dirname "$0")/claims_fixture.sh"
+
 echo "=== ID claims ==="
 
 TDIR=$(mktemp -d)
@@ -34,6 +38,20 @@ export ERG_AUTHOR=tester
 
 # created FILE-OF-STDOUT -> the NNNN of the CREATED line
 created_id() { sed -n 's/^CREATED \([0-9][0-9][0-9][0-9]\)-.*/\1/p' "$1"; }
+
+# plain_ticket DIR NNNN-slug [DATE [closed]]: a hand-written ticket, so a
+# store without .claims/ can be populated without the binary (which refuses
+# there, ticket 0307).
+plain_ticket() {
+    d=${3:-2026-11-08}
+    if [ "${4:-}" = closed ]; then
+        mkdir -p "$1/closed"
+        printf '%%erg 0.1\nTitle: %s\nCreated: %s\nAuthor: a\nClosed: done\n\n--- log ---\n%sT00:00Z a created\n\n--- body ---\n' "$2" "$d" "$d" > "$1/closed/$2.erg"
+    else
+        mkdir -p "$1"
+        printf '%%erg 0.1\nTitle: %s\nCreated: %s\nAuthor: a\n\n--- log ---\n%sT00:00Z a created\n\n--- body ---\n' "$2" "$d" "$d" > "$1/$2.erg"
+    fi
+}
 
 # conflicted PATH: is PATH an unmerged add/add ("AA") entry right now?
 conflicted() { git status --porcelain -- "$1" | grep -q "^AA "; }
@@ -112,10 +130,10 @@ fi
 git checkout -q -b b-ours b
 if git merge -q --no-edit -X ours origin/main >/dev/null 2>&1; then
     out=$("$ERG_ABS" check tickets 2>&1) && rc=0 || rc=$?
-    if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "names slug \"beta\", not \"alpha\""; then
-        pass "-X ours: two tickets under one claim fail erg check on the slug mismatch"
+    if [ "$rc" -ne 0 ] && echo "$out" | grep -F "duplicate ID '$NB'" | grep -qF "renumber all but one"; then
+        pass "-X ours: two tickets under one claim fail erg check as a duplicate, with the renumber fix"
     else
-        fail "-X ours: erg check did not report the slug mismatch (rc=$rc: $out)"
+        fail "-X ours: erg check did not report the duplicate with its renumber fix (rc=$rc: $out)"
     fi
 else
     fail "-X ours: the merge did not go through, so the silencing is untested"
@@ -212,7 +230,8 @@ echo "tickets/erg" >> .git/info/exclude
 NG=$(created_id "$TDIR/g.out")
 git add "tickets/$NG-hooked.erg"
 msg=$(git commit -m "hooked" 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$msg" | grep -qF "has no staged claim tickets/.claims/$NG"; then
+if [ "$rc" -ne 0 ] && echo "$msg" | grep -qF "pre-commit: the index breaks the ID claim rules:" &&
+    echo "$msg" | grep -qxF "  tickets/$NG-hooked.erg has no claim"; then
     pass "hook: a ticket staged without its claim is rejected"
 else
     fail "hook: ticket without staged claim not rejected (rc=$rc: $msg)"
@@ -223,6 +242,59 @@ if git commit -q -m "hooked" >/dev/null 2>&1; then
 else
     fail "hook: commit with ticket and claim staged was rejected"
 fi
+
+# --- pre-merge-commit: a clean merge bringing an unclaimed ticket is refused ---
+# The side branch is committed without hooks (--no-verify: a clone that never
+# ran erg install). The matching claim sits untracked on disk on the merging
+# side, so erg check passes on the working tree: only an index check refuses.
+git checkout -q -b side
+plain_ticket tickets 0900-side-ticket
+git add tickets/0900-side-ticket.erg && git commit -q --no-verify -m "side ticket, no claim"
+git checkout -q g
+echo "side-ticket 00000000" > tickets/.claims/0900
+msg=$(git merge --no-ff --no-edit side 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && [ -f "$(git rev-parse --git-path MERGE_HEAD)" ] &&
+    echo "$msg" | grep -qF "pre-merge-commit: the index breaks the ID claim rules:" &&
+    "$ERG_ABS" check tickets >/dev/null 2>&1; then
+    pass "merge hook: an unclaimed ticket is refused on the index though erg check passes on disk"
+else
+    fail "merge hook: unclaimed ticket merged, or refused for another reason (rc=$rc: $msg)"
+fi
+git merge --abort 2>/dev/null || true
+rm -f tickets/.claims/0900
+git checkout -q side
+echo "side-ticket 00000000" > tickets/.claims/0900
+git add tickets/.claims/0900 && git commit -q -m "claim 0900"
+git checkout -q g
+if git merge -q --no-ff --no-edit side >/dev/null 2>&1; then
+    pass "merge hook: the same merge passes once the claim is committed (control)"
+else
+    fail "merge hook: a fully claimed merge was refused"
+    git merge --abort 2>/dev/null || true
+fi
+
+# A -X ours merge of two tickets that took one number keeps one claim and
+# both tickets: no claim is missing, so only a number-keyed index check sees
+# it. The repository has no tickets/erg at all: the merge hook runs no binary.
+XO="$TDIR/xo"
+git init -q -b main "$XO"
+plain_ticket "$XO/tickets" 0001-base
+claim_store "$XO/tickets"
+# install wants tickets/erg present; it is removed once the hooks are in.
+(cd "$XO" && git add -A && git commit -q -m base &&
+    cp "$ERG_ABS" tickets/erg && "$ERG_ABS" install . --hooks >/dev/null 2>&1 && rm tickets/erg)
+(cd "$XO" && git checkout -q -b left && plain_ticket tickets 0002-left && echo "left 1111aaaa" > tickets/.claims/0002 &&
+    git add -A && git commit -q --no-verify -m left &&
+    git checkout -q -b right main && plain_ticket tickets 0002-right 2026-11-08 closed && echo "right 2222bbbb" > tickets/.claims/0002 &&
+    git add -A && git commit -q --no-verify -m right && git checkout -q left)
+msg=$(cd "$XO" && git merge --no-ff --no-edit -X ours right 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && [ -f "$XO/tickets/closed/0002-right.erg" ] &&
+    echo "$msg" | grep -qF "0002 is held by 2 tickets: tickets/0002-left.erg tickets/closed/0002-right.erg"; then
+    pass "merge hook: a -X ours merge of two same-number tickets is refused, with no binary"
+else
+    fail "merge hook: -X ours duplicate not refused by the index check (rc=$rc: $msg)"
+fi
+(cd "$XO" && git merge --abort 2>/dev/null) || true
 
 # --- close and rm leave the claim; its number is never reused ---
 "$ERG_ABS" new "to remove" tickets > "$TDIR/r.out" 2>/dev/null
@@ -267,21 +339,20 @@ git init -q "$IGN"
 mkdir -p "$IGN/tickets/.claims"
 printf '*\n!tickets/\n!tickets/*.erg\n' > "$IGN/.gitignore"
 out=$(cd "$IGN" && "$ERG_ABS" new "ignored" tickets 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "git ignores tickets/.claims/0001," && ! ls "$IGN"/tickets/*.erg >/dev/null 2>&1; then
+if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "git ignores tickets/.claims/0001 by the rule .gitignore:1:*" && ! ls "$IGN"/tickets/*.erg >/dev/null 2>&1; then
     pass "ignored claim path: erg new refuses, names the claim it would write, writes nothing"
 else
     fail "ignored claim path: erg new did not refuse (rc=$rc: $out)"
 fi
 # The same ignore rules make migrate --claims refuse (before .claims/ exists,
 # which is where a probe run from inside .claims/ would see nothing) and make
-# init leave claims off rather than create a switch git would never carry.
+# init refuse rather than create a .claims/ git would never carry.
 IGM="$TDIR/igm"
 git init -q "$IGM"
 cp "$IGN/.gitignore" "$IGM/.gitignore"
-mkdir -p "$IGM/tickets"
-"$ERG_ABS" new "existing" "$IGM/tickets" >/dev/null 2>&1
+plain_ticket "$IGM/tickets" 0001-existing
 out=$(cd "$IGM" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
-if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "git ignores tickets/.claims/.keep," && [ ! -e "$IGM/tickets/.claims" ]; then
+if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "git ignores tickets/.claims/.keep, tickets/.claims/0001 by the rule .gitignore:1:*" && [ ! -e "$IGM/tickets/.claims" ]; then
     pass "ignored claim path: migrate --claims refuses, names a file it would write, creates nothing"
 else
     fail "ignored claim path: migrate --claims did not refuse (rc=$rc: $out)"
@@ -291,12 +362,26 @@ git init -q "$IGI"
 cp "$IGN/.gitignore" "$IGI/.gitignore"
 mkdir -p "$IGI/tickets"
 cp "$ERG_ABS" "$IGI/tickets/erg"
-out=$("$ERG_ABS" init "$IGI" 2>&1) || true
-if [ ! -e "$IGI/tickets/.claims" ] && echo "$out" | grep -qF "not creating tickets/.claims/" &&
-    echo "$out" | grep -qF "tickets/.claims/.keep,"; then
-    pass "ignored claim path: init leaves claims off and names the .keep it would write"
+out=$("$ERG_ABS" init "$IGI" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && [ ! -e "$IGI/tickets/.claims" ] && echo "$out" | grep -qF "not creating tickets/.claims/" &&
+    echo "$out" | grep -qF "tickets/.claims/.keep by the rule .gitignore:1:*"; then
+    pass "ignored claim path: init exits 1, creates no .claims/, names the .keep it would write"
 else
-    fail "ignored claim path: init created .claims/ or stayed silent ($out)"
+    fail "ignored claim path: init created .claims/, exited 0 or stayed silent (rc=$rc: $out)"
+fi
+
+# init over an existing .claims/ that git ignores refuses too.
+IGE="$TDIR/ige"
+git init -q "$IGE"
+mkdir -p "$IGE/tickets/.claims"
+: > "$IGE/tickets/.claims/.keep"
+printf '.claims/\n' > "$IGE/tickets/.gitignore"
+cp "$ERG_ABS" "$IGE/tickets/erg"
+out=$("$ERG_ABS" init "$IGE" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -qF "by the rule tickets/.gitignore:1:.claims/"; then
+    pass "ignored claim path: init over an existing ignored .claims/ exits 1, naming the rule"
+else
+    fail "ignored claim path: init accepted an ignored existing .claims/ (rc=$rc: $out)"
 fi
 
 printf '!tickets/.claims/\n!tickets/.claims/*\n' >> "$IGN/.gitignore"
@@ -306,25 +391,41 @@ else
     fail "ignored claim path: still refused after allowlisting .claims/"
 fi
 
-# --- without .claims/: no claim, no requirement, a hint ---
+# --- without .claims/: the store is noncompliant; new and check name the repair ---
 OFF="$TDIR/off"
-mkdir -p "$OFF"
-out=$("$ERG_ABS" new "plain" "$OFF" 2>&1 >/dev/null)
-if [ ! -e "$OFF/.claims" ] && echo "$out" | grep -qF "erg migrate --claims"; then
-    pass "claims off: erg new writes no claim and hints at the migration"
+plain_ticket "$OFF" 0001-plain
+out=$("$ERG_ABS" new "refused" "$OFF" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && [ ! -e "$OFF/.claims" ] && [ "$(ls "$OFF")" = "0001-plain.erg" ] &&
+    echo "$out" | grep -qF "run: erg migrate --claims $OFF"; then
+    pass "no .claims/: erg new refuses, writes nothing, names erg migrate --claims"
 else
-    fail "claims off: unexpected claim or missing hint ($out)"
+    fail "no .claims/: erg new did not refuse cleanly (rc=$rc: $out)"
 fi
-if "$ERG_ABS" check "$OFF" >/dev/null 2>&1; then
-    pass "claims off: erg check requires no claim"
+out=$("$ERG_ABS" check "$OFF" 2>&1) && rc=0 || rc=$?
+if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "has no .claims/: ID claims are required -- run: erg migrate --claims $OFF"; then
+    pass "no .claims/: erg check fails, naming erg migrate --claims"
 else
-    fail "claims off: erg check failed on a claimless store"
+    fail "no .claims/: erg check did not fail with the repair (rc=$rc: $out)"
+fi
+
+# The same message carries the plain-file route (Agnostic invariant): those
+# commands alone, no binary, make the store pass.
+HAND="$TDIR/hand"
+plain_ticket "$HAND" 0001-by-hand
+out=$("$ERG_ABS" check "$HAND" 2>&1) || true
+if echo "$out" | grep -qF "without the binary: mkdir $HAND/.claims && touch $HAND/.claims/.keep"; then
+    mkdir "$HAND/.claims" && touch "$HAND/.claims/.keep" && echo "by-hand $(date +%s)" > "$HAND/.claims/0001"
+    if "$ERG_ABS" check "$HAND" >/dev/null 2>&1; then
+        pass "no .claims/: the plain-file route in the message makes the store pass, no binary needed"
+    else
+        fail "no .claims/: the plain-file route did not satisfy check ($("$ERG_ABS" check "$HAND" 2>&1))"
+    fi
+else
+    fail "no .claims/: the message lacks the plain-file route ($out)"
 fi
 
 # --- migrate --claims: populates open and closed, idempotent, refuses shared ---
-mkdir -p "$OFF/closed"
-"$ERG_ABS" new "second" "$OFF" >/dev/null 2>&1
-"$ERG_ABS" close 0002 "done" "$OFF" >/dev/null 2>&1
+plain_ticket "$OFF" 0002-second 2026-11-08 closed
 "$ERG_ABS" migrate --claims "$OFF" >/dev/null 2>&1 && rc=0 || rc=$?
 if [ "$rc" -eq 0 ] && grep -q '^plain ' "$OFF/.claims/0001" && grep -q '^second ' "$OFF/.claims/0002" &&
     "$ERG_ABS" check "$OFF" >/dev/null 2>&1; then
@@ -341,8 +442,7 @@ else
     fail "migrate --claims: a second run changed .claims/"
 fi
 DUP="$TDIR/dup"
-mkdir -p "$DUP"
-"$ERG_ABS" new "one" "$DUP" >/dev/null 2>&1
+plain_ticket "$DUP" 0001-one
 cp "$DUP/0001-one.erg" "$DUP/0001-other.erg"
 out=$("$ERG_ABS" migrate --claims "$DUP" 2>&1) && rc=0 || rc=$?
 if [ "$rc" -ne 0 ] && [ ! -e "$DUP/.claims/0001" ] && echo "$out" | grep -qF "0001-other.erg"; then
@@ -351,7 +451,189 @@ else
     fail "migrate --claims: shared number not refused (rc=$rc: $out)"
 fi
 
-# --- erg init switches claims on only in an empty store ---
+# --- an ignored claim path: the refusal names the rule and the exact fix ---
+# Root rule: the allowlist lines are relative to the root .gitignore, and
+# appending exactly the printed lines makes the re-run succeed.
+RUL="$TDIR/rul"
+git init -q "$RUL"
+printf '.*\n!.gitignore\n' > "$RUL/.gitignore"
+plain_ticket "$RUL/tickets" 0001-one
+out=$(cd "$RUL" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -qF ".gitignore:1:.*" &&
+    echo "$out" | grep -qxF '  !tickets/.claims/' && echo "$out" | grep -qxF '  !tickets/.claims/*' &&
+    [ "$(echo "$out" | grep -cF '.gitignore:1:.*')" -eq 1 ]; then
+    pass "ignored path: the refusal names the rule once and prints the allowlist lines"
+else
+    fail "ignored path: rule or allowlist lines missing (rc=$rc: $out)"
+fi
+echo "$out" | sed -n 's/^  \(!.*\)$/\1/p' >> "$RUL/.gitignore"
+if (cd "$RUL" && "$ERG_ABS" migrate --claims tickets >/dev/null 2>&1) && [ -f "$RUL/tickets/.claims/0001" ] &&
+    [ -z "$(cd "$RUL" && git check-ignore tickets/.claims/0001 tickets/.claims/.keep)" ]; then
+    pass "ignored path: appending the printed lines makes migrate succeed"
+else
+    fail "ignored path: the printed lines did not un-ignore the claims ($(cat "$RUL/.gitignore"))"
+fi
+# Nested rule: the lines are relative to tickets/.gitignore, which they go in.
+NST="$TDIR/nst"
+git init -q "$NST"
+plain_ticket "$NST/tickets" 0001-one
+printf '.claims/\n' > "$NST/tickets/.gitignore"
+out=$(cd "$NST" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -qF "tickets/.gitignore:1:.claims/" &&
+    echo "$out" | grep -qxF '  !.claims/' && echo "$out" | grep -qxF '  !.claims/*'; then
+    pass "ignored path: a nested rule gets allowlist lines relative to its own file"
+else
+    fail "ignored path: nested rule (rc=$rc: $out)"
+fi
+echo "$out" | sed -n 's/^  \(!.*\)$/\1/p' >> "$NST/tickets/.gitignore"
+if (cd "$NST" && "$ERG_ABS" migrate --claims tickets >/dev/null 2>&1); then
+    pass "ignored path: the nested allowlist lines make migrate succeed"
+else
+    fail "ignored path: the nested allowlist lines did not suffice ($(cat "$NST/tickets/.gitignore"))"
+fi
+# An absolute source (.git/info/exclude): its patterns are relative to the
+# repository top, and so are the printed lines.
+IEX="$TDIR/iex"
+git init -q "$IEX"
+plain_ticket "$IEX/tickets" 0001-one
+printf 'tickets/.claims/\n' >> "$IEX/.git/info/exclude"
+out=$(cd "$IEX/tickets" && "$ERG_ABS" migrate --claims . 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -qF "info/exclude:" && echo "$out" | grep -qxF '  !tickets/.claims/'; then
+    pass "ignored path: an info/exclude rule gets lines relative to the repository top"
+else
+    fail "ignored path: info/exclude rule (rc=$rc: $out)"
+fi
+echo "$out" | sed -n 's/^  \(!.*\)$/\1/p' >> "$IEX/.git/info/exclude"
+if (cd "$IEX/tickets" && "$ERG_ABS" migrate --claims . >/dev/null 2>&1); then
+    pass "ignored path: the info/exclude allowlist lines make migrate succeed"
+else
+    fail "ignored path: the info/exclude lines did not suffice ($(cat "$IEX/.git/info/exclude"))"
+fi
+# A rule that ignores the store directory itself cannot be undone by the
+# claim lines alone (git never re-includes a file under an excluded
+# directory): the refusal says so.
+PAR="$TDIR/par"
+git init -q "$PAR"
+plain_ticket "$PAR/tickets" 0001-one
+printf 'tickets/\n' > "$PAR/.gitignore"
+out=$(cd "$PAR" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -qF "git ignores the store directory tickets (rule .gitignore:1:tickets/, on it or a directory above it)"; then
+    pass "ignored path: an ignored store directory is named, not just the claim lines"
+else
+    fail "ignored path: ignored store directory not named (rc=$rc: $out)"
+fi
+# A path matched only by a negation is not ignored (check-ignore -v prints
+# the negation and exits 0): no refusal.
+NEG="$TDIR/neg"
+git init -q "$NEG"
+printf '!tickets/.claims/*\n' > "$NEG/.gitignore"
+claim_store "$NEG/tickets"
+if (cd "$NEG" && "$ERG_ABS" new "negated" tickets >/dev/null 2>&1); then
+    pass "ignored path: a negation-only match is not an ignore"
+else
+    fail "ignored path: a negation-only match was refused ($(cd "$NEG" && "$ERG_ABS" new "negated" tickets 2>&1))"
+fi
+
+# --- write verbs warn about unclaimed tickets, hook or no hook ---
+# A hand-made 0009 has no claim: new, close, rm and archive each name it on
+# stderr and still do their job; a fully claimed store is silent (control).
+WRN="$TDIR/wrn"
+for t in 0001-one 0002-two 0003-three; do plain_ticket "$WRN" "$t"; done
+claim_store "$WRN"
+quiet=""
+for verb in "close 0001 done" "archive" "rm 0002" "new fresh"; do
+    # shellcheck disable=SC2086
+    err=$("$ERG_ABS" $verb "$WRN" 2>&1 >/dev/null) || quiet="$quiet [$verb failed]"
+    echo "$err" | grep -q "without a claim" && quiet="$quiet [$verb: $err]"
+done
+if [ -z "$quiet" ]; then
+    pass "write verbs: silent in a fully claimed store (control)"
+else
+    fail "write verbs: warned or failed in a claimed store:$quiet"
+fi
+plain_ticket "$WRN" 0009-hand-made
+plain_ticket "$WRN" 0005-five
+loud=""
+for verb in "close 0003 done" "archive" "rm 0005" "new another"; do
+    # shellcheck disable=SC2086
+    err=$("$ERG_ABS" $verb "$WRN" 2>&1 >/dev/null) || loud="$loud [$verb failed: $err]"
+    echo "$err" | grep "without a claim" | grep -qF "0009-hand-made.erg" || loud="$loud [$verb silent: $err]"
+done
+if [ -z "$loud" ] && [ -f "$WRN/closed/0003-three.erg" ] && [ ! -e "$WRN/0005-five.erg" ]; then
+    pass "write verbs: new, close, rm and archive name the unclaimed ticket and still succeed"
+else
+    fail "write verbs: no warning or a refusal:$loud"
+fi
+# A FILE path inside closed/ names the store root, not closed/, in the
+# warning: no false "has no .claims/" and no stray closed/.claims/ advised.
+err=$( { "$ERG_ABS" close "$WRN/closed/0003-three.erg" again; "$ERG_ABS" rm "$WRN/closed/0003-three.erg"; } 2>&1 >/dev/null) || true
+if ! echo "$err" | grep -qF "has no .claims/" && echo "$err" | grep -qF "run: erg migrate --claims $WRN" &&
+    [ ! -e "$WRN/closed/0003-three.erg" ] && [ ! -e "$WRN/closed/.claims" ]; then
+    pass "write verbs: a FILE path inside closed/ warns about the store root"
+else
+    fail "write verbs: FILE path inside closed/ ($err)"
+fi
+NOC="$TDIR/noc"
+plain_ticket "$NOC" 0001-one
+err=$("$ERG_ABS" close 0001 done "$NOC" 2>&1 >/dev/null) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] && [ -f "$NOC/closed/0001-one.erg" ] && echo "$err" | grep -qF "run: erg migrate --claims $NOC"; then
+    pass "write verbs: without .claims/, close proceeds and prints the migrate command"
+else
+    fail "write verbs: without .claims/ (rc=$rc: $err)"
+fi
+
+# --- migrate --claims prechecks: every blocker in one run, nothing written ---
+# Two shared numbers (0002, 0004) and a root rule ignoring every dot path:
+# exit-code-only would be tautological (the 0306 binary exits 1 here too), so
+# the test reads every blocker off stderr and checks .claims/ was not created.
+PRE="$TDIR/pre"
+git init -q "$PRE"
+printf '.*\n!.gitignore\n' > "$PRE/.gitignore"
+plain_ticket "$PRE/tickets" 0001-alone
+plain_ticket "$PRE/tickets" 0002-left
+plain_ticket "$PRE/tickets" 0002-right
+plain_ticket "$PRE/tickets" 0003-other
+plain_ticket "$PRE/tickets" 0004-open
+plain_ticket "$PRE/tickets" 0004-shut 2026-11-08 closed
+out=$(cd "$PRE" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
+missing=""
+for want in tickets/0002-left.erg tickets/0002-right.erg tickets/0004-open.erg tickets/closed/0004-shut.erg \
+    "tickets/.claims/" "nothing written"; do
+    echo "$out" | grep -qF "$want" || missing="$missing [$want]"
+done
+if [ "$rc" -eq 1 ] && [ -z "$missing" ] && [ ! -e "$PRE/tickets/.claims" ]; then
+    pass "migrate --claims precheck: both shared pairs and the ignored path reported in one run; no .claims/ created"
+else
+    fail "migrate --claims precheck: rc=$rc, missing$missing, .claims exists: $([ -e "$PRE/tickets/.claims" ] && echo yes || echo no) ($out)"
+fi
+# A claim migrate cannot fix (another ticket's slug) is a blocker too, and a
+# partial claim left by an interrupted write names its safe recovery.
+FIX="$TDIR/fix"
+git init -q "$FIX"
+plain_ticket "$FIX/tickets" 0001-mine
+plain_ticket "$FIX/tickets" 0002-ours
+plain_ticket "$FIX/tickets" 0003-new
+mkdir -p "$FIX/tickets/.claims"
+echo "theirs 0123abcd" > "$FIX/tickets/.claims/0001"
+printf 'ours' > "$FIX/tickets/.claims/0002"
+out=$(cd "$FIX" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -qF 'names slug "theirs", not "mine"' &&
+    echo "$out" | grep -qF "rm tickets/.claims/0002" && [ ! -e "$FIX/tickets/.claims/0003" ]; then
+    pass "migrate --claims precheck: a foreign claim and a partial claim block, with the recovery; nothing written"
+else
+    fail "migrate --claims precheck: foreign/partial claim not reported, or 0003 written (rc=$rc: $out)"
+fi
+rm "$FIX/tickets/.claims/0002"
+echo "mine 0123abcd" > "$FIX/tickets/.claims/0001"
+out=$(cd "$FIX" && "$ERG_ABS" migrate --claims tickets 2>&1) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] && echo "$out" | grep -qF "claims: 2 written, 1 already present" &&
+    echo "$out" | grep -qF "erg install --hooks"; then
+    pass "migrate --claims: repairs a compliant store's unclaimed tickets; the success line names the hook step"
+else
+    fail "migrate --claims: repair run (rc=$rc: $out)"
+fi
+
+# --- erg init: creates .claims/ in an empty store; refuses a populated one ---
 NEWP="$TDIR/newp"
 mkdir -p "$NEWP/tickets"
 cp "$ERG_ABS" "$NEWP/tickets/erg"
@@ -359,12 +641,40 @@ cp "$ERG_ABS" "$NEWP/tickets/erg"
 OLDP="$TDIR/oldp"
 mkdir -p "$OLDP/tickets"
 cp "$ERG_ABS" "$OLDP/tickets/erg"
-"$ERG_ABS" new "existing" "$OLDP/tickets" >/dev/null 2>&1
-"$ERG_ABS" init "$OLDP" >/dev/null 2>&1 || true
-if [ -f "$NEWP/tickets/.claims/.keep" ] && [ ! -e "$OLDP/tickets/.claims" ]; then
-    pass "erg init: creates .claims/.keep in an empty store, not in one with tickets"
+plain_ticket "$OLDP/tickets" 0001-existing
+out=$(cd "$OLDP" && "$ERG_ABS" init 2>&1) && rc=0 || rc=$?
+if [ -f "$NEWP/tickets/.claims/.keep" ]; then
+    pass "erg init: creates .claims/.keep in an empty store"
 else
-    fail "erg init: .claims/ creation wrong (new: $(ls -A "$NEWP/tickets"), old: $(ls -A "$OLDP/tickets"))"
+    fail "erg init: no .claims/.keep in an empty store ($(ls -A "$NEWP/tickets"))"
+fi
+if [ "$rc" -eq 1 ] && [ ! -e "$OLDP/tickets/.claims" ] && [ -f "$OLDP/tickets/AGENTS.md" ] &&
+    echo "$out" | grep -qF "run: erg migrate --claims tickets"; then
+    pass "erg init: a populated store without .claims/ gets its assets, then exit 1 naming migrate"
+else
+    fail "erg init: populated store without .claims/ (rc=$rc, assets: $(ls -A "$OLDP/tickets"): $out)"
+fi
+
+# --- two branches migrate one base: the claims are identical, no conflict ---
+# A migration claim's nonce is derived from the ticket (number, slug,
+# Created), so the same base migrated twice writes the same bytes.
+TWO="$TDIR/two"
+git init -q "$TWO"
+plain_ticket "$TWO/tickets" 0001-first
+plain_ticket "$TWO/tickets" 0002-second
+plain_ticket "$TWO/tickets" 0003-third 2026-11-07 closed
+(cd "$TWO" && git add tickets && git commit -q -m base &&
+    git checkout -q -b x && "$ERG_ABS" migrate --claims tickets >/dev/null 2>&1 &&
+    git add tickets && git commit -q -m "migrate on x" &&
+    git checkout -q -b y main && "$ERG_ABS" migrate --claims tickets >/dev/null 2>&1 &&
+    git add tickets && git commit -q -m "migrate on y" && git checkout -q x)
+if (cd "$TWO" && git merge -q --no-edit y >/dev/null 2>&1) &&
+    [ -z "$(cd "$TWO" && git diff x@{1} HEAD -- tickets/.claims)" ] &&
+    [ -f "$TWO/tickets/.claims/0003" ]; then
+    pass "two independent migrations of one base merge clean, claims identical"
+else
+    fail "two independent migrations of one base conflict ($(cd "$TWO" && git status --porcelain | tr '\n' ' '))"
+    (cd "$TWO" && git merge --abort 2>/dev/null) || true
 fi
 
 echo ""

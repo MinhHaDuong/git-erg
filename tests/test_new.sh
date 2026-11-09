@@ -9,6 +9,10 @@ FAIL=0
 pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
 fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1"; }
 
+# Claims are required (ticket 0307): every store below is made compliant with
+# plain files first, so each case fails for its own defect.
+. "$(dirname "$0")/claims_fixture.sh"
+
 TDIR=$(mktemp -d)
 WDIR=
 cleanup() {
@@ -20,6 +24,7 @@ trap cleanup EXIT
 echo "=== erg new ==="
 
 # --- Basic creation: correct filename emitted ---
+claim_store "$TDIR/basic"
 RAW=$($ERG new "Add branch-as-claim to the ready filter" "$TDIR/basic")
 if echo "$RAW" | grep -q "^CREATED "; then pass "erg new output starts with CREATED"; else fail "erg new output starts with CREATED (got: $RAW)"; fi
 OUT=$(echo "$RAW" | sed 's/^CREATED //')
@@ -57,6 +62,7 @@ else
     fail "rule 14: erg new creates no file on rejection (found: $(ls -A "$TDIR/r14"))"
 fi
 # Mid-title status word is still allowed.
+claim_store "$TDIR/r14ok"
 if $ERG new "respect the open flag mid title" "$TDIR/r14ok" >/dev/null 2>&1; then
     pass "rule 14: erg new allows mid-title status word"
 else
@@ -72,6 +78,7 @@ else
 fi
 
 # --- Slug: special chars and uppercase collapsed to kebab ---
+claim_store "$TDIR/slug"
 OUT3=$($ERG new "My TICKET: with special—chars & more!" "$TDIR/slug" | sed 's/^CREATED //')
 if echo "$OUT3" | grep -q "^0001-my-ticket-with-special-chars-more\.erg$"; then
     pass "slug: special chars collapsed to kebab"
@@ -81,6 +88,7 @@ fi
 
 # --- Slug: long title truncated to 40 chars ---
 LONG="this is a very long title that exceeds forty characters definitely"
+claim_store "$TDIR/truncate"
 OUT4=$($ERG new "$LONG" "$TDIR/truncate" | sed 's/^CREATED //')
 SLUG=$(echo "$OUT4" | sed 's/^0001-//' | sed 's/\.erg$//')
 if [ "${#SLUG}" -le 40 ]; then
@@ -105,20 +113,21 @@ fi
 
 # --- File creation error handling ---
 # Test the adjacent error path: erg new exits non-zero when the target
-# directory is not writable.
+# directory is not writable. The store is compliant and readable (555), so
+# the refusal is the ticket write's, not a missing or unreadable .claims/.
 if [ "$(id -u)" -eq 0 ]; then
     # chmod-based write protection is a no-op for root; this path can only be
     # exercised as an unprivileged user.
     echo "  SKIP (root): erg new exits non-zero on unwritable dir"
 else
-    mkdir -p "$TDIR/dupe"
-    chmod 000 "$TDIR/dupe"
-    if $ERG new "dupe test" "$TDIR/dupe" 2>/dev/null; then
-        chmod 755 "$TDIR/dupe"
-        fail "file creation error: erg new exits non-zero on unwritable dir"
-    else
-        chmod 755 "$TDIR/dupe"
+    claim_store "$TDIR/dupe"
+    chmod 555 "$TDIR/dupe"
+    out=$($ERG new "dupe test" "$TDIR/dupe" 2>&1) && rc=0 || rc=$?
+    chmod 755 "$TDIR/dupe"
+    if [ "$rc" -ne 0 ] && echo "$out" | grep -qF "cannot create $TDIR/dupe/"; then
         pass "file creation error: erg new exits non-zero on unwritable dir"
+    else
+        fail "file creation error: erg new exits non-zero on unwritable dir (rc=$rc: $out)"
     fi
 fi
 
@@ -128,17 +137,17 @@ fi
 ERG_ABS=$(cd "$(dirname "$ERG")" && pwd)/$(basename "$ERG")
 WDIR=$(mktemp -d)
 mkdir "$WDIR/tickets"
+claim_store "$WDIR/tickets"
 (cd "$WDIR" && "$ERG_ABS" new "Default dir test" > /dev/null 2>&1)
 if ls "$WDIR/tickets/"*.erg 2>/dev/null | grep -q .; then
     pass "default dir: ticket file created in tickets/ subdirectory"
 else
     fail "default dir: no ticket file found in tickets/ subdirectory"
 fi
-find "$WDIR" -type f -delete
-rmdir "$WDIR/tickets" "$WDIR"
+find "$WDIR" -delete
 
 # ERG_AUTHOR: Author header and log line use the override
-mkdir -p "$TDIR/authtest"
+claim_store "$TDIR/authtest"
 RAW_A=$(ERG_AUTHOR=testuser $ERG new "author override test" "$TDIR/authtest")
 FNAME_A=$(echo "$RAW_A" | sed 's/^CREATED //')
 FILE_A="$TDIR/authtest/$FNAME_A"
@@ -151,6 +160,7 @@ fi
 # --- Sequential negative control: N=10 distinct titles produce distinct IDs ---
 # Proves the concurrent assertions below are not vacuously true.
 SEQDIR=$(mktemp -d)
+claim_store "$SEQDIR"
 seq_fail=0
 for i in 1 2 3 4 5 6 7 8 9 10; do
     $ERG new "Sequential ticket number $i" "$SEQDIR" >/dev/null 2>&1 || seq_fail=1
@@ -166,20 +176,18 @@ if [ "$seq_fail" -eq 0 ]; then
 else
     fail "sequential N=10: one or more erg new invocations failed"
 fi
-find "$SEQDIR" -type f -delete 2>/dev/null || true
-rmdir "$SEQDIR" 2>/dev/null || true
+find "$SEQDIR" -delete 2>/dev/null || true
 
 # --- Concurrent N=10: parallel erg new with distinct titles produces distinct IDs ---
 # Uses a named pipe barrier to start all workers simultaneously.
 # CDIR is outside the repo so nextID Pass 2/3 (sibling worktrees/branches) does
-# not inject existing IDs and break the assertions. It runs on both kinds of
-# store (ticket 0306): with .claims/, the exclusive create of the claim keeps
-# racing workers apart; without it, the glob post-check does (a release that
-# dropped it gave all 10 workers one number).
+# not inject existing IDs and break the assertions. In a claims store (every
+# store, ticket 0307) the exclusive create of the claim keeps racing workers
+# apart; a store without .claims/ refuses every worker and gains nothing.
 concurrent_n10() {
     mode=$1
     CDIR=$(mktemp -d)
-    [ "$mode" = claims ] && mkdir "$CDIR/.claims"
+    [ "$mode" = claims ] && claim_store "$CDIR"
     OUTDIR=$(mktemp -d)
     BARRIER="$OUTDIR/barrier"
     mkfifo "$BARRIER"
@@ -188,7 +196,7 @@ concurrent_n10() {
     for i in 1 2 3 4 5 6 7 8 9 10; do
         (
             read -r _ < "$BARRIER" 2>/dev/null || true
-            $ERG new "Concurrent worker title $i" "$CDIR" > "$OUTDIR/out.$i" 2>/dev/null
+            $ERG new "Concurrent worker title $i" "$CDIR" > "$OUTDIR/out.$i" 2> "$OUTDIR/err.$i"
         ) &
     done
 
@@ -201,13 +209,29 @@ concurrent_n10() {
 
     rm -f "$BARRIER"
 
-    # Count how many workers produced a CREATED line.
+    # Count how many workers produced a CREATED line, and how many were
+    # refused for the missing .claims/.
     concurrent_created=0
+    concurrent_refused=0
     for i in 1 2 3 4 5 6 7 8 9 10; do
         if grep -q "^CREATED " "$OUTDIR/out.$i" 2>/dev/null; then
             concurrent_created=$((concurrent_created + 1))
         fi
+        if grep -qF "has no .claims/: ID claims are required -- run: erg migrate --claims $CDIR" "$OUTDIR/err.$i" 2>/dev/null; then
+            concurrent_refused=$((concurrent_refused + 1))
+        fi
     done
+    CTOTAL=$(ls "$CDIR"/*.erg 2>/dev/null | wc -l)
+
+    if [ "$mode" = no-claims ]; then
+        if [ "$concurrent_refused" -eq 10 ] && [ "$CTOTAL" -eq 0 ] && [ ! -e "$CDIR/.claims" ]; then
+            pass "concurrent N=10 (no .claims/): all 10 workers refused, naming the repair; nothing written"
+        else
+            fail "concurrent N=10 (no .claims/): refused=$concurrent_refused files=$CTOTAL, want 10 refusals and no file"
+        fi
+        rm -rf "$CDIR" "$OUTDIR"
+        return 0
+    fi
 
     if [ "$concurrent_created" -eq 10 ]; then
         pass "concurrent N=10 ($mode): all 10 workers produced CREATED"
@@ -220,20 +244,15 @@ concurrent_n10() {
     if [ "$CUNIQ" -eq 10 ]; then
         pass "concurrent N=10 ($mode): all 10 NNNN prefixes are distinct"
     else
-        CTOTAL=$(ls "$CDIR"/*.erg 2>/dev/null | wc -l)
         fail "concurrent N=10 ($mode): expected 10 distinct IDs, got $CUNIQ unique out of $CTOTAL files"
     fi
 
-    if [ "$mode" = claims ]; then
-        # Every worker's number is claimed exactly once.
-        CCLAIMS=$(ls "$CDIR/.claims" 2>/dev/null | wc -l)
-        if [ "$CCLAIMS" -eq 10 ]; then
-            pass "concurrent N=10 ($mode): 10 claims, one per ticket"
-        else
-            fail "concurrent N=10 ($mode): expected 10 claims, got $CCLAIMS"
-        fi
-    elif [ -e "$CDIR/.claims" ]; then
-        fail "concurrent N=10 ($mode): a claims-off store gained .claims/"
+    # Every worker's number is claimed exactly once.
+    CCLAIMS=$(ls "$CDIR/.claims" 2>/dev/null | wc -l)
+    if [ "$CCLAIMS" -eq 10 ]; then
+        pass "concurrent N=10 ($mode): 10 claims, one per ticket"
+    else
+        fail "concurrent N=10 ($mode): expected 10 claims, got $CCLAIMS"
     fi
 
     # erg check must pass on the resulting store.
@@ -249,7 +268,7 @@ concurrent_n10 claims
 concurrent_n10 no-claims
 
 # --- --author flag: explicit author header ---
-mkdir -p "$TDIR/flagauth"
+claim_store "$TDIR/flagauth"
 RAW_F=$($ERG new "flag author test" "$TDIR/flagauth" --author alice)
 FNAME_F=$(echo "$RAW_F" | sed 's/^CREATED //')
 FILE_F="$TDIR/flagauth/$FNAME_F"
@@ -260,7 +279,7 @@ else
 fi
 
 # --- -a shorthand ---
-mkdir -p "$TDIR/shortauth"
+claim_store "$TDIR/shortauth"
 RAW_S=$($ERG new "short auth test" "$TDIR/shortauth" -a bob)
 FNAME_S=$(echo "$RAW_S" | sed 's/^CREATED //')
 FILE_S="$TDIR/shortauth/$FNAME_S"
@@ -271,7 +290,7 @@ else
 fi
 
 # --- --author=value form ---
-mkdir -p "$TDIR/eqauth"
+claim_store "$TDIR/eqauth"
 RAW_E=$($ERG new "eq auth test" "$TDIR/eqauth" --author=carol)
 FNAME_E=$(echo "$RAW_E" | sed 's/^CREATED //')
 FILE_E="$TDIR/eqauth/$FNAME_E"
@@ -282,7 +301,7 @@ else
 fi
 
 # --- --author overrides ERG_AUTHOR env var ---
-mkdir -p "$TDIR/overrideauth"
+claim_store "$TDIR/overrideauth"
 RAW_O=$(ERG_AUTHOR=env-author $ERG new "override auth test" "$TDIR/overrideauth" --author flag-author)
 FNAME_O=$(echo "$RAW_O" | sed 's/^CREATED //')
 FILE_O="$TDIR/overrideauth/$FNAME_O"

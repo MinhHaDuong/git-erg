@@ -42,8 +42,11 @@ and exits 0. A ticket that is closed by path but still missing the header gets
 the header (and REASON) written, so a supplied reason is never silently
 dropped. Step 3 (Blocked-by removal) is also idempotent.
 
-The ticket's claim (DIR/.claims/NNNN, when claims are on -- see 'erg new') is
-left in place: claims are never deleted, so the number stays used.
+The ticket's claim (DIR/.claims/NNNN, see 'erg new') is left in place:
+claims are never deleted, so the number stays used. close then warns on
+stderr about the store's tickets that have no claim (at most five named),
+or, in a store without .claims/, prints 'erg migrate --claims DIR'; the
+warning never changes the outcome.
 `
 
 // cmdClose implements `erg close ID|FILE REASON [DIR]`. See helpClose for the user-facing summary.
@@ -99,12 +102,18 @@ func cmdClose(args []string) int {
 			fmt.Fprintf(os.Stderr, "close: %v\n", err)
 			return 1
 		}
+		// After the outcome, whatever it is: the store's unclaimed tickets
+		// (ticket 0307).
+		defer warnUnclaimed("close", ticketDir)
 	} else {
 		ticketDir, err = resolveDir(explicit)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "close: %v\n", err)
 			return 1
 		}
+		// After the outcome, whatever it is: the store's unclaimed tickets
+		// (ticket 0307).
+		defer warnUnclaimed("close", ticketDir)
 		ticketPath, err = resolveTicketByID(ticketDir, idOrFile)
 		if err != nil {
 			// Fall back to closed/: once a ticket is archived there, a
