@@ -11,7 +11,7 @@
 #   make check-store Gate the ticket store with erg check (local store-shape guard)
 #   make unit-test  Run Go unit tests with coverage report
 #   make test-scaling  Empirical 4x-ladder scaling guard (slow; not in `test`)
-#   make docs       Generate docs/erg-manual.md from erg --help --all
+#   make docs       Generate design/erg-manual.md from erg --help --all
 #   make validate   Validate tickets in tickets/
 #   make ready      List ready tickets
 #   make install-erg-binary              Install erg to ~/.local/bin
@@ -162,8 +162,8 @@ install-erg-binary:
 	@echo "erg installed to $(HOME)/.local/bin/erg"
 
 docs: build
-	mkdir -p docs
-	$(ERG_BIN) --help --all > docs/erg-manual.md
+	mkdir -p design
+	$(ERG_BIN) --help --all > design/erg-manual.md
 
 clean:
 	rm -rf build

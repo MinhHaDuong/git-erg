@@ -38,7 +38,7 @@ var osExecutable = os.Executable
 // manualPreamble is the header printed by `erg --help --all` before the
 // per-command sections. The %s placeholder receives the literal string
 // "Generated from: erg" -- no build stamp is embedded so the committed
-// docs/erg-manual.md is stable across machines and CI rebuilds. Runtime
+// design/erg-manual.md is stable across machines and CI rebuilds. Runtime
 // build metadata is available via `erg version`.
 const manualPreamble = `# erg manual
 
@@ -219,9 +219,9 @@ func main() {
 	// erg --help --all  OR  erg --help=all  -> print all command help
 	if cmd == "--help=all" || (cmd == "--help" || cmd == "-h") && len(rest) > 0 && rest[0] == "--all" {
 		// "Generated from: erg" -- no build stamp embedded in the manual.
-		// The committed docs/erg-manual.md is the same on every machine; the
+		// The committed design/erg-manual.md is the same on every machine; the
 		// running binary self-reports build/rev via `erg version`. Including
-		// the stamp here would otherwise churn docs/erg-manual.md on every
+		// the stamp here would otherwise churn design/erg-manual.md on every
 		// local `make docs` because the CI bake-in lags the squash-merge SHA.
 		fmt.Printf(manualPreamble, "Generated from: erg")
 		for _, c := range commands {

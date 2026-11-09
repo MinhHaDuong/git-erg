@@ -327,5 +327,5 @@ puis 4a->4b->4c->4d (versionnage, transverse), 1 (cosmetique) a tout moment.
   cible regen doit reproduire la copie deployee.
 - 7 : `erg-github verify` teste en echec (PR sans close) ET succes ; degradation
   testee (`gh` absent) ; hook pre-push archive end-to-end.
-- ASCII-only sous `src/go/` (test d'encodage CI) ; ce document `docs/` peut
+- ASCII-only sous `src/go/` (test d'encodage CI) ; ce document `design/` peut
   rester en UTF-8.

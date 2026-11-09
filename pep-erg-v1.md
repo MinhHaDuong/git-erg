@@ -315,7 +315,7 @@ The other levels raise efficiency and file referencing issues -- the idea is to 
 - **Discoverability:** An agent dropped into a new repo runs `ls`. It sees
   `tickets/`. Done. The directory name is the documentation. Hidden
   directories (`.ergs/`, `.claude/tickets/`) require prior knowledge.
-- **Interoperability:** Root-level project directories (`docs/`, `scripts/`,
+- **Interoperability:** Root-level project directories (`design/`, `scripts/`,
   `tests/`, `hooks/`) are a universal convention. `tickets/` fits the
   pattern. Any agent framework, CI script, or human finds it the same way.
 - **Ergonomics:** Tools co-located with data (`tickets/tools/` next to
@@ -420,7 +420,7 @@ many repos, run in hooks/CI), which is why the reproducible-build + signed-tag
 controls (ticket 0151) are obligatory rather than precautionary. The full
 trade-off analysis — including the vendor-and-rebuild alternative that would
 shed the class at the cost of requiring Go — is in
-`docs/audit-infrastructure-class.md`.
+`design/audit-infrastructure-class.md`.
 
 **Single-threaded by design.** Corpus scans (`check`, `list`, `ready`) run
 sequentially, not across goroutines. The work is I/O-bound, not CPU-bound, and

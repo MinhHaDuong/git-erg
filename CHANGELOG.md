@@ -6,7 +6,7 @@ cites its ticket and merged PR.
 
 ## [Unreleased] -- erg-imagine-charter implementation (2026-06-02 .. 2026-06-03)
 
-Implements `docs/erg-imagine-charter.md`: erg core stays offline and
+Implements `design/erg-imagine-charter.md`: erg core stays offline and
 forge-blind, a committed `erg-github` script carries the GitHub layer, dpkg-style
 versioning is added for the embedded assets, and ticket autoclose is enforced by
 a required CI check rather than a bot. Sixteen PRs (#239-#254), each gated
@@ -164,7 +164,7 @@ through `/verify`.
   `*.go` only. The embedded assets (`*.md`, `.ergrc`) stay strictly ASCII, and
   every other non-ASCII byte (em-dash, bidi-override, homoglyph) is still
   rejected, so the Trojan-Source surface (CVE-2021-42574) is not reopened.
-  Documented in `docs/threat-model.md`, with negative controls. (0167, 0217 -- #253)
+  Documented in `design/threat-model.md`, with negative controls. (0167, 0217 -- #253)
 
 ### Internal
 - Planning ticket 0204 seeded the 10-ticket execution set from the charter

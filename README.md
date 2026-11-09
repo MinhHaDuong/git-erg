@@ -251,7 +251,7 @@ tickets/erg ready
 Add `Blocked-by:` lines to a ticket header to encode dependencies; `tickets/erg
 close ID REASON` clears them from dependents automatically (otherwise you edit
 the lines out by hand). Full semantics: `erg close --help` or
-`docs/erg-manual.md`.
+`design/erg-manual.md`.
 
 ## Syncing
 
@@ -269,7 +269,7 @@ or rebuild the native system `erg` from the same reviewed git-erg revision,
 then run `erg init`). Commit `tickets/.claims/` with the refreshed docs; each
 clone then pulls and runs `erg install --hooks` once (after the migration: the
 hooks reject commits in an unmigrated store). Details: `erg sync --help` or
-`docs/erg-manual.md`.
+`design/erg-manual.md`.
 
 ## Binary policy
 
@@ -289,7 +289,7 @@ hooks reject commits in an unmigrated store). Details: `erg sync --help` or
 Both are caches of the source in `src/go/` — the authoritative artifact, which
 lives in git-erg and is never copied into the projects that use erg. The committed
 binary exists for boxes where Go is unavailable and the text-files path isn't
-enough. Rationale: `docs/audit-infrastructure-class.md`. Rebuild/refresh mechanics:
+enough. Rationale: `design/audit-infrastructure-class.md`. Rebuild/refresh mechanics:
 [`CONTRIBUTING.md`](CONTRIBUTING.md). Verification: below.
 
 `erg version` reports which role the running binary is (`role: traveling` for a
@@ -339,8 +339,8 @@ make verify     # rebuilds tickets/erg from src/go/ and diffs it — expect: ver
 Reviewable source beats an opaque blob. Needs Go, but no trust in the committed binary or the maintainer.
 
 The full threat model — what we defend, against whom, and the repeatable check — is in
-[`docs/threat-model.md`](docs/threat-model.md) and
-[`docs/red-team-checklist.md`](docs/red-team-checklist.md).
+[`design/threat-model.md`](design/threat-model.md) and
+[`design/red-team-checklist.md`](design/red-team-checklist.md).
 
 ## License
 

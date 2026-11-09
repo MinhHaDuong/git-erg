@@ -1,0 +1,22 @@
+%erg 0.1
+Title: Rename docs/ to design/
+Created: 2026-11-09
+Author: MinhHaDuong
+
+--- log ---
+2026-11-09T12:33Z MinhHaDuong created
+
+--- body ---
+## Context
+The author, 2026-11-09: "That docs/ should be design/." In the harness's conventions `docs/` is a git-ignored
+staging folder for reading material (lair's zotero trigger scans it), while git-erg's `docs/` holds tracked
+design records, audits and the generated manual; the trigger misfired on it at today's lair.
+
+## Exit criteria
+- [x] `git mv docs design`; every live reference (README, AGENTS.md, CHANGELOG, the PEP, process docs, the
+      Makefile `docs` target, tests, demo.sh, three comments in `src/go/main.go`) names `design/`.
+- [x] `make check` passes.
+
+## Pin
+The `src/go/main.go` comments make CI rebuild the binary with a new revision stamp, which moves the
+claims-rollout pin off 6a104262. The author, 2026-11-09: "Bite the bullet, move the pin."

@@ -1,16 +1,16 @@
 #!/bin/sh
-# docs/demo.sh — the README "10-second, zero-install" demo, recordable.
+# design/demo.sh — the README "10-second, zero-install" demo, recordable.
 #
 # Runs the zero-install ticket demo in a throwaway temp dir (never touches your
 # repo) and cleans up after. It "types" each command, pauses briefly, then runs
 # it — so a screen recorder captures a readable session.
 #
 # Record it:
-#   asciinema rec -c "sh docs/demo.sh" demo.cast      # produces an asciinema cast
-#   agg demo.cast docs/demo.gif                        # cast -> gif (asciinema/agg)
+#   asciinema rec -c "sh design/demo.sh" demo.cast      # produces an asciinema cast
+#   agg demo.cast design/demo.gif                        # cast -> gif (asciinema/agg)
 #
 # Or just run it to sanity-check the demo still works:
-#   sh docs/demo.sh
+#   sh design/demo.sh
 #
 # Pure POSIX sh; the only "dependency" is the tools the demo is selling
 # (mkdir, cat, ls, grep). No erg binary, no network, no Go.
