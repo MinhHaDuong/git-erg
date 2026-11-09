@@ -289,6 +289,9 @@ path, since the claim would then never be committed; the refusal names the
 ignoring rule (file:line:pattern) and the exact lines to append to that file. new refuses, writing
 nothing, in a store without .claims/; the message names the repair:
 'erg migrate --claims DIR'. new never creates the store: 'erg init' does.
+After creating, new warns on stderr about the store's other tickets that
+have no claim (at most five named), as close, rm and archive do; the warning
+never changes the outcome.
 
 The new file contains the required preamble headers (Title, Created, Author),
 an empty log section with a "created" entry, and an empty body section.
@@ -333,7 +336,10 @@ the header (and REASON) written, so a supplied reason is never silently
 dropped. Step 3 (Blocked-by removal) is also idempotent.
 
 The ticket's claim (DIR/.claims/NNNN, see 'erg new') is left in place:
-claims are never deleted, so the number stays used.
+claims are never deleted, so the number stays used. close then warns on
+stderr about the store's tickets that have no claim (at most five named),
+or, in a store without .claims/, prints 'erg migrate --claims DIR'; the
+warning never changes the outcome.
 
 ## erg log ID LINE [DIR] [--author NAME]
 
@@ -415,8 +421,11 @@ held open by a Blocked-by ref, then exits 0. This is the read-only listing the
 pre-push hook (erg install --push-hook) uses to warn about closed-but-
 unarchived tickets without mutating the working tree.
 
-Claims (DIR/.claims/NNNN, see 'erg new') are not moved: they sit at the store
-root and name the ticket by number and slug, which archiving does not change.
+Claims (DIR/.claims/NNNN, see 'erg new') are not moved: they sit at the
+store root and name the ticket by number and slug, which archiving does not
+change. archive then warns on stderr about the store's tickets that have no
+claim (at most five named), or, in a store without .claims/, prints
+'erg migrate --claims DIR'; the warning never changes the outcome.
 
 ## erg rm ID|FILE [DIR] [--force]
 
@@ -445,7 +454,10 @@ A non-existent or ambiguous ID is reported with the usual resolver error.
 
 The ticket's claim (DIR/.claims/NNNN, see 'erg new') is left in place:
 claims are never deleted, so the removed ticket's number stays used and
-'erg new' never hands it out again.
+'erg new' never hands it out again. rm then warns on stderr about the
+store's tickets that have no claim (at most five named), or, in a store
+without .claims/, prints 'erg migrate --claims DIR'; the warning never
+changes the outcome.
 
 ## erg migrate [DIR] [--claims]
 

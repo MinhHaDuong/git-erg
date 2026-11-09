@@ -437,6 +437,45 @@ else
     fail "ignored path: a negation-only match was refused ($(cd "$NEG" && "$ERG_ABS" new "negated" tickets 2>&1))"
 fi
 
+# --- write verbs warn about unclaimed tickets, hook or no hook ---
+# A hand-made 0009 has no claim: new, close, rm and archive each name it on
+# stderr and still do their job; a fully claimed store is silent (control).
+WRN="$TDIR/wrn"
+for t in 0001-one 0002-two 0003-three; do plain_ticket "$WRN" "$t"; done
+claim_store "$WRN"
+quiet=""
+for verb in "close 0001 done" "archive" "rm 0002" "new fresh"; do
+    # shellcheck disable=SC2086
+    err=$("$ERG_ABS" $verb "$WRN" 2>&1 >/dev/null) || quiet="$quiet [$verb failed]"
+    echo "$err" | grep -q "without a claim" && quiet="$quiet [$verb: $err]"
+done
+if [ -z "$quiet" ]; then
+    pass "write verbs: silent in a fully claimed store (control)"
+else
+    fail "write verbs: warned or failed in a claimed store:$quiet"
+fi
+plain_ticket "$WRN" 0009-hand-made
+plain_ticket "$WRN" 0005-five
+loud=""
+for verb in "close 0003 done" "archive" "rm 0005" "new another"; do
+    # shellcheck disable=SC2086
+    err=$("$ERG_ABS" $verb "$WRN" 2>&1 >/dev/null) || loud="$loud [$verb failed: $err]"
+    echo "$err" | grep "without a claim" | grep -qF "0009-hand-made.erg" || loud="$loud [$verb silent: $err]"
+done
+if [ -z "$loud" ] && [ -f "$WRN/closed/0003-three.erg" ] && [ ! -e "$WRN/0005-five.erg" ]; then
+    pass "write verbs: new, close, rm and archive name the unclaimed ticket and still succeed"
+else
+    fail "write verbs: no warning or a refusal:$loud"
+fi
+NOC="$TDIR/noc"
+plain_ticket "$NOC" 0001-one
+err=$("$ERG_ABS" close 0001 done "$NOC" 2>&1 >/dev/null) && rc=0 || rc=$?
+if [ "$rc" -eq 0 ] && [ -f "$NOC/closed/0001-one.erg" ] && echo "$err" | grep -qF "run: erg migrate --claims $NOC"; then
+    pass "write verbs: without .claims/, close proceeds and prints the migrate command"
+else
+    fail "write verbs: without .claims/ (rc=$rc: $err)"
+fi
+
 # --- migrate --claims prechecks: every blocker in one run, nothing written ---
 # Two shared numbers (0002, 0004) and a root rule ignoring every dot path:
 # exit-code-only would be tautological (the 0306 binary exits 1 here too), so

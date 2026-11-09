@@ -81,6 +81,9 @@ path, since the claim would then never be committed; the refusal names the
 ignoring rule (file:line:pattern) and the exact lines to append to that file. new refuses, writing
 nothing, in a store without .claims/; the message names the repair:
 'erg migrate --claims DIR'. new never creates the store: 'erg init' does.
+After creating, new warns on stderr about the store's other tickets that
+have no claim (at most five named), as close, rm and archive do; the warning
+never changes the outcome.
 
 The new file contains the required preamble headers (Title, Created, Author),
 an empty log section with a "created" entry, and an empty body section.
@@ -236,6 +239,7 @@ func cmdNew(args []string) int {
 		cwd, _ := os.Getwd()
 		fmt.Fprintf(os.Stderr, "new: stage both files: git add %s %s\n",
 			displayPath(cwd, path), displayPath(cwd, filepath.Join(claimsDir(ticketDir), id)))
+		warnUnclaimed("new", ticketDir)
 		return 0
 	}
 
