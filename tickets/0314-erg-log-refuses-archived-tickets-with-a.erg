@@ -1,0 +1,52 @@
+%erg 0.1
+Title: erg log refuses archived tickets with a misleading 'no ticket found'
+Created: 2026-11-11
+Author: MinhHaDuong
+
+--- log ---
+2026-11-11T10:56Z MinhHaDuong created
+
+--- body ---
+## Context
+
+Incident reported from climate-finance-het (raid of 2026-11-11). After a PR
+closed ticket 0303 there, the raid had to append a review bump to it (`note
+verify-reroll — round 1: …`). `erg close 0303` had already moved the file to
+`tickets/closed/` (the follow-up `erg archive 0303` answered "no ticket
+found"), and then:
+
+    $ tickets/erg log 0303 "note verify-reroll — …" tickets
+    log: no ticket found for ID 0303 in tickets
+
+The note could not be recorded on the ticket. The harness forbids hand-written
+log lines, so the fact went to a journal and the review notes instead of the
+ticket's own log.
+
+Observed in the source, cause not yet confirmed by a test:
+`src/go/log.go:98` resolves through `resolveTicketByID`
+(`src/go/main.go:180`), which globs `<dir>/<id>-*.erg` only and never looks in
+`<dir>/closed/`. So the refusal looks like a side effect of lookup scope, not
+a deliberate policy, and the message says "not found" for a ticket that
+exists.
+
+## Why it matters
+
+Closed tickets legitimately receive log lines: review bumps, post-merge notes,
+reopening rationale, cross-project hand-offs. The barrier pushes agents
+toward hand edits of an append-only log, or toward dropping the fact.
+
+## Stance (author, 2026-11-11)
+
+The block is an unnecessary barrier. Minimum now: make the behaviour explicit,
+either resolve the ID in `closed/` as well, or refuse with a message that
+names the archived file and how to proceed. **If the block recurs, consider
+changing the stance to "accept and warn"**: append to the archived ticket and
+print a one-line warning that the ticket is closed, rather than refusing.
+
+## Exit criteria
+- [ ] `erg log <id>` on an archived ticket either appends (accept-and-warn) or
+      refuses with a message naming `closed/<file>`, never "no ticket found"
+- [ ] The choice and its reason are recorded in this ticket's log
+- [ ] A test covers `erg log` on a ticket under `closed/`
+- [ ] Other commands sharing `resolveTicketByID` (e.g. `show`) are checked
+      for the same blind spot and listed
