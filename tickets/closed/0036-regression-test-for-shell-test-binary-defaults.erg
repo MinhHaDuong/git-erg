@@ -9,6 +9,7 @@ Blocked-by: 0035
 2026-05-04T19:26Z claude created — class-shape follow-up from celebrate sweep: prevent default-binary regression in future test scripts
 2026-05-04T23:00Z claude reimagined — lint guard already exists in _test-lint; only documentation missing
 2026-05-04T23:01Z claude status closed — documentation added, all exit criteria met
+2026-11-26T08:07Z MinhHaDuong note recovered historical entry from stash 9829763205b01c6eaf9f55cfcca088f6cd520b6a before pruning; original: 2026-05-04T20:38Z claude closed — completed — _test-lint regression check live in Makefile, runs in make test
 
 --- body ---
 ## Context
