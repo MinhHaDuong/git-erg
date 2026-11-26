@@ -10,6 +10,8 @@ Closed: merged
 2026-05-04T22:30Z claude action-3-dropped — parseLogTimestamp does not exist in codebase; archive_test.go not created; no coverage gap
 
 2026-05-04T20:35Z claude closed — merged
+2026-11-26T08:07Z MinhHaDuong note recovered historical entry from stash 7b8ba328e187a9212f5cca5076fd0b9d52680689 before pruning; original: 2026-05-04T22:30Z claude bump verify-reroll — round 1: ticket Action 3 dropped without log entry / exit criterion says three files but PR delivers two
+
 --- body ---
 ## Context
 
