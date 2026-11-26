@@ -2,6 +2,7 @@
 Title: erg log refuses archived tickets with a misleading 'no ticket found'
 Created: 2026-11-11
 Author: MinhHaDuong
+Closed: autoclosed — PR #410
 
 --- log ---
 2026-11-11T10:56Z MinhHaDuong created
@@ -9,6 +10,7 @@ Author: MinhHaDuong
 2026-11-26T06:57Z MinhHaDuong note raid Plan: cmdLog-only resolution across root and closed/; first test proves archived append and warning with lossless existing content; test ambiguous IDs and missing IDs. No shared resolver policy change. Caller audit: label, unlabel, rm ID, archive ID are root-only; close has archived fallback; show absent.
 2026-11-26T06:57Z MinhHaDuong note raid feasibility PASS: log.go cmdLog, main.go resolveTicketByID, writeTicketAtomic and appendLogLine verified; no new dependency or cross-ticket conflict. Tautology scan: assert stored bytes and warning path, not only success output.
 2026-11-26T07:00Z MinhHaDuong note accept-and-warn chosen because post-closure review notes belong in the archived log; cmdLog now uniquely resolves root and closed/ and refuses duplicates before writes. RED reproduced archived not-found and cross-location write; focused tests now GREEN, preserving existing bytes. Caller audit: label, unlabel, rm ID, archive ID remain root-only; close already falls back to closed/; show command absent.
+2026-11-26T07:06Z MinhHaDuong closed — autoclosed — PR #410
 
 --- body ---
 ## Context
