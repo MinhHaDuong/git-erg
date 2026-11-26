@@ -218,3 +218,82 @@ func TestCmdLog_WrittenLineValidates(t *testing.T) {
 		t.Errorf("cmdLog wrote a line its own validator rejects: %q", line)
 	}
 }
+
+func TestCmdLog_ArchivedLossless(t *testing.T) {
+	dir := t.TempDir()
+	closed := filepath.Join(dir, "closed")
+	if err := os.Mkdir(closed, 0755); err != nil {
+		t.Fatal(err)
+	}
+	name := "7314-archived.erg"
+	original := strings.Replace(logTicket, "Author: claude", "Author: claude\nClosed: 2026-01-02", 1)
+	original += "Body tail with trailing spaces.  \n"
+	writeTestTicket(t, closed, name, original)
+	pinAuthor(t, "testuser")
+	var rc int
+	stdout, stderr := captureOutput(t, func() { rc = cmdLog([]string{"7314", "note after closure", dir}) })
+	if rc != 0 {
+		t.Fatalf("archived log returned %d, stderr: %s", rc, stderr)
+	}
+	if stdout != "LOGGED\n" || !strings.Contains(stderr, "warning") || !strings.Contains(stderr, filepath.Join("closed", name)) {
+		t.Errorf("stdout=%q stderr=%q", stdout, stderr)
+	}
+	data, err := os.ReadFile(filepath.Join(closed, name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	added := lastLogLine(t, closed, name)
+	if !strings.HasSuffix(added, " testuser note after closure") {
+		t.Fatalf("unexpected added entry: %q", added)
+	}
+	if restored := strings.Replace(string(data), added+"\n", "", 1); restored != original {
+		t.Errorf("existing ticket bytes changed: %q", restored)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "closed" {
+		t.Errorf("unexpected root entries: %v", entries)
+	}
+}
+
+func TestCmdLog_AmbiguousAndMissing(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		paths      []string
+		diagnostic string
+	}{
+		{"root duplicates", []string{"7315-a.erg", "7315-b.erg"}, "ambiguous"},
+		{"archive duplicates", []string{"closed/7315-a.erg", "closed/7315-b.erg"}, "ambiguous"},
+		{"across locations", []string{"7315-a.erg", "closed/7315-b.erg"}, "ambiguous"},
+		{"missing", nil, "no ticket found"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.Mkdir(filepath.Join(dir, "closed"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			for _, path := range tc.paths {
+				writeTestTicket(t, filepath.Dir(filepath.Join(dir, path)), filepath.Base(path), logTicket)
+			}
+			var rc int
+			stdout, stderr := captureOutput(t, func() { rc = cmdLog([]string{"7315", "note must refuse", dir}) })
+			if rc == 0 || stdout != "" || !strings.Contains(stderr, tc.diagnostic) {
+				t.Errorf("rc=%d stdout=%q stderr=%q", rc, stdout, stderr)
+			}
+			for _, path := range tc.paths {
+				data, err := os.ReadFile(filepath.Join(dir, path))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if string(data) != logTicket {
+					t.Errorf("refusal changed %s", path)
+				}
+				if !strings.Contains(stderr, filepath.Join(dir, path)) {
+					t.Errorf("diagnostic omitted %s: %s", path, stderr)
+				}
+			}
+		})
+	}
+}
