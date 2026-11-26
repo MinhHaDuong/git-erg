@@ -5,6 +5,7 @@ Author: MinhHaDuong
 
 --- log ---
 2026-11-11T10:56Z MinhHaDuong created
+2026-11-26T06:57Z MinhHaDuong note raid Imagine: premise confirmed on origin/main; unique archived tickets will accept and warn. Blind-spot finding: refuse duplicate IDs across root and closed/ without writes; exit criteria unchanged.
 
 --- body ---
 ## Context
