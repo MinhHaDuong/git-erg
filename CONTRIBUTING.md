@@ -38,8 +38,10 @@ releasing); `make test` must never modify it.
 - One change per commit; the message explains *why this change and not
   another*.
 - Open one merge request per ticket. Put a `**Ticket:**
-  tickets/NNNN-...erg` line in the body so the ticket auto-closes on merge
+  tickets/NNNN-...erg` line in the body so the merge workflow can resolve it
   (`tickets/closed/NNNN-...erg` also resolves, for a ticket archived in the PR).
+  Close the ticket on the PR branch with `erg close ID REASON` before gating;
+  closing also archives it. The claim alone does not close the ticket.
 
 ## Adding a subcommand
 
