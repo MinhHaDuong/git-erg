@@ -345,7 +345,9 @@ warning never changes the outcome.
 
 Append a timestamped entry to a ticket's log section.
 
-Resolves the ticket by 4-digit ID in DIR (default: auto-discovered tickets/), then
+Resolves a unique ticket by 4-digit ID across DIR and DIR/closed/ (default:
+auto-discovered tickets/). Archived tickets accept entries with a warning naming
+the file; duplicate IDs across either location are refused without writing. Then
 prepends the current UTC timestamp (YYYY-MM-DDThh:mmZ) AND the resolved author to
 LINE, and inserts the resulting line at the end of the log entry run, before
 the blank line that terminates it ahead of the `--- body ---` separator.

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -14,7 +15,9 @@ const helpLog = `## erg log ID LINE [DIR] [--author NAME]
 
 Append a timestamped entry to a ticket's log section.
 
-Resolves the ticket by 4-digit ID in DIR (default: auto-discovered tickets/), then
+Resolves a unique ticket by 4-digit ID across DIR and DIR/closed/ (default:
+auto-discovered tickets/). Archived tickets accept entries with a warning naming
+the file; duplicate IDs across either location are refused without writing. Then
 prepends the current UTC timestamp (YYYY-MM-DDThh:mmZ) AND the resolved author to
 LINE, and inserts the resulting line at the end of the log entry run, before
 the blank line that terminates it ahead of the ` + "`--- body ---`" + ` separator.
@@ -95,7 +98,7 @@ func cmdLog(args []string) int {
 		return 1
 	}
 
-	ticketPath, err := resolveTicketByID(ticketDir, id)
+	ticketPath, err := resolveLogTicketByID(ticketDir, id)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "log: %v\n", err)
 		return 1
@@ -158,6 +161,30 @@ func cmdLog(args []string) int {
 		return 1
 	}
 
+	if filepath.Dir(ticketPath) == filepath.Join(ticketDir, "closed") {
+		fmt.Fprintf(os.Stderr, "log: warning: appended to archived ticket %s\n", ticketPath)
+	}
+
 	fmt.Println("LOGGED")
 	return 0
+}
+
+// resolveLogTicketByID keeps archived mutation policy local to log. Collect all
+// matches before choosing a file so a duplicate never silently selects a target.
+func resolveLogTicketByID(dir, id string) (string, error) {
+	var matches []string
+	for _, location := range []string{dir, filepath.Join(dir, "closed")} {
+		found, err := filepath.Glob(filepath.Join(location, id+"-*.erg"))
+		if err != nil {
+			return "", fmt.Errorf("cannot resolve ID %s: %w", id, err)
+		}
+		matches = append(matches, found...)
+	}
+	if len(matches) == 0 {
+		return "", fmt.Errorf("no ticket found for ID %s in %s or %s", id, dir, filepath.Join(dir, "closed"))
+	}
+	if len(matches) > 1 {
+		return "", fmt.Errorf("ambiguous ID %s -- matches: %s", id, strings.Join(matches, ", "))
+	}
+	return matches[0], nil
 }

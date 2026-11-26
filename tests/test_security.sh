@@ -99,22 +99,22 @@ for cmd in close log rm; do
     fi
 done
 
-# Negative controls: a real ID in the store works for each. Recreate the fixture
-# before each because close/rm mutate or remove it.
+# Negative controls use distinct IDs: close archives its fixture, and log
+# correctly refuses an ID duplicated across the root and archive.
 write_open "$WS/9001-real.erg" "Real"
 if $ERG close 9001 reason "$WS" >/dev/null 2>&1; then
     pass "traversal neg ctrl: close on a real fixture ID succeeds"
 else
     fail "traversal neg ctrl: close on a real fixture ID should succeed"
 fi
-write_open "$WS/9001-real.erg" "Real"
-if $ERG log 9001 "claude note ok" "$WS" >/dev/null 2>&1; then
+write_open "$WS/9002-real.erg" "Real"
+if $ERG log 9002 "claude note ok" "$WS" >/dev/null 2>&1; then
     pass "traversal neg ctrl: log on a real fixture ID succeeds"
 else
     fail "traversal neg ctrl: log on a real fixture ID should succeed"
 fi
-write_open "$WS/9001-real.erg" "Real"
-if $ERG rm 9001 "$WS" >/dev/null 2>&1 && [ ! -f "$WS/9001-real.erg" ]; then
+write_open "$WS/9003-real.erg" "Real"
+if $ERG rm 9003 "$WS" >/dev/null 2>&1 && [ ! -f "$WS/9003-real.erg" ]; then
     pass "traversal neg ctrl: rm on a real fixture ID deletes it"
 else
     fail "traversal neg ctrl: rm on a real fixture ID should delete it"
